@@ -1408,19 +1408,9 @@ impl TabScanControl {
                     })
                 };
 
-                // IzzyRisk column with state machine rendering
-                let risk_color = if risk_score >= 80 {
-                    egui::Color32::from_rgb(211, 47, 47)
-                } else if risk_score >= 50 {
-                    egui::Color32::from_rgb(255, 152, 0)
-                } else if risk_score >= 20 {
-                    egui::Color32::from_rgb(255, 193, 7)
-                } else {
-                    egui::Color32::from_rgb(56, 142, 60)
-                };
-
+                // IzzyRisk column
                 let row_builder = row_builder.widget_cell(move |ui: &mut egui::Ui| {
-                    ui.label(egui::RichText::new(&izzyrisk).color(risk_color));
+                    ui.label(&izzyrisk);
                 });
 
                 // VirusTotal column with state machine rendering
