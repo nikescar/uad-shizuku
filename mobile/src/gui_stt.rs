@@ -12,6 +12,13 @@ use egui_material3::menu::{Corner, FocusState, Positioning};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+/// State machine for renderer lifecycle management
+#[derive(Default)]
+pub struct RendererStateMachine {
+    /// Whether the renderer is currently enabled
+    pub is_enabled: bool,
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct LogSettings {
     pub show_logs: bool,
@@ -113,6 +120,21 @@ pub struct UadShizukuApp {
     pub system_fonts: Vec<(String, String)>,
     pub system_fonts_loaded: bool,
     pub selected_font_display: String,
+
+    // Renderer state machines
+    pub google_play_renderer: RendererStateMachine,
+    pub fdroid_renderer: RendererStateMachine,
+    pub apkmirror_renderer: RendererStateMachine,
+
+    // Background worker queues for fetching app data
+    pub google_play_queue: Option<std::sync::Arc<crate::calc_googleplay::GooglePlayQueue>>,
+    pub fdroid_queue: Option<std::sync::Arc<crate::calc_fdroid::FDroidQueue>>,
+    pub apkmirror_queue: Option<std::sync::Arc<crate::calc_apkmirror::ApkMirrorQueue>>,
+
+    // Package loading state
+    pub package_loading_thread: Option<std::thread::JoinHandle<(Vec<crate::adb::PackageFingerprint>, Option<UadNgLists>)>>,
+    pub package_loading_dialog_open: bool,
+    pub package_loading_status: String,
 }
 
 pub enum AppView {

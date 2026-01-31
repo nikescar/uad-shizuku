@@ -9,8 +9,44 @@ use crate::gui::UadNgLists;
 use crate::models::{ApkMirrorApp, FDroidApp, GooglePlayApp};
 use crate::win_package_details_dialog::PackageDetailsDialog;
 use eframe::egui;
+use egui_async::Bind;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
+
+/// State machine for scan operations
+/// Uses egui-async Bind pattern for tracking async operation state
+#[derive(Default)]
+pub struct ScanStateMachine {
+    /// Progress value (0.0 - 1.0) for batch scans
+    pub progress: Option<f32>,
+    /// Whether scan is currently running
+    pub is_running: bool,
+    /// Whether scan was cancelled
+    pub is_cancelled: bool,
+}
+
+impl ScanStateMachine {
+    pub fn start(&mut self) {
+        self.is_running = true;
+        self.is_cancelled = false;
+        self.progress = Some(0.0);
+    }
+
+    pub fn cancel(&mut self) {
+        self.is_cancelled = true;
+        self.is_running = false;
+        self.progress = None;
+    }
+
+    pub fn complete(&mut self) {
+        self.is_running = false;
+        self.progress = None;
+    }
+
+    pub fn update_progress(&mut self, value: f32) {
+        self.progress = Some(value);
+    }
+}
 
 pub struct TabScanControl {
     pub open: bool,
@@ -21,6 +57,8 @@ pub struct TabScanControl {
     pub selected_packages: Vec<bool>,
     // Risk score cache: package_name -> risk_score
     pub package_risk_scores: HashMap<String, i32>,
+    // Bind for IzzyRisk calculation (calculates all scores asynchronously)
+    pub izzyrisk_bind: Bind<HashMap<String, i32>, String>,
     // Package details dialog
     pub package_details_dialog: PackageDetailsDialog,
     // VirusTotal scanner state
@@ -30,6 +68,8 @@ pub struct TabScanControl {
     // Package paths cache for faster scanning (path, sha256 hash)
     pub vt_package_paths_cache:
         Option<std::sync::Arc<std::sync::Mutex<HashMap<String, Vec<(String, String)>>>>>,
+    // VirusTotal scan state machine
+    pub vt_scan_state: ScanStateMachine,
     // Hybrid Analysis scanner state
     pub ha_scanner_state: Option<HaScannerState>,
     // Shared rate limiter for Hybrid Analysis API
@@ -37,6 +77,8 @@ pub struct TabScanControl {
     // Package paths cache for faster scanning (path, sha256 hash)
     pub ha_package_paths_cache:
         Option<std::sync::Arc<std::sync::Mutex<HashMap<String, Vec<(String, String)>>>>>,
+    // HybridAnalysis scan state machine
+    pub ha_scan_state: ScanStateMachine,
     // Config for API keys and device serial
     pub vt_api_key: Option<String>,
     pub ha_api_key: Option<String>,
@@ -50,7 +92,7 @@ pub struct TabScanControl {
     pub active_vt_filter: VtFilter,
     pub active_ha_filter: HaFilter,
 
-    // Progress for VirusTotal scan background task
+    // Progress for VirusTotal scan background task (for thread communication)
     pub vt_scan_progress: Arc<Mutex<Option<f32>>>,
     // Cancellation flag for VirusTotal scan
     pub vt_scan_cancelled: Arc<Mutex<bool>>,

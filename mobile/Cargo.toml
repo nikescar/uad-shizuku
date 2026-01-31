@@ -31,6 +31,7 @@ serde = { version = "1.0", default-features = false, features = ["derive"], opti
 serde_json = { version = "1.0", features = ["std"], optional = true }
 egui-material3 = { workspace = true }
 egui-i18n = { version = "0.1.2", features = ["fluent"] }
+egui-async = "0.2"
 # downloads dependencies
 which = "8.0.0"
 ehttp = "0.5.0"

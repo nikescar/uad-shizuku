@@ -22,7 +22,7 @@ use crate::db_package_cache::get_cached_packages_with_apk;
 use crate::models::PackageInfoCache;
 use crate::svg_stt::*;
 
-use crate::adb::{get_devices, get_users, usagestats_history, kill_server, root_get_permission, PackageFingerprint, UserInfo};
+use crate::adb::{get_devices, get_users, PackageFingerprint, UserInfo};
 // use crate::android_packagemanager::get_installed_packages;
 use crate::tab_apps_control::TabAppsControl;
 use crate::tab_debloat_control::TabDebloatControl;
@@ -226,6 +226,19 @@ impl Default for UadShizukuApp {
             system_fonts: Vec::new(),
             system_fonts_loaded: false,
             selected_font_display: String::new(),
+
+            // Renderer state machines
+            google_play_renderer: RendererStateMachine::default(),
+            fdroid_renderer: RendererStateMachine::default(),
+            apkmirror_renderer: RendererStateMachine::default(),
+            google_play_queue: None,
+            fdroid_queue: None,
+            apkmirror_queue: None,
+
+            // Package loading state
+            package_loading_thread: None,
+            package_loading_dialog_open: false,
+            package_loading_status: String::new(),
         };
 
         // Apply persisted theme preferences
@@ -630,6 +643,11 @@ impl UadShizukuApp {
         self.show_adb_install_dialog(ui.ctx());
         // === ADB installation dialog end
 
+        // === Package loading dialog
+        self.show_package_loading_dialog(ui.ctx());
+        self.handle_package_loading_result();
+        // === Package loading dialog end
+
         
     }
 
@@ -875,85 +893,53 @@ impl UadShizukuApp {
     fn render_debloat_tab(&mut self, ui: &mut egui::Ui) {
         use crate::tab_debloat_control::AdbResult;
 
-        // Manage Google Play renderer queue based on setting
-        if self.settings.google_play_renderer
-            && !self.tab_debloat_control.google_play_renderer_enabled
-        {
-            // Enable and start worker
-            let db_path = std::env::var("DATABASE_URL").unwrap_or_else(|_| "uad.db".to_string());
-            self.tab_debloat_control
-                .enable_google_play_renderer(db_path);
-        } else if !self.settings.google_play_renderer
-            && self.tab_debloat_control.google_play_renderer_enabled
-        {
-            // Disable and stop worker
-            self.tab_debloat_control.disable_google_play_renderer();
+        // Manage Google Play renderer state machine
+        self.google_play_renderer.is_enabled = self.settings.google_play_renderer;
+
+        // Manage F-Droid renderer state machine
+        self.fdroid_renderer.is_enabled = self.settings.fdroid_renderer;
+
+        // Manage APKMirror renderer state machine
+        self.apkmirror_renderer.is_enabled = self.settings.apkmirror_renderer
+            && !self.settings.apkmirror_email.is_empty();
+
+        // Get renderer enabled flags for UI
+        let google_play_enabled = self.google_play_renderer.is_enabled;
+        let fdroid_enabled = self.fdroid_renderer.is_enabled;
+        let apkmirror_enabled = self.apkmirror_renderer.is_enabled;
+
+        // Initialize and start worker queues if renderers are enabled
+        let db_path = self.config.as_ref().map(|c| c.db_dir.to_string_lossy().to_string()).unwrap_or_default();
+        
+        if google_play_enabled && self.google_play_queue.is_none() {
+            let queue = std::sync::Arc::new(crate::calc_googleplay::GooglePlayQueue::new());
+            queue.start_worker(db_path.clone());
+            self.google_play_queue = Some(queue);
+        }
+        if fdroid_enabled && self.fdroid_queue.is_none() {
+            let queue = std::sync::Arc::new(crate::calc_fdroid::FDroidQueue::new());
+            queue.start_worker(db_path.clone());
+            self.fdroid_queue = Some(queue);
+        }
+        if apkmirror_enabled && self.apkmirror_queue.is_none() {
+            let queue = std::sync::Arc::new(crate::calc_apkmirror::ApkMirrorQueue::new());
+            queue.set_email(self.settings.apkmirror_email.clone());
+            queue.start_worker(db_path.clone());
+            self.apkmirror_queue = Some(queue);
         }
 
-        // Manage F-Droid renderer queue based on setting
-        if self.settings.fdroid_renderer && !self.tab_debloat_control.fdroid_renderer_enabled {
-            // Enable and start worker
-            let db_path = std::env::var("DATABASE_URL").unwrap_or_else(|_| "uad.db".to_string());
-            self.tab_debloat_control.enable_fdroid_renderer(db_path);
-        } else if !self.settings.fdroid_renderer && self.tab_debloat_control.fdroid_renderer_enabled
-        {
-            // Disable and stop worker
-            self.tab_debloat_control.disable_fdroid_renderer();
-        }
+        // Enqueue visible packages for fetching
+        self.enqueue_visible_packages_for_debloat(google_play_enabled, fdroid_enabled, apkmirror_enabled);
 
-        // Manage APKMirror renderer queue based on setting
-        if self.settings.apkmirror_renderer
-            && !self.tab_debloat_control.apkmirror_renderer_enabled
-            && !self.settings.apkmirror_email.is_empty()
-        {
-            // Enable and start worker
-            let db_path = std::env::var("DATABASE_URL").unwrap_or_else(|_| "uad.db".to_string());
-            self.tab_debloat_control
-                .enable_apkmirror_renderer(db_path, self.settings.apkmirror_email.clone());
-        } else if !self.settings.apkmirror_renderer
-            && self.tab_debloat_control.apkmirror_renderer_enabled
-        {
-            // Disable and stop worker
-            self.tab_debloat_control.disable_apkmirror_renderer();
-        } else if self.settings.apkmirror_renderer
-            && self.tab_debloat_control.apkmirror_renderer_enabled
-        {
-            // Update email if it changed
-            self.tab_debloat_control
-                .update_apkmirror_email(self.settings.apkmirror_email.clone());
-        }
+        // Load results from workers and populate caches
+        self.load_renderer_results_to_debloat_cache();
 
-        // Manage APKMirror auto-upload queue based on setting
-        if self.settings.apkmirror_auto_upload
-            && !self.tab_debloat_control.apkmirror_auto_upload_enabled
-            && !self.settings.apkmirror_email.is_empty()
-        {
-            // Enable and start upload worker
-            if let Some(ref config) = self.config {
-                let tmp_dir = config.tmp_dir.to_string_lossy().to_string();
-                self.tab_debloat_control.enable_apkmirror_auto_upload(
-                    self.settings.apkmirror_email.clone(),
-                    self.settings.apkmirror_name.clone(),
-                    tmp_dir,
-                );
-            }
-        } else if !self.settings.apkmirror_auto_upload
-            && self.tab_debloat_control.apkmirror_auto_upload_enabled
-        {
-            // Disable and stop upload worker
-            self.tab_debloat_control.disable_apkmirror_auto_upload();
-        } else if self.settings.apkmirror_auto_upload
-            && self.tab_debloat_control.apkmirror_auto_upload_enabled
-        {
-            // Update credentials if they changed
-            self.tab_debloat_control
-                .update_apkmirror_upload_credentials(
-                    self.settings.apkmirror_email.clone(),
-                    self.settings.apkmirror_name.clone(),
-                );
-        }
-
-        if let Some(result) = self.tab_debloat_control.ui(ui) {
+        if let Some(result) = self.tab_debloat_control.ui(
+            ui,
+            google_play_enabled,
+            fdroid_enabled,
+            apkmirror_enabled,
+        ) {
             match result {
                 AdbResult::Success(_pkg_name) => {
                     // Package already removed in tab_debloat_control
@@ -979,6 +965,167 @@ impl UadShizukuApp {
             &self.tab_debloat_control.cached_fdroid_apps,
             &self.tab_debloat_control.cached_apkmirror_apps,
         );
+    }
+
+    fn enqueue_visible_packages_for_debloat(
+        &mut self,
+        google_play_enabled: bool,
+        fdroid_enabled: bool,
+        apkmirror_enabled: bool,
+    ) {
+        // Separate packages into system and non-system
+        let mut non_system_packages = Vec::new();
+        let mut system_packages = Vec::new();
+
+        for package in &self.tab_debloat_control.installed_packages {
+            if package.flags.contains("SYSTEM") {
+                system_packages.push(package.pkg.clone());
+            } else {
+                non_system_packages.push(package.pkg.clone());
+            }
+        }
+
+        // Enqueue non-system packages for Google Play and F-Droid
+        for pkg_id in non_system_packages {
+            // Skip if already cached
+            if google_play_enabled
+                && !self.tab_debloat_control.cached_google_play_apps.contains_key(&pkg_id)
+            {
+                if let Some(queue) = &self.google_play_queue {
+                    queue.enqueue(pkg_id.clone());
+                }
+            }
+            if fdroid_enabled && !self.tab_debloat_control.cached_fdroid_apps.contains_key(&pkg_id) {
+                if let Some(queue) = &self.fdroid_queue {
+                    queue.enqueue(pkg_id.clone());
+                }
+            }
+        }
+
+        // Enqueue system packages for APKMirror
+        if apkmirror_enabled {
+            for pkg_id in system_packages {
+                if !self.tab_debloat_control.cached_apkmirror_apps.contains_key(&pkg_id) {
+                    if let Some(queue) = &self.apkmirror_queue {
+                        queue.enqueue(pkg_id);
+                    }
+                }
+            }
+        }
+    }
+
+    fn load_renderer_results_to_debloat_cache(&mut self) {
+        // Collect visible packages to check
+        let mut visible_packages = Vec::new();
+        for package in &self.tab_debloat_control.installed_packages {
+            visible_packages.push((package.pkg.clone(), package.flags.contains("SYSTEM")));
+        }
+
+        // Check Google Play results for non-system packages
+        if let Some(queue) = &self.google_play_queue {
+            for (pkg_id, is_system) in &visible_packages {
+                if *is_system || self.tab_debloat_control.cached_google_play_apps.contains_key(pkg_id) {
+                    continue;
+                }
+                if let Some(status) = queue.get_status(pkg_id) {
+                    match status {
+                        crate::calc_googleplay_stt::FetchStatus::Success(app) => {
+                            self.tab_debloat_control.update_cached_google_play(pkg_id.clone(), app);
+                        }
+                        crate::calc_googleplay_stt::FetchStatus::Error(_) => {
+                            // Cache 404 placeholder
+                            use crate::models::GooglePlayApp;
+                            let placeholder = GooglePlayApp {
+                                id: 0,
+                                package_id: pkg_id.clone(),
+                                title: String::new(),
+                                developer: String::new(),
+                                version: None,
+                                icon_base64: None,
+                                score: None,
+                                installs: None,
+                                updated: None,
+                                raw_response: "404".to_string(),
+                                created_at: 0,
+                                updated_at: 0,
+                            };
+                            self.tab_debloat_control.update_cached_google_play(pkg_id.clone(), placeholder);
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        }
+
+        // Check F-Droid results for non-system packages
+        if let Some(queue) = &self.fdroid_queue {
+            for (pkg_id, is_system) in &visible_packages {
+                if *is_system || self.tab_debloat_control.cached_fdroid_apps.contains_key(pkg_id) {
+                    continue;
+                }
+                if let Some(status) = queue.get_status(pkg_id) {
+                    match status {
+                        crate::calc_fdroid_stt::FDroidFetchStatus::Success(app) => {
+                            self.tab_debloat_control.update_cached_fdroid(pkg_id.clone(), app);
+                        }
+                        crate::calc_fdroid_stt::FDroidFetchStatus::Error(_) => {
+                            // Cache 404 placeholder
+                            use crate::models::FDroidApp;
+                            let placeholder = FDroidApp {
+                                id: 0,
+                                package_id: pkg_id.clone(),
+                                title: String::new(),
+                                developer: String::new(),
+                                version: None,
+                                icon_base64: None,
+                                description: None,
+                                license: None,
+                                updated: None,
+                                raw_response: "404".to_string(),
+                                created_at: 0,
+                                updated_at: 0,
+                            };
+                            self.tab_debloat_control.update_cached_fdroid(pkg_id.clone(), placeholder);
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        }
+
+        // Check APKMirror results for system packages
+        if let Some(queue) = &self.apkmirror_queue {
+            for (pkg_id, is_system) in &visible_packages {
+                if !is_system || self.tab_debloat_control.cached_apkmirror_apps.contains_key(pkg_id) {
+                    continue;
+                }
+                if let Some(status) = queue.get_status(pkg_id) {
+                    match status {
+                        crate::calc_apkmirror_stt::ApkMirrorFetchStatus::Success(app) => {
+                            self.tab_debloat_control.update_cached_apkmirror(pkg_id.clone(), app);
+                        }
+                        crate::calc_apkmirror_stt::ApkMirrorFetchStatus::Error(_) => {
+                            // Cache 404 placeholder
+                            use crate::models::ApkMirrorApp;
+                            let placeholder = ApkMirrorApp {
+                                id: 0,
+                                package_id: pkg_id.clone(),
+                                title: String::new(),
+                                developer: String::new(),
+                                version: None,
+                                icon_url: None,
+                                icon_base64: None,
+                                raw_response: "404".to_string(),
+                                created_at: 0,
+                                updated_at: 0,
+                            };
+                            self.tab_debloat_control.update_cached_apkmirror(pkg_id.clone(), placeholder);
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        }
     }
 
     fn render_scan_tab(&mut self, ui: &mut egui::Ui) {
@@ -1138,195 +1285,218 @@ impl UadShizukuApp {
     }
 
     fn retrieve_installed_packages(&mut self) {
-        {
+        // Load uad_ng_lists after struct is constructed
+        self.retrieve_uad_ng_lists();
 
-            // Load uad_ng_lists after struct is constructed
-            self.retrieve_uad_ng_lists();
+        let Some(device) = self.selected_device.clone() else {
+            tracing::debug!("No device selected, skipping package retrieval");
+            return;
+        };
 
+        // Open loading dialog
+        self.package_loading_dialog_open = true;
+        self.package_loading_status = tr!("loading-packages");
+
+        // Clone necessary data for the async task
+        let selected_user = self.selected_user;
+        let debloat_progress = self.package_load_progress.clone();
+        let uad_ng_lists = self.uad_ng_lists.clone();
+
+        // Start background thread
+        let handle = std::thread::spawn(move || {
             use crate::adb::get_all_packages_fingerprints;
             use crate::db_package_cache::upsert_package_info_cache;
 
-            tracing::debug!("Retrieving installed packages...");
-            if let Some(ref device) = self.selected_device {
-                tracing::debug!("Retrieving installed packages for device: {}", device);
+            tracing::debug!("Retrieving installed packages for device: {}", device);
 
-                // Step 1: Get package fingerprints (lightweight)
-                let parsed_packages = match get_all_packages_fingerprints(device) {
-                    Ok(fp) => fp,
-                    Err(e) => {
-                        tracing::error!("Failed to get package fingerprints: {}", e);
-                        self.installed_packages.clear();
-                        self.tab_debloat_control.update_packages(Vec::new());
-                        self.tab_debloat_control.update_uad_ng_lists(UadNgLists {
-                            apps: HashMap::new(),
-                        });
-                        self.tab_scan_control.update_packages(Vec::new());
-                        self.tab_scan_control.update_uad_ng_lists(UadNgLists {
-                            apps: HashMap::new(),
-                        });
-                        self.tab_apps_control.update_packages(Vec::new());
-                        return;
-                    }
-                };
-                tracing::debug!("Retrieved {} package fingerprints", parsed_packages.len());
-
-                // Step 2: load all contents from get_cached_packages_with_apk, db_package_cache
-                let cached_packages: Vec<PackageInfoCache> = get_cached_packages_with_apk(device);
-                tracing::debug!(
-                    "Loaded {} cached packages from database",
-                    cached_packages.len()
-                );
-
-                // Step 3: fill apk path and sha256sum using background worker
-                // Clone data needed for the background thread
-                let parsed_packages_for_thread = parsed_packages.clone();
-                let device_for_thread = device.to_string();
-                let debloat_progress_clone = self.package_load_progress.clone();
-
-                // Initialize debloat_progress
-                if let Ok(mut p) = debloat_progress_clone.lock() {
-                    *p = Some(0.0);
+            // Step 1: Get package fingerprints (lightweight)
+            let parsed_packages = match get_all_packages_fingerprints(&device) {
+                Ok(fp) => fp,
+                Err(e) => {
+                    tracing::error!("Failed to get package fingerprints: {}", e);
+                    return (Vec::new(), None);
                 }
+            };
+            tracing::debug!("Retrieved {} package fingerprints", parsed_packages.len());
 
-                std::thread::spawn(move || {
-                    tracing::info!("fill apk path and sha256sum from all packages -f");
-                    if cached_packages.len() < parsed_packages_for_thread.len() / 2 {
-                        match crate::adb::get_all_packages_sha256sum(&device_for_thread) {
-                            Ok(package_data) => {
-                                tracing::info!(
-                                    "Retrieved sha256 sums for {} packages",
-                                    package_data.len()
-                                );
-                                // Convert Vec<(String, String, String)> to HashMap for easier lookup
-                                let sha256_map: std::collections::HashMap<
-                                    String,
-                                    (String, String),
-                                > = package_data
-                                    .into_iter()
-                                    .map(|(pkg, sha256, path)| (pkg, (sha256, path)))
-                                    .collect();
+            // Step 2: load all contents from get_cached_packages_with_apk, db_package_cache
+            let cached_packages: Vec<PackageInfoCache> = get_cached_packages_with_apk(&device);
+            tracing::debug!(
+                "Loaded {} cached packages from database",
+                cached_packages.len()
+            );
 
-                                let total = parsed_packages_for_thread.len();
-                                for (i, pkg) in parsed_packages_for_thread.iter().enumerate() {
-                                    // Update debloat_progress
-                                    if let Ok(mut p) = debloat_progress_clone.lock() {
-                                        *p = Some(i as f32 / total as f32);
-                                    }
+            // Step 3: fill apk path and sha256sum using background worker
+            let parsed_packages_for_thread = parsed_packages.clone();
+            let device_for_thread = device.to_string();
+            let debloat_progress_clone = debloat_progress.clone();
 
-                                    if let Some((sha256, apk_path)) = sha256_map.get(&pkg.pkg) {
-                                        // insert into db
-                                        match upsert_package_info_cache(
-                                            &pkg.pkg,
-                                            &pkg.pkgChecksum,
-                                            &pkg.dumpText,
-                                            &pkg.codePath,
-                                            pkg.versionCode,
-                                            &pkg.versionName,
-                                            "", // first_install_time - not available from this data
-                                            &pkg.lastUpdateTime,
-                                            Some(apk_path.as_str()),
-                                            Some(sha256.as_str()),
-                                            None, // izzyscore - calculated separately
-                                            &device_for_thread,
-                                        ) {
-                                            Ok(_) => {
-                                                tracing::debug!(
-                                                    "Cached package info for {}: {} ({})",
-                                                    pkg.pkg,
-                                                    sha256,
-                                                    apk_path
-                                                );
-                                            }
-                                            Err(e) => {
-                                                tracing::error!(
-                                                    "Failed to cache package info for {}: {}",
-                                                    pkg.pkg,
-                                                    e
-                                                );
-                                            }
+            // Initialize debloat_progress
+            if let Ok(mut p) = debloat_progress_clone.lock() {
+                *p = Some(0.0);
+            }
+
+            std::thread::spawn(move || {
+                tracing::info!("fill apk path and sha256sum from all packages -f");
+                if cached_packages.len() < parsed_packages_for_thread.len() / 2 {
+                    match crate::adb::get_all_packages_sha256sum(&device_for_thread) {
+                        Ok(package_data) => {
+                            tracing::info!(
+                                "Retrieved sha256 sums for {} packages",
+                                package_data.len()
+                            );
+                            // Convert Vec<(String, String, String)> to HashMap for easier lookup
+                            let sha256_map: std::collections::HashMap<
+                                String,
+                                (String, String),
+                            > = package_data
+                                .into_iter()
+                                .map(|(pkg, sha256, path)| (pkg, (sha256, path)))
+                                .collect();
+
+                            let total = parsed_packages_for_thread.len();
+                            for (i, pkg) in parsed_packages_for_thread.iter().enumerate() {
+                                // Update debloat_progress
+                                if let Ok(mut p) = debloat_progress_clone.lock() {
+                                    *p = Some(i as f32 / total as f32);
+                                }
+
+                                if let Some((sha256, apk_path)) = sha256_map.get(&pkg.pkg) {
+                                    // insert into db
+                                    match upsert_package_info_cache(
+                                        &pkg.pkg,
+                                        &pkg.pkgChecksum,
+                                        &pkg.dumpText,
+                                        &pkg.codePath,
+                                        pkg.versionCode,
+                                        &pkg.versionName,
+                                        "", // first_install_time - not available from this data
+                                        &pkg.lastUpdateTime,
+                                        Some(apk_path.as_str()),
+                                        Some(sha256.as_str()),
+                                        None, // izzyscore - calculated separately
+                                        &device_for_thread,
+                                    ) {
+                                        Ok(_) => {
+                                            tracing::debug!(
+                                                "Cached package info for {}: {} ({})",
+                                                pkg.pkg,
+                                                sha256,
+                                                apk_path
+                                            );
+                                        }
+                                        Err(e) => {
+                                            tracing::error!(
+                                                "Failed to cache package info for {}: {}",
+                                                pkg.pkg,
+                                                e
+                                            );
                                         }
                                     }
                                 }
                             }
-                            Err(e) => {
-                                tracing::error!("Failed to get package sha256 sums: {}", e);
-                            }
+                        }
+                        Err(e) => {
+                            tracing::error!("Failed to get package sha256 sums: {}", e);
                         }
                     }
-                    // Clear progress when done
-                    if let Ok(mut p) = debloat_progress_clone.lock() {
-                        *p = None;
-                    }
-                });
-
-                // use package
-                let mut packages = parsed_packages;
-
-                // Filter packages by selected user if a specific user is selected
-                if let Some(user_id) = self.selected_user {
-                    tracing::debug!("Filtering packages for user: {}", user_id);
-                    packages
-                        .retain(|pkg| pkg.users.iter().any(|u| u.userId == user_id && u.installed));
-                    tracing::debug!(
-                        "Filtered to {} packages for user {}",
-                        packages.len(),
-                        user_id
-                    );
-                } else {
-                    tracing::debug!("Showing all users' packages");
                 }
+                // Clear progress when done
+                if let Ok(mut p) = debloat_progress_clone.lock() {
+                    *p = None;
+                }
+            });
 
-                self.installed_packages = packages.clone();
-                self.tab_debloat_control.update_packages(packages.clone());
-                self.tab_debloat_control
-                    .update_uad_ng_lists(self.uad_ng_lists.clone().unwrap());
-                self.tab_debloat_control
-                    .set_selected_device(self.selected_device.clone());
+            // use package
+            let mut packages = parsed_packages;
 
-                // Update TabScanControl with API key, device serial, and settings
-                self.tab_scan_control.vt_api_key = Some(self.settings.virustotal_apikey.clone());
-                self.tab_scan_control.ha_api_key =
-                    Some(self.settings.hybridanalysis_apikey.clone());
-                self.tab_scan_control.device_serial = self.selected_device.clone();
-                self.tab_scan_control.virustotal_submit_enabled = self.settings.virustotal_submit;
-                self.tab_scan_control.hybridanalysis_submit_enabled =
-                    self.settings.hybridanalysis_submit;
-                tracing::info!(
-                    "Synced hybridanalysis_submit_enabled={} to tab_scan_control",
-                    self.settings.hybridanalysis_submit
+            // Filter packages by selected user if a specific user is selected
+            if let Some(user_id) = selected_user {
+                tracing::debug!("Filtering packages for user: {}", user_id);
+                packages
+                    .retain(|pkg| pkg.users.iter().any(|u| u.userId == user_id && u.installed));
+                tracing::debug!(
+                    "Filtered to {} packages for user {}",
+                    packages.len(),
+                    user_id
                 );
-
-                self.tab_scan_control
-                    .update_packages(self.installed_packages.clone());
-                self.tab_scan_control
-                    .update_uad_ng_lists(self.uad_ng_lists.clone().unwrap());
-
-                // Share cached app info from TabDebloatControl to TabScanControl
-                self.tab_scan_control.update_cached_app_info(
-                    &self.tab_debloat_control.cached_google_play_apps,
-                    &self.tab_debloat_control.cached_fdroid_apps,
-                    &self.tab_debloat_control.cached_apkmirror_apps,
-                );
-                self.tab_apps_control
-                    .update_packages(self.installed_packages.clone());
-                self.tab_apps_control
-                    .set_selected_device(self.selected_device.clone());
-                tracing::debug!("Updated tab controls with packages");
-
-                // Retrieve usage statistics
-                // tracing::debug!("Retrieving usage statistics for device: {}", device);
-                // match usagestats_history(device) {
-                //     Ok(stats) => {
-                //         tracing::debug!("Successfully retrieved usage statistics");
-                //         self.tab_usage_control.update_usage_stats(stats);
-                //     }
-                //     Err(e) => {
-                //         tracing::error!("Failed to get usage statistics: {}", e);
-                //         self.tab_usage_control.update_usage_stats(String::new());
-                //     }
-                // }
             } else {
-                tracing::debug!("No device selected, skipping package retrieval");
+                tracing::debug!("Showing all users' packages");
+            }
+
+            tracing::debug!("Package retrieval complete");
+            (packages, uad_ng_lists)
+        });
+
+        self.package_loading_thread = Some(handle);
+    }
+
+    fn handle_package_loading_result(&mut self) {
+        // Check if thread is complete
+        let should_check = self.package_loading_thread.is_some();
+        if !should_check {
+            return;
+        }
+
+        // Try to take the thread handle and check if it's finished
+        if let Some(handle) = self.package_loading_thread.take() {
+            if handle.is_finished() {
+                // Thread is complete, get the result
+                match handle.join() {
+                    Ok((packages, uad_lists)) => {
+                        // Loading complete, update UI
+                        tracing::debug!("Applying loaded packages to UI");
+                        
+                        self.installed_packages = packages.clone();
+                        self.tab_debloat_control.update_packages(packages.clone());
+                        
+                        if let Some(lists) = uad_lists {
+                            self.tab_debloat_control.update_uad_ng_lists(lists.clone());
+                            self.tab_scan_control.update_uad_ng_lists(lists);
+                        }
+                        
+                        self.tab_debloat_control
+                            .set_selected_device(self.selected_device.clone());
+
+                        // Update TabScanControl with API key, device serial, and settings
+                        self.tab_scan_control.vt_api_key = Some(self.settings.virustotal_apikey.clone());
+                        self.tab_scan_control.ha_api_key =
+                            Some(self.settings.hybridanalysis_apikey.clone());
+                        self.tab_scan_control.device_serial = self.selected_device.clone();
+                        self.tab_scan_control.virustotal_submit_enabled = self.settings.virustotal_submit;
+                        self.tab_scan_control.hybridanalysis_submit_enabled =
+                            self.settings.hybridanalysis_submit;
+                        tracing::info!(
+                            "Synced hybridanalysis_submit_enabled={} to tab_scan_control",
+                            self.settings.hybridanalysis_submit
+                        );
+
+                        self.tab_scan_control
+                            .update_packages(self.installed_packages.clone());
+
+                        // Share cached app info from TabDebloatControl to TabScanControl
+                        self.tab_scan_control.update_cached_app_info(
+                            &self.tab_debloat_control.cached_google_play_apps,
+                            &self.tab_debloat_control.cached_fdroid_apps,
+                            &self.tab_debloat_control.cached_apkmirror_apps,
+                        );
+                        self.tab_apps_control
+                            .update_packages(self.installed_packages.clone());
+                        self.tab_apps_control
+                            .set_selected_device(self.selected_device.clone());
+                        tracing::debug!("Updated tab controls with packages");
+
+                        // Close dialog
+                        self.package_loading_dialog_open = false;
+                    }
+                    Err(e) => {
+                        tracing::error!("Package loading thread panicked: {:?}", e);
+                        self.package_loading_dialog_open = false;
+                    }
+                }
+            } else {
+                // Thread not finished yet, put it back
+                self.package_loading_thread = Some(handle);
             }
         }
     }
@@ -1868,6 +2038,25 @@ impl UadShizukuApp {
         }
     }
 
+    fn show_package_loading_dialog(&mut self, ctx: &egui::Context) {
+        if self.package_loading_dialog_open {
+            dialog(
+                "package_loading_dialog",
+                &tr!("loading-packages"),
+                &mut self.package_loading_dialog_open,
+            )
+            .content(|ui| {
+                ui.vertical_centered(|ui| {
+                    ui.set_max_width(400.0);
+                });
+            })
+            .show(ctx);
+
+            // Request repaint to keep dialog updating
+            ctx.request_repaint();
+        }
+    }
+
     fn show_adb_install_dialog(&mut self, ctx: &egui::Context) {
         // Handle retry request from previous frame
         if ADB_RETRY_REQUESTED.swap(false, Ordering::SeqCst) {
@@ -2125,34 +2314,36 @@ echo "Run 'adb version' to verify installation."
             }
         }
 
-        // Check if Google Play renderer was disabled -> stop crawling
+        // Check if Google Play renderer was disabled -> clear caches
         if old_google_play_renderer && !self.settings.google_play_renderer {
-            tracing::info!("Google Play renderer disabled, stopping crawling");
-            self.tab_debloat_control.disable_google_play_renderer();
+            tracing::info!("Google Play renderer disabled, clearing caches");
+            self.google_play_renderer.is_enabled = false;
+            self.tab_debloat_control.google_play_textures.clear();
             self.tab_scan_control.google_play_renderer_enabled = false;
             self.tab_scan_control.app_textures.clear();
         }
 
-        // Check if F-Droid renderer was disabled -> stop crawling
+        // Check if F-Droid renderer was disabled -> clear caches
         if old_fdroid_renderer && !self.settings.fdroid_renderer {
-            tracing::info!("F-Droid renderer disabled, stopping crawling");
-            self.tab_debloat_control.disable_fdroid_renderer();
+            tracing::info!("F-Droid renderer disabled, clearing caches");
+            self.fdroid_renderer.is_enabled = false;
+            self.tab_debloat_control.fdroid_textures.clear();
             self.tab_scan_control.fdroid_renderer_enabled = false;
             self.tab_scan_control.app_textures.clear();
         }
 
-        // Check if APKMirror renderer was disabled -> stop crawling
+        // Check if APKMirror renderer was disabled -> clear caches
         if old_apkmirror_renderer && !self.settings.apkmirror_renderer {
-            tracing::info!("APKMirror renderer disabled, stopping crawling");
-            self.tab_debloat_control.disable_apkmirror_renderer();
+            tracing::info!("APKMirror renderer disabled, clearing caches");
+            self.apkmirror_renderer.is_enabled = false;
+            self.tab_debloat_control.apkmirror_textures.clear();
             self.tab_scan_control.apkmirror_renderer_enabled = false;
             self.tab_scan_control.app_textures.clear();
         }
 
-        // Check if APKMirror auto upload was disabled -> stop uploading
+        // Check if APKMirror auto upload was disabled
         if old_apkmirror_auto_upload && !self.settings.apkmirror_auto_upload {
-            tracing::info!("APKMirror auto upload disabled, stopping uploads");
-            self.tab_debloat_control.disable_apkmirror_auto_upload();
+            tracing::info!("APKMirror auto upload disabled");
         }
 
         if self.settings_invalidate_cache {
