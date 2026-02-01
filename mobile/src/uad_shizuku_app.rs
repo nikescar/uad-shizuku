@@ -30,10 +30,56 @@ use crate::tab_scan_control::TabScanControl;
 use crate::tab_usage_control::TabUsageControl;
 use crate::LogLevel;
 
-pub use crate::gui_stt::*;
+pub use crate::uad_shizuku_app_stt::*;
 use crate::{Config, Settings};
 
+use eframe::egui::Context;
+use egui_material3::theme::{
+    load_fonts, load_themes, setup_local_fonts, setup_local_fonts_from_bytes, setup_local_theme,
+    update_window_background,
+};
 use std::sync::OnceLock;
+
+/// Initialize common app components (database, i18n).
+/// Call this early in main() before creating the app.
+pub fn init_common() {
+    // Set up database path before initializing anything that uses the database
+    if let Ok(config) = Config::new() {
+        let db_path = config.db_dir.join("uad.db");
+        crate::db::set_db_path(db_path.to_string_lossy().to_string());
+    }
+
+    // Initialize VirusTotal database upsert queue
+    // This must be called AFTER setting the database path
+    crate::db_virustotal::init_upsert_queue();
+
+    // Initialize Hybrid Analysis database upsert queue
+    crate::db_hybridanalysis::init_upsert_queue();
+
+    // Initialize i18n
+    crate::init_i18n();
+}
+
+/// Initialize egui context with fonts, themes, and image loaders.
+/// Call this in the eframe app creation callback.
+pub fn init_egui(ctx: &Context) {
+    setup_local_theme(Some("resources/material-theme.json"));
+    setup_local_fonts_from_bytes("NotoSansKr", include_bytes!("../resources/noto-sans-kr.ttf"));
+    egui_extras::install_image_loaders(ctx);
+    load_fonts(ctx);
+    load_themes();
+    update_window_background(ctx);
+
+    // Restore saved custom font if configured
+    if let Ok(config) = Config::new() {
+        if let Ok(settings) = config.load_settings() {
+            if !settings.font_path.is_empty() {
+                setup_local_fonts(Some(&settings.font_path));
+                load_fonts(ctx);
+            }
+        }
+    }
+}
 
 static LOG_BUFFER: OnceLock<Arc<Mutex<String>>> = OnceLock::new();
 static LOG_SETTINGS: OnceLock<Arc<Mutex<LogSettings>>> = OnceLock::new();
@@ -112,6 +158,8 @@ pub trait View {
 
 impl Default for UadShizukuApp {
     fn default() -> Self {
+        //
+
         // Log basic system info at app start
         tracing::info!("=== System Information ===");
         tracing::info!("OS: {}", std::env::consts::OS);
@@ -2401,5 +2449,13 @@ echo "Run 'adb version' to verify installation."
 impl View for UadShizukuApp {
     fn ui(&mut self, ui: &mut egui::Ui) {
         self.ui(ui);
+    }
+}
+
+impl eframe::App for UadShizukuApp {
+    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        egui::CentralPanel::default().show(ctx, |ui| {
+            self.ui(ui);
+        });
     }
 }

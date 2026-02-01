@@ -53,7 +53,7 @@ where
         };
 
         // Append to global log buffer with level filtering
-        crate::gui::append_log(level_str, log_line);
+        crate::uad_shizuku_app::append_log(level_str, log_line);
     }
 }
 

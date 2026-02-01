@@ -1,5 +1,5 @@
 use crate::adb::PackageFingerprint;
-use crate::gui::UadNgLists;
+use crate::uad_shizuku_app::UadNgLists;
 pub use crate::win_package_details_dialog_stt::*;
 use eframe::egui;
 use egui_material3::MaterialButton;
