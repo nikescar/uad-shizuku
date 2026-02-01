@@ -102,6 +102,7 @@ ha-temp-dir-error = 임시 디렉토리 오류
 ha-wait-hours = { $text } (대기 { $hours }시간{ $mins }분)
 ha-wait-mins = { $text } (대기 { $mins }분)
 ha-wait-less-than-min = { $text } (대기 <1분)
+refresh-scan = 이 패키지 다시 검사
 
 # Usage Tab
 usage-control = 사용량 제어

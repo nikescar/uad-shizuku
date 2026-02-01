@@ -2,6 +2,9 @@ use crate::adb::PackageFingerprint;
 use crate::calc_hybridanalysis::{self};
 use crate::calc_izzyrisk;
 use crate::calc_virustotal::{self};
+use crate::db;
+use crate::db_hybridanalysis;
+use crate::db_virustotal;
 use crate::gui::UadNgLists;
 pub use crate::tab_scan_control_stt::*;
 use crate::win_package_details_dialog::PackageDetailsDialog;
@@ -1675,16 +1678,31 @@ impl TabScanControl {
                 // Tasks column
                 let row_builder = row_builder.widget_cell(move |ui: &mut egui::Ui| {
                     ui.horizontal(|ui| {
-                        let chip = assist_chip("")
-                            .leading_icon_svg(INFO_SVG)
+                        // Refresh chip - delete scan results and re-queue
+                        let refresh_chip = assist_chip("")
+                            .leading_icon_svg(REFRESH_SVG)
                             .elevated(true);
-                        if ui.add(chip.on_click(|| {
-                            tracing::info!("Opening package info dialog");
-                        })).clicked() {
-                            if let Ok(mut clicked) = clicked_idx_clone.lock() {
-                                *clicked = Some(idx);
-                            }
+                        let pkg_name_refresh = package_name_for_buttons.clone();
+                        let refresh_response = ui.add(refresh_chip.on_click(|| {
+                            tracing::info!("Refresh clicked for: {}", pkg_name_refresh);
+                        }));
+                        if refresh_response.clicked() {
+                            ui.data_mut(|data| {
+                                data.insert_temp(egui::Id::new("refresh_clicked_package"), package_name_for_buttons.clone());
+                            });
                         }
+                        refresh_response.on_hover_text(tr!("refresh-scan"));
+
+                        // let chip = assist_chip("")
+                        //     .leading_icon_svg(INFO_SVG)
+                        //     .elevated(true);
+                        // if ui.add(chip.on_click(|| {
+                        //     tracing::info!("Opening package info dialog");
+                        // })).clicked() {
+                        //     if let Ok(mut clicked) = clicked_idx_clone.lock() {
+                        //         *clicked = Some(idx);
+                        //     }
+                        // }
 
                         if enabled_str.contains("DEFAULT") || enabled_str.contains("ENABLED") {
                             let uninstall_chip = assist_chip("")
@@ -1793,6 +1811,7 @@ impl TabScanControl {
         let mut uninstall_is_system: bool = false;
         let mut enable_package: Option<String> = None;
         let mut disable_package: Option<String> = None;
+        let mut refresh_package: Option<String> = None;
 
         ui.data_mut(|data| {
             if let Some(pkg) = data.get_temp::<String>(egui::Id::new("uninstall_clicked_package")) {
@@ -1810,6 +1829,10 @@ impl TabScanControl {
             if let Some(pkg) = data.get_temp::<String>(egui::Id::new("disable_clicked_package")) {
                 disable_package = Some(pkg);
                 data.remove::<String>(egui::Id::new("disable_clicked_package"));
+            }
+            if let Some(pkg) = data.get_temp::<String>(egui::Id::new("refresh_clicked_package")) {
+                refresh_package = Some(pkg);
+                data.remove::<String>(egui::Id::new("refresh_clicked_package"));
             }
         });
 
@@ -1916,6 +1939,154 @@ impl TabScanControl {
                 }
             } else {
                 tracing::error!("No device selected for disable");
+            }
+        }
+
+        // Perform refresh (delete scan results and re-scan)
+        if let Some(pkg_name) = refresh_package {
+            tracing::info!("Refreshing scan results for: {}", pkg_name);
+
+            // Delete from database
+            let mut conn = db::establish_connection();
+            if let Err(e) = db_virustotal::delete_results_by_package(&mut conn, &pkg_name) {
+                tracing::error!("Failed to delete VirusTotal results for {}: {}", pkg_name, e);
+            } else {
+                tracing::info!("Deleted VirusTotal results for: {}", pkg_name);
+            }
+
+            if let Err(e) = db_hybridanalysis::delete_results_by_package(&mut conn, &pkg_name) {
+                tracing::error!("Failed to delete HybridAnalysis results for {}: {}", pkg_name, e);
+            } else {
+                tracing::info!("Deleted HybridAnalysis results for: {}", pkg_name);
+            }
+
+            // Get package info for scanning
+            let package_info = self.installed_packages.iter().find(|p| p.pkg == pkg_name).cloned();
+
+            if let Some(package) = package_info {
+                // Get hashes for the package
+                let device_serial = self.device_serial.clone();
+                let cached_packages = if let Some(ref serial) = device_serial {
+                    crate::db_package_cache::get_cached_packages_with_apk(serial)
+                } else {
+                    vec![]
+                };
+                let cached_pkg = cached_packages.iter().find(|cp| cp.pkg_id == pkg_name);
+
+                let mut paths_str = String::new();
+                let mut sha256sums_str = String::new();
+
+                if let Some(cp) = cached_pkg {
+                    if let (Some(path), Some(sha256)) = (&cp.apk_path, &cp.apk_sha256sum) {
+                        paths_str = path.clone();
+                        sha256sums_str = sha256.clone();
+                    }
+                }
+
+                if paths_str.is_empty() || sha256sums_str.is_empty() {
+                    paths_str = package.codePath.clone();
+                    sha256sums_str = package.pkgChecksum.clone();
+                }
+
+                // Get proper hashes if needed
+                if let Some(ref serial) = device_serial {
+                    let paths: Vec<&str> = paths_str.split(' ').collect();
+                    let sha256sums: Vec<&str> = sha256sums_str.split(' ').collect();
+                    let needs_directory_scan = paths.iter().any(|p| !p.ends_with(".apk"));
+                    let has_invalid_hashes = sha256sums.iter().any(|s| s.len() != 64);
+
+                    if needs_directory_scan || has_invalid_hashes {
+                        if let Ok((new_paths, new_sha256sums)) = crate::adb::get_single_package_sha256sum(serial, &pkg_name) {
+                            if !new_paths.is_empty() && !new_sha256sums.is_empty() {
+                                paths_str = new_paths;
+                                sha256sums_str = new_sha256sums;
+                            }
+                        }
+                    }
+                }
+
+                let final_paths: Vec<&str> = paths_str.split(' ').collect();
+                let final_sha256sums: Vec<&str> = sha256sums_str.split(' ').collect();
+                let hashes: Vec<(String, String)> = final_paths
+                    .iter()
+                    .zip(final_sha256sums.iter())
+                    .filter(|(p, s)| !p.is_empty() && s.len() == 64)
+                    .map(|(p, s)| (p.to_string(), s.to_string()))
+                    .collect();
+
+                // Start VirusTotal scan in background
+                if let (Some(ref vt_state), Some(ref vt_limiter), Some(ref api_key), Some(ref serial)) = (
+                    &self.vt_scanner_state,
+                    &self.vt_rate_limiter,
+                    &self.vt_api_key,
+                    &self.device_serial,
+                ) {
+                    let vt_state_clone = vt_state.clone();
+                    let vt_limiter_clone = vt_limiter.clone();
+                    let api_key_clone = api_key.clone();
+                    let serial_clone = serial.clone();
+                    let pkg_name_clone = pkg_name.clone();
+                    let hashes_clone = hashes.clone();
+                    let vt_submit = self.virustotal_submit_enabled;
+
+                    // Reset state to Pending first
+                    if let Ok(mut state) = vt_state.lock() {
+                        state.insert(pkg_name.clone(), calc_virustotal::ScanStatus::Pending);
+                    }
+
+                    thread::spawn(move || {
+                        tracing::info!("Starting VT re-scan for: {}", pkg_name_clone);
+                        if let Err(e) = calc_virustotal::analyze_package(
+                            &pkg_name_clone,
+                            hashes_clone,
+                            &vt_state_clone,
+                            &vt_limiter_clone,
+                            &api_key_clone,
+                            &serial_clone,
+                            vt_submit,
+                            &None,
+                        ) {
+                            tracing::error!("Error re-scanning VT for {}: {}", pkg_name_clone, e);
+                        }
+                    });
+                }
+
+                // Start HybridAnalysis scan in background
+                if let (Some(ref ha_state), Some(ref ha_limiter), Some(ref api_key), Some(ref serial)) = (
+                    &self.ha_scanner_state,
+                    &self.ha_rate_limiter,
+                    &self.ha_api_key,
+                    &self.device_serial,
+                ) {
+                    let ha_state_clone = ha_state.clone();
+                    let ha_limiter_clone = ha_limiter.clone();
+                    let api_key_clone = api_key.clone();
+                    let serial_clone = serial.clone();
+                    let pkg_name_clone = pkg_name.clone();
+                    let hashes_clone = hashes.clone();
+                    let ha_submit = self.hybridanalysis_submit_enabled;
+
+                    // Reset state to Pending first
+                    if let Ok(mut state) = ha_state.lock() {
+                        state.insert(pkg_name.clone(), calc_hybridanalysis::ScanStatus::Pending);
+                    }
+
+                    thread::spawn(move || {
+                        tracing::info!("Starting HA re-scan for: {}", pkg_name_clone);
+                        if let Err(e) = calc_hybridanalysis::analyze_package(
+                            &pkg_name_clone,
+                            hashes_clone,
+                            &ha_state_clone,
+                            &ha_limiter_clone,
+                            &api_key_clone,
+                            &serial_clone,
+                            ha_submit,
+                            &None,
+                        ) {
+                            tracing::error!("Error re-scanning HA for {}: {}", pkg_name_clone, e);
+                        }
+                    });
+                }
             }
         }
 

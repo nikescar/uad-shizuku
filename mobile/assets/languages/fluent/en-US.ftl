@@ -102,6 +102,7 @@ ha-temp-dir-error = Temp dir error
 ha-wait-hours = { $text } (wait { $hours }h{ $mins }m)
 ha-wait-mins = { $text } (wait { $mins }m)
 ha-wait-less-than-min = { $text } (wait <1m)
+refresh-scan = Re-scan this package
 
 # Usage Tab
 usage-control = Usage Control
