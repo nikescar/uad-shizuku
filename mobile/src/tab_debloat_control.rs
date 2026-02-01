@@ -379,10 +379,13 @@ impl TabDebloatControl {
         // Filter Buttons
         if !self.installed_packages.is_empty() {
             ui.horizontal(|ui| {
+                let show_all_colors = self.active_filter == DebloatFilter::All;
+
                 let all_count = self.installed_packages.len();
                 let all_text = tr!("all", { count: all_count });
                 let button = if self.active_filter == DebloatFilter::All {
                     MaterialButton::filled(&all_text)
+                        .fill(egui::Color32::from_rgb(158, 158, 158))
                 } else {
                     MaterialButton::outlined(&all_text)
                 };
@@ -392,8 +395,9 @@ impl TabDebloatControl {
 
                 let (enabled, total) = self.get_recommended_count();
                 let rec_text = tr!("recommended", { enabled: enabled, total: total });
-                let button = if self.active_filter == DebloatFilter::Recommended {
+                let button = if self.active_filter == DebloatFilter::Recommended || show_all_colors {
                     MaterialButton::filled(&rec_text)
+                        .fill(egui::Color32::from_rgb(56, 142, 60))
                 } else {
                     MaterialButton::outlined(&rec_text)
                 };
@@ -403,8 +407,9 @@ impl TabDebloatControl {
 
                 let (enabled, total) = self.get_advanced_count();
                 let adv_text = tr!("advanced", { enabled: enabled, total: total });
-                let button = if self.active_filter == DebloatFilter::Advanced {
+                let button = if self.active_filter == DebloatFilter::Advanced || show_all_colors {
                     MaterialButton::filled(&adv_text)
+                        .fill(egui::Color32::from_rgb(33, 150, 243))
                 } else {
                     MaterialButton::outlined(&adv_text)
                 };
@@ -414,8 +419,9 @@ impl TabDebloatControl {
 
                 let (enabled, total) = self.get_expert_count();
                 let exp_text = tr!("expert", { enabled: enabled, total: total });
-                let button = if self.active_filter == DebloatFilter::Expert {
+                let button = if self.active_filter == DebloatFilter::Expert || show_all_colors {
                     MaterialButton::filled(&exp_text)
+                        .fill(egui::Color32::from_rgb(255, 152, 0))
                 } else {
                     MaterialButton::outlined(&exp_text)
                 };
@@ -425,8 +431,9 @@ impl TabDebloatControl {
 
                 let (enabled, total) = self.get_unsafe_count();
                 let unsafe_text = tr!("unsafe", { enabled: enabled, total: total });
-                let button = if self.active_filter == DebloatFilter::Unsafe {
+                let button = if self.active_filter == DebloatFilter::Unsafe || show_all_colors {
                     MaterialButton::filled(&unsafe_text)
+                        .fill(egui::Color32::from_rgb(255, 235, 59))
                 } else {
                     MaterialButton::outlined(&unsafe_text)
                 };
@@ -436,8 +443,9 @@ impl TabDebloatControl {
 
                 let (enabled, total) = self.get_unknown_count();
                 let unknown_text = tr!("unknown", { enabled: enabled, total: total });
-                let button = if self.active_filter == DebloatFilter::Unknown {
+                let button = if self.active_filter == DebloatFilter::Unknown || show_all_colors {
                     MaterialButton::filled(&unknown_text)
+                        .fill(egui::Color32::from_rgb(255, 255, 255))
                 } else {
                     MaterialButton::outlined(&unknown_text)
                 };
@@ -466,10 +474,7 @@ impl TabDebloatControl {
 
             if selected_count > 0 {
                 if ui
-                    .add(MaterialButton::filled(&format!(
-                        "Uninstall Selected ({})",
-                        selected_count
-                    )))
+                    .add(MaterialButton::filled(&tr!("uninstall-selected", { count: selected_count })))
                     .clicked()
                 {
                     ui.data_mut(|data| {
@@ -478,10 +483,7 @@ impl TabDebloatControl {
                 }
 
                 if ui
-                    .add(MaterialButton::filled(&format!(
-                        "Disable Selected ({})",
-                        selected_count
-                    )))
+                    .add(MaterialButton::filled(&tr!("disable-selected", { count: selected_count })))
                     .clicked()
                 {
                     ui.data_mut(|data| {
@@ -490,10 +492,7 @@ impl TabDebloatControl {
                 }
 
                 if ui
-                    .add(MaterialButton::filled(&format!(
-                        "Enable Selected ({})",
-                        selected_count
-                    )))
+                    .add(MaterialButton::filled(&tr!("enable-selected", { count: selected_count })))
                     .clicked()
                 {
                     ui.data_mut(|data| {
@@ -749,13 +748,21 @@ impl TabDebloatControl {
                         "Unknown" | "Unsafe" => egui::Color32::from_rgb(0, 0, 0),
                         _ => egui::Color32::WHITE,
                     };
+                    let label_text = match debloat_category_clone.as_str() {
+                        "Recommended" => tr!("label-recommended"),
+                        "Advanced" => tr!("label-advanced"),
+                        "Expert" => tr!("label-expert"),
+                        "Unsafe" => tr!("label-unsafe"),
+                        "Unknown" => tr!("label-unknown"),
+                        _ => debloat_category_clone.clone(),
+                    };
                     ui.horizontal(|ui| {
                         egui::Frame::new()
                             .fill(bg_color)
                             .corner_radius(8.0)
                             .inner_margin(egui::Margin::symmetric(12, 6))
                             .show(ui, |ui| {
-                                ui.label(egui::RichText::new(&debloat_category_clone).color(text_color).size(12.0));
+                                ui.label(egui::RichText::new(&label_text).color(text_color).size(12.0));
                             });
                     });
                 });
