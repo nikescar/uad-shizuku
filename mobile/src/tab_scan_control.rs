@@ -1108,10 +1108,12 @@ impl TabScanControl {
                 });
 
                 let (total, malicious, suspicious, safe, not_scanned) = self.get_vt_counts();
+                let show_all_colors = self.active_vt_filter == VtFilter::All;
 
                 let all_text = tr!("all", { count: total });
                 let button = if self.active_vt_filter == VtFilter::All {
                     MaterialButton::filled(&all_text)
+                        .fill(egui::Color32::from_rgb(158, 158, 158))
                 } else {
                     MaterialButton::outlined(&all_text)
                 };
@@ -1120,8 +1122,9 @@ impl TabScanControl {
                 }
 
                 let mal_text = tr!("malicious", { count: malicious });
-                let button = if self.active_vt_filter == VtFilter::Malicious {
+                let button = if self.active_vt_filter == VtFilter::Malicious || show_all_colors {
                     MaterialButton::filled(&mal_text)
+                        .fill(egui::Color32::from_rgb(211, 47, 47))
                 } else {
                     MaterialButton::outlined(&mal_text)
                 };
@@ -1130,8 +1133,9 @@ impl TabScanControl {
                 }
 
                 let sus_text = tr!("suspicious", { count: suspicious });
-                let button = if self.active_vt_filter == VtFilter::Suspicious {
+                let button = if self.active_vt_filter == VtFilter::Suspicious || show_all_colors {
                     MaterialButton::filled(&sus_text)
+                        .fill(egui::Color32::from_rgb(255, 152, 0))
                 } else {
                     MaterialButton::outlined(&sus_text)
                 };
@@ -1140,8 +1144,9 @@ impl TabScanControl {
                 }
 
                 let safe_text = tr!("safe", { count: safe });
-                let button = if self.active_vt_filter == VtFilter::Safe {
+                let button = if self.active_vt_filter == VtFilter::Safe || show_all_colors {
                     MaterialButton::filled(&safe_text)
+                        .fill(egui::Color32::from_rgb(56, 142, 60))
                 } else {
                     MaterialButton::outlined(&safe_text)
                 };
@@ -1150,8 +1155,9 @@ impl TabScanControl {
                 }
 
                 let not_scanned_text = tr!("not-scanned", { count: not_scanned });
-                let button = if self.active_vt_filter == VtFilter::NotScanned {
+                let button = if self.active_vt_filter == VtFilter::NotScanned || show_all_colors {
                     MaterialButton::filled(&not_scanned_text)
+                        .fill(egui::Color32::from_rgb(128, 128, 128))
                 } else {
                     MaterialButton::outlined(&not_scanned_text)
                 };
@@ -1191,10 +1197,12 @@ impl TabScanControl {
                 });
 
                 let (total, malicious, suspicious, safe, not_scanned) = self.get_ha_counts();
+                let show_all_colors = self.active_ha_filter == HaFilter::All;
 
                 let all_text = tr!("all", { count: total });
                 let button = if self.active_ha_filter == HaFilter::All {
                     MaterialButton::filled(&all_text)
+                        .fill(egui::Color32::from_rgb(158, 158, 158))
                 } else {
                     MaterialButton::outlined(&all_text)
                 };
@@ -1203,8 +1211,9 @@ impl TabScanControl {
                 }
 
                 let mal_text = tr!("malicious", { count: malicious });
-                let button = if self.active_ha_filter == HaFilter::Malicious {
+                let button = if self.active_ha_filter == HaFilter::Malicious || show_all_colors {
                     MaterialButton::filled(&mal_text)
+                        .fill(egui::Color32::from_rgb(211, 47, 47))
                 } else {
                     MaterialButton::outlined(&mal_text)
                 };
@@ -1213,8 +1222,9 @@ impl TabScanControl {
                 }
 
                 let sus_text = tr!("suspicious", { count: suspicious });
-                let button = if self.active_ha_filter == HaFilter::Suspicious {
+                let button = if self.active_ha_filter == HaFilter::Suspicious || show_all_colors {
                     MaterialButton::filled(&sus_text)
+                        .fill(egui::Color32::from_rgb(255, 152, 0))
                 } else {
                     MaterialButton::outlined(&sus_text)
                 };
@@ -1222,9 +1232,10 @@ impl TabScanControl {
                     self.active_ha_filter = HaFilter::Suspicious;
                 }
 
-                let safe_text = tr!("safe", { count: safe });
-                let button = if self.active_ha_filter == HaFilter::Safe {
+                let safe_text = tr!("no-specific-threat", { count: safe });
+                let button = if self.active_ha_filter == HaFilter::Safe || show_all_colors {
                     MaterialButton::filled(&safe_text)
+                        .fill(egui::Color32::from_rgb(0, 150, 136))
                 } else {
                     MaterialButton::outlined(&safe_text)
                 };
@@ -1233,8 +1244,9 @@ impl TabScanControl {
                 }
 
                 let not_scanned_text = tr!("not-scanned", { count: not_scanned });
-                let button = if self.active_ha_filter == HaFilter::NotScanned {
+                let button = if self.active_ha_filter == HaFilter::NotScanned || show_all_colors {
                     MaterialButton::filled(&not_scanned_text)
+                        .fill(egui::Color32::from_rgb(128, 128, 128))
                 } else {
                     MaterialButton::outlined(&not_scanned_text)
                 };
@@ -1426,28 +1438,28 @@ impl TabScanControl {
                                 // State machine pattern for VT column
                                 match &vt_result {
                                     None => {
-                                        ui.label("Not initialized");
+                                        ui.label(tr!("scan-not-initialized"));
                                     }
                                     Some(calc_virustotal::ScanStatus::Pending) => {
-                                        ui.label("Not scanned");
+                                        ui.label(tr!("scan-not-scanned"));
                                     }
                                     Some(calc_virustotal::ScanStatus::Scanning { scanned, total, .. }) => {
-                                        ui.label(format!("Scanning... ({}/{})", scanned, total));
+                                        ui.label(tr!("scan-scanning", { scanned: scanned, total: total }));
                                     }
                                     Some(calc_virustotal::ScanStatus::Completed(result)) => {
                                         for (i, file_result) in result.file_results.iter().enumerate() {
                                             let (text, bg_color) = if file_result.error.is_some() {
-                                                ("Error".to_string(), egui::Color32::from_rgb(211, 47, 47))
+                                                (tr!("scan-error"), egui::Color32::from_rgb(211, 47, 47))
                                             } else if file_result.skipped {
-                                                ("skip".to_string(), egui::Color32::from_rgb(128, 128, 128))
+                                                (tr!("scan-skip"), egui::Color32::from_rgb(128, 128, 128))
                                             } else if file_result.not_found {
-                                                ("404".to_string(), egui::Color32::from_rgb(128, 128, 128))
+                                                (tr!("scan-404"), egui::Color32::from_rgb(128, 128, 128))
                                             } else if file_result.malicious > 0 {
-                                                (format!("mal {}/{}", file_result.malicious + file_result.suspicious, file_result.total()), egui::Color32::from_rgb(211, 47, 47))
+                                                (tr!("scan-malicious", { count: file_result.malicious + file_result.suspicious, total: file_result.total() }), egui::Color32::from_rgb(211, 47, 47))
                                             } else if file_result.suspicious > 0 {
-                                                (format!("sus {}/{}", file_result.suspicious, file_result.total()), egui::Color32::from_rgb(255, 152, 0))
+                                                (tr!("scan-suspicious", { count: file_result.suspicious, total: file_result.total() }), egui::Color32::from_rgb(255, 152, 0))
                                             } else {
-                                                (format!("clean {}/{}", file_result.total(), file_result.total()), egui::Color32::from_rgb(56, 142, 60))
+                                                (tr!("scan-clean", { count: file_result.total(), total: file_result.total() }), egui::Color32::from_rgb(56, 142, 60))
                                             };
 
                                             let inner_response = egui::Frame::new()
@@ -1480,7 +1492,7 @@ impl TabScanControl {
                                         }
                                     }
                                     Some(calc_virustotal::ScanStatus::Error(e)) => {
-                                        ui.label(format!("Error: {}", e));
+                                        ui.label(tr!("scan-error-msg", { message: e.clone() }));
                                     }
                                 }
                             });
@@ -1500,30 +1512,129 @@ impl TabScanControl {
                                 // State machine pattern for HA column
                                 match &ha_result {
                                     None => {
-                                        ui.label("Not initialized");
+                                        ui.label(tr!("scan-not-initialized"));
                                     }
                                     Some(calc_hybridanalysis::ScanStatus::Pending) => {
-                                        ui.label("Not scanned");
+                                        ui.label(tr!("scan-not-scanned"));
                                     }
                                     Some(calc_hybridanalysis::ScanStatus::Scanning { scanned, total, .. }) => {
-                                        ui.label(format!("Scanning... ({}/{})", scanned, total));
+                                        ui.label(tr!("scan-scanning", { scanned: scanned, total: total }));
                                     }
                                     Some(calc_hybridanalysis::ScanStatus::Completed(result)) => {
                                         if result.file_results.is_empty() {
-                                            ui.label("No results");
+                                            ui.label(tr!("scan-no-results"));
                                         }
                                         for (i, file_result) in result.file_results.iter().enumerate() {
-                                            let text = file_result.get_display_text();
+                                            // Build translated display text
+                                            let text = {
+                                                // For error states, show translated error message
+                                                if file_result.verdict == "upload_error" || file_result.verdict == "analysis_error" {
+                                                    if let Some(ref error_msg) = file_result.error_message {
+                                                        if error_msg.contains("File too large") {
+                                                            if let Some(mb_pos) = error_msg.find(" MB ") {
+                                                                if let Some(start) = error_msg[..mb_pos].rfind(|c: char| !c.is_numeric() && c != '.') {
+                                                                    let size = &error_msg[start+1..mb_pos+3];
+                                                                    tr!("ha-file-too-large", { size: size.to_string() })
+                                                                } else {
+                                                                    tr!("ha-file-too-large-default")
+                                                                }
+                                                            } else {
+                                                                tr!("ha-file-too-large-default")
+                                                            }
+                                                        } else if error_msg.contains("No such file or directory") {
+                                                            tr!("ha-pull-failed")
+                                                        } else if error_msg.contains("Failed to create tmp directory") {
+                                                            tr!("ha-temp-dir-error")
+                                                        } else {
+                                                            if file_result.verdict == "upload_error" {
+                                                                tr!("ha-upload-error")
+                                                            } else {
+                                                                tr!("ha-analysis-error")
+                                                            }
+                                                        }
+                                                    } else if file_result.verdict == "upload_error" {
+                                                        tr!("ha-upload-error")
+                                                    } else {
+                                                        tr!("ha-analysis-error")
+                                                    }
+                                                } else {
+                                                    // Get base translated text
+                                                    let base_text = if let Some(score) = file_result.threat_score {
+                                                        match file_result.verdict.as_str() {
+                                                            "malicious" => tr!("ha-malicious-score", { score: score }),
+                                                            "suspicious" => tr!("ha-suspicious-score", { score: score }),
+                                                            "whitelisted" => tr!("ha-whitelisted-score", { score: score }),
+                                                            "no specific threat" => tr!("ha-no-specific-threat-score", { score: score }),
+                                                            _ => match file_result.verdict.as_str() {
+                                                                "no-result" => tr!("ha-no-result"),
+                                                                "rate_limited" => tr!("ha-rate-limited"),
+                                                                "submitted" => tr!("ha-submitted"),
+                                                                "pending_analysis" => tr!("ha-pending-analysis"),
+                                                                "404 Not Found" => tr!("ha-404"),
+                                                                "" => tr!("ha-skipped"),
+                                                                _ => file_result.verdict.clone(),
+                                                            },
+                                                        }
+                                                    } else {
+                                                        match file_result.verdict.as_str() {
+                                                            "malicious" => tr!("ha-malicious"),
+                                                            "suspicious" => tr!("ha-suspicious"),
+                                                            "whitelisted" => tr!("ha-whitelisted"),
+                                                            "no specific threat" => tr!("ha-no-specific-threat"),
+                                                            "no-result" => tr!("ha-no-result"),
+                                                            "rate_limited" => tr!("ha-rate-limited"),
+                                                            "submitted" => tr!("ha-submitted"),
+                                                            "pending_analysis" => {
+                                                                if let Some(ref job_id) = file_result.job_id {
+                                                                    let short_id = if job_id.len() > 8 { &job_id[..8] } else { job_id };
+                                                                    tr!("ha-pending", { jobid: short_id.to_string() })
+                                                                } else {
+                                                                    tr!("ha-pending-analysis")
+                                                                }
+                                                            },
+                                                            "404 Not Found" => tr!("ha-404"),
+                                                            "" => tr!("ha-skipped"),
+                                                            _ => file_result.verdict.clone(),
+                                                        }
+                                                    };
+
+                                                    // Check for wait_until time
+                                                    if let Some(wait_until) = file_result.wait_until {
+                                                        use std::time::{SystemTime, UNIX_EPOCH};
+                                                        let now = SystemTime::now()
+                                                            .duration_since(UNIX_EPOCH)
+                                                            .unwrap()
+                                                            .as_secs();
+                                                        if wait_until > now {
+                                                            let remaining_secs = wait_until - now;
+                                                            let hours = remaining_secs / 3600;
+                                                            let mins = (remaining_secs % 3600) / 60;
+                                                            if hours > 0 {
+                                                                tr!("ha-wait-hours", { text: base_text, hours: hours, mins: mins })
+                                                            } else if mins > 0 {
+                                                                tr!("ha-wait-mins", { text: base_text, mins: mins })
+                                                            } else {
+                                                                tr!("ha-wait-less-than-min", { text: base_text })
+                                                            }
+                                                        } else {
+                                                            base_text
+                                                        }
+                                                    } else {
+                                                        base_text
+                                                    }
+                                                }
+                                            };
                                             let bg_color = match file_result.verdict.as_str() {
                                                 "malicious" => egui::Color32::from_rgb(211, 47, 47),
                                                 "suspicious" => egui::Color32::from_rgb(255, 152, 0),
                                                 "whitelisted" => egui::Color32::from_rgb(56, 142, 60),
+                                                "no specific threat" => egui::Color32::from_rgb(0, 150, 136),
                                                 "no-result" => egui::Color32::from_rgb(158, 158, 158),
                                                 "rate_limited" => egui::Color32::from_rgb(156, 39, 176),
                                                 "submitted" => egui::Color32::from_rgb(33, 150, 243),
                                                 "pending_analysis" => egui::Color32::from_rgb(255, 193, 7),
                                                 "analysis_error" | "upload_error" => egui::Color32::from_rgb(211, 47, 47),
-                                                "404 Not Found" => egui::Color32::from_rgb(128, 128, 128),
+                                                "404 Not Found" | "" => egui::Color32::from_rgb(128, 128, 128),
                                                 _ => egui::Color32::from_rgb(158, 158, 158),
                                             };
 
@@ -1554,7 +1665,7 @@ impl TabScanControl {
                                         }
                                     }
                                     Some(calc_hybridanalysis::ScanStatus::Error(e)) => {
-                                        ui.label(format!("Error: {}", e));
+                                        ui.label(tr!("scan-error-msg", { message: e.clone() }));
                                     }
                                 }
                             });
