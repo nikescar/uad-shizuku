@@ -40,13 +40,13 @@ UAD-Shizuku is using debloat apps info from [UAD-NG](https://github.com/Universa
 * Allow VirusTotal file upload : Upload APK files to VirusTotal for analysis if not found in database
 * HybridAnalysis API Key : API key for Hybrid Analysis malware scanning service (200/min rate limit)
 * Allow Hybrid Analysis file upload : Upload APK files to Hybrid Analysis for analysis if not found
-* (beta) Google Play Renderer : Fetch and display app metadata from Google Play Store
-* (beta) F-Droid Renderer : Fetch and display app metadata from F-Droid repository for non-system apps
-* (beta) APKMirror Renderer : Fetch and display app metadata from APKMirror (app id search on apkmirror is not accurate. app info from apkmirror might be wrong.)
-* (beta) APKMirror Auto-Upload : Auto-upload APKs when device version is newer than APKMirror
-* (beta) APKMirror Email : Email address for APKMirror contributions
-* (beta) APKMirror Name : Display name for APKMirror contributions
-* (beta) Invalidate Cache : Clear all cached data (app info, scan results)
+* Google Play Renderer : Fetch and display app metadata from Google Play Store
+* F-Droid Renderer : Fetch and display app metadata from F-Droid repository for non-system apps
+* APKMirror Renderer : Fetch and display app metadata from APKMirror (app id search on apkmirror is not accurate. app info from apkmirror might be wrong.)
+* APKMirror Auto-Upload : Auto-upload APKs when device version is newer than APKMirror
+* APKMirror Email : Email address for APKMirror contributions
+* APKMirror Name : Display name for APKMirror contributions
+* Invalidate Cache : Clear all cached data (app info, scan results)
 * Show Logs : Display application logs with selectable verbosity (Error/Warn/Info/Debug/Trace) 
 
 ## Debloat Tab

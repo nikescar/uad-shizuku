@@ -41,13 +41,13 @@ UAD-Shizuku는 [UAD-NG](https://github.com/Universal-Debloater-Alliance/universa
 * VirusTotal 파일 업로드 허용 : 데이터베이스에 없는 경우 APK 파일을 VirusTotal에 업로드하여 분석
 * HybridAnalysis API 키 : Hybrid Analysis 악성코드 검사 서비스용 API 키 (분당 200회 제한)
 * Hybrid Analysis 파일 업로드 허용 : 데이터베이스에 없는 경우 APK 파일을 Hybrid Analysis에 업로드하여 분석
-* (베타) Google Play 렌더러 : Google Play 스토어에서 앱 메타데이터 가져와서 표시
-* (베타) F-Droid 렌더러 : 비시스템 앱에 대해 F-Droid 저장소에서 앱 메타데이터 가져와서 표시
-* (베타) APKMirror 렌더러 : APKMirror에서 앱 메타데이터 가져와서 표시 (APKMirror에서의 앱 ID 검색은 정확하지 않을 수 있습니다. APKMirror의 앱 정보가 잘못되었을 수 있습니다.)
-* (베타) APKMirror 자동 업로드 : 기기 버전이 APKMirror보다 최신인 경우 APK 자동 업로드
-* (베타) APKMirror 이메일 : APKMirror 기여용 이메일 주소
-* (베타) APKMirror 이름 : APKMirror 기여용 표시 이름
-* (베타) 캐시 무효화 : 모든 캐시된 데이터 삭제 (앱 정보, 검사 결과)
+* Google Play 렌더러 : Google Play 스토어에서 앱 메타데이터 가져와서 표시
+* F-Droid 렌더러 : 비시스템 앱에 대해 F-Droid 저장소에서 앱 메타데이터 가져와서 표시
+* APKMirror 렌더러 : APKMirror에서 앱 메타데이터 가져와서 표시 (APKMirror에서의 앱 ID 검색은 정확하지 않을 수 있습니다. APKMirror의 앱 정보가 잘못되었을 수 있습니다.)
+* APKMirror 자동 업로드 : 기기 버전이 APKMirror보다 최신인 경우 APK 자동 업로드
+* APKMirror 이메일 : APKMirror 기여용 이메일 주소
+* APKMirror 이름 : APKMirror 기여용 표시 이름
+* 캐시 무효화 : 모든 캐시된 데이터 삭제 (앱 정보, 검사 결과)
 * 로그 표시 : 선택 가능한 상세 수준으로 애플리케이션 로그 표시 (Error/Warn/Info/Debug/Trace)
 
 ## 블로트웨어 제거 탭
