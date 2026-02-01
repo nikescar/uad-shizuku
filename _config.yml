@@ -109,6 +109,7 @@ deployment: # https://developers.cloudflare.com/pages/how-to/use-direct-upload-w
 locales:
   kr: # /kr/*
     label: "한국어"
+    link: "/docs/kr/"
     themeConfig:
       nav:
         - text: "문서"
