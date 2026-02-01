@@ -40,6 +40,23 @@ pub fn fetch_app_details(package_id: &str, email: &str) -> Result<ApkMirrorAppIn
 pub fn parse_app_details(package_id: &str, html: &str) -> Result<ApkMirrorAppInfo> {
     tracing::debug!("Parsing APKMirror data for package: {}", package_id);
 
+    // Check for "no results" message - treat as 404
+    if html.contains("No results found matching your query") {
+        tracing::info!(
+            "APKMirror returned 'No results found' for package: {}",
+            package_id
+        );
+        return Ok(ApkMirrorAppInfo {
+            package_id: package_id.to_string(),
+            title: "Unknown".to_string(),
+            developer: "Unknown".to_string(),
+            version: None,
+            icon_url: None,
+            icon_base64: None,
+            raw_response: html.to_string(),
+        });
+    }
+
     // Find first search result widget - look for appRowTitle class
     // <h5 title="App Name" class="appRowTitle ...">...</h5>
     // We match the text content inside the <a> tag as it's more robust against attribute ordering
@@ -402,5 +419,22 @@ mod tests {
         assert_eq!(result.title, "Test App");
         assert_eq!(result.developer, "Test Developer");
         assert_eq!(result.version, Some("2.5.8".to_string()));
+    }
+
+    #[test]
+    fn test_parse_no_results_found() {
+        let html = r#"
+        <div class="searchContent">
+            <p>No results found matching your query</p>
+        </div>
+        "#;
+
+        let result = parse_app_details("com.nonexistent.app", html).unwrap();
+
+        // Should be treated as not found (Unknown/Unknown triggers 404 handling in caller)
+        assert_eq!(result.title, "Unknown");
+        assert_eq!(result.developer, "Unknown");
+        assert_eq!(result.version, None);
+        assert_eq!(result.icon_url, None);
     }
 }
