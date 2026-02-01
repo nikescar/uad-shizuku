@@ -598,8 +598,36 @@ pub fn parse_package_fingerprints(fingerprints: Vec<String>) -> Vec<PackageFinge
         });
     }
 
-    debug!("Parsed {} package fingerprints", packages.len());
-    packages
+    debug!("Parsed {} package fingerprints before dedup", packages.len());
+
+    // Deduplicate packages: merge users from duplicate package entries
+    // This handles cases where dumpsys returns the same package multiple times
+    // (e.g., for system packages with overlays or multi-user installations)
+    let mut deduped: std::collections::HashMap<String, PackageFingerprint> =
+        std::collections::HashMap::new();
+
+    for pkg in packages {
+        if let Some(existing) = deduped.get_mut(&pkg.pkg) {
+            // Merge users from duplicate entry, avoiding duplicate user IDs
+            for user in pkg.users {
+                if !existing.users.iter().any(|u| u.userId == user.userId) {
+                    existing.users.push(user);
+                }
+            }
+            // Merge install permissions
+            for perm in pkg.installPermissions {
+                if !existing.installPermissions.contains(&perm) {
+                    existing.installPermissions.push(perm);
+                }
+            }
+        } else {
+            deduped.insert(pkg.pkg.clone(), pkg);
+        }
+    }
+
+    let result: Vec<PackageFingerprint> = deduped.into_values().collect();
+    debug!("Parsed {} package fingerprints after dedup", result.len());
+    result
 }
 
 /// Get single package files in codePath folder with their SHA256 sums
