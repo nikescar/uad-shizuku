@@ -30,10 +30,56 @@ use crate::tab_scan_control::TabScanControl;
 use crate::tab_usage_control::TabUsageControl;
 use crate::LogLevel;
 
-pub use crate::gui_stt::*;
+pub use crate::uad_shizuku_app_stt::*;
 use crate::{Config, Settings};
 
+use eframe::egui::Context;
+use egui_material3::theme::{
+    load_fonts, load_themes, setup_local_fonts, setup_local_fonts_from_bytes, setup_local_theme,
+    update_window_background,
+};
 use std::sync::OnceLock;
+
+/// Initialize common app components (database, i18n).
+/// Call this early in main() before creating the app.
+pub fn init_common() {
+    // Set up database path before initializing anything that uses the database
+    if let Ok(config) = Config::new() {
+        let db_path = config.db_dir.join("uad.db");
+        crate::db::set_db_path(db_path.to_string_lossy().to_string());
+    }
+
+    // Initialize VirusTotal database upsert queue
+    // This must be called AFTER setting the database path
+    crate::db_virustotal::init_upsert_queue();
+
+    // Initialize Hybrid Analysis database upsert queue
+    crate::db_hybridanalysis::init_upsert_queue();
+
+    // Initialize i18n
+    crate::init_i18n();
+}
+
+/// Initialize egui context with fonts, themes, and image loaders.
+/// Call this in the eframe app creation callback.
+pub fn init_egui(ctx: &Context) {
+    setup_local_theme(Some("resources/material-theme.json"));
+    setup_local_fonts_from_bytes("NotoSansKr", include_bytes!("../resources/noto-sans-kr.ttf"));
+    egui_extras::install_image_loaders(ctx);
+    load_fonts(ctx);
+    load_themes();
+    update_window_background(ctx);
+
+    // Restore saved custom font if configured
+    if let Ok(config) = Config::new() {
+        if let Ok(settings) = config.load_settings() {
+            if !settings.font_path.is_empty() {
+                setup_local_fonts(Some(&settings.font_path));
+                load_fonts(ctx);
+            }
+        }
+    }
+}
 
 static LOG_BUFFER: OnceLock<Arc<Mutex<String>>> = OnceLock::new();
 static LOG_SETTINGS: OnceLock<Arc<Mutex<LogSettings>>> = OnceLock::new();
@@ -112,6 +158,8 @@ pub trait View {
 
 impl Default for UadShizukuApp {
     fn default() -> Self {
+        //
+
         // Log basic system info at app start
         tracing::info!("=== System Information ===");
         tracing::info!("OS: {}", std::env::consts::OS);
@@ -221,6 +269,9 @@ impl Default for UadShizukuApp {
 
             // Disclaimer dialog (shows on startup)
             disclaimer_dialog_open: true,
+
+            // About dialog
+            about_dialog_open: false,
 
             // Font selector state
             system_fonts: Vec::new(),
@@ -643,6 +694,14 @@ impl UadShizukuApp {
         self.show_adb_install_dialog(ui.ctx());
         // === ADB installation dialog end
 
+        // === Disclaimer dialog
+        self.show_disclaimer_dialog(ui.ctx());
+        // === Disclaimer dialog end
+
+        // === About dialog
+        self.show_about_dialog(ui.ctx());
+        // === About dialog end
+
         // === Package loading dialog
         self.show_package_loading_dialog(ui.ctx());
         self.handle_package_loading_result();
@@ -657,11 +716,18 @@ impl UadShizukuApp {
             let close_menu = Cell::new(false);
             let should_exit = Cell::new(false);
             let open_settings = Cell::new(false);
+            let open_about = Cell::new(false);
             let settings_text = tr!("settings");
+            let about_text = tr!("about");
             let exit_text = tr!("exit");
             let settings_item = self.create_menu_item(&settings_text, "settings", || {
                 println!("Settings clicked!");
                 open_settings.set(true);
+                close_menu.set(true);
+            });
+            let about_item = self.create_menu_item(&about_text, "info", || {
+                println!("About clicked!");
+                open_about.set(true);
                 close_menu.set(true);
             });
             let exit_item = self.create_menu_item(&exit_text, "exit", || {
@@ -672,6 +738,7 @@ impl UadShizukuApp {
 
             let mut menu_builder = menu("standard_menu", &mut self.standard_menu_open)
                 .item(settings_item)
+                .item(about_item)
                 .item(exit_item)
                 .anchor_corner(self.anchor_corner)
                 .menu_corner(self.menu_corner)
@@ -701,6 +768,10 @@ impl UadShizukuApp {
 
             if open_settings.get() {
                 self.settings_dialog_open = true;
+            }
+
+            if open_about.get() {
+                self.about_dialog_open = true;
             }
 
             if should_exit.get() {
@@ -2229,7 +2300,9 @@ echo "Run 'adb version' to verify installation."
                 self.retrieve_installed_packages();
             }
         }
+    }
 
+    fn show_disclaimer_dialog(&mut self, ctx: &egui::Context) {
         // Disclaimer dialog
         if self.disclaimer_dialog_open {
             let disclaimer_title = tr!("disclaimer-title");
@@ -2258,6 +2331,75 @@ echo "Run 'adb version' to verify installation."
             })
             .action(tr!("ok"), || {})
             .show(ctx);
+        }
+    }
+
+    fn show_about_dialog(&mut self, ctx: &egui::Context) {
+        if self.about_dialog_open {
+            let about_title = tr!("about");
+            let version = env!("CARGO_PKG_VERSION");
+            let description = tr!("about-description");
+            let website_label = tr!("about-website");
+            let credits_label = tr!("about-credits");
+
+            dialog("about_dialog", &about_title, &mut self.about_dialog_open)
+                .content(|ui| {
+                    ui.vertical(|ui| {
+                        ui.set_width(400.0);
+
+                        ui.add_space(8.0);
+
+                        // App name and version
+                        ui.heading("UAD-Shizuku");
+                        ui.label(format!("Version: {}", version));
+
+                        ui.add_space(12.0);
+
+                        // Description
+                        ui.label(&description);
+
+                        ui.add_space(12.0);
+
+                        // Website
+                        ui.horizontal(|ui| {
+                            ui.label(format!("{}: ", website_label));
+                            ui.hyperlink("https://uad-shizuku.pages.dev");
+                        });
+
+                        ui.add_space(12.0);
+
+                        // Credits section
+                        ui.label(egui::RichText::new(&credits_label).strong());
+                        ui.add_space(4.0);
+
+                        egui::ScrollArea::vertical()
+                            .max_height(200.0)
+                            .show(ui, |ui| {
+                                ui.label("Reference Projects:");
+                                ui.label("  - Universal Android Debloater Next Generation (GPL-3.0)");
+                                ui.label("  - bevy_game_template (MIT/Apache-2.0)");
+                                ui.label("  - android-activity (MIT/Apache-2.0)");
+                                ui.label("  - ai-rules (Apache-2.0)");
+
+                                ui.add_space(8.0);
+
+                                ui.label("Key Libraries:");
+                                ui.label("  - egui/eframe (MIT/Apache-2.0)");
+                                ui.label("  - diesel (MIT/Apache-2.0)");
+                                ui.label("  - serde (MIT/Apache-2.0)");
+                                ui.label("  - tracing (MIT)");
+
+                                ui.add_space(8.0);
+
+                                ui.label("Assets:");
+                                ui.label("  - Icons from SVG Repo (CC Attribution)");
+                            });
+
+                        ui.add_space(16.0);
+                    });
+                })
+                .action(tr!("ok"), || {})
+                .show(ctx);
         }
     }
 
@@ -2401,5 +2543,13 @@ echo "Run 'adb version' to verify installation."
 impl View for UadShizukuApp {
     fn ui(&mut self, ui: &mut egui::Ui) {
         self.ui(ui);
+    }
+}
+
+impl eframe::App for UadShizukuApp {
+    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        egui::CentralPanel::default().show(ctx, |ui| {
+            self.ui(ui);
+        });
     }
 }

@@ -5,7 +5,7 @@ use crate::calc_virustotal::{self};
 use crate::db;
 use crate::db_hybridanalysis;
 use crate::db_virustotal;
-use crate::gui::UadNgLists;
+use crate::uad_shizuku_app::UadNgLists;
 pub use crate::tab_scan_control_stt::*;
 use crate::win_package_details_dialog::PackageDetailsDialog;
 use eframe::egui;

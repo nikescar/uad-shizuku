@@ -1,5 +1,5 @@
 use crate::adb::PackageFingerprint;
-use crate::gui::UadNgLists;
+use crate::uad_shizuku_app::UadNgLists;
 use crate::models::{ApkMirrorApp, FDroidApp, GooglePlayApp};
 use crate::win_package_details_dialog::PackageDetailsDialog;
 use eframe::egui;

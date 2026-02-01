@@ -1,13 +1,7 @@
 #![allow(clippy::float_cmp)]
 #![allow(clippy::manual_range_contains)]
 
-#[cfg(target_os = "android")]
-use android_activity::AndroidApp;
-use eframe::{egui, NativeOptions};
-use egui_material3::theme::{
-    load_fonts, load_themes, setup_local_fonts, setup_local_fonts_from_bytes, setup_local_theme,
-    update_window_background,
-};
+use eframe::egui;
 
 mod adb;
 pub mod adb_stt;
@@ -59,10 +53,13 @@ pub mod log_capture;
 // mod android_screensize;
 
 // Export modules for external use
-pub use gui::{UadShizukuApp as GuiApp, View};
-pub mod gui;
-pub mod gui_stt;
+pub use uad_shizuku_app::{UadShizukuApp as GuiApp, View};
+pub mod uad_shizuku_app;
+pub mod uad_shizuku_app_stt;
 pub mod svg_stt;
+
+#[cfg(target_os = "android")]
+mod main_android;
 
 use anyhow::{Context, Result};
 #[cfg(not(target_os = "android"))]
@@ -309,163 +306,6 @@ pub fn init_i18n() {
 
     egui_i18n::set_language("en-US");
     egui_i18n::set_fallback("en-US");
-}
-
-// Android entry point
-#[cfg(target_os = "android")]
-#[no_mangle]
-fn android_main(app: AndroidApp) {
-    // Initialize tracing subscriber for Android with log capture and reload support
-    use tracing_subscriber::layer::SubscriberExt;
-    use tracing_subscriber::reload;
-    use tracing_subscriber::util::SubscriberInitExt;
-    use tracing_subscriber::EnvFilter;
-
-    // Try to load user's log level from settings, default to ERROR if not found
-    let log_level = if let Ok(config) = Config::new() {
-        if let Ok(settings) = config.load_settings() {
-            settings.log_level.to_lowercase()
-        } else {
-            "error".to_string()
-        }
-    } else {
-        "error".to_string()
-    };
-
-    // Create a reloadable filter layer for dynamic log level changes
-    let env_filter = EnvFilter::try_new(&log_level).unwrap_or_else(|_| EnvFilter::new("error"));
-    let (filter, reload_handle) = reload::Layer::new(env_filter);
-
-    // Store the reload handle for later use (type-erased via closure)
-    log_capture::set_reload_fn(move |level: &str| {
-        let new_filter = EnvFilter::try_new(level).unwrap_or_else(|_| EnvFilter::new("error"));
-        if let Err(e) = reload_handle.reload(new_filter) {
-            eprintln!("Failed to reload log filter: {}", e);
-        }
-    });
-
-    tracing_subscriber::registry()
-        .with(filter)
-        .with(tracing_subscriber::fmt::layer())
-        .with(log_capture::LogCaptureLayer)
-        .init();
-
-    // Set up database path before initializing anything that uses the database
-    if let Ok(config) = Config::new() {
-        let db_path = config.db_dir.join("uad.db");
-        db::set_db_path(db_path.to_string_lossy().to_string());
-    }
-
-    // Initialize VirusTotal database upsert queue
-    // This must be called AFTER setting the database path
-    db_virustotal::init_upsert_queue();
-
-    // Initialize Hybrid Analysis database upsert queue
-    db_hybridanalysis::init_upsert_queue();
-
-    // Initialize i18n
-    init_i18n();
-
-    // Initialize Android logger with max level (actual filtering done by tracing)
-    android_logger::init_once(
-        android_logger::Config::default()
-            .with_max_level(log::LevelFilter::Trace)
-            .with_tag("UAD-Shizuku"),
-    );
-
-    // Log initialization message to confirm logging is working
-    log::info!("Android logger initialized successfully");
-    log::info!("Starting mobile application with egui");
-
-    // Also use println! as backup logging method
-    println!("UAD-Shizuku: Application starting");
-    eprintln!("UAD-Shizuku: Error stream test");
-
-    // Set up panic handler to catch crashes
-    std::panic::set_hook(Box::new(|panic_info| {
-        log::error!("PANIC OCCURRED: {}", panic_info);
-        eprintln!("UAD-Shizuku PANIC: {}", panic_info);
-        if let Some(location) = panic_info.location() {
-            log::error!("Panic location: {}:{}", location.file(), location.line());
-            eprintln!(
-                "UAD-Shizuku PANIC LOCATION: {}:{}",
-                location.file(),
-                location.line()
-            );
-        }
-    }));
-
-    std::env::set_var("RUST_BACKTRACE", "full");
-
-    let options = NativeOptions {
-        android_app: Some(app),
-        renderer: eframe::Renderer::Glow,
-        ..Default::default()
-    };
-
-    match UadShizukuApp::run(options) {
-        Ok(_) => {
-            log::info!("UadShizukuApp exited successfully");
-        }
-        Err(e) => {
-            log::error!("UadShizukuApp failed: {}", e);
-            eprintln!("UadShizukuApp failed: {}", e);
-        }
-    }
-}
-
-pub struct UadShizukuApp {
-    uad_shizuku_app: gui::UadShizukuApp,
-}
-
-impl Default for UadShizukuApp {
-    fn default() -> Self {
-        let uad_shizuku_app = gui::UadShizukuApp::default();
-        Self { uad_shizuku_app }
-    }
-}
-
-// Native desktop entry point
-impl UadShizukuApp {
-    pub fn run(options: NativeOptions) -> Result<(), eframe::Error> {
-        eframe::run_native(
-            "uad_shizuku_app",
-            options,
-            Box::new(|cc| {
-                setup_local_theme(Some("resources/material-theme.json")); // Use default theme
-                setup_local_fonts_from_bytes(
-                    "NotoSansKr",
-                    include_bytes!("../resources/noto-sans-kr.ttf"),
-                );
-                egui_extras::install_image_loaders(&cc.egui_ctx);
-                load_fonts(&cc.egui_ctx);
-                load_themes();
-                update_window_background(&cc.egui_ctx);
-
-                // Restore saved custom font if configured
-                if let Ok(config) = Config::new() {
-                    if let Ok(settings) = config.load_settings() {
-                        if !settings.font_path.is_empty() {
-                            setup_local_fonts(Some(&settings.font_path));
-                            load_fonts(&cc.egui_ctx);
-                        }
-                    }
-                }
-
-                Ok(Box::<UadShizukuApp>::default())
-            }),
-        )
-    }
-}
-
-impl eframe::App for UadShizukuApp {
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        egui::CentralPanel::default().show(ctx, |ui| {
-            // ctx.set_pixels_per_point(1.2);
-            ctx.set_zoom_factor(0.8);
-            self.uad_shizuku_app.ui(ui);
-        });
-    }
 }
 
 /// Detect narrow screens. This is used to show a simpler UI on mobile devices,

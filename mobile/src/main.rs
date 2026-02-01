@@ -1,8 +1,5 @@
 use eframe::egui;
-use egui_material3::theme::{
-    load_fonts, load_themes, setup_local_fonts, setup_local_fonts_from_bytes, setup_local_theme,
-    update_window_background,
-};
+use uad_shizuku::uad_shizuku_app::{self, UadShizukuApp};
 
 fn main() -> eframe::Result<()> {
     // Initialize tracing subscriber for structured logging with log capture and reload support
@@ -41,21 +38,8 @@ fn main() -> eframe::Result<()> {
         .with(uad_shizuku::log_capture::LogCaptureLayer)
         .init();
 
-    // Set up database path before initializing anything that uses the database
-    if let Ok(config) = uad_shizuku::Config::new() {
-        let db_path = config.db_dir.join("uad.db");
-        uad_shizuku::db::set_db_path(db_path.to_string_lossy().to_string());
-    }
-
-    // Initialize VirusTotal database upsert queue
-    // This must be called AFTER setting the database path
-    uad_shizuku::db_virustotal::init_upsert_queue();
-
-    // Initialize Hybrid Analysis database upsert queue
-    uad_shizuku::db_hybridanalysis::init_upsert_queue();
-
-    // Initialize i18n
-    uad_shizuku::init_i18n();
+    // Initialize common app components (database, i18n)
+    uad_shizuku_app::init_common();
 
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
@@ -68,53 +52,8 @@ fn main() -> eframe::Result<()> {
         "UAD-Shizuku",
         options,
         Box::new(|cc| {
-            // Prepare themes from build-time constants
-            setup_local_fonts_from_bytes(
-                "NotoSansKr",
-                include_bytes!("../resources/noto-sans-kr.ttf"),
-            );
-            setup_local_theme(Some("resources/material-theme.json")); // Use default theme
-                                                                      // setup_google_fonts(Some("Google Sans Code"));
-                                                                      // setup_google_fonts(Some("Nanum Gothic"));
-            // setup_google_fonts(Some("Noto Sans KR"));
-            // setup_google_fonts(Some("Material+Symbols+Outlined"));
-            egui_extras::install_image_loaders(&cc.egui_ctx);
-            // Load fonts and themes
-            load_fonts(&cc.egui_ctx);
-            load_themes();
-            update_window_background(&cc.egui_ctx);
-
-            // Restore saved custom font if configured
-            if let Ok(config) = uad_shizuku::Config::new() {
-                if let Ok(settings) = config.load_settings() {
-                    if !settings.font_path.is_empty() {
-                        setup_local_fonts(Some(&settings.font_path));
-                        load_fonts(&cc.egui_ctx);
-                    }
-                }
-            }
-
-            Ok(Box::<UadShizukuDesktopApp>::default())
+            uad_shizuku_app::init_egui(&cc.egui_ctx);
+            Ok(Box::<UadShizukuApp>::default())
         }),
     )
-}
-
-struct UadShizukuDesktopApp {
-    app: uad_shizuku::gui::UadShizukuApp,
-}
-
-impl Default for UadShizukuDesktopApp {
-    fn default() -> Self {
-        Self {
-            app: uad_shizuku::gui::UadShizukuApp::default(),
-        }
-    }
-}
-
-impl eframe::App for UadShizukuDesktopApp {
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        egui::CentralPanel::default().show(ctx, |ui| {
-            self.app.ui(ui);
-        });
-    }
 }

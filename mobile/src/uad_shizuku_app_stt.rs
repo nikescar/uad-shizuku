@@ -116,6 +116,9 @@ pub struct UadShizukuApp {
     // Disclaimer dialog state
     pub disclaimer_dialog_open: bool,
 
+    // About dialog state
+    pub about_dialog_open: bool,
+
     // Font selector state
     pub system_fonts: Vec<(String, String)>,
     pub system_fonts_loaded: bool,

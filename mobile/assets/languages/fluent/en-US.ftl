@@ -171,3 +171,9 @@ text-style = Text Style:
 disclaimer-title = ⚠ Warning
 disclaimer-no-user-data = • This app does not operate over user files or any user data.
 disclaimer-uninstall-warning = • Uninstall action will delete app with userdata for the app. Make careful to uninstall app.
+
+# About Dialog
+about = About
+about-description = Remove bloat apps selectively, scan installed apps with VirusTotal/HybridAnalysis, and install FOSS apps through Obtainium.
+about-website = Website
+about-credits = Credits
