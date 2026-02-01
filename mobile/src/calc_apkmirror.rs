@@ -109,10 +109,33 @@ impl ApkMirrorQueue {
             tracing::info!("APKMirror worker thread started");
 
             while *is_running_clone.lock().unwrap() {
-                // Check if there's work to do
+                // Prioritize cached items: find a cached item first, otherwise take from front
                 let package_id = {
                     let mut queue = queue.lock().unwrap();
-                    queue.pop_front()
+                    if queue.is_empty() {
+                        None
+                    } else {
+                        // Establish connection to check cache
+                        let mut conn = crate::db::establish_connection();
+
+                        // Find first cached item in queue
+                        let mut cached_idx = None;
+                        for (idx, pkg_id) in queue.iter().enumerate() {
+                            if let Ok(Some(cached_app)) = get_apkmirror_app(&mut conn, pkg_id) {
+                                if !is_cache_stale(&cached_app) {
+                                    cached_idx = Some(idx);
+                                    break;
+                                }
+                            }
+                        }
+
+                        // Remove and return cached item if found, otherwise pop front
+                        if let Some(idx) = cached_idx {
+                            queue.remove(idx)
+                        } else {
+                            queue.pop_front()
+                        }
+                    }
                 };
 
                 if let Some(pkg_id) = package_id {
