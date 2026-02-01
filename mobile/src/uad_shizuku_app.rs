@@ -270,6 +270,9 @@ impl Default for UadShizukuApp {
             // Disclaimer dialog (shows on startup)
             disclaimer_dialog_open: true,
 
+            // About dialog
+            about_dialog_open: false,
+
             // Font selector state
             system_fonts: Vec::new(),
             system_fonts_loaded: false,
@@ -691,6 +694,14 @@ impl UadShizukuApp {
         self.show_adb_install_dialog(ui.ctx());
         // === ADB installation dialog end
 
+        // === Disclaimer dialog
+        self.show_disclaimer_dialog(ui.ctx());
+        // === Disclaimer dialog end
+
+        // === About dialog
+        self.show_about_dialog(ui.ctx());
+        // === About dialog end
+
         // === Package loading dialog
         self.show_package_loading_dialog(ui.ctx());
         self.handle_package_loading_result();
@@ -705,11 +716,18 @@ impl UadShizukuApp {
             let close_menu = Cell::new(false);
             let should_exit = Cell::new(false);
             let open_settings = Cell::new(false);
+            let open_about = Cell::new(false);
             let settings_text = tr!("settings");
+            let about_text = tr!("about");
             let exit_text = tr!("exit");
             let settings_item = self.create_menu_item(&settings_text, "settings", || {
                 println!("Settings clicked!");
                 open_settings.set(true);
+                close_menu.set(true);
+            });
+            let about_item = self.create_menu_item(&about_text, "info", || {
+                println!("About clicked!");
+                open_about.set(true);
                 close_menu.set(true);
             });
             let exit_item = self.create_menu_item(&exit_text, "exit", || {
@@ -720,6 +738,7 @@ impl UadShizukuApp {
 
             let mut menu_builder = menu("standard_menu", &mut self.standard_menu_open)
                 .item(settings_item)
+                .item(about_item)
                 .item(exit_item)
                 .anchor_corner(self.anchor_corner)
                 .menu_corner(self.menu_corner)
@@ -749,6 +768,10 @@ impl UadShizukuApp {
 
             if open_settings.get() {
                 self.settings_dialog_open = true;
+            }
+
+            if open_about.get() {
+                self.about_dialog_open = true;
             }
 
             if should_exit.get() {
@@ -2277,7 +2300,9 @@ echo "Run 'adb version' to verify installation."
                 self.retrieve_installed_packages();
             }
         }
+    }
 
+    fn show_disclaimer_dialog(&mut self, ctx: &egui::Context) {
         // Disclaimer dialog
         if self.disclaimer_dialog_open {
             let disclaimer_title = tr!("disclaimer-title");
@@ -2306,6 +2331,75 @@ echo "Run 'adb version' to verify installation."
             })
             .action(tr!("ok"), || {})
             .show(ctx);
+        }
+    }
+
+    fn show_about_dialog(&mut self, ctx: &egui::Context) {
+        if self.about_dialog_open {
+            let about_title = tr!("about");
+            let version = env!("CARGO_PKG_VERSION");
+            let description = tr!("about-description");
+            let website_label = tr!("about-website");
+            let credits_label = tr!("about-credits");
+
+            dialog("about_dialog", &about_title, &mut self.about_dialog_open)
+                .content(|ui| {
+                    ui.vertical(|ui| {
+                        ui.set_width(400.0);
+
+                        ui.add_space(8.0);
+
+                        // App name and version
+                        ui.heading("UAD-Shizuku");
+                        ui.label(format!("Version: {}", version));
+
+                        ui.add_space(12.0);
+
+                        // Description
+                        ui.label(&description);
+
+                        ui.add_space(12.0);
+
+                        // Website
+                        ui.horizontal(|ui| {
+                            ui.label(format!("{}: ", website_label));
+                            ui.hyperlink("https://uad-shizuku.pages.dev");
+                        });
+
+                        ui.add_space(12.0);
+
+                        // Credits section
+                        ui.label(egui::RichText::new(&credits_label).strong());
+                        ui.add_space(4.0);
+
+                        egui::ScrollArea::vertical()
+                            .max_height(200.0)
+                            .show(ui, |ui| {
+                                ui.label("Reference Projects:");
+                                ui.label("  - Universal Android Debloater Next Generation (GPL-3.0)");
+                                ui.label("  - bevy_game_template (MIT/Apache-2.0)");
+                                ui.label("  - android-activity (MIT/Apache-2.0)");
+                                ui.label("  - ai-rules (Apache-2.0)");
+
+                                ui.add_space(8.0);
+
+                                ui.label("Key Libraries:");
+                                ui.label("  - egui/eframe (MIT/Apache-2.0)");
+                                ui.label("  - diesel (MIT/Apache-2.0)");
+                                ui.label("  - serde (MIT/Apache-2.0)");
+                                ui.label("  - tracing (MIT)");
+
+                                ui.add_space(8.0);
+
+                                ui.label("Assets:");
+                                ui.label("  - Icons from SVG Repo (CC Attribution)");
+                            });
+
+                        ui.add_space(16.0);
+                    });
+                })
+                .action(tr!("ok"), || {})
+                .show(ctx);
         }
     }
 
