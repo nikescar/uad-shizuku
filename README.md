@@ -86,8 +86,11 @@ Get list of FOSS apps, and install directly. github and fdroid auto-install supp
 
 ## Todos
 
+* fluid width datatable.(same dividened.)
+* installation button on menu.(icons desktop, icons start menu, copy app exe to user application dir.)
+* gui screen for less than 1024 width.
 * android version through shizuku
-* web version through webusb on brwoser
+* web version through webusb on browser
 * usage history & netstats history
 * logcat ?
 * android : add obtainium list https://apps.obtainium.imranr.dev/data.json?rand=6958.845712989482
