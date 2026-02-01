@@ -109,7 +109,7 @@ impl CalcHybridAnalysis {
                 ha_link: format!("https://hybrid-analysis.com/sample/{}", r.sha256),
                 wait_until: None,
                 job_id: None,
-                error_message: None,
+                error_message: r.error_message.clone(),
             })
             .collect();
 
@@ -1114,10 +1114,30 @@ fn handle_file_upload(
                                 }
                             }
                             Ok(_) => {
+                                let error_msg = format!(
+                                    "No report after job completion (job_id: {}). File may exceed HA upload size limit.",
+                                    &job_id[..job_id.len().min(8)]
+                                );
                                 tracing::warn!(
                                     "No reports found after job completion for sha256: {} (pkg: {}, file: {}, job_id: {}). File may exceed HA size limit.",
                                     sha256, package_name, file_path, job_id
                                 );
+
+                                // Save error to database for persistence
+                                {
+                                    let mut conn = crate::db::establish_connection();
+                                    if let Err(db_err) = crate::db_hybridanalysis::save_error_result(
+                                        &mut conn,
+                                        package_name,
+                                        file_path,
+                                        sha256,
+                                        "upload_error",
+                                        &error_msg,
+                                    ) {
+                                        tracing::error!("Failed to save error to database: {}", db_err);
+                                    }
+                                }
+
                                 file_results.push(FileScanResult {
                                     file_path: file_path.to_string(),
                                     sha256: sha256.to_string(),
@@ -1129,18 +1149,35 @@ fn handle_file_upload(
                                     ha_link: format!("https://hybrid-analysis.com/sample/{}", sha256),
                                     wait_until: None,
                                     job_id: None,
-                                    error_message: Some(format!(
-                                        "No report after job completion (job_id: {}). File may exceed HA upload size limit.",
-                                        &job_id[..job_id.len().min(8)]
-                                    )),
+                                    error_message: Some(error_msg),
                                 });
                                 return Ok(());
                             }
                             Err(e) => {
+                                let error_msg = format!(
+                                    "Hash not found after job completion (job_id: {}): {}. File may exceed HA upload size limit.",
+                                    &job_id[..job_id.len().min(8)], e
+                                );
                                 tracing::error!(
                                     "Failed to search hash after job completion for sha256: {} (pkg: {}, file: {}, job_id: {}): {}",
                                     sha256, package_name, file_path, job_id, e
                                 );
+
+                                // Save error to database for persistence
+                                {
+                                    let mut conn = crate::db::establish_connection();
+                                    if let Err(db_err) = crate::db_hybridanalysis::save_error_result(
+                                        &mut conn,
+                                        package_name,
+                                        file_path,
+                                        sha256,
+                                        "upload_error",
+                                        &error_msg,
+                                    ) {
+                                        tracing::error!("Failed to save error to database: {}", db_err);
+                                    }
+                                }
+
                                 file_results.push(FileScanResult {
                                     file_path: file_path.to_string(),
                                     sha256: sha256.to_string(),
@@ -1152,21 +1189,38 @@ fn handle_file_upload(
                                     ha_link: format!("https://hybrid-analysis.com/sample/{}", sha256),
                                     wait_until: None,
                                     job_id: None,
-                                    error_message: Some(format!(
-                                        "Hash not found after job completion (job_id: {}): {}. File may exceed HA upload size limit.",
-                                        &job_id[..job_id.len().min(8)], e
-                                    )),
+                                    error_message: Some(error_msg),
                                 });
                                 return Ok(());
                             }
                         }
                     } else if state_response.state == "ERROR" {
-                        tracing::error!(
-                            "Job {} failed with error: {:?} ({:?})",
-                            job_id,
-                            state_response.error_type,
-                            state_response.error_origin
+                        let error_msg = format!(
+                            "{}: {}",
+                            state_response.error_type.as_deref().unwrap_or("Unknown error"),
+                            state_response.error_origin.as_deref().unwrap_or("Unknown origin")
                         );
+                        tracing::error!(
+                            "Job {} failed with error: {}",
+                            job_id,
+                            error_msg
+                        );
+
+                        // Save error to database for persistence
+                        {
+                            let mut conn = crate::db::establish_connection();
+                            if let Err(db_err) = crate::db_hybridanalysis::save_error_result(
+                                &mut conn,
+                                package_name,
+                                file_path,
+                                sha256,
+                                "analysis_error",
+                                &error_msg,
+                            ) {
+                                tracing::error!("Failed to save error to database: {}", db_err);
+                            }
+                        }
+
                         file_results.push(FileScanResult {
                             file_path: file_path.to_string(),
                             sha256: sha256.to_string(),
@@ -1178,7 +1232,7 @@ fn handle_file_upload(
                             ha_link: format!("https://hybrid-analysis.com/sample/{}", sha256),
                             wait_until: None,
                             job_id: None,
-                            error_message: None,
+                            error_message: Some(error_msg),
                         });
                         return Ok(());
                     }
@@ -1251,7 +1305,22 @@ fn handle_file_upload(
         Err(e) => {
             let error_msg = format!("{}", e);
             tracing::error!("Failed to upload file: {}", error_msg);
-            
+
+            // Save error to database for persistence
+            {
+                let mut conn = crate::db::establish_connection();
+                if let Err(db_err) = crate::db_hybridanalysis::save_error_result(
+                    &mut conn,
+                    package_name,
+                    file_path,
+                    sha256,
+                    "upload_error",
+                    &error_msg,
+                ) {
+                    tracing::error!("Failed to save error to database: {}", db_err);
+                }
+            }
+
             // Add error result to show in UI
             file_results.push(FileScanResult {
                 file_path: file_path.to_string(),
@@ -1266,7 +1335,7 @@ fn handle_file_upload(
                 job_id: None,
                 error_message: Some(error_msg),
             });
-            
+
             // Clean up temp file
             let _ = std::fs::remove_file(&local_path);
         }

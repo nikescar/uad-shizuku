@@ -67,6 +67,7 @@ diesel::table! {
         raw_response -> Text,
         created_at -> Integer,
         updated_at -> Integer,
+        error_message -> Nullable<Text>,
     }
 }
 

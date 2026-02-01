@@ -122,6 +122,7 @@ pub struct HybridAnalysisResult {
     pub raw_response: String,
     pub created_at: i32,
     pub updated_at: i32,
+    pub error_message: Option<String>,
 }
 
 #[derive(Insertable)]
@@ -143,6 +144,7 @@ pub struct NewHybridAnalysisResult<'a> {
     pub raw_response: &'a str,
     pub created_at: i32,
     pub updated_at: i32,
+    pub error_message: Option<&'a str>,
 }
 
 // package info cache

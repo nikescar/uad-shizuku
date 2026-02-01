@@ -144,11 +144,34 @@ fn upsert_result_internal(
     sha256: &str,
     ha_response: &HybridAnalysisReportResponse,
 ) -> Result<HybridAnalysisResult, Box<dyn Error>> {
+    upsert_result_with_error(conn, package_name, file_path, sha256, ha_response, None)
+}
+
+/// Internal upsert function with optional error message
+fn upsert_result_with_error(
+    conn: &mut SqliteConnection,
+    package_name: &str,
+    file_path: &str,
+    sha256: &str,
+    ha_response: &HybridAnalysisReportResponse,
+    error_message: Option<&str>,
+) -> Result<HybridAnalysisResult, Box<dyn Error>> {
     use crate::schema::hybridanalysis_results::dsl;
 
     let classification_tags_json = serde_json::to_string(&ha_response.classification_tags)?;
     let tags_json = serde_json::to_string(&ha_response.tags)?;
     let raw_response = serde_json::to_string(&ha_response)?;
+
+    // Use provided error_message or derive from ha_response.error_type
+    let error_msg = error_message.map(|s| s.to_string()).or_else(|| {
+        ha_response.error_type.as_ref().map(|et| {
+            if let Some(ref origin) = ha_response.error_origin {
+                format!("{}: {}", et, origin)
+            } else {
+                et.clone()
+            }
+        })
+    });
 
     // Check if record exists
     let existing = get_result_by_package_file_sha256(conn, package_name, file_path, sha256)?;
@@ -168,6 +191,7 @@ fn upsert_result_internal(
                 dsl::classification_tags.eq(&classification_tags_json),
                 dsl::tags.eq(&tags_json),
                 dsl::raw_response.eq(&raw_response),
+                dsl::error_message.eq(&error_msg),
                 dsl::updated_at.eq(std::time::SystemTime::now()
                     .duration_since(std::time::UNIX_EPOCH)
                     .unwrap()
@@ -202,6 +226,7 @@ fn upsert_result_internal(
             raw_response: &raw_response,
             created_at: current_time,
             updated_at: current_time,
+            error_message: error_msg.as_deref(),
         };
 
         diesel::insert_into(hybridanalysis_results::table)
@@ -224,6 +249,70 @@ pub fn upsert_result(
     ha_response: &HybridAnalysisReportResponse,
 ) -> Result<HybridAnalysisResult, Box<dyn Error>> {
     upsert_result_internal(conn, package_name, file_path, sha256, ha_response)
+}
+
+/// Save an error result to the database
+pub fn save_error_result(
+    conn: &mut SqliteConnection,
+    package_name: &str,
+    file_path: &str,
+    sha256: &str,
+    verdict: &str,
+    error_message: &str,
+) -> Result<HybridAnalysisResult, Box<dyn Error>> {
+    use crate::schema::hybridanalysis_results::dsl;
+
+    // Check if record exists
+    let existing = get_result_by_package_file_sha256(conn, package_name, file_path, sha256)?;
+
+    let current_time = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs() as i32;
+
+    if let Some(existing_record) = existing {
+        // Update existing record with error
+        diesel::update(dsl::hybridanalysis_results.find(existing_record.id))
+            .set((
+                dsl::verdict.eq(verdict),
+                dsl::error_message.eq(Some(error_message)),
+                dsl::updated_at.eq(current_time),
+            ))
+            .execute(conn)?;
+
+        Ok(dsl::hybridanalysis_results
+            .find(existing_record.id)
+            .first(conn)?)
+    } else {
+        // Insert new error record
+        let new_result = NewHybridAnalysisResult {
+            package_name,
+            file_path,
+            sha256,
+            job_id: "",
+            environment_id: 0,
+            environment_description: "",
+            state: "error",
+            verdict,
+            threat_score: None,
+            threat_level: None,
+            total_signatures: None,
+            classification_tags: "[]",
+            tags: "[]",
+            raw_response: "{}",
+            created_at: current_time,
+            updated_at: current_time,
+            error_message: Some(error_message),
+        };
+
+        diesel::insert_into(hybridanalysis_results::table)
+            .values(&new_result)
+            .execute(conn)?;
+
+        Ok(dsl::hybridanalysis_results
+            .order(dsl::id.desc())
+            .first(conn)?)
+    }
 }
 
 /// Delete all Hybrid Analysis results for a package by package name
