@@ -106,6 +106,12 @@ pub struct UadShizukuApp {
     pub settings_flush_googleplay: bool,
     pub settings_flush_fdroid: bool,
     pub settings_flush_apkmirror: bool,
+    // Temporary settings for dialog (applied only on Save)
+    pub settings_google_play_renderer: bool,
+    pub settings_fdroid_renderer: bool,
+    pub settings_apkmirror_renderer: bool,
+    pub settings_virustotal_submit: bool,
+    pub settings_hybridanalysis_submit: bool,
 
     // Progress tracking for background tasks
     pub package_load_progress: std::sync::Arc<std::sync::Mutex<Option<f32>>>,
