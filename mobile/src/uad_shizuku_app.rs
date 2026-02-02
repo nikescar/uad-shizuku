@@ -912,23 +912,22 @@ impl UadShizukuApp {
                 // } else {
                 //     ui.label(format!("Scan viruses with virustotal and hybridanalysis: {}", progress_parts.join(", ")));
                 // }
-                ui.label(tr!("scan-description"));
+                ui.horizontal(|ui| {
+                    ui.label(tr!("scan-description"));
+                    ui.add_space(8.0);
+                    if self.settings.virustotal_apikey.is_empty()
+                        || self.settings.hybridanalysis_apikey.is_empty()
+                    {
+                        ui.label(tr!("set-api-keys"));
+                    }
+                });
                 ui.add_space(8.0);
 
                 egui::ScrollArea::both()
                     .id_salt("scan_scroll")
                     .max_height(max_height)
                     .show(ui, |ui| {
-                        if self.settings.virustotal_apikey.is_empty()
-                            || self.settings.hybridanalysis_apikey.is_empty()
-                        {
-                            ui.vertical_centered(|ui| {
-                                ui.add_space(20.0);
-                                ui.label(tr!("set-api-keys"));
-                            });
-                        } else {
-                            self.render_scan_tab(ui);
-                        }
+                        self.render_scan_tab(ui);
                     });
             }
             2 => {

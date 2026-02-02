@@ -103,6 +103,8 @@ ha-wait-hours = { $text } (대기 { $hours }시간{ $mins }분)
 ha-wait-mins = { $text } (대기 { $mins }분)
 ha-wait-less-than-min = { $text } (대기 <1분)
 refresh-scan = 이 패키지 다시 검사
+izzyrisk-calculation = IzzyRisk 계산:
+calculating-risk-scores = 위험 점수 계산 중...
 
 # Usage Tab
 usage-control = 사용량 제어
@@ -160,7 +162,7 @@ error-app-not-found = 앱을 찾을 수 없음
 debloat-description = Universal Android Debloater 목록으로 안드로이드 애플리케이션 디블로트:
 loading-packages = 패키지 세부 정보 로드 중...
 scan-description = VirusTotal 및 HybridAnalysis로 바이러스 검사:
-set-api-keys = 설정에서 VirusTotal, HybridAnalysis API 키를 설정해주세요.
+set-api-keys = 설정에서 VirusTotal 혹은 HybridAnalysis API 키를 설정해주세요.
 apps-description = FOSS 애플리케이션 목록 :
 usage-description = 애플리케이션 사용량 :
 language = 언어:
