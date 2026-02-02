@@ -16,6 +16,7 @@ theme-mode = 테마 모드:
 contrast-level = 대비 수준:
 log-level = 로그 레벨:
 ok = 확인
+stop = 중지
 
 # Apps Tab
 app-list = 앱 목록:
@@ -134,6 +135,9 @@ fdroid-renderer = F-Droid 렌더러
 fdroid-renderer-desc = (비시스템 앱에 대해 F-Droid에서 앱 정보 가져오기 및 표시)
 apkmirror-renderer = APKMirror 렌더러
 apkmirror-renderer-desc = (APKMirror에서 앱 정보 가져오기 및 표시)
+rendering-google-play = Google Play
+rendering-fdroid = F-Droid
+rendering-apkmirror = APKMirror
 apkmirror-email = APKMirror 이메일:
 email-hint = your@email.com
 apkmirror-name = APKMirror 이름:

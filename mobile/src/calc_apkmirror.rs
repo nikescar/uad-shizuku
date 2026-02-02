@@ -154,18 +154,18 @@ impl ApkMirrorQueue {
                             email_lock.clone()
                         };
 
-                        if email.is_empty() {
-                            tracing::warn!(
-                                "APKMirror email not set, skipping fetch for: {}",
-                                pkg_id_clone
-                            );
-                            let mut results = results_clone.lock().unwrap();
-                            results.insert(
-                                pkg_id_clone,
-                                ApkMirrorFetchStatus::Error(tr!("error-email-not-configured")),
-                            );
-                            return next_sleep;
-                        }
+                        // if email.is_empty() {
+                        //     tracing::warn!(
+                        //         "APKMirror email not set, skipping fetch for: {}",
+                        //         pkg_id_clone
+                        //     );
+                        //     let mut results = results_clone.lock().unwrap();
+                        //     results.insert(
+                        //         pkg_id_clone,
+                        //         ApkMirrorFetchStatus::Error(tr!("error-email-not-configured")),
+                        //     );
+                        //     return next_sleep;
+                        // }
 
                         // Update status to fetching
                         {

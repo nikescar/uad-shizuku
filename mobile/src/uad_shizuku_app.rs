@@ -662,9 +662,99 @@ impl UadShizukuApp {
                 {
                     self.retrieve_adb_devices();
                 }
+
+                // Show progress bar if packages are loading
+                let debloat_progress_value =
+                    if let Ok(debloat_progress) = self.package_load_progress.lock() {
+                        *debloat_progress
+                    } else {
+                        None
+                    };
+
+                if let Some(p) = debloat_progress_value {
+                    let debloat_progress_bar = egui::ProgressBar::new(p)
+                        .show_percentage()
+                        .desired_width(100.0)
+                        .animate(true);
+                    ui.add(debloat_progress_bar)
+                        .on_hover_text(tr!("loading-packages"));
+                }
             }
         });
         // === top app bar area end
+
+        // === notification render progress area start
+        ui.horizontal(|ui| {
+            // Google Play renderer progress
+            if self.google_play_renderer.is_enabled {
+                if let Some(queue) = &self.google_play_queue {
+                    let pending = queue.queue_size();
+                    let completed = queue.completed_count();
+                    if pending > 0 {
+                        let total = pending + completed;
+                        let progress = completed as f32 / total as f32;
+                        let progress_bar = egui::ProgressBar::new(progress)
+                            .show_percentage()
+                            .desired_width(100.0)
+                            .animate(true);
+                        ui.label(tr!("rendering-google-play"));
+                        ui.add(progress_bar)
+                            .on_hover_text(tr!("google-play-renderer"));
+                        if ui.button(tr!("stop")).clicked() {
+                            tracing::info!("Stop Google Play renderer clicked");
+                            queue.clear_queue();
+                        }
+                    }
+                }
+            }
+
+            // F-Droid renderer progress
+            if self.fdroid_renderer.is_enabled {
+                if let Some(queue) = &self.fdroid_queue {
+                    let pending = queue.queue_size();
+                    let completed = queue.completed_count();
+                    if pending > 0 {
+                        let total = pending + completed;
+                        let progress = completed as f32 / total as f32;
+                        let progress_bar = egui::ProgressBar::new(progress)
+                            .show_percentage()
+                            .desired_width(100.0)
+                            .animate(true);
+                        ui.label(tr!("rendering-fdroid"));
+                        ui.add(progress_bar)
+                            .on_hover_text(tr!("fdroid-renderer"));
+                        if ui.button(tr!("stop")).clicked() {
+                            tracing::info!("Stop F-Droid renderer clicked");
+                            queue.clear_queue();
+                        }
+                    }
+                }
+            }
+
+            // APKMirror renderer progress
+            if self.apkmirror_renderer.is_enabled {
+                if let Some(queue) = &self.apkmirror_queue {
+                    let pending = queue.queue_size();
+                    let completed = queue.completed_count();
+                    if pending > 0 {
+                        let total = pending + completed;
+                        let progress = completed as f32 / total as f32;
+                        let progress_bar = egui::ProgressBar::new(progress)
+                            .show_percentage()
+                            .desired_width(100.0)
+                            .animate(true);
+                        ui.label(tr!("rendering-apkmirror"));
+                        ui.add(progress_bar)
+                            .on_hover_text(tr!("apkmirror-renderer"));
+                        if ui.button(tr!("stop")).clicked() {
+                            tracing::info!("Stop APKMirror renderer clicked");
+                            queue.clear_queue();
+                        }
+                    }
+                }
+            }
+        });
+        // === notification render progress area end
 
         // === tab area start
         self.render_custom_tabs(ui);
@@ -817,25 +907,7 @@ impl UadShizukuApp {
 
         match self.custom_selected {
             0 => {
-                ui.horizontal(|ui| {
-                    ui.label(tr!("debloat-description"));
-
-                    // Show progress bar if packages are loading
-                    let debloat_progress_value =
-                        if let Ok(debloat_progress) = self.package_load_progress.lock() {
-                            *debloat_progress
-                        } else {
-                            None
-                        };
-
-                    if let Some(p) = debloat_progress_value {
-                        // ui.add_space(4.0);
-                        let debloat_progress_bar =
-                            egui::ProgressBar::new(p).show_percentage().animate(true);
-                        ui.add(debloat_progress_bar)
-                            .on_hover_text(tr!("loading-packages"));
-                    }
-                });
+                ui.label(tr!("debloat-description"));
 
                 ui.add_space(8.0);
 
@@ -970,8 +1042,7 @@ impl UadShizukuApp {
         self.fdroid_renderer.is_enabled = self.settings.fdroid_renderer;
 
         // Manage APKMirror renderer state machine
-        self.apkmirror_renderer.is_enabled = self.settings.apkmirror_renderer
-            && !self.settings.apkmirror_email.is_empty();
+        self.apkmirror_renderer.is_enabled = self.settings.apkmirror_renderer;
 
         // Get renderer enabled flags for UI
         let google_play_enabled = self.google_play_renderer.is_enabled;
