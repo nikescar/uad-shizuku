@@ -38,6 +38,10 @@ impl Default for TabScanControl {
             ha_rate_limiter: None,
             ha_package_paths_cache: None,
             ha_scan_state: ScanStateMachine::default(),
+            izzyrisk_scan_state: ScanStateMachine::default(),
+            izzyrisk_scan_progress: Arc::new(Mutex::new(None)),
+            izzyrisk_scan_cancelled: Arc::new(Mutex::new(false)),
+            shared_package_risk_scores: Arc::new(Mutex::new(HashMap::new())),
             vt_api_key: None,
             ha_api_key: None,
             device_serial: None,
@@ -75,12 +79,12 @@ impl TabScanControl {
         self.calculate_all_risk_scores();
 
         // Initialize VirusTotal scanner state
-        if self.vt_api_key.is_some() && self.device_serial.is_some() {
+        if self.vt_api_key.as_ref().map_or(false, |k| k.len() >= 10) && self.device_serial.is_some() {
             self.run_virustotal();
         }
 
         // Initialize Hybrid Analysis scanner state
-        if self.ha_api_key.is_some() && self.device_serial.is_some() {
+        if self.ha_api_key.as_ref().map_or(false, |k| k.len() >= 10) && self.device_serial.is_some() {
             self.run_hybridanalysis();
         }
 
@@ -670,66 +674,126 @@ impl TabScanControl {
         self.uad_ng_lists = Some(lists);
     }
 
-    /// Calculate risk scores for all installed packages using Bind state machine
+    /// Calculate risk scores for all installed packages in background thread
     fn calculate_all_risk_scores(&mut self) {
+        // Clear local scores and shared scores
         self.package_risk_scores.clear();
+        if let Ok(mut shared) = self.shared_package_risk_scores.lock() {
+            shared.clear();
+        }
 
-        let device_serial = match self.device_serial.as_deref() {
-            Some(s) => s.to_string(),
-            None => {
-                // No device serial: calculate without caching
-                for package in &self.installed_packages {
-                    let risk_score = calc_izzyrisk::calculate_izzyrisk(package);
-                    self.package_risk_scores
-                        .insert(package.pkg.clone(), risk_score);
-                }
-                tracing::info!(
-                    "Calculated risk scores for {} packages (no caching)",
-                    self.package_risk_scores.len()
-                );
-                return;
-            }
-        };
+        let device_serial = self.device_serial.clone();
+        let installed_packages = self.installed_packages.clone();
+        let shared_scores = self.shared_package_risk_scores.clone();
+        let progress_clone = self.izzyrisk_scan_progress.clone();
+        let cancelled_clone = self.izzyrisk_scan_cancelled.clone();
 
-        let cached_packages_map: HashMap<String, crate::models::PackageInfoCache> =
-            crate::db_package_cache::get_all_cached_packages(&device_serial)
-                .into_iter()
-                .map(|cp| (cp.pkg_id.clone(), cp))
-                .collect();
+        // Start state machine
+        self.izzyrisk_scan_state.start();
 
-        let mut cache_hits = 0;
-        let mut cache_misses = 0;
-
-        for package in &self.installed_packages {
-            let cached_pkg = cached_packages_map.get(&package.pkg);
-            let risk_score = calc_izzyrisk::calculate_and_cache_izzyrisk(
-                package,
-                cached_pkg,
-                &device_serial,
-            );
-            if cached_pkg.and_then(|c| c.izzyscore).is_some() {
-                cache_hits += 1;
-            } else {
-                cache_misses += 1;
-            }
-            self.package_risk_scores
-                .insert(package.pkg.clone(), risk_score);
+        if let Ok(mut p) = progress_clone.lock() {
+            *p = Some(0.0);
+        }
+        if let Ok(mut cancelled) = cancelled_clone.lock() {
+            *cancelled = false;
         }
 
         tracing::info!(
-            "Calculated risk scores for {} packages ({} cached, {} computed)",
-            self.package_risk_scores.len(),
-            cache_hits,
-            cache_misses
+            "Starting IzzyRisk calculation for {} packages",
+            installed_packages.len()
         );
+
+        thread::spawn(move || {
+            let device_serial_str = device_serial.as_deref().unwrap_or("");
+
+            let cached_packages_map: HashMap<String, crate::models::PackageInfoCache> =
+                if !device_serial_str.is_empty() {
+                    crate::db_package_cache::get_all_cached_packages(device_serial_str)
+                        .into_iter()
+                        .map(|cp| (cp.pkg_id.clone(), cp))
+                        .collect()
+                } else {
+                    HashMap::new()
+                };
+
+            let mut cache_hits = 0;
+            let mut cache_misses = 0;
+            let total = installed_packages.len();
+
+            for (i, package) in installed_packages.iter().enumerate() {
+                // Check for cancellation
+                if let Ok(cancelled) = cancelled_clone.lock() {
+                    if *cancelled {
+                        tracing::info!("IzzyRisk calculation cancelled by user");
+                        break;
+                    }
+                }
+
+                // Update progress
+                if let Ok(mut p) = progress_clone.lock() {
+                    *p = Some(i as f32 / total as f32);
+                }
+
+                let risk_score = if device_serial_str.is_empty() {
+                    // No device serial: calculate without caching
+                    calc_izzyrisk::calculate_izzyrisk(package)
+                } else {
+                    let cached_pkg = cached_packages_map.get(&package.pkg);
+                    let score = calc_izzyrisk::calculate_and_cache_izzyrisk(
+                        package,
+                        cached_pkg,
+                        device_serial_str,
+                    );
+                    if cached_pkg.and_then(|c| c.izzyscore).is_some() {
+                        cache_hits += 1;
+                    } else {
+                        cache_misses += 1;
+                    }
+                    score
+                };
+
+                // Update shared scores
+                if let Ok(mut shared) = shared_scores.lock() {
+                    shared.insert(package.pkg.clone(), risk_score);
+                }
+            }
+
+            tracing::info!(
+                "IzzyRisk calculation complete: {} packages ({} cached, {} computed)",
+                total,
+                cache_hits,
+                cache_misses
+            );
+
+            // Clear progress when done
+            if let Ok(mut p) = progress_clone.lock() {
+                *p = None;
+            }
+        });
     }
 
     /// Get the risk score for a package by name
     fn get_risk_score(&self, package_name: &str) -> i32 {
-        self.package_risk_scores
-            .get(package_name)
-            .copied()
-            .unwrap_or(0)
+        // First check local cache
+        if let Some(score) = self.package_risk_scores.get(package_name) {
+            return *score;
+        }
+        // Then check shared scores from background thread
+        if let Ok(shared) = self.shared_package_risk_scores.lock() {
+            if let Some(score) = shared.get(package_name) {
+                return *score;
+            }
+        }
+        0
+    }
+
+    /// Sync shared risk scores from background thread to local cache
+    fn sync_risk_scores(&mut self) {
+        if let Ok(shared) = self.shared_package_risk_scores.lock() {
+            for (pkg, score) in shared.iter() {
+                self.package_risk_scores.insert(pkg.clone(), *score);
+            }
+        }
     }
 
     /// Sort packages based on the current sort column and direction
@@ -1079,6 +1143,16 @@ impl TabScanControl {
                 self.ha_scan_state.complete();
             }
         }
+        // Sync IzzyRisk progress
+        if let Ok(progress) = self.izzyrisk_scan_progress.lock() {
+            if let Some(p) = *progress {
+                self.izzyrisk_scan_state.update_progress(p);
+            } else if self.izzyrisk_scan_state.is_running {
+                self.izzyrisk_scan_state.complete();
+            }
+        }
+        // Sync risk scores from background thread
+        self.sync_risk_scores();
 
         // VirusTotal Filter Buttons
         if !self.installed_packages.is_empty() {
@@ -1256,6 +1330,35 @@ impl TabScanControl {
                 if ui.add(button).clicked() {
                     self.active_ha_filter = HaFilter::NotScanned;
                 }
+            });
+
+            // IzzyRisk progress bar
+            ui.add_space(5.0);
+            ui.horizontal(|ui| {
+                ui.vertical(|ui| {
+                    if let Some(p) = self.izzyrisk_scan_state.progress {
+                        let progress_bar = egui::ProgressBar::new(p)
+                            .show_percentage()
+                            .desired_width(100.0)
+                            .animate(true);
+                        ui.set_width(150.0);
+                        ui.label(tr!("izzyrisk-calculation"));
+                        ui.horizontal(|ui| {
+                            ui.add(progress_bar).on_hover_text(tr!("calculating-risk-scores"));
+
+                            if ui.button("Stop").clicked() {
+                                tracing::info!("Stop IzzyRisk calculation clicked");
+                                self.izzyrisk_scan_state.cancel();
+                                if let Ok(mut cancelled) = self.izzyrisk_scan_cancelled.lock() {
+                                    *cancelled = true;
+                                }
+                                if let Ok(mut progress) = self.izzyrisk_scan_progress.lock() {
+                                    *progress = None;
+                                }
+                            }
+                        });
+                    }
+                });
             });
         }
 

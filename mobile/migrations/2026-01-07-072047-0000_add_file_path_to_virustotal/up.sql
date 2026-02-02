@@ -1,5 +1,5 @@
 -- Add file_path column to virustotal_results table
-ALTER TABLE virustotal_results ADD COLUMN file_path TEXT NOT NULL DEFAULT '';
+-- ALTER TABLE virustotal_results ADD COLUMN file_path TEXT NOT NULL DEFAULT '';
 
 -- Create a new table with the correct schema including the UNIQUE constraint
 CREATE TABLE virustotal_results_new (

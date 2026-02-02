@@ -79,6 +79,14 @@ pub struct TabScanControl {
         Option<std::sync::Arc<std::sync::Mutex<HashMap<String, Vec<(String, String)>>>>>,
     // HybridAnalysis scan state machine
     pub ha_scan_state: ScanStateMachine,
+    // IzzyRisk scan state machine
+    pub izzyrisk_scan_state: ScanStateMachine,
+    // Progress for IzzyRisk scan background task (for thread communication)
+    pub izzyrisk_scan_progress: Arc<Mutex<Option<f32>>>,
+    // Cancellation flag for IzzyRisk scan
+    pub izzyrisk_scan_cancelled: Arc<Mutex<bool>>,
+    // Shared risk scores from background thread
+    pub shared_package_risk_scores: Arc<Mutex<HashMap<String, i32>>>,
     // Config for API keys and device serial
     pub vt_api_key: Option<String>,
     pub ha_api_key: Option<String>,

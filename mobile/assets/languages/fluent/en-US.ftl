@@ -103,6 +103,8 @@ ha-wait-hours = { $text } (wait { $hours }h{ $mins }m)
 ha-wait-mins = { $text } (wait { $mins }m)
 ha-wait-less-than-min = { $text } (wait <1m)
 refresh-scan = Re-scan this package
+izzyrisk-calculation = IzzyRisk Calculation:
+calculating-risk-scores = Calculating risk scores...
 
 # Usage Tab
 usage-control = Usage Control
@@ -160,7 +162,7 @@ error-app-not-found = App not found
 debloat-description = Debloat android applications with Universal Android Debloater list:
 loading-packages = Loading package details...
 scan-description = Scan viruses with virustotal and hybridanalysis:
-set-api-keys = Please set virustotal, hybridanalysis apikey in settings.
+set-api-keys = Please set virustotal or hybridanalysis apikey in settings.
 apps-description = Lists of Foss applications :
 usage-description = Application Usage :
 language = Language:
