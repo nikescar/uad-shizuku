@@ -274,9 +274,9 @@ impl TabScanControl {
 
             std::thread::spawn(move || {
                 installed_packages.sort_by(|a, b| {
-                    let score_a = package_risk_scores.get(&a.pkg).copied().unwrap_or(0);
-                    let score_b = package_risk_scores.get(&b.pkg).copied().unwrap_or(0);
-                    score_b.cmp(&score_a)
+                    let perms_a: usize = a.users.iter().map(|u| u.runtimePermissions.len()).sum();
+                    let perms_b: usize = b.users.iter().map(|u| u.runtimePermissions.len()).sum();
+                    perms_b.cmp(&perms_a)
                 });
 
                 let cached_packages =
@@ -486,9 +486,9 @@ impl TabScanControl {
                 }
 
                 installed_packages.sort_by(|a, b| {
-                    let score_a = package_risk_scores.get(&a.pkg).copied().unwrap_or(0);
-                    let score_b = package_risk_scores.get(&b.pkg).copied().unwrap_or(0);
-                    score_b.cmp(&score_a)
+                    let perms_a: usize = a.users.iter().map(|u| u.runtimePermissions.len()).sum();
+                    let perms_b: usize = b.users.iter().map(|u| u.runtimePermissions.len()).sum();
+                    perms_b.cmp(&perms_a)
                 });
 
                 let cached_packages =
