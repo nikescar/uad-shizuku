@@ -160,7 +160,7 @@ fn default_contrast_level() -> String {
 }
 
 fn default_display_size() -> String {
-    "Phone (412x732)".to_string()
+    "Desktop (1024x768)".to_string()
 }
 
 impl Default for Settings {
