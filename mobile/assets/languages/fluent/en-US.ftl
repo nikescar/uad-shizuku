@@ -16,6 +16,7 @@ theme-mode = Theme Mode:
 contrast-level = Contrast Level:
 log-level = Log Level:
 ok = OK
+stop = Stop
 
 # Apps Tab
 app-list = App List:
@@ -134,6 +135,9 @@ fdroid-renderer = F-Droid Renderer
 fdroid-renderer-desc = (Fetch and display app info from F-Droid for non-system apps)
 apkmirror-renderer = APKMirror Renderer
 apkmirror-renderer-desc = (Fetch and display app info from APKMirror)
+rendering-google-play = Google Play
+rendering-fdroid = F-Droid
+rendering-apkmirror = APKMirror
 apkmirror-email = APKMirror Email:
 email-hint = your@email.com
 apkmirror-name = APKMirror Name:

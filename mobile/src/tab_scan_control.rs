@@ -1170,7 +1170,7 @@ impl TabScanControl {
                         ui.horizontal(|ui| {
                             ui.add(progress_bar).on_hover_text(tr!("scanning-packages"));
 
-                            if ui.button("Stop").clicked() {
+                            if ui.button(tr!("stop")).clicked() {
                                 tracing::info!("Stop Virustotal scan clicked");
                                 self.vt_scan_state.cancel();
                                 if let Ok(mut cancelled) = self.vt_scan_cancelled.lock() {
@@ -1259,7 +1259,7 @@ impl TabScanControl {
                         ui.horizontal(|ui| {
                             ui.add(progress_bar).on_hover_text(tr!("scanning-packages"));
 
-                            if ui.button("Stop").clicked() {
+                            if ui.button(tr!("stop")).clicked() {
                                 tracing::info!("Stop Hybrid Analysis scan clicked");
                                 self.ha_scan_state.cancel();
                                 if let Ok(mut cancelled) = self.ha_scan_cancelled.lock() {
@@ -1346,7 +1346,7 @@ impl TabScanControl {
                         ui.horizontal(|ui| {
                             ui.add(progress_bar).on_hover_text(tr!("calculating-risk-scores"));
 
-                            if ui.button("Stop").clicked() {
+                            if ui.button(tr!("stop")).clicked() {
                                 tracing::info!("Stop IzzyRisk calculation clicked");
                                 self.izzyrisk_scan_state.cancel();
                                 if let Ok(mut cancelled) = self.izzyrisk_scan_cancelled.lock() {
