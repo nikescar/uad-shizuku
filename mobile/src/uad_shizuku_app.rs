@@ -260,6 +260,12 @@ impl Default for UadShizukuApp {
             settings_flush_googleplay: false,
             settings_flush_fdroid: false,
             settings_flush_apkmirror: false,
+            // Temporary settings for dialog (applied only on Save)
+            settings_google_play_renderer: settings.google_play_renderer,
+            settings_fdroid_renderer: settings.fdroid_renderer,
+            settings_apkmirror_renderer: settings.apkmirror_renderer,
+            settings_virustotal_submit: settings.virustotal_submit,
+            settings_hybridanalysis_submit: settings.hybridanalysis_submit,
             settings: settings,
 
             package_load_progress: Arc::new(Mutex::new(None)),
@@ -857,6 +863,12 @@ impl UadShizukuApp {
             }
 
             if open_settings.get() {
+                // Sync temporary settings from current settings when opening dialog
+                self.settings_google_play_renderer = self.settings.google_play_renderer;
+                self.settings_fdroid_renderer = self.settings.fdroid_renderer;
+                self.settings_apkmirror_renderer = self.settings.apkmirror_renderer;
+                self.settings_virustotal_submit = self.settings.virustotal_submit;
+                self.settings_hybridanalysis_submit = self.settings.hybridanalysis_submit;
                 self.settings_dialog_open = true;
             }
 
@@ -2008,17 +2020,10 @@ impl UadShizukuApp {
                     ui.add_space(8.0);
 
                     ui.horizontal(|ui| {
-                        if ui
-                            .checkbox(
-                                &mut self.settings.virustotal_submit,
-                                tr!("allow-virustotal-upload"),
-                            )
-                            .changed()
-                        {
-                            // Sync setting to tab_scan_control immediately
-                            self.tab_scan_control.virustotal_submit_enabled =
-                                self.settings.virustotal_submit;
-                        }
+                        ui.checkbox(
+                            &mut self.settings_virustotal_submit,
+                            tr!("allow-virustotal-upload"),
+                        );
                         ui.label(tr!("virustotal-upload-desc"));
                         ui.checkbox(&mut self.settings_flush_virustotal, tr!("flush"));
                     });
@@ -2037,17 +2042,10 @@ impl UadShizukuApp {
                     ui.add_space(8.0);
 
                     ui.horizontal(|ui| {
-                        if ui
-                            .checkbox(
-                                &mut self.settings.hybridanalysis_submit,
-                                tr!("allow-hybridanalysis-upload"),
-                            )
-                            .changed()
-                        {
-                            // Sync setting to tab_scan_control immediately
-                            self.tab_scan_control.hybridanalysis_submit_enabled =
-                                self.settings.hybridanalysis_submit;
-                        }
+                        ui.checkbox(
+                            &mut self.settings_hybridanalysis_submit,
+                            tr!("allow-hybridanalysis-upload"),
+                        );
                         ui.label(tr!("hybridanalysis-upload-desc"));
                         ui.checkbox(&mut self.settings_flush_hybridanalysis, tr!("flush"));
                     });
@@ -2056,7 +2054,7 @@ impl UadShizukuApp {
 
                     ui.horizontal(|ui| {
                         ui.checkbox(
-                            &mut self.settings.google_play_renderer,
+                            &mut self.settings_google_play_renderer,
                             tr!("google-play-renderer"),
                         );
                         ui.label(tr!("google-play-renderer-desc"));
@@ -2066,7 +2064,7 @@ impl UadShizukuApp {
                     ui.add_space(8.0);
 
                     ui.horizontal(|ui| {
-                        ui.checkbox(&mut self.settings.fdroid_renderer, tr!("fdroid-renderer"));
+                        ui.checkbox(&mut self.settings_fdroid_renderer, tr!("fdroid-renderer"));
                         ui.label(tr!("fdroid-renderer-desc"));
                         ui.checkbox(&mut self.settings_flush_fdroid, tr!("flush"));
                     });
@@ -2075,7 +2073,7 @@ impl UadShizukuApp {
 
                     ui.horizontal(|ui| {
                         ui.checkbox(
-                            &mut self.settings.apkmirror_renderer,
+                            &mut self.settings_apkmirror_renderer,
                             tr!("apkmirror-renderer"),
                         );
                         ui.label(tr!("apkmirror-renderer-desc"));
@@ -2490,9 +2488,18 @@ echo "Run 'adb version' to verify installation."
         let old_apkmirror_renderer = self.settings.apkmirror_renderer;
         let old_apkmirror_auto_upload = self.settings.apkmirror_auto_upload;
 
-        // Update settings struct
+        // Update settings struct from temporary values
         self.settings.virustotal_apikey = self.settings_virustotal_apikey.clone();
         self.settings.hybridanalysis_apikey = self.settings_hybridanalysis_apikey.clone();
+        self.settings.virustotal_submit = self.settings_virustotal_submit;
+        self.settings.hybridanalysis_submit = self.settings_hybridanalysis_submit;
+        self.settings.google_play_renderer = self.settings_google_play_renderer;
+        self.settings.fdroid_renderer = self.settings_fdroid_renderer;
+        self.settings.apkmirror_renderer = self.settings_apkmirror_renderer;
+
+        // Sync submit settings to tab_scan_control
+        self.tab_scan_control.virustotal_submit_enabled = self.settings.virustotal_submit;
+        self.tab_scan_control.hybridanalysis_submit_enabled = self.settings.hybridanalysis_submit;
 
         // Check if VirusTotal API key was removed -> stop running scans
         if !old_vt_apikey.is_empty() && self.settings.virustotal_apikey.is_empty() {
@@ -2556,6 +2563,55 @@ echo "Run 'adb version' to verify installation."
         // Check if APKMirror auto upload was disabled
         if old_apkmirror_auto_upload && !self.settings.apkmirror_auto_upload {
             tracing::info!("APKMirror auto upload disabled");
+        }
+
+        // Check if Google Play renderer was enabled -> enable renderer
+        if !old_google_play_renderer && self.settings.google_play_renderer {
+            tracing::info!("Google Play renderer enabled");
+            self.google_play_renderer.is_enabled = true;
+            self.tab_scan_control.google_play_renderer_enabled = true;
+        }
+
+        // Check if F-Droid renderer was enabled -> enable renderer
+        if !old_fdroid_renderer && self.settings.fdroid_renderer {
+            tracing::info!("F-Droid renderer enabled");
+            self.fdroid_renderer.is_enabled = true;
+            self.tab_scan_control.fdroid_renderer_enabled = true;
+        }
+
+        // Check if APKMirror renderer was enabled -> enable renderer
+        if !old_apkmirror_renderer && self.settings.apkmirror_renderer {
+            tracing::info!("APKMirror renderer enabled");
+            self.apkmirror_renderer.is_enabled = true;
+            self.tab_scan_control.apkmirror_renderer_enabled = true;
+        }
+
+        // Check if VirusTotal API key was added -> start scan
+        if old_vt_apikey.is_empty() && !self.settings.virustotal_apikey.is_empty() {
+            tracing::info!("VirusTotal API key added, starting scan");
+            self.tab_scan_control.vt_api_key = Some(self.settings.virustotal_apikey.clone());
+            // Reset cancelled flag and trigger scan start via update_packages
+            if let Ok(mut cancelled) = self.tab_scan_control.vt_scan_cancelled.lock() {
+                *cancelled = false;
+            }
+            // Re-trigger scan by calling update_packages if packages are already loaded
+            if !self.installed_packages.is_empty() {
+                self.tab_scan_control.update_packages(self.installed_packages.clone());
+            }
+        }
+
+        // Check if HybridAnalysis API key was added -> start scan
+        if old_ha_apikey.is_empty() && !self.settings.hybridanalysis_apikey.is_empty() {
+            tracing::info!("HybridAnalysis API key added, starting scan");
+            self.tab_scan_control.ha_api_key = Some(self.settings.hybridanalysis_apikey.clone());
+            // Reset cancelled flag and trigger scan start via update_packages
+            if let Ok(mut cancelled) = self.tab_scan_control.ha_scan_cancelled.lock() {
+                *cancelled = false;
+            }
+            // Re-trigger scan by calling update_packages if packages are already loaded
+            if !self.installed_packages.is_empty() {
+                self.tab_scan_control.update_packages(self.installed_packages.clone());
+            }
         }
 
         if self.settings_invalidate_cache {
