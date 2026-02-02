@@ -66,7 +66,7 @@ fn main() -> eframe::Result<()> {
         ..Default::default()
     };
 
-    eframe::run_native(
+    let result = eframe::run_native(
         "UAD-Shizuku",
         options,
         Box::new(|cc| {
@@ -83,11 +83,13 @@ fn main() -> eframe::Result<()> {
             uad_shizuku_app::init_egui(&cc.egui_ctx);
             Ok(Box::<UadShizukuApp>::default())
         }),
-    )
+    );
 
-    // show OpenGL installation instructions if needed
+    // show OpenGL installation instructions if eframe failed to load on Windows
     #[cfg(target_os = "windows")]
-    {
+    if result.is_err() {
         show_opengl_instructions();
     }
+
+    result
 }
