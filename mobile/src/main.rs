@@ -130,6 +130,11 @@ fn check_opengl_and_show_instructions() {
             ])
             .output();
 
+        // Wait for user to press Enter before exiting so they can read the console message
+        eprintln!();
+        eprintln!("Press Enter to exit...");
+        let _ = std::io::stdin().read_line(&mut String::new());
+
         std::process::exit(1);
     } else {
         tracing::info!("OpenGL version detected: {}", gl_version_str);
@@ -181,6 +186,15 @@ fn main() -> eframe::Result<()> {
 
     // Check OpenGL availability on Windows before initializing eframe
     check_opengl_and_show_instructions();
+
+    // hide terminal window on Windows GUI apps
+    #[cfg(target_os = "windows")]
+    {
+        use winapi::um::wincon::FreeConsole;
+        unsafe {
+            FreeConsole();
+        }
+    }
 
     // Initialize common app components (database, i18n)
     uad_shizuku_app::init_common();
