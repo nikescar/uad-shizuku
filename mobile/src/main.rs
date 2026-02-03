@@ -18,8 +18,8 @@ fn show_opengl_instructions() {
         fn new() -> Self {
             let wnd = gui::WindowMain::new(
                 gui::WindowMainOpts {
-                    title: "UAD-Shizuku - OpenGL Required".to_string(),
-                    size: gui::dpi(500, 280),
+                    title: "UAD-Shizuku - OpenGL Required",
+                    size: (500, 280),
                     style: gui::WindowMainOpts::default().style | co::WS::MINIMIZEBOX,
                     ..Default::default()
                 },
@@ -33,10 +33,13 @@ fn show_opengl_instructions() {
             let txt = gui::Edit::new(
                 &wnd,
                 gui::EditOpts {
-                    position: gui::dpi(20, 20),
-                    size: gui::dpi(460, 180),
-                    text: instruction_text.to_string(),
-                    edit_style: co::ES::MULTILINE | co::ES::READONLY | co::ES::AUTOVSCROLL,
+                    position: (20, 20),
+                    width: 460,
+                    height: 180,
+                    text: instruction_text,
+                    window_style: co::WS::CHILD | co::WS::VISIBLE | co::WS::TABSTOP | co::WS::VSCROLL,
+                    window_ex_style: co::WS_EX::CLIENTEDGE,
+                    control_style: co::ES::MULTILINE | co::ES::READONLY | co::ES::AUTOVSCROLL,
                     resize_behavior: (gui::Horz::Resize, gui::Vert::Resize),
                     ..Default::default()
                 },
@@ -45,9 +48,10 @@ fn show_opengl_instructions() {
             let btn = gui::Button::new(
                 &wnd,
                 gui::ButtonOpts {
-                    text: "&Exit".to_string(),
-                    position: gui::dpi(200, 220),
-                    size: gui::dpi(100, 30),
+                    text: "&Exit",
+                    position: (200, 220),
+                    width: 100,
+                    height: 30,
                     resize_behavior: (gui::Horz::Repos, gui::Vert::Repos),
                     ..Default::default()
                 },
@@ -81,9 +85,11 @@ fn show_opengl_instructions() {
 
 #[cfg(target_os = "windows")]
 fn hide_console() {
+    use winapi::um::wincon::GetConsoleWindow;
+    use winapi::um::winuser::{ShowWindow, SW_HIDE};
     unsafe {
         let console_window = GetConsoleWindow();
-        if console_window != std::ptr::null_mut() {
+        if !console_window.is_null() {
             ShowWindow(console_window, SW_HIDE);
         }
     }
