@@ -1,3 +1,5 @@
+#![cfg_attr(target_os = "windows", windows_subsystem = "windows")]
+
 use eframe::egui::{self, IconData};
 use uad_shizuku::uad_shizuku_app::{self, UadShizukuApp};
 
