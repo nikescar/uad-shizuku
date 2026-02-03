@@ -85,6 +85,7 @@ eframe = { workspace = true, default-features = false, features = ["default_font
 # Windows-specific dependencies
 [target.'cfg(target_os = "windows")'.dependencies]
 winapi = { version = "0.3", features = ["wincon"] }
+winsafe = { version = "0.0.26", features = ["gui"] }
 
 # Non-Android specific dependencies
 [target.'cfg(not(target_os = "android"))'.dependencies]

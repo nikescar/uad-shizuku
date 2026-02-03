@@ -4,22 +4,101 @@ use uad_shizuku::uad_shizuku_app::{self, UadShizukuApp};
 /// Check OpenGL version on Windows and show installation instructions if OpenGL 2.0+ is not available
 #[cfg(target_os = "windows")]
 fn show_opengl_instructions() {
-    eprintln!("================================================================================");
-    eprintln!("System does not have Opengl 2.0+. To run this application, please install the Mesa3D OpenGL drivers.");
-    eprintln!("https://uad-shizuku.github.io/docs/installation/windows/#install-mesa3d-opengl-drivers");
-    eprintln!();
-    eprintln!("After installation, restart this application.");
-    eprintln!("================================================================================");
+    use winsafe::{self as w, gui, co, prelude::*};
 
-    // Wait for user to press Enter before exiting so they can read the console message
-    eprintln!();
-    eprintln!("Press Enter to exit...");
-    let _ = std::io::stdin().read_line(&mut String::new());
+    /// Instruction dialog window
+    #[derive(Clone)]
+    struct InstructionWindow {
+        wnd: gui::WindowMain,
+        txt: gui::Edit,
+        btn: gui::Button,
+    }
+
+    impl InstructionWindow {
+        fn new() -> Self {
+            let wnd = gui::WindowMain::new(
+                gui::WindowMainOpts {
+                    title: "UAD-Shizuku - OpenGL Required".to_string(),
+                    size: gui::dpi(500, 280),
+                    style: gui::WindowMainOpts::default().style | co::WS::MINIMIZEBOX,
+                    ..Default::default()
+                },
+            );
+
+            let instruction_text = "System does not have OpenGL 2.0+.\r\n\r\n\
+                To run this application, please install the Mesa3D OpenGL drivers:\r\n\r\n\
+                https://uad-shizuku.github.io/docs/installation#download\r\n\r\n\
+                After installation, restart this application.";
+
+            let txt = gui::Edit::new(
+                &wnd,
+                gui::EditOpts {
+                    position: gui::dpi(20, 20),
+                    size: gui::dpi(460, 180),
+                    text: instruction_text.to_string(),
+                    edit_style: co::ES::MULTILINE | co::ES::READONLY | co::ES::AUTOVSCROLL,
+                    resize_behavior: (gui::Horz::Resize, gui::Vert::Resize),
+                    ..Default::default()
+                },
+            );
+
+            let btn = gui::Button::new(
+                &wnd,
+                gui::ButtonOpts {
+                    text: "&Exit".to_string(),
+                    position: gui::dpi(200, 220),
+                    size: gui::dpi(100, 30),
+                    resize_behavior: (gui::Horz::Repos, gui::Vert::Repos),
+                    ..Default::default()
+                },
+            );
+
+            let new_self = Self { wnd, txt, btn };
+            new_self.events();
+            new_self
+        }
+
+        fn run(&self) -> w::AnyResult<i32> {
+            self.wnd.run_main(None)
+        }
+
+        fn events(&self) {
+            let wnd = self.wnd.clone();
+            self.btn.on().bn_clicked(move || {
+                wnd.hwnd().DestroyWindow()?;
+                Ok(())
+            });
+        }
+    }
+
+    if let Err(e) = (|| InstructionWindow::new().run())() {
+        w::HWND::NULL.MessageBox(
+            &e.to_string(), "Error", co::MB::ICONERROR).unwrap();
+    }
 
     std::process::exit(1);
 }
 
+#[cfg(target_os = "windows")]
+fn hide_console() {
+    unsafe {
+        let console_window = GetConsoleWindow();
+        if console_window != std::ptr::null_mut() {
+            ShowWindow(console_window, SW_HIDE);
+        }
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+fn hide_console() {
+    // No-op on non-Windows platforms
+}
+
 fn main() -> eframe::Result<()> {
+    // Hide console on Windows for GUI mode
+    #[cfg(target_os = "windows")]
+    hide_console();
+
     // Initialize tracing subscriber for structured logging with log capture and reload support
     use tracing_subscriber::layer::SubscriberExt;
     use tracing_subscriber::reload;
@@ -59,6 +138,16 @@ fn main() -> eframe::Result<()> {
     // Initialize common app components (database, i18n)
     uad_shizuku_app::init_common();
 
+    // Set panic hook on Windows to show OpenGL instructions if eframe panics during initialization
+    #[cfg(target_os = "windows")]
+    {
+        let default_hook = std::panic::take_hook();
+        std::panic::set_hook(Box::new(move |panic_info| {
+            default_hook(panic_info);
+            show_opengl_instructions();
+        }));
+    }
+
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_inner_size([1024.0, 768.0])
@@ -70,16 +159,6 @@ fn main() -> eframe::Result<()> {
         "UAD-Shizuku",
         options,
         Box::new(|cc| {
-
-            // hide terminal window on Windows GUI apps
-            #[cfg(target_os = "windows")]
-            {
-                use winapi::um::wincon::FreeConsole;
-                unsafe {
-                    FreeConsole();
-                }
-            }
-
             uad_shizuku_app::init_egui(&cc.egui_ctx);
             Ok(Box::<UadShizukuApp>::default())
         }),
