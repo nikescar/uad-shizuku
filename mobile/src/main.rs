@@ -1,4 +1,4 @@
-use eframe::egui;
+use eframe::egui::{self, IconData};
 use uad_shizuku::uad_shizuku_app::{self, UadShizukuApp};
 
 /// Check OpenGL version on Windows and show installation instructions if OpenGL 2.0+ is not available
@@ -154,10 +154,18 @@ fn main() -> eframe::Result<()> {
         }));
     }
 
+    let icon = image::load_from_memory(include_bytes!("../app/src/main/play_store_512.png")).unwrap();
+    let icon = IconData {
+        width: icon.width(),
+        height: icon.height(),
+        rgba: icon.into_rgba8().into_raw(),
+    };
+
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_inner_size([1024.0, 768.0])
-            .with_min_inner_size([400.0, 300.0]),
+            .with_min_inner_size([400.0, 300.0])
+            .with_icon(icon),
         ..Default::default()
     };
 

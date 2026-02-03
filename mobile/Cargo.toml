@@ -1,5 +1,6 @@
 [package]
 name = "uad-shizuku"
+build = "build.rs"
 version.workspace = true
 license.workspace = true
 edition.workspace = true
@@ -97,3 +98,6 @@ open = "5.0"
 sqlite-wasm-vfs = "0.1.1"
 sqlite-wasm-rs = "0.5.1"
 # eframe = { workspace = true, features = ["default_fonts","glow","web_screen_reader"] }
+
+[build-dependencies]
+winres = "0.1.12"

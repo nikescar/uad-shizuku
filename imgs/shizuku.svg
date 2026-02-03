@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<svg width="800px" height="800px" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg" fill="#ffffff" xmlns:bx="https://boxy-svg.com">
+  <defs>
+    <bx:export>
+      <bx:file format="svg"/>
+    </bx:export>
+  </defs>
+  <g id="SVGRepo_bgCarrier" stroke-width="0"/>
+  <g id="SVGRepo_tracerCarrier" stroke-linecap="round" stroke-linejoin="round"/>
+  <g id="SVGRepo_iconCarrier" transform="matrix(1, 0, 0, 1, 8.421053, -4.463158)">
+    <defs>
+      <style>.a{fill:none;stroke:#ffffff;stroke-linecap:round;stroke-linejoin:round;}</style>
+    </defs>
+    <g>
+      <path class="a" d="M25.65,42.5l1.92-5.28a13.31,13.31,0,0,0,.16-8.63l.34-.62a12.13,12.13,0,0,0,1.14-6.35,12,12,0,0,0-5.92.3l-.21.07a13.5,13.5,0,0,0-3.49-1.9h0a13.53,13.53,0,0,0-3.91-.79l-.11-.19a12.13,12.13,0,0,0-4.34-4A12,12,0,0,0,8,20.67q-.09.34-.15.69A13.71,13.71,0,0,0,5.5,23.28"/>
+      <circle class="a" cx="12.35" cy="25.53" r="1.1"/>
+      <circle class="a" cx="21.63" cy="28.91" r="1.1"/>
+      <g style="transform-origin: 15.0206px 22.4927px 0px;" transform="matrix(0.995617, -0.093524, 0.093524, 0.995617, -0.505263, 1.263157)">
+        <path class="a" d="M 24.038 13.273 L 25.958 18.553 C 26.969 21.332 27.025 24.368 26.118 27.183 L 26.458 27.803 C 27.404 29.778 27.798 31.972 27.598 34.153 C 25.631 34.549 23.595 34.446 21.678 33.853 L 21.468 33.783 C 20.405 34.585 19.229 35.225 17.978 35.683 C 16.721 36.138 15.403 36.404 14.068 36.473 L 13.958 36.663 C 12.863 38.333 11.372 39.707 9.618 40.663 C 8.056 39.138 6.939 37.215 6.388 35.103 C 6.328 34.876 6.278 34.646 6.238 34.413 C 5.386 33.862 4.598 33.218 3.888 32.493" style="stroke-width: 1px; transform-origin: 15.769px 26.968px 0px;" transform="matrix(-0.707107, -0.707107, 0.707107, -0.707107, 0, 0)"/>
+      </g>
+    </g>
+  </g>
+</svg>
