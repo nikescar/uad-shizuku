@@ -2219,138 +2219,42 @@ impl UadShizukuApp {
             )
             .content(|ui| {
                 ui.vertical(|ui| {
-                    ui.set_width(900.0);
-                    ui.set_height(450.0);
+                    ui.set_width(400.0);
 
                     ui.add_space(8.0);
 
                     // Platform detection
                     let os = std::env::consts::OS;
-                    let (platform_name, download_url) = match os {
-                        "windows" => ("Windows", "https://dl.google.com/android/repository/platform-tools-latest-windows.zip"),
-                        "macos" => ("macOS", "https://dl.google.com/android/repository/platform-tools-latest-darwin.zip"),
-                        "linux" => ("Linux", "https://dl.google.com/android/repository/platform-tools-latest-linux.zip"),
-                        _ => (os, "https://developer.android.com/studio/releases/platform-tools"),
+                    let platform_name = match os {
+                        "windows" => "Windows",
+                        "macos" => "macOS",
+                        "linux" => "Linux",
+                        _ => os,
                     };
 
                     ui.label(format!("Detected platform: {}", platform_name));
                     ui.add_space(8.0);
                     ui.label("ADB (Android Debug Bridge) is required but not found in your system PATH.");
-                    ui.label("Copy and paste the commands below in your terminal to install ADB.");
                     ui.add_space(16.0);
 
-                    match os {
-                        "windows" => {
-                            ui.label("PowerShell - Run as Administrator:");
-                            ui.add_space(4.0);
-
-                            let windows_cmd = r#"# Download and extract platform-tools
-$sdkPath = "$env:LOCALAPPDATA\Android\Sdk"
-$ptPath = "$sdkPath\platform-tools"
-New-Item -ItemType Directory -Force -Path $sdkPath | Out-Null
-Invoke-WebRequest -Uri "https://dl.google.com/android/repository/platform-tools-latest-windows.zip" -OutFile "$env:TEMP\platform-tools.zip"
-Expand-Archive -Path "$env:TEMP\platform-tools.zip" -DestinationPath $sdkPath -Force
-Remove-Item "$env:TEMP\platform-tools.zip"
-
-# Add to PATH permanently via registry
-$currentPath = [Environment]::GetEnvironmentVariable("Path", "User")
-if ($currentPath -notlike "*$ptPath*") {
-[Environment]::SetEnvironmentVariable("Path", "$currentPath;$ptPath", "User")
-Write-Host "Added $ptPath to user PATH. Restart your terminal."
-} else {
-Write-Host "Path already contains platform-tools."
-}
-Write-Host "Installation complete. Run 'adb version' in a new terminal to verify."
-"#;
-                            // let windows_cmd = "";
-
-                            ui.add(egui::TextEdit::multiline(&mut windows_cmd.to_string())
-                                .code_editor()
-                                .desired_width(f32::INFINITY)
-                                .desired_rows(18));
-
-                            if ui.button("Copy Commands").clicked() {
-                                ui.ctx().copy_text(windows_cmd.to_string());
-                            }
-                        }
-                        "macos" => {
-                            ui.label("For Zsh (~/.zshrc):");
-                            ui.add_space(4.0);
-
-                            let macos_zsh_cmd = r#"# Download and extract platform-tools
-SDK_PATH="$HOME/Library/Android/sdk"
-PT_PATH="$SDK_PATH/platform-tools"
-mkdir -p "$SDK_PATH"
-curl -o /tmp/platform-tools.zip https://dl.google.com/android/repository/platform-tools-latest-darwin.zip
-unzip -o /tmp/platform-tools.zip -d "$SDK_PATH"
-rm /tmp/platform-tools.zip
-
-# Add to PATH in shell config
-SHELL_RC="$HOME/.zshrc"
-if ! grep -q "platform-tools" "$SHELL_RC" 2>/dev/null; then
-echo "export PATH=\"\$PATH:$PT_PATH\"" >> "$SHELL_RC"
-echo "Added to $SHELL_RC. Run: source $SHELL_RC"
-else
-echo "PATH already configured."
-fi
-echo "Run 'adb version' to verify installation."
-"#;
-                            // let macos_zsh_cmd = "";
-                            ui.add(egui::TextEdit::multiline(&mut macos_zsh_cmd.to_string())
-                                .code_editor()
-                                .desired_width(f32::INFINITY)
-                                .desired_rows(16));
-
-                            if ui.button("Copy Zsh Commands").clicked() {
-                                ui.ctx().copy_text(macos_zsh_cmd.to_string());
-                            }
-                        }
-                        _ => {
-                            // Linux/BSD variants and other Unix-like systems - use Linux commands
-                            ui.label("For Bash/Zsh (~/.bashrc or ~/.zshrc):");
-                            ui.add_space(4.0);
-
-                            let unix_cmd = r#"# Download and extract platform-tools
-SDK_PATH="$HOME/Android/Sdk"
-PT_PATH="$SDK_PATH/platform-tools"
-mkdir -p "$SDK_PATH"
-curl -o /tmp/platform-tools.zip https://dl.google.com/android/repository/platform-tools-latest-linux.zip
-unzip -o /tmp/platform-tools.zip -d "$SDK_PATH"
-rm /tmp/platform-tools.zip
-
-# Add to PATH in shell config
-SHELL_RC="$HOME/.bashrc"
-[ -f "$HOME/.zshrc" ] && SHELL_RC="$HOME/.zshrc"
-if ! grep -q "platform-tools" "$SHELL_RC" 2>/dev/null; then
-echo "export PATH=\"\$PATH:$PT_PATH\"" >> "$SHELL_RC"
-echo "Added to $SHELL_RC. Run: source $SHELL_RC"
-else
-echo "PATH already configured."
-fi
-echo "Run 'adb version' to verify installation."
-"#;
-
-                            ui.add(egui::TextEdit::multiline(&mut unix_cmd.to_string())
-                                .code_editor()
-                                .desired_width(f32::INFINITY)
-                                .desired_rows(16));
-
-                            if ui.button("Copy Bash/Zsh Commands").clicked() {
-                                ui.ctx().copy_text(unix_cmd.to_string());
-                            }
-                        }
-                    }
-
-                    ui.add_space(16.0);
-                    ui.separator();
+                    ui.label("Please follow the installation guide to install ADB:");
                     ui.add_space(8.0);
 
                     ui.horizontal(|ui| {
-                        ui.label("Download:");
-                        ui.hyperlink_to(format!("Platform Tools for {}", platform_name), download_url);
+                        ui.hyperlink_to(
+                            "Installation Guide (English)",
+                            "https://uad-shizuku.pages.dev/docs/installation",
+                        );
                     });
 
-                    ui.add_space(8.0);
+                    ui.horizontal(|ui| {
+                        ui.hyperlink_to(
+                            "설치 가이드 (한국어)",
+                            "https://uad-shizuku.pages.dev/docs/kr/docs/installation",
+                        );
+                    });
+
+                    ui.add_space(16.0);
                 });
             })
             .action(tr!("close"), || {})
