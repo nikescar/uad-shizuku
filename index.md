@@ -12,7 +12,7 @@ hero:
       text: GitHub
       link: https://github.com/nikescar/uad-shizuku
   image:
-    src: 
+    src: /imgs/logo.png
 ---
 
 | Arch          | Windows        | MacOS         | Linux        | Android        | IOS         |
