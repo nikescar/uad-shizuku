@@ -6,6 +6,9 @@ debloat, scan virus, install foss apps on android.
 
 UAD-Shizuku is using debloat apps info from [UAD-NG](https://github.com/Universal-Debloater-Alliance/universal-android-debloater-next-generation). <br/>
 [UAD-NG](https://github.com/Universal-Debloater-Alliance/universal-android-debloater-next-generation) has better implementation on debloat app per manufacturer.
+
+<img src="./imgs/screenshot.png" alt="drawing" width="1024"/>
+
 * UAD-Shizuku does not afilliated with virustotal or hybrid-analysis or apkmirror. their service through this program may have ended without notification.
 ## Features
 
