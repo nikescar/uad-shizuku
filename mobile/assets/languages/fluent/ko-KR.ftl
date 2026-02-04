@@ -43,6 +43,7 @@ label-unknown = 알 수 없음
 show-only-enabled = 활성화된 항목만 표시
 hide-system-app = 시스템 앱 숨기기
 show-only-installable = 설치 가능한 항목만 표시
+disable-github-install = GitHub 설치 비활성화
 col-package-name = 패키지 이름
 col-debloat-category = 디블로트 카테고리
 col-runtime-permissions = 런타임 권한

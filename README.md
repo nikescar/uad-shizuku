@@ -94,6 +94,7 @@ Get list of FOSS apps, and install directly. github and fdroid auto-install supp
 * match datatable color to theme.
 * android version through shizuku
 * android keyboard & clipboard
+* windows app signing & attestation
 * web version through webusb on browser
 * usage history & netstats history
 * logcat ?

@@ -35,6 +35,7 @@ impl Default for TabAppsControl {
             previous_app_list: None,
             recently_installed_apps: std::collections::HashSet::new(),
             show_only_installable: true, // Default to showing only installable apps
+            disable_github_install: true, // Default to allowing GitHub installs
         }
     }
 }
@@ -401,6 +402,11 @@ impl TabAppsControl {
             url,
             link_type
         );
+
+        // Check if GitHub installs are disabled
+        if link_type == "github-downloadable" && self.disable_github_install {
+            return Err("GitHub installations are disabled".to_string());
+        }
 
         // Update status
         self.installing_apps
@@ -902,10 +908,13 @@ impl TabAppsControl {
 
         ui.add_space(10.0);
 
-// Show only installable toggle
+        // Show only installable toggle
         ui.horizontal(|ui| {
             ui.label(tr!("show-only-installable"));
             toggle_ui(ui, &mut self.show_only_installable);
+            ui.add_space(10.0);
+            ui.label(tr!("disable-github-install"));
+            toggle_ui(ui, &mut self.disable_github_install);
         });
 
         ui.add_space(10.0);
