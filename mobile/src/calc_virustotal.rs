@@ -855,3 +855,199 @@ pub fn analyze_package(
 
     Ok(())
 }
+
+/// Run VirusTotal scanning for a list of packages in a background thread.
+/// This function initializes the scanner state and spawns a background thread
+/// to scan all packages using the VirusTotal API.
+///
+/// # Arguments
+/// * `installed_packages` - List of packages to scan
+/// * `device_serial` - Device serial number for ADB operations
+/// * `api_key` - VirusTotal API key
+/// * `virustotal_submit_enabled` - Whether to submit unknown files to VirusTotal
+/// * `package_risk_scores` - Risk scores for sorting packages by priority
+/// * `vt_scan_progress` - Shared progress value for UI updates
+/// * `vt_scan_cancelled` - Shared cancellation flag
+///
+/// # Returns
+/// Returns the scanner state and rate limiter for tracking progress
+pub fn run_virustotal(
+    installed_packages: Vec<crate::adb::PackageFingerprint>,
+    device_serial: String,
+    api_key: String,
+    virustotal_submit_enabled: bool,
+    package_risk_scores: HashMap<String, i32>,
+    vt_scan_progress: Arc<Mutex<Option<f32>>>,
+    vt_scan_cancelled: Arc<Mutex<bool>>,
+) -> (ScannerState, SharedRateLimiter) {
+    let package_names: Vec<String> = installed_packages.iter().map(|p| p.pkg.clone()).collect();
+    let scanner_state = init_scanner_state(&package_names);
+
+    let rate_limiter = Arc::new(Mutex::new(RateLimiter::new(
+        4,
+        Duration::from_secs(60),
+        Duration::from_secs(5),
+    )));
+
+    // Initialize progress
+    if let Ok(mut p) = vt_scan_progress.lock() {
+        *p = Some(0.0);
+    }
+    if let Ok(mut cancelled) = vt_scan_cancelled.lock() {
+        *cancelled = false;
+    }
+
+    tracing::info!(
+        "Starting VirusTotal scan for {} packages",
+        installed_packages.len()
+    );
+
+    let scanner_state_clone = scanner_state.clone();
+    let rate_limiter_clone = rate_limiter.clone();
+    let vt_scan_progress_clone = vt_scan_progress;
+    let vt_scan_cancelled_clone = vt_scan_cancelled;
+
+    std::thread::spawn(move || {
+        let mut packages = installed_packages;
+        packages.sort_by(|a, b| {
+            let perms_a: usize = a.users.iter().map(|u| u.runtimePermissions.len()).sum();
+            let perms_b: usize = b.users.iter().map(|u| u.runtimePermissions.len()).sum();
+            perms_b.cmp(&perms_a)
+        });
+
+        let cached_packages =
+            crate::db_package_cache::get_cached_packages_with_apk(&device_serial);
+
+        let mut cached_packages_map: HashMap<String, crate::models::PackageInfoCache> =
+            HashMap::new();
+        for cp in cached_packages {
+            cached_packages_map.insert(cp.pkg_id.clone(), cp);
+        }
+
+        let total = packages.len();
+        let mut skipped_cached = 0usize;
+
+        for (i, package) in packages.iter().enumerate() {
+            if let Ok(cancelled) = vt_scan_cancelled_clone.lock() {
+                if *cancelled {
+                    tracing::info!("VirusTotal scan cancelled by user");
+                    break;
+                }
+            }
+
+            if let Ok(mut p) = vt_scan_progress_clone.lock() {
+                *p = Some(i as f32 / total as f32);
+            }
+
+            let pkg_name = &package.pkg;
+
+            {
+                let s = scanner_state_clone.lock().unwrap();
+                if matches!(s.get(pkg_name), Some(ScanStatus::Completed(_))) {
+                    skipped_cached += 1;
+                    continue;
+                }
+            }
+
+            let mut paths_str = String::new();
+            let mut sha256sums_str = String::new();
+
+            if let Some(cached_pkg) = cached_packages_map.get(pkg_name) {
+                if let (Some(path), Some(sha256)) =
+                    (&cached_pkg.apk_path, &cached_pkg.apk_sha256sum)
+                {
+                    paths_str = path.clone();
+                    sha256sums_str = sha256.clone();
+                }
+            }
+
+            if paths_str.is_empty() || sha256sums_str.is_empty() {
+                paths_str = package.codePath.clone();
+                sha256sums_str = package.pkgChecksum.clone();
+            }
+
+            if !paths_str.is_empty() && !sha256sums_str.is_empty() {
+                let paths: Vec<&str> = paths_str.split(' ').collect();
+                let sha256sums: Vec<&str> = sha256sums_str.split(' ').collect();
+                let needs_directory_scan = paths.iter().any(|p| !p.ends_with(".apk"));
+                let has_invalid_hashes = sha256sums.iter().any(|s| s.len() != 64);
+
+                let (final_paths_str, final_sha256sums_str) =
+                    if needs_directory_scan || has_invalid_hashes {
+                        match crate::adb::get_single_package_sha256sum(&device_serial, pkg_name) {
+                            Ok((new_paths, new_sha256sums)) => {
+                                if !new_paths.is_empty() && !new_sha256sums.is_empty() {
+                                    (new_paths, new_sha256sums)
+                                } else if !has_invalid_hashes {
+                                    (paths_str.clone(), sha256sums_str.clone())
+                                } else {
+                                    (String::new(), String::new())
+                                }
+                            }
+                            Err(e) => {
+                                if !has_invalid_hashes {
+                                    tracing::warn!(
+                                        "Failed to get sha256sums for {}: {}, using cached values",
+                                        pkg_name,
+                                        e
+                                    );
+                                    (paths_str.clone(), sha256sums_str.clone())
+                                } else {
+                                    tracing::warn!(
+                                        "Failed to get sha256sums for {}: {}, skipping",
+                                        pkg_name,
+                                        e
+                                    );
+                                    (String::new(), String::new())
+                                }
+                            }
+                        }
+                    } else {
+                        (paths_str.clone(), sha256sums_str.clone())
+                    };
+
+                let final_paths: Vec<&str> = final_paths_str.split(' ').collect();
+                let final_sha256sums: Vec<&str> = final_sha256sums_str.split(' ').collect();
+
+                let hashes: Vec<(String, String)> = final_paths
+                    .iter()
+                    .zip(final_sha256sums.iter())
+                    .filter(|(p, s)| !p.is_empty() && s.len() == 64)
+                    .map(|(p, s)| (p.to_string(), s.to_string()))
+                    .collect();
+
+                tracing::info!(
+                    "Analyzing package {} with {} files (Risk: {})",
+                    pkg_name,
+                    hashes.len(),
+                    package_risk_scores.get(pkg_name).copied().unwrap_or(0)
+                );
+
+                if let Err(e) = analyze_package(
+                    pkg_name,
+                    hashes,
+                    &scanner_state_clone,
+                    &rate_limiter_clone,
+                    &api_key,
+                    &device_serial,
+                    virustotal_submit_enabled,
+                    &None,
+                ) {
+                    tracing::error!("Error analyzing package {}: {}", pkg_name, e);
+                }
+            }
+        }
+
+        tracing::info!(
+            "VirusTotal scan complete: {} cached, {} processed",
+            skipped_cached,
+            total - skipped_cached
+        );
+
+        if let Ok(mut p) = vt_scan_progress_clone.lock() {
+            *p = None;
+        }
+    });
+
+    (scanner_state, rate_limiter)
+}
