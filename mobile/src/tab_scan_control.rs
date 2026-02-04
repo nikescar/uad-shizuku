@@ -57,6 +57,7 @@ impl Default for TabScanControl {
             google_play_renderer_enabled: false,
             fdroid_renderer_enabled: false,
             apkmirror_renderer_enabled: false,
+            text_filter: String::new(),
         }
     }
 }
@@ -715,6 +716,91 @@ impl TabScanControl {
 
         self.should_show_package_vt(package) && self.should_show_package_ha(package)
     }
+
+    fn matches_text_filter(&self, package: &PackageFingerprint) -> bool {
+        if self.text_filter.is_empty() {
+            return true;
+        }
+
+        let filter_lower = self.text_filter.to_lowercase();
+        let store = get_shared_store();
+
+        // Check package name and version
+        let package_name = format!("{} ({})", package.pkg, package.versionName).to_lowercase();
+        if package_name.contains(&filter_lower) {
+            return true;
+        }
+
+        // Check IzzyRisk score
+        let risk_score = self.get_risk_score(&package.pkg);
+        if risk_score.to_string().contains(&filter_lower) {
+            return true;
+        }
+
+        // Check VirusTotal scan result
+        if let Some(ref vt_state) = *store.vt_scanner_state.lock().unwrap() {
+            if let Some(ref result) = vt_state.lock().unwrap().get(&package.pkg) {
+                let vt_text = format!("{:?}", result).to_lowercase();
+                if vt_text.contains(&filter_lower) {
+                    return true;
+                }
+            }
+        }
+
+        // Check HybridAnalysis scan result
+        if let Some(ref ha_state) = *store.ha_scanner_state.lock().unwrap() {
+            if let Some(ref result) = ha_state.lock().unwrap().get(&package.pkg) {
+                let ha_text = format!("{:?}", result).to_lowercase();
+                if ha_text.contains(&filter_lower) {
+                    return true;
+                }
+            }
+        }
+
+        // Check cached app info (title and developer)
+        let is_system = package.flags.contains("SYSTEM");
+        let cached_fdroid_apps = store.get_cached_fdroid_apps();
+        let cached_google_play_apps = store.get_cached_google_play_apps();
+        let cached_apkmirror_apps = store.get_cached_apkmirror_apps();
+
+        if !is_system {
+            if let Some(fd_app) = cached_fdroid_apps.get(&package.pkg) {
+                if fd_app.raw_response != "404" {
+                    if fd_app.title.to_lowercase().contains(&filter_lower) {
+                        return true;
+                    }
+                    if fd_app.developer.to_lowercase().contains(&filter_lower) {
+                        return true;
+                    }
+                }
+            }
+
+            if let Some(gp_app) = cached_google_play_apps.get(&package.pkg) {
+                if gp_app.raw_response != "404" {
+                    if gp_app.title.to_lowercase().contains(&filter_lower) {
+                        return true;
+                    }
+                    if gp_app.developer.to_lowercase().contains(&filter_lower) {
+                        return true;
+                    }
+                }
+            }
+        } else {
+            if let Some(am_app) = cached_apkmirror_apps.get(&package.pkg) {
+                if am_app.raw_response != "404" {
+                    if am_app.title.to_lowercase().contains(&filter_lower) {
+                        return true;
+                    }
+                    if am_app.developer.to_lowercase().contains(&filter_lower) {
+                        return true;
+                    }
+                }
+            }
+        }
+
+        false
+    }
+
     pub fn ui(&mut self, ui: &mut egui::Ui) {
         // Sync progress from background threads to state machines
         if let Ok(progress) = self.vt_scan_progress.lock() {
@@ -966,6 +1052,14 @@ impl TabScanControl {
             ui.add_space(10.0);
             ui.label(tr!("hide-system-app"));
             toggle_ui(ui, &mut self.hide_system_app);
+            ui.add_space(10.0);
+            ui.label(tr!("filter"));
+            ui.add(egui::TextEdit::singleline(&mut self.text_filter)
+                .hint_text(tr!("filter-hint"))
+                .desired_width(200.0));
+            if !self.text_filter.is_empty() && ui.button("✕").clicked() {
+                self.text_filter.clear();
+            }
         });
         ui.add_space(10.0);
 
@@ -1004,6 +1098,7 @@ impl TabScanControl {
         let visible_package_ids: Vec<String> = installed_packages
             .iter()
             .filter(|p| self.should_show_package(p))
+            .filter(|p| self.matches_text_filter(p))
             .map(|p| p.pkg.clone())
             .collect();
 
@@ -1036,7 +1131,7 @@ impl TabScanControl {
             .allow_selection(false);
 
         for (idx, package) in installed_packages.iter().enumerate() {
-            if !self.should_show_package(package) {
+            if !self.should_show_package(package) || !self.matches_text_filter(package) {
                 continue;
             }
 

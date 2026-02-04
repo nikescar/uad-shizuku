@@ -106,6 +106,9 @@ pub struct TabScanControl {
     pub google_play_renderer_enabled: bool,
     pub fdroid_renderer_enabled: bool,
     pub apkmirror_renderer_enabled: bool,
+
+    // Text filter for searching all visible text in the table
+    pub text_filter: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
