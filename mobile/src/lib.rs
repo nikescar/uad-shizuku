@@ -14,8 +14,8 @@ mod tab_scan_control;
 pub mod tab_scan_control_stt;
 mod tab_usage_control;
 pub mod tab_usage_control_stt;
-mod win_package_details_dialog;
-pub mod win_package_details_dialog_stt;
+mod dlg_package_details;
+pub mod dlg_package_details_stt;
 
 pub mod api_apkmirror;
 pub mod api_apkmirror_stt;

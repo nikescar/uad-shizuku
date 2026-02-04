@@ -1,10 +1,10 @@
 use crate::adb::PackageFingerprint;
 use crate::uad_shizuku_app::UadNgLists;
-pub use crate::win_package_details_dialog_stt::*;
+pub use crate::dlg_package_details_stt::*;
 use eframe::egui;
 use egui_material3::MaterialButton;
 
-impl PackageDetailsDialog {
+impl DlgPackageDetails {
     pub fn new() -> Self {
         Self::default()
     }

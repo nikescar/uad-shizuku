@@ -1,7 +1,7 @@
 use crate::adb::PackageFingerprint;
 use crate::uad_shizuku_app::UadNgLists;
 use crate::models::{ApkMirrorApp, FDroidApp, GooglePlayApp};
-use crate::win_package_details_dialog::PackageDetailsDialog;
+use crate::dlg_package_details::DlgPackageDetails;
 use eframe::egui;
 use std::collections::{HashMap, HashSet};
 
@@ -28,7 +28,7 @@ pub struct TabDebloatControl {
     // Selection state - using package names as keys for stability across sorting
     pub selected_packages: HashSet<String>,
     // Package details dialog
-    pub package_details_dialog: PackageDetailsDialog,
+    pub package_details_dialog: DlgPackageDetails,
     // Filter state
     pub active_filter: DebloatFilter,
     // Sort state

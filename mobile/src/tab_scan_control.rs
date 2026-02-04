@@ -7,7 +7,7 @@ use crate::db_hybridanalysis;
 use crate::db_virustotal;
 use crate::uad_shizuku_app::UadNgLists;
 pub use crate::tab_scan_control_stt::*;
-use crate::win_package_details_dialog::PackageDetailsDialog;
+use crate::dlg_package_details::DlgPackageDetails;
 use eframe::egui;
 use egui_async::Bind;
 use egui_i18n::tr;
@@ -29,7 +29,7 @@ impl Default for TabScanControl {
             selected_packages: Vec::new(),
             package_risk_scores: HashMap::new(),
             izzyrisk_bind: Bind::new(true), // retain = true to keep scores across frames
-            package_details_dialog: PackageDetailsDialog::new(),
+            package_details_dialog: DlgPackageDetails::new(),
             vt_scanner_state: None,
             vt_rate_limiter: None,
             vt_package_paths_cache: None,

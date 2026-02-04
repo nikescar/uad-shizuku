@@ -7,7 +7,7 @@ use crate::calc_virustotal::{
 };
 use crate::uad_shizuku_app::UadNgLists;
 use crate::models::{ApkMirrorApp, FDroidApp, GooglePlayApp};
-use crate::win_package_details_dialog::PackageDetailsDialog;
+use crate::dlg_package_details::DlgPackageDetails;
 use eframe::egui;
 use egui_async::Bind;
 use std::collections::HashMap;
@@ -60,7 +60,7 @@ pub struct TabScanControl {
     // Bind for IzzyRisk calculation (calculates all scores asynchronously)
     pub izzyrisk_bind: Bind<HashMap<String, i32>, String>,
     // Package details dialog
-    pub package_details_dialog: PackageDetailsDialog,
+    pub package_details_dialog: DlgPackageDetails,
     // VirusTotal scanner state
     pub vt_scanner_state: Option<VtScannerState>,
     // Shared rate limiter for VirusTotal API

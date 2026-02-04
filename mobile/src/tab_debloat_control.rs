@@ -2,7 +2,7 @@ use crate::adb::PackageFingerprint;
 use crate::uad_shizuku_app::UadNgLists;
 use crate::models::{ApkMirrorApp, FDroidApp, GooglePlayApp};
 pub use crate::tab_debloat_control_stt::*;
-use crate::win_package_details_dialog::PackageDetailsDialog;
+use crate::dlg_package_details::DlgPackageDetails;
 use eframe::egui;
 use egui_i18n::tr;
 use egui_material3::{assist_chip, data_table, theme::get_global_color, MaterialButton};
@@ -17,7 +17,7 @@ impl Default for TabDebloatControl {
             installed_packages: Vec::new(),
             uad_ng_lists: None,
             selected_packages: std::collections::HashSet::new(),
-            package_details_dialog: PackageDetailsDialog::new(),
+            package_details_dialog: DlgPackageDetails::new(),
             active_filter: DebloatFilter::All,
             sort_column: None,
             sort_ascending: true,
