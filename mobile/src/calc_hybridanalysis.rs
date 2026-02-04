@@ -1803,7 +1803,7 @@ pub fn run_hybridanalysis(
                 let hashes: Vec<(String, String)> = final_paths
                     .iter()
                     .zip(final_sha256sums.iter())
-                    .filter(|(p, s)| !p.is_empty() && s.len() != 64)
+                    .filter(|(p, s)| !p.is_empty() && s.len() == 64)
                     .map(|(p, s)| (p.to_string(), s.to_string()))
                     .collect();
 
