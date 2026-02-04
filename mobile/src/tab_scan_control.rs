@@ -26,6 +26,7 @@ impl Default for TabScanControl {
             // NOTE: installed_packages, uad_ng_lists, vt_scanner_state, ha_scanner_state,
             // cached apps, and textures are now in shared_store_stt::SharedStore
             selected_packages: Vec::new(),
+            cached_scan_counts: CachedScanCounts::default(),
             package_risk_scores: HashMap::new(),
             izzyrisk_bind: Bind::new(true), // retain = true to keep scores across frames
             package_details_dialog: DlgPackageDetails::new(),
@@ -460,25 +461,39 @@ impl TabScanControl {
         }
     }
 
-    fn get_vt_counts(&self) -> (usize, usize, usize, usize, usize) {
-        let mut total = 0;
-        let mut malicious = 0;
-        let mut suspicious = 0;
-        let mut safe = 0;
-        let mut not_scanned = 0;
+    /// Update cached VT/HA counts if scanner state has changed
+    fn update_cached_scan_counts(
+        &mut self,
+        installed_packages: &[PackageFingerprint],
+        vt_scanner_state: &Option<calc_virustotal::ScannerState>,
+        ha_scanner_state: &Option<calc_hybridanalysis::ScannerState>,
+    ) {
+        // Check if cache needs updating based on progress changes
+        let vt_progress = self.vt_scan_state.progress;
+        let ha_progress = self.ha_scan_state.progress;
 
-        let store = get_shared_store();
-        let installed_packages = store.get_installed_packages();
-        let vt_scanner_state = store.get_vt_scanner_state();
+        let cache_valid = self.cached_scan_counts.vt_progress == vt_progress
+            && self.cached_scan_counts.ha_progress == ha_progress;
+
+        if cache_valid {
+            return;
+        }
+
+        // Compute VT counts
+        let mut vt_total = 0;
+        let mut vt_malicious = 0;
+        let mut vt_suspicious = 0;
+        let mut vt_safe = 0;
+        let mut vt_not_scanned = 0;
 
         if let Some(ref scanner_state) = vt_scanner_state {
             let state = scanner_state.lock().unwrap();
-            for package in &installed_packages {
-                if !self.should_show_package_ha(package) {
+            for package in installed_packages {
+                if !self.should_show_package_ha_with_state(package, ha_scanner_state) {
                     continue;
                 }
 
-                total += 1;
+                vt_total += 1;
                 match state.get(&package.pkg) {
                     Some(calc_virustotal::ScanStatus::Completed(result)) => {
                         let mal_count: i32 =
@@ -487,47 +502,40 @@ impl TabScanControl {
                             result.file_results.iter().map(|fr| fr.suspicious).sum();
 
                         if mal_count > 0 {
-                            malicious += 1;
+                            vt_malicious += 1;
                         } else if sus_count > 0 {
-                            suspicious += 1;
+                            vt_suspicious += 1;
                         } else {
-                            safe += 1;
+                            vt_safe += 1;
                         }
                     }
-                    _ => not_scanned += 1,
+                    _ => vt_not_scanned += 1,
                 }
             }
         } else {
-            for package in &installed_packages {
-                if self.should_show_package_ha(package) {
-                    total += 1;
-                    not_scanned += 1;
+            for package in installed_packages {
+                if self.should_show_package_ha_with_state(package, ha_scanner_state) {
+                    vt_total += 1;
+                    vt_not_scanned += 1;
                 }
             }
         }
 
-        (total, malicious, suspicious, safe, not_scanned)
-    }
-
-    fn get_ha_counts(&self) -> (usize, usize, usize, usize, usize) {
-        let mut total = 0;
-        let mut malicious = 0;
-        let mut suspicious = 0;
-        let mut safe = 0;
-        let mut not_scanned = 0;
-
-        let store = get_shared_store();
-        let installed_packages = store.get_installed_packages();
-        let ha_scanner_state = store.get_ha_scanner_state();
+        // Compute HA counts
+        let mut ha_total = 0;
+        let mut ha_malicious = 0;
+        let mut ha_suspicious = 0;
+        let mut ha_safe = 0;
+        let mut ha_not_scanned = 0;
 
         if let Some(ref scanner_state) = ha_scanner_state {
             let state = scanner_state.lock().unwrap();
-            for package in &installed_packages {
-                if !self.should_show_package_vt(package) {
+            for package in installed_packages {
+                if !self.should_show_package_vt_with_state(package, vt_scanner_state) {
                     continue;
                 }
 
-                total += 1;
+                ha_total += 1;
                 match state.get(&package.pkg) {
                     Some(calc_hybridanalysis::ScanStatus::Completed(result)) => {
                         let max_severity = result
@@ -542,30 +550,43 @@ impl TabScanControl {
                             .unwrap_or(0);
 
                         match max_severity {
-                            2 => malicious += 1,
-                            1 => suspicious += 1,
-                            _ => safe += 1,
+                            2 => ha_malicious += 1,
+                            1 => ha_suspicious += 1,
+                            _ => ha_safe += 1,
                         }
                     }
-                    _ => not_scanned += 1,
+                    _ => ha_not_scanned += 1,
                 }
             }
         } else {
-            for package in &installed_packages {
-                if self.should_show_package_vt(package) {
-                    total += 1;
-                    not_scanned += 1;
+            for package in installed_packages {
+                if self.should_show_package_vt_with_state(package, vt_scanner_state) {
+                    ha_total += 1;
+                    ha_not_scanned += 1;
                 }
             }
         }
 
-        (total, malicious, suspicious, safe, not_scanned)
+        // Update cache
+        self.cached_scan_counts.vt_counts = (vt_total, vt_malicious, vt_suspicious, vt_safe, vt_not_scanned);
+        self.cached_scan_counts.ha_counts = (ha_total, ha_malicious, ha_suspicious, ha_safe, ha_not_scanned);
+        self.cached_scan_counts.vt_progress = vt_progress;
+        self.cached_scan_counts.ha_progress = ha_progress;
     }
 
-    fn should_show_package_vt(&self, package: &PackageFingerprint) -> bool {
-        let store = get_shared_store();
-        let vt_scanner_state = store.get_vt_scanner_state();
+    fn get_vt_counts(&self) -> (usize, usize, usize, usize, usize) {
+        self.cached_scan_counts.vt_counts
+    }
 
+    fn get_ha_counts(&self) -> (usize, usize, usize, usize, usize) {
+        self.cached_scan_counts.ha_counts
+    }
+
+    fn should_show_package_vt_with_state(
+        &self,
+        package: &PackageFingerprint,
+        vt_scanner_state: &Option<calc_virustotal::ScannerState>,
+    ) -> bool {
         match self.active_vt_filter {
             VtFilter::All => true,
             VtFilter::Malicious => {
@@ -625,10 +646,11 @@ impl TabScanControl {
         }
     }
 
-    fn should_show_package_ha(&self, package: &PackageFingerprint) -> bool {
-        let store = get_shared_store();
-        let ha_scanner_state = store.get_ha_scanner_state();
-
+    fn should_show_package_ha_with_state(
+        &self,
+        package: &PackageFingerprint,
+        ha_scanner_state: &Option<calc_hybridanalysis::ScannerState>,
+    ) -> bool {
         match self.active_ha_filter {
             HaFilter::All => true,
             HaFilter::Malicious => {
@@ -687,7 +709,12 @@ impl TabScanControl {
         }
     }
 
-    fn should_show_package(&self, package: &PackageFingerprint) -> bool {
+    fn should_show_package_with_state(
+        &self,
+        package: &PackageFingerprint,
+        vt_scanner_state: &Option<calc_virustotal::ScannerState>,
+        ha_scanner_state: &Option<calc_hybridanalysis::ScannerState>,
+    ) -> bool {
         if self.hide_system_app && package.flags.contains("SYSTEM") {
             return false;
         }
@@ -714,16 +741,42 @@ impl TabScanControl {
             }
         }
 
-        self.should_show_package_vt(package) && self.should_show_package_ha(package)
+        self.should_show_package_vt_with_state(package, vt_scanner_state)
+            && self.should_show_package_ha_with_state(package, ha_scanner_state)
     }
 
-    fn matches_text_filter(&self, package: &PackageFingerprint) -> bool {
+    // Legacy methods that fetch from store (used by get_vt_counts/get_ha_counts)
+    fn should_show_package_vt(&self, package: &PackageFingerprint) -> bool {
+        let store = get_shared_store();
+        let vt_scanner_state = store.get_vt_scanner_state();
+        self.should_show_package_vt_with_state(package, &vt_scanner_state)
+    }
+
+    fn should_show_package_ha(&self, package: &PackageFingerprint) -> bool {
+        let store = get_shared_store();
+        let ha_scanner_state = store.get_ha_scanner_state();
+        self.should_show_package_ha_with_state(package, &ha_scanner_state)
+    }
+
+    fn should_show_package(&self, package: &PackageFingerprint) -> bool {
+        let store = get_shared_store();
+        let vt_scanner_state = store.get_vt_scanner_state();
+        let ha_scanner_state = store.get_ha_scanner_state();
+        self.should_show_package_with_state(package, &vt_scanner_state, &ha_scanner_state)
+    }
+
+    fn matches_text_filter_with_cache(
+        &self,
+        package: &PackageFingerprint,
+        cached_fdroid_apps: &HashMap<String, crate::models::FDroidApp>,
+        cached_google_play_apps: &HashMap<String, crate::models::GooglePlayApp>,
+        cached_apkmirror_apps: &HashMap<String, crate::models::ApkMirrorApp>,
+    ) -> bool {
         if self.text_filter.is_empty() {
             return true;
         }
 
         let filter_lower = self.text_filter.to_lowercase();
-        let store = get_shared_store();
 
         // Check package name and version
         let package_name = format!("{} ({})", package.pkg, package.versionName).to_lowercase();
@@ -737,31 +790,8 @@ impl TabScanControl {
             return true;
         }
 
-        // Check VirusTotal scan result
-        if let Some(ref vt_state) = *store.vt_scanner_state.lock().unwrap() {
-            if let Some(ref result) = vt_state.lock().unwrap().get(&package.pkg) {
-                let vt_text = format!("{:?}", result).to_lowercase();
-                if vt_text.contains(&filter_lower) {
-                    return true;
-                }
-            }
-        }
-
-        // Check HybridAnalysis scan result
-        if let Some(ref ha_state) = *store.ha_scanner_state.lock().unwrap() {
-            if let Some(ref result) = ha_state.lock().unwrap().get(&package.pkg) {
-                let ha_text = format!("{:?}", result).to_lowercase();
-                if ha_text.contains(&filter_lower) {
-                    return true;
-                }
-            }
-        }
-
-        // Check cached app info (title and developer)
+        // Check cached app info (title and developer) - use pre-fetched maps
         let is_system = package.flags.contains("SYSTEM");
-        let cached_fdroid_apps = store.get_cached_fdroid_apps();
-        let cached_google_play_apps = store.get_cached_google_play_apps();
-        let cached_apkmirror_apps = store.get_cached_apkmirror_apps();
 
         if !is_system {
             if let Some(fd_app) = cached_fdroid_apps.get(&package.pkg) {
@@ -801,6 +831,19 @@ impl TabScanControl {
         false
     }
 
+    fn matches_text_filter(&self, package: &PackageFingerprint) -> bool {
+        let store = get_shared_store();
+        let cached_fdroid_apps = store.get_cached_fdroid_apps();
+        let cached_google_play_apps = store.get_cached_google_play_apps();
+        let cached_apkmirror_apps = store.get_cached_apkmirror_apps();
+        self.matches_text_filter_with_cache(
+            package,
+            &cached_fdroid_apps,
+            &cached_google_play_apps,
+            &cached_apkmirror_apps,
+        )
+    }
+
     pub fn ui(&mut self, ui: &mut egui::Ui) {
         // Sync progress from background threads to state machines
         if let Ok(progress) = self.vt_scan_progress.lock() {
@@ -828,9 +871,21 @@ impl TabScanControl {
         // Sync risk scores from background thread
         self.sync_risk_scores();
 
-        // VirusTotal Filter Buttons
+        // Pre-fetch data once at the start to avoid repeated clones
         let shared_store = crate::shared_store_stt::get_shared_store();
-        let installed_packages = shared_store.installed_packages.lock().unwrap().clone();
+        let installed_packages = shared_store.get_installed_packages();
+        let vt_scanner_state = shared_store.get_vt_scanner_state();
+        let ha_scanner_state = shared_store.get_ha_scanner_state();
+
+        // Pre-fetch cached app data maps for efficient lookups
+        let cached_fdroid_apps = shared_store.get_cached_fdroid_apps();
+        let cached_google_play_apps = shared_store.get_cached_google_play_apps();
+        let cached_apkmirror_apps = shared_store.get_cached_apkmirror_apps();
+
+        // Update cached scan counts if needed (only recomputes when scanner progress changes)
+        self.update_cached_scan_counts(&installed_packages, &vt_scanner_state, &ha_scanner_state);
+
+        // VirusTotal Filter Buttons
         if !installed_packages.is_empty() {
             ui.horizontal(|ui| {
                 ui.vertical(|ui| {
@@ -1097,8 +1152,8 @@ impl TabScanControl {
 
         let visible_package_ids: Vec<String> = installed_packages
             .iter()
-            .filter(|p| self.should_show_package(p))
-            .filter(|p| self.matches_text_filter(p))
+            .filter(|p| self.should_show_package_with_state(p, &vt_scanner_state, &ha_scanner_state))
+            .filter(|p| self.matches_text_filter_with_cache(p, &cached_fdroid_apps, &cached_google_play_apps, &cached_apkmirror_apps))
             .map(|p| p.pkg.clone())
             .collect();
 
@@ -1111,15 +1166,7 @@ impl TabScanControl {
         let app_data_map =
             self.prepare_app_info_for_display(ui.ctx(), &visible_package_ids, &system_packages);
 
-        // Clone scanner states for use in closures (lock and release immediately)
-        let vt_scanner_state = {
-            let lock = shared_store.vt_scanner_state.lock().unwrap();
-            lock.clone()
-        };
-        let ha_scanner_state = {
-            let lock = shared_store.ha_scanner_state.lock().unwrap();
-            lock.clone()
-        };
+        // Note: vt_scanner_state and ha_scanner_state are already pre-fetched at the start of ui()
 
         let mut interactive_table = data_table()
             .id(egui::Id::new("scan_data_table"))
@@ -1131,7 +1178,9 @@ impl TabScanControl {
             .allow_selection(false);
 
         for (idx, package) in installed_packages.iter().enumerate() {
-            if !self.should_show_package(package) || !self.matches_text_filter(package) {
+            if !self.should_show_package_with_state(package, &vt_scanner_state, &ha_scanner_state)
+                || !self.matches_text_filter_with_cache(package, &cached_fdroid_apps, &cached_google_play_apps, &cached_apkmirror_apps)
+            {
                 continue;
             }
 

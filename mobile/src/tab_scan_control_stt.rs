@@ -40,6 +40,23 @@ impl ScanStateMachine {
     }
 }
 
+/// Cached VT/HA counts to avoid recomputing every frame
+#[derive(Default, Clone)]
+pub struct CachedScanCounts {
+    /// VT counts: (total, malicious, suspicious, safe, not_scanned)
+    pub vt_counts: (usize, usize, usize, usize, usize),
+    /// HA counts: (total, malicious, suspicious, safe, not_scanned)
+    pub ha_counts: (usize, usize, usize, usize, usize),
+    /// VT progress when cache was computed (to detect scanner state changes)
+    pub vt_progress: Option<f32>,
+    /// HA progress when cache was computed
+    pub ha_progress: Option<f32>,
+    /// VT filter when cache was computed
+    pub vt_filter: Option<HaFilter>,
+    /// HA filter when cache was computed
+    pub ha_filter: Option<VtFilter>,
+}
+
 pub struct TabScanControl {
     pub open: bool,
     // NOTE: installed_packages, uad_ng_lists, vt_scanner_state, ha_scanner_state,
@@ -48,6 +65,9 @@ pub struct TabScanControl {
 
     // Selection state
     pub selected_packages: Vec<bool>,
+
+    // Cached scan counts to avoid recomputing every frame
+    pub cached_scan_counts: CachedScanCounts,
     // Risk score cache: package_name -> risk_score
     pub package_risk_scores: HashMap<String, i32>,
     // Bind for IzzyRisk calculation (calculates all scores asynchronously)
