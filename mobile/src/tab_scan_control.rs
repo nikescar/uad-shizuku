@@ -331,73 +331,14 @@ impl TabScanControl {
             installed_packages.len()
         );
 
-        thread::spawn(move || {
-            let device_serial_str = device_serial.as_deref().unwrap_or("");
-
-            let cached_packages_map: HashMap<String, crate::models::PackageInfoCache> =
-                if !device_serial_str.is_empty() {
-                    crate::db_package_cache::get_all_cached_packages(device_serial_str)
-                        .into_iter()
-                        .map(|cp| (cp.pkg_id.clone(), cp))
-                        .collect()
-                } else {
-                    HashMap::new()
-                };
-
-            let mut cache_hits = 0;
-            let mut cache_misses = 0;
-            let total = installed_packages.len();
-
-            for (i, package) in installed_packages.iter().enumerate() {
-                // Check for cancellation
-                if let Ok(cancelled) = cancelled_clone.lock() {
-                    if *cancelled {
-                        tracing::info!("IzzyRisk calculation cancelled by user");
-                        break;
-                    }
-                }
-
-                // Update progress
-                if let Ok(mut p) = progress_clone.lock() {
-                    *p = Some(i as f32 / total as f32);
-                }
-
-                let risk_score = if device_serial_str.is_empty() {
-                    // No device serial: calculate without caching
-                    calc_izzyrisk::calculate_izzyrisk(package)
-                } else {
-                    let cached_pkg = cached_packages_map.get(&package.pkg);
-                    let score = calc_izzyrisk::calculate_and_cache_izzyrisk(
-                        package,
-                        cached_pkg,
-                        device_serial_str,
-                    );
-                    if cached_pkg.and_then(|c| c.izzyscore).is_some() {
-                        cache_hits += 1;
-                    } else {
-                        cache_misses += 1;
-                    }
-                    score
-                };
-
-                // Update shared scores
-                if let Ok(mut shared) = shared_scores.lock() {
-                    shared.insert(package.pkg.clone(), risk_score);
-                }
-            }
-
-            tracing::info!(
-                "IzzyRisk calculation complete: {} packages ({} cached, {} computed)",
-                total,
-                cache_hits,
-                cache_misses
-            );
-
-            // Clear progress when done
-            if let Ok(mut p) = progress_clone.lock() {
-                *p = None;
-            }
-        });
+        // Call the async function from calc_izzyrisk module
+        calc_izzyrisk::calculate_all_risk_scores_async(
+            installed_packages,
+            device_serial,
+            shared_scores,
+            progress_clone,
+            cancelled_clone,
+        );
     }
 
     /// Get the risk score for a package by name
