@@ -2,6 +2,7 @@
 pub struct DlgPackageDetails {
     pub open: bool,
     pub selected_package_index: Option<usize>,
+    pub selected_tab: usize,
 }
 
 impl Default for DlgPackageDetails {
@@ -9,6 +10,7 @@ impl Default for DlgPackageDetails {
         Self {
             open: false,
             selected_package_index: None,
+            selected_tab: 0,
         }
     }
 }
