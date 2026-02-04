@@ -24,6 +24,7 @@ impl Default for TabDebloatControl {
             table_version: 0,
             show_only_enabled: false,
             hide_system_app: false,
+            cached_counts: CachedCategoryCounts::default(),
         }
     }
 }
@@ -94,68 +95,85 @@ impl TabDebloatControl {
         store.set_cached_apkmirror_app(pkg_id, app);
     }
 
+    /// Update cached category counts if version has changed
+    fn update_cached_counts(&mut self, installed_packages: &[PackageFingerprint], uad_ng_lists: Option<&UadNgLists>) {
+        if self.cached_counts.version == self.table_version {
+            return; // Cache is still valid
+        }
+
+        if let Some(lists) = uad_ng_lists {
+            // Compute all counts in a single pass
+            let mut recommended = (0usize, 0usize);
+            let mut advanced = (0usize, 0usize);
+            let mut expert = (0usize, 0usize);
+            let mut unsafe_count = (0usize, 0usize);
+            let mut unknown = (0usize, 0usize);
+
+            for package in installed_packages {
+                let is_enabled = self.is_package_enabled(package);
+
+                if let Some(app_entry) = lists.apps.get(&package.pkg) {
+                    match app_entry.removal.as_str() {
+                        "Recommended" => {
+                            recommended.1 += 1;
+                            if is_enabled { recommended.0 += 1; }
+                        }
+                        "Advanced" => {
+                            advanced.1 += 1;
+                            if is_enabled { advanced.0 += 1; }
+                        }
+                        "Expert" => {
+                            expert.1 += 1;
+                            if is_enabled { expert.0 += 1; }
+                        }
+                        "Unsafe" => {
+                            unsafe_count.1 += 1;
+                            if is_enabled { unsafe_count.0 += 1; }
+                        }
+                        _ => {}
+                    }
+                } else {
+                    // Unknown category
+                    unknown.1 += 1;
+                    if is_enabled { unknown.0 += 1; }
+                }
+            }
+
+            self.cached_counts.recommended = recommended;
+            self.cached_counts.advanced = advanced;
+            self.cached_counts.expert = expert;
+            self.cached_counts.unsafe_count = unsafe_count;
+            self.cached_counts.unknown = unknown;
+        } else {
+            // No UAD lists, reset counts
+            self.cached_counts.recommended = (0, 0);
+            self.cached_counts.advanced = (0, 0);
+            self.cached_counts.expert = (0, 0);
+            self.cached_counts.unsafe_count = (0, 0);
+            self.cached_counts.unknown = (0, 0);
+        }
+
+        self.cached_counts.version = self.table_version;
+    }
+
     fn get_recommended_count(&self) -> (usize, usize) {
-        self.get_category_count("Recommended")
+        self.cached_counts.recommended
     }
 
     fn get_advanced_count(&self) -> (usize, usize) {
-        self.get_category_count("Advanced")
+        self.cached_counts.advanced
     }
 
     fn get_expert_count(&self) -> (usize, usize) {
-        self.get_category_count("Expert")
+        self.cached_counts.expert
     }
 
     fn get_unsafe_count(&self) -> (usize, usize) {
-        self.get_category_count("Unsafe")
+        self.cached_counts.unsafe_count
     }
 
     fn get_unknown_count(&self) -> (usize, usize) {
-        let store = get_shared_store();
-        if let Some(uad_ng_lists) = store.get_uad_ng_lists() {
-            let installed_packages = store.get_installed_packages();
-            let unknown_packages: Vec<_> = installed_packages
-                .iter()
-                .filter(|package| uad_ng_lists.apps.get(&package.pkg).is_none())
-                .collect();
-
-            let total_count = unknown_packages.len();
-            let enabled_count = unknown_packages
-                .iter()
-                .filter(|package| self.is_package_enabled(package))
-                .count();
-
-            (enabled_count, total_count)
-        } else {
-            (0, 0)
-        }
-    }
-
-    fn get_category_count(&self, category: &str) -> (usize, usize) {
-        let store = get_shared_store();
-        if let Some(uad_ng_lists) = store.get_uad_ng_lists() {
-            let installed_packages = store.get_installed_packages();
-            let category_packages: Vec<_> = installed_packages
-                .iter()
-                .filter(|package| {
-                    uad_ng_lists
-                        .apps
-                        .get(&package.pkg)
-                        .map(|app_entry| app_entry.removal == category)
-                        .unwrap_or(false)
-                })
-                .collect();
-
-            let total_count = category_packages.len();
-            let enabled_count = category_packages
-                .iter()
-                .filter(|package| self.is_package_enabled(package))
-                .count();
-
-            (enabled_count, total_count)
-        } else {
-            (0, 0)
-        }
+        self.cached_counts.unknown
     }
 
     fn is_package_enabled(&self, package: &PackageFingerprint) -> bool {
@@ -170,7 +188,7 @@ impl TabDebloatControl {
             .unwrap_or(false)
     }
 
-    fn should_show_package(&self, package: &PackageFingerprint) -> bool {
+    fn should_show_package(&self, package: &PackageFingerprint, uad_ng_lists: Option<&UadNgLists>) -> bool {
         if self.hide_system_app && package.flags.contains("SYSTEM") {
             return false;
         }
@@ -197,14 +215,13 @@ impl TabDebloatControl {
 
         match &self.active_filter {
             DebloatFilter::All => true,
-            DebloatFilter::Recommended => self.matches_category(package, "Recommended"),
-            DebloatFilter::Advanced => self.matches_category(package, "Advanced"),
-            DebloatFilter::Expert => self.matches_category(package, "Expert"),
-            DebloatFilter::Unsafe => self.matches_category(package, "Unsafe"),
+            DebloatFilter::Recommended => Self::matches_category_static(package, "Recommended", uad_ng_lists),
+            DebloatFilter::Advanced => Self::matches_category_static(package, "Advanced", uad_ng_lists),
+            DebloatFilter::Expert => Self::matches_category_static(package, "Expert", uad_ng_lists),
+            DebloatFilter::Unsafe => Self::matches_category_static(package, "Unsafe", uad_ng_lists),
             DebloatFilter::Unknown => {
-                let store = get_shared_store();
-                if let Some(uad_ng_lists) = store.get_uad_ng_lists() {
-                    uad_ng_lists.apps.get(&package.pkg).is_none()
+                if let Some(lists) = uad_ng_lists {
+                    lists.apps.get(&package.pkg).is_none()
                 } else {
                     true
                 }
@@ -212,10 +229,9 @@ impl TabDebloatControl {
         }
     }
 
-    fn matches_category(&self, package: &PackageFingerprint, category: &str) -> bool {
-        let store = get_shared_store();
-        if let Some(uad_ng_lists) = store.get_uad_ng_lists() {
-            uad_ng_lists
+    fn matches_category_static(package: &PackageFingerprint, category: &str, uad_ng_lists: Option<&UadNgLists>) -> bool {
+        if let Some(lists) = uad_ng_lists {
+            lists
                 .apps
                 .get(&package.pkg)
                 .map(|app| app.removal == category)
@@ -397,7 +413,19 @@ impl TabDebloatControl {
     ) -> Option<AdbResult> {
         let mut result = None;
         let store = get_shared_store();
+
+        // Pre-fetch data once at the start to avoid repeated clones
         let installed_packages = store.get_installed_packages();
+        let uad_ng_lists = store.get_uad_ng_lists();
+        let uad_ng_lists_ref = uad_ng_lists.as_ref();
+
+        // Pre-fetch cached app data maps for efficient lookups
+        let cached_fdroid_apps = store.get_cached_fdroid_apps();
+        let cached_google_play_apps = store.get_cached_google_play_apps();
+        let cached_apkmirror_apps = store.get_cached_apkmirror_apps();
+
+        // Update cached counts if needed (only recomputes when table_version changes)
+        self.update_cached_counts(&installed_packages, uad_ng_lists_ref);
 
         // Filter Buttons
         if !installed_packages.is_empty() {
@@ -598,16 +626,16 @@ impl TabDebloatControl {
         let mut filtered_package_names = Vec::new();
 
         // Collect filtered packages info first to avoid borrow issues
-        let uad_ng_lists = store.get_uad_ng_lists();
+        // Note: uad_ng_lists_ref is pre-fetched at the start of ui()
         let filtered_packages: Vec<(usize, String, String, bool, String, String, String, String, bool)> = installed_packages
             .iter()
             .enumerate()
-            .filter(|(_, p)| self.should_show_package(p))
+            .filter(|(_, p)| self.should_show_package(p, uad_ng_lists_ref))
             .map(|(idx, package)| {
                 let is_system = package.flags.contains("SYSTEM");
                 let package_name = format!("{} ({})", package.pkg, package.versionName);
-                let debloat_category = if let Some(ref uad_ng_lists) = uad_ng_lists {
-                    uad_ng_lists
+                let debloat_category = if let Some(ref lists) = uad_ng_lists_ref {
+                    lists
                         .apps
                         .get(&package.pkg)
                         .map(|app| app.removal.clone())
@@ -651,14 +679,14 @@ impl TabDebloatControl {
             let enabled_str = enabled_text.clone();
             let debloat_category_clone = debloat_category.clone();
 
-            // Get cached app info for this package from shared store
-            let fd_cached = store.get_cached_fdroid_app(&pkg_id);
-            let gp_cached = store.get_cached_google_play_app(&pkg_id);
-            let am_cached = store.get_cached_apkmirror_app(&pkg_id);
+            // Get cached app info from pre-fetched maps (avoids repeated mutex locks)
+            let fd_cached = cached_fdroid_apps.get(&pkg_id);
+            let gp_cached = cached_google_play_apps.get(&pkg_id);
+            let am_cached = cached_apkmirror_apps.get(&pkg_id);
 
             // Prepare texture data
             let (fd_texture, fd_title, fd_developer) = if !is_system && fdroid_enabled {
-                if let Some(ref fd_app) = fd_cached {
+                if let Some(fd_app) = fd_cached {
                     if fd_app.raw_response != "404" {
                         let tex = fd_app.icon_base64.as_ref().and_then(|icon| {
                             Self::load_texture_from_base64(ui.ctx(), "fd", &pkg_id, icon)
@@ -675,7 +703,7 @@ impl TabDebloatControl {
             };
 
             let (gp_texture, gp_title, gp_developer) = if !is_system && google_play_enabled && fd_title.is_none() {
-                if let Some(ref gp_app) = gp_cached {
+                if let Some(gp_app) = gp_cached {
                     if gp_app.raw_response != "404" {
                         let tex = gp_app.icon_base64.as_ref().and_then(|icon| {
                             Self::load_texture_from_base64(ui.ctx(), "gp", &pkg_id, icon)
@@ -692,7 +720,7 @@ impl TabDebloatControl {
             };
 
             let (am_texture, am_title, am_developer) = if is_system && apkmirror_enabled {
-                if let Some(ref am_app) = am_cached {
+                if let Some(am_app) = am_cached {
                     if am_app.raw_response != "404" {
                         let tex = am_app.icon_base64.as_ref().and_then(|icon| {
                             Self::load_texture_from_base64(ui.ctx(), "am", &pkg_id, icon)
