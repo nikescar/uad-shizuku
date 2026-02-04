@@ -390,15 +390,35 @@ impl TabScanControl {
                         risk_a.cmp(&risk_b)
                     }
                     2 => {
-                        let get_vt_sort_key = |pkg_name: &str| -> i32 {
+                        // Sort by: result category * 100_000 + malicious * 1000 + suspicious
+                        // Result categories: malicious=5, suspicious=4, clean=3, not_found=2, skipped=1, error=0
+                        let get_vt_sort_key = |pkg_name: &str| -> i64 {
                             if let Some(ref state) = vt_scanner_state {
                                 let state_lock = state.lock().unwrap();
                                 match state_lock.get(pkg_name) {
-                                    Some(calc_virustotal::ScanStatus::Completed(result)) => result
-                                        .file_results
-                                        .iter()
-                                        .map(|fr| fr.malicious + fr.suspicious)
-                                        .sum::<i32>(),
+                                    Some(calc_virustotal::ScanStatus::Completed(result)) => {
+                                        result
+                                            .file_results
+                                            .iter()
+                                            .map(|fr| {
+                                                if fr.skipped {
+                                                    1_i64 * 100_000
+                                                } else if fr.not_found {
+                                                    2_i64 * 100_000
+                                                } else if fr.malicious > 0 {
+                                                    // Malicious: category 5 + malicious count + suspicious
+                                                    5_i64 * 100_000 + (fr.malicious as i64) * 1000 + (fr.suspicious as i64)
+                                                } else if fr.suspicious > 0 {
+                                                    // Suspicious only: category 4 + suspicious count
+                                                    4_i64 * 100_000 + (fr.suspicious as i64) * 1000
+                                                } else {
+                                                    // Clean: category 3
+                                                    3_i64 * 100_000
+                                                }
+                                            })
+                                            .max()
+                                            .unwrap_or(0)
+                                    }
                                     Some(calc_virustotal::ScanStatus::Error(_)) => -1,
                                     Some(calc_virustotal::ScanStatus::Scanning { .. }) => -2,
                                     Some(calc_virustotal::ScanStatus::Pending) => -3,
@@ -414,7 +434,9 @@ impl TabScanControl {
                         score_a.cmp(&score_b)
                     }
                     3 => {
-                        let get_ha_sort_key = |pkg_name: &str| -> i32 {
+                        // Sort by: verdict_priority * 1_000_000 + threat_score * 1000 + tags_count
+                        // Verdict priorities: malicious=5, suspicious=4, no specific threat=3, no-result=2, whitelisted=1
+                        let get_ha_sort_key = |pkg_name: &str| -> i64 {
                             if let Some(ref state) = ha_scanner_state {
                                 let state_lock = state.lock().unwrap();
                                 match state_lock.get(pkg_name) {
@@ -422,14 +444,20 @@ impl TabScanControl {
                                         result
                                             .file_results
                                             .iter()
-                                            .map(|fr| match fr.verdict.as_str() {
-                                                "malicious" => 4,
-                                                "suspicious" => 3,
-                                                "no specific threat" => 2,
-                                                "no-result" => 1,
-                                                "whitelisted" => 0,
-                                                "submitted" => -1,
-                                                _ => 1,
+                                            .map(|fr| {
+                                                let verdict_priority: i64 = match fr.verdict.as_str() {
+                                                    "malicious" => 5,
+                                                    "suspicious" => 4,
+                                                    "no specific threat" => 3,
+                                                    "no-result" => 2,
+                                                    "whitelisted" => 1,
+                                                    "submitted" => 0,
+                                                    _ => 2,
+                                                };
+                                                let score = fr.threat_score.unwrap_or(0) as i64;
+                                                let tags_count = fr.classification_tags.len() as i64;
+                                                // Composite key: verdict * 1M + score * 1K + tags
+                                                verdict_priority * 1_000_000 + score * 1000 + tags_count
                                             })
                                             .max()
                                             .unwrap_or(-1)
@@ -1403,7 +1431,28 @@ impl TabScanControl {
                                                     }
                                                 } else {
                                                     // Get base translated text
-                                                    let base_text = if let Some(score) = file_result.threat_score {
+                                                    // Priority: tags first, then score, then plain verdict
+                                                    let has_tags = !file_result.classification_tags.is_empty();
+                                                    let base_text = if has_tags {
+                                                        // Show verdict with tags (e.g., "malicious(rat, jrat)")
+                                                        let tags_str = file_result.classification_tags.join(", ");
+                                                        match file_result.verdict.as_str() {
+                                                            "malicious" => tr!("ha-malicious-tags", { tags: tags_str }),
+                                                            "suspicious" => tr!("ha-suspicious-tags", { tags: tags_str }),
+                                                            "whitelisted" => tr!("ha-whitelisted-tags", { tags: tags_str }),
+                                                            "no specific threat" => tr!("ha-no-specific-threat-tags", { tags: tags_str }),
+                                                            _ => match file_result.verdict.as_str() {
+                                                                "no-result" => tr!("ha-no-result"),
+                                                                "rate_limited" => tr!("ha-rate-limited"),
+                                                                "submitted" => tr!("ha-submitted"),
+                                                                "pending_analysis" => tr!("ha-pending-analysis"),
+                                                                "404 Not Found" => tr!("ha-404"),
+                                                                "" => tr!("ha-skipped"),
+                                                                _ => file_result.verdict.clone(),
+                                                            },
+                                                        }
+                                                    } else if let Some(score) = file_result.threat_score {
+                                                        // No tags, show verdict with score
                                                         match file_result.verdict.as_str() {
                                                             "malicious" => tr!("ha-malicious-score", { score: score }),
                                                             "suspicious" => tr!("ha-suspicious-score", { score: score }),
@@ -1420,6 +1469,7 @@ impl TabScanControl {
                                                             },
                                                         }
                                                     } else {
+                                                        // No tags and no score, show plain verdict
                                                         match file_result.verdict.as_str() {
                                                             "malicious" => tr!("ha-malicious"),
                                                             "suspicious" => tr!("ha-suspicious"),
