@@ -43,6 +43,7 @@ label-unknown = Unknown
 show-only-enabled = Show only enabled
 hide-system-app = Hide system app
 show-only-installable = Show only installable
+disable-github-install = Disable GitHub installation
 col-package-name = Package Name
 col-debloat-category = Debloat Category
 col-runtime-permissions = Runtime Permissions

@@ -31,4 +31,5 @@ pub struct TabAppsControl {
     pub previous_app_list: Option<usize>, // Track previous selection to detect changes
     pub recently_installed_apps: HashSet<String>, // Track app names that were just installed (for GitHub apps where package name isn't in URL)
     pub show_only_installable: bool, // Filter to show only apps with downloadable links
+    pub disable_github_install: bool, // Option to disable GitHub installations
 }
