@@ -1,0 +1,5 @@
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+  <background android:drawable="@color/uad_shizuku_background"/>
+  <foreground android:drawable="@mipmap/uad_shizuku_foreground"/>
+</adaptive-icon>
+<!-- https://easyappicon.com/ -->
