@@ -25,6 +25,7 @@ impl Default for TabDebloatControl {
             show_only_enabled: false,
             hide_system_app: false,
             cached_counts: CachedCategoryCounts::default(),
+            text_filter: String::new(),
         }
     }
 }
@@ -239,6 +240,103 @@ impl TabDebloatControl {
         } else {
             false
         }
+    }
+
+    fn matches_text_filter(
+        &self,
+        package: &PackageFingerprint,
+        uad_ng_lists: Option<&UadNgLists>,
+        cached_fdroid_apps: &std::collections::HashMap<String, FDroidApp>,
+        cached_google_play_apps: &std::collections::HashMap<String, GooglePlayApp>,
+        cached_apkmirror_apps: &std::collections::HashMap<String, ApkMirrorApp>,
+    ) -> bool {
+        if self.text_filter.is_empty() {
+            return true;
+        }
+
+        let filter_lower = self.text_filter.to_lowercase();
+        let is_system = package.flags.contains("SYSTEM");
+
+        // Check package name and version
+        let package_name = format!("{} ({})", package.pkg, package.versionName).to_lowercase();
+        if package_name.contains(&filter_lower) {
+            return true;
+        }
+
+        // Check debloat category
+        let debloat_category = if let Some(lists) = uad_ng_lists {
+            lists
+                .apps
+                .get(&package.pkg)
+                .map(|app| app.removal.clone())
+                .unwrap_or_else(|| "Unknown".to_string())
+        } else {
+            "Unknown".to_string()
+        };
+        if debloat_category.to_lowercase().contains(&filter_lower) {
+            return true;
+        }
+
+        // Check enabled status
+        let enabled = package
+            .users
+            .first()
+            .map(|u| Self::enabled_to_display_string(u.enabled, u.installed, is_system))
+            .unwrap_or("DEFAULT");
+        if enabled.to_lowercase().contains(&filter_lower) {
+            return true;
+        }
+
+        // Check install reason
+        let install_reason_value = package.users.first().map(|u| u.installReason).unwrap_or(0);
+        let install_reason = if is_system {
+            if install_reason_value == 0 {
+                "SYSTEM".to_string()
+            } else {
+                format!("{} (SYSTEM)", Self::install_reason_to_string(install_reason_value))
+            }
+        } else {
+            Self::install_reason_to_string(install_reason_value).to_string()
+        };
+        if install_reason.to_lowercase().contains(&filter_lower) {
+            return true;
+        }
+
+        // Check cached app info (title and developer)
+        if let Some(fd_app) = cached_fdroid_apps.get(&package.pkg) {
+            if fd_app.raw_response != "404" {
+                if fd_app.title.to_lowercase().contains(&filter_lower) {
+                    return true;
+                }
+                if fd_app.developer.to_lowercase().contains(&filter_lower) {
+                    return true;
+                }
+            }
+        }
+
+        if let Some(gp_app) = cached_google_play_apps.get(&package.pkg) {
+            if gp_app.raw_response != "404" {
+                if gp_app.title.to_lowercase().contains(&filter_lower) {
+                    return true;
+                }
+                if gp_app.developer.to_lowercase().contains(&filter_lower) {
+                    return true;
+                }
+            }
+        }
+
+        if let Some(am_app) = cached_apkmirror_apps.get(&package.pkg) {
+            if am_app.raw_response != "404" {
+                if am_app.title.to_lowercase().contains(&filter_lower) {
+                    return true;
+                }
+                if am_app.developer.to_lowercase().contains(&filter_lower) {
+                    return true;
+                }
+            }
+        }
+
+        false
     }
 
     fn sort_packages(&mut self) {
@@ -561,6 +659,14 @@ impl TabDebloatControl {
             ui.add_space(10.0);
             ui.label(tr!("hide-system-app"));
             toggle_ui(ui, &mut self.hide_system_app);
+            ui.add_space(10.0);
+            ui.label(tr!("filter"));
+            ui.add(egui::TextEdit::singleline(&mut self.text_filter)
+                .hint_text(tr!("filter-hint"))
+                .desired_width(200.0));
+            if !self.text_filter.is_empty() && ui.button("✕").clicked() {
+                self.text_filter.clear();
+            }
         });
         ui.add_space(10.0);
 
@@ -631,6 +737,7 @@ impl TabDebloatControl {
             .iter()
             .enumerate()
             .filter(|(_, p)| self.should_show_package(p, uad_ng_lists_ref))
+            .filter(|(_, p)| self.matches_text_filter(p, uad_ng_lists_ref, &cached_fdroid_apps, &cached_google_play_apps, &cached_apkmirror_apps))
             .map(|(idx, package)| {
                 let is_system = package.flags.contains("SYSTEM");
                 let package_name = format!("{} ({})", package.pkg, package.versionName);

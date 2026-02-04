@@ -36,6 +36,7 @@ impl Default for TabAppsControl {
             recently_installed_apps: std::collections::HashSet::new(),
             show_only_installable: true, // Default to showing only installable apps
             disable_github_install: true, // Default to allowing GitHub installs
+            text_filter: String::new(),
         }
     }
 }
@@ -749,6 +750,44 @@ impl TabAppsControl {
         }
     }
 
+    /// Check if an app entry matches the text filter
+    fn matches_text_filter(&self, app: &AppEntry) -> bool {
+        if self.text_filter.is_empty() {
+            return true;
+        }
+
+        let filter_lower = self.text_filter.to_lowercase();
+
+        // Check category
+        if app.category.to_lowercase().contains(&filter_lower) {
+            return true;
+        }
+
+        // Check app name
+        if app.name.to_lowercase().contains(&filter_lower) {
+            return true;
+        }
+
+        // Check package name if available
+        if let Some(ref pkg_name) = app.package_name {
+            if pkg_name.to_lowercase().contains(&filter_lower) {
+                return true;
+            }
+        }
+
+        // Check link URLs and types
+        for (url, link_type) in &app.links {
+            if url.to_lowercase().contains(&filter_lower) {
+                return true;
+            }
+            if link_type.to_lowercase().contains(&filter_lower) {
+                return true;
+            }
+        }
+
+        false
+    }
+
     /// Get the first downloadable link type and URL for an app
     /// Returns Some((url, link_type)) for github-downloadable or fdroid-downloadable
     /// Returns None for non-downloadable or not-yet-supported types (gitlab, izzy)
@@ -915,6 +954,14 @@ impl TabAppsControl {
             ui.add_space(10.0);
             ui.label(tr!("disable-github-install"));
             toggle_ui(ui, &mut self.disable_github_install);
+            ui.add_space(10.0);
+            ui.label(tr!("filter"));
+            ui.add(egui::TextEdit::singleline(&mut self.text_filter)
+                .hint_text(tr!("filter-hint"))
+                .desired_width(200.0));
+            if !self.text_filter.is_empty() && ui.button("✕").clicked() {
+                self.text_filter.clear();
+            }
         });
 
         ui.add_space(10.0);
@@ -964,6 +1011,11 @@ impl TabAppsControl {
             let downloadable_link = self.get_downloadable_link(&app);
             if self.show_only_installable && downloadable_link.is_none() {
                 continue; // Skip apps without downloadable links
+            }
+
+            // Filter based on text filter
+            if !self.matches_text_filter(&app) {
+                continue;
             }
 
             let app_for_links = app.clone();

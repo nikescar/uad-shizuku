@@ -52,4 +52,7 @@ pub struct TabDebloatControl {
 
     // Cached category counts to avoid recomputing every frame
     pub cached_counts: CachedCategoryCounts,
+
+    // Text filter for searching all visible text in the table
+    pub text_filter: String,
 }
