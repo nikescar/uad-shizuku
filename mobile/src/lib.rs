@@ -57,6 +57,7 @@ pub use uad_shizuku_app::{UadShizukuApp as GuiApp, View};
 pub mod uad_shizuku_app;
 pub mod uad_shizuku_app_stt;
 pub mod shared_store_stt;
+mod shared_store;
 pub mod svg_stt;
 
 #[cfg(target_os = "android")]
