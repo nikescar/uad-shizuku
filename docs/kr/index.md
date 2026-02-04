@@ -7,12 +7,12 @@ hero:
   text: shizuku를 사용하는 범용 안드로이드 디블로터
   actions:
     - text: 설명서
-      link: /kr/readme
+      link: /docs/kr/readme
     - theme: alt
       text: GitHub
       link: https://github.com/nikescar/uad-shizuku
   image:
-    src:
+    src: /imgs/logo.png
 ---
 
 | 아키텍처       | Windows        | MacOS         | Linux        | Android        | IOS         |

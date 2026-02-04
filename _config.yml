@@ -67,7 +67,9 @@ theme_config:
     # Security: /security
   sidebar:
     - Docs:
-      - Guide: []
+      - Guide: # []
+          Installation : /installation
+          Development : /development
           # "Getting Started": /getting-started
           # Features: /features
           # Configuration: /configuration
@@ -122,11 +124,11 @@ locales:
         "/docs":
           - title: "가이드"
             collapsed: false
-            items: []
-              # - title: "시작하기"
-              #   link: "/getting-started"
-              # - title: "기능"
-              #   link: "/features"
+            items: # []
+              - title: "설치"
+                link: "/installation"
+              - title: "개발"
+                link: "/development"
               # - title: "설정"
               #   link: "/configuration"
               # - title: "배포"
