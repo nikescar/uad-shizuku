@@ -6,7 +6,6 @@ use crate::is_valid_package_id;
 use crate::models::HybridAnalysisResult;
 use crate::Config;
 use std::collections::HashMap;
-use std::path::Path;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
@@ -1628,4 +1627,255 @@ fn update_file_result(
             *file_result = new_result;
         }
     }
+}
+
+/// Run Hybrid Analysis scanning for a list of packages in a background thread.
+/// This function initializes the scanner state and spawns a background thread
+/// to scan all packages using the Hybrid Analysis API.
+///
+/// # Arguments
+/// * `installed_packages` - List of packages to scan
+/// * `device_serial` - Device serial number for ADB operations
+/// * `api_key` - Hybrid Analysis API key
+/// * `hybridanalysis_submit_enabled` - Whether to submit unknown files to Hybrid Analysis
+/// * `package_risk_scores` - Risk scores for sorting packages by priority
+/// * `ha_scan_progress` - Shared progress value for UI updates
+/// * `ha_scan_cancelled` - Shared cancellation flag
+///
+/// # Returns
+/// Returns the scanner state and rate limiter for tracking progress
+pub fn run_hybridanalysis(
+    installed_packages: Vec<crate::adb::PackageFingerprint>,
+    device_serial: String,
+    api_key: String,
+    hybridanalysis_submit_enabled: bool,
+    package_risk_scores: HashMap<String, i32>,
+    ha_scan_progress: Arc<Mutex<Option<f32>>>,
+    ha_scan_cancelled: Arc<Mutex<bool>>,
+) -> (ScannerState, SharedRateLimiter) {
+    let package_names: Vec<String> = installed_packages.iter().map(|p| p.pkg.clone()).collect();
+    let scanner_state = init_scanner_state(&package_names);
+
+    let rate_limiter = Arc::new(Mutex::new(RateLimiter::new(Duration::from_secs(3))));
+
+    // Initialize progress
+    if let Ok(mut p) = ha_scan_progress.lock() {
+        *p = Some(0.0);
+    }
+    if let Ok(mut cancelled) = ha_scan_cancelled.lock() {
+        *cancelled = false;
+    }
+
+    tracing::info!(
+        "Starting HybridAnalysis scan for {} packages",
+        installed_packages.len()
+    );
+
+    let scanner_state_clone = scanner_state.clone();
+    let rate_limiter_clone = rate_limiter.clone();
+    let ha_scan_progress_clone = ha_scan_progress;
+    let ha_scan_cancelled_clone = ha_scan_cancelled;
+
+    std::thread::spawn(move || {
+        let mut effective_submit_enabled = hybridanalysis_submit_enabled;
+        tracing::info!("Checking Hybrid Analysis API quota...");
+        match crate::api_hybridanalysis::check_quota(&api_key) {
+            Ok(quota) => {
+                if let Some(detonation) = quota.detonation {
+                    if detonation.quota_reached {
+                        tracing::warn!("Hybrid Analysis detonation quota reached!");
+                        effective_submit_enabled = false;
+                    }
+                    if let Some(apikey_info) = detonation.apikey {
+                        if apikey_info.quota_reached {
+                            tracing::warn!("Hybrid Analysis API key quota reached!");
+                            effective_submit_enabled = false;
+                        }
+                    }
+                }
+            }
+            Err(e) => {
+                tracing::error!("Failed to check Hybrid Analysis quota: {}", e);
+            }
+        }
+
+        let mut packages = installed_packages;
+        packages.sort_by(|a, b| {
+            let perms_a: usize = a.users.iter().map(|u| u.runtimePermissions.len()).sum();
+            let perms_b: usize = b.users.iter().map(|u| u.runtimePermissions.len()).sum();
+            perms_b.cmp(&perms_a)
+        });
+
+        let cached_packages =
+            crate::db_package_cache::get_cached_packages_with_apk(&device_serial);
+
+        let mut cached_packages_map: HashMap<String, crate::models::PackageInfoCache> =
+            HashMap::new();
+        for cp in cached_packages {
+            cached_packages_map.insert(cp.pkg_id.clone(), cp);
+        }
+
+        let total = packages.len();
+        let mut skipped_cached = 0usize;
+
+        for (i, package) in packages.iter().enumerate() {
+            if let Ok(cancelled) = ha_scan_cancelled_clone.lock() {
+                if *cancelled {
+                    tracing::info!("Hybrid Analysis scan cancelled by user");
+                    break;
+                }
+            }
+
+            if let Ok(mut p) = ha_scan_progress_clone.lock() {
+                *p = Some(i as f32 / total as f32);
+            }
+
+            let pkg_name = &package.pkg;
+
+            {
+                let s = scanner_state_clone.lock().unwrap();
+                if matches!(s.get(pkg_name), Some(ScanStatus::Completed(_))) {
+                    skipped_cached += 1;
+                    continue;
+                }
+            }
+
+            let mut paths_str = String::new();
+            let mut sha256sums_str = String::new();
+
+            if let Some(cached_pkg) = cached_packages_map.get(pkg_name) {
+                if let (Some(path), Some(sha256)) =
+                    (&cached_pkg.apk_path, &cached_pkg.apk_sha256sum)
+                {
+                    paths_str = path.clone();
+                    sha256sums_str = sha256.clone();
+                }
+            }
+
+            if paths_str.is_empty() || sha256sums_str.is_empty() {
+                paths_str = package.codePath.clone();
+                sha256sums_str = package.pkgChecksum.clone();
+            }
+
+            if !paths_str.is_empty() && !sha256sums_str.is_empty() {
+                let paths: Vec<&str> = paths_str.split(' ').collect();
+                let sha256sums: Vec<&str> = sha256sums_str.split(' ').collect();
+                let needs_directory_scan = paths.iter().any(|p| !p.ends_with(".apk"));
+                let has_invalid_hashes = sha256sums.iter().any(|s| s.len() != 64);
+
+                let (final_paths_str, final_sha256sums_str) =
+                    if needs_directory_scan || has_invalid_hashes {
+                        match crate::adb::get_single_package_sha256sum(&device_serial, pkg_name) {
+                            Ok((new_paths, new_sha256sums)) => {
+                                if !new_paths.is_empty() && !new_sha256sums.is_empty() {
+                                    (new_paths, new_sha256sums)
+                                } else if !has_invalid_hashes {
+                                    (paths_str.clone(), sha256sums_str.clone())
+                                } else {
+                                    (String::new(), String::new())
+                                }
+                            }
+                            Err(e) => {
+                                if !has_invalid_hashes {
+                                    tracing::warn!(
+                                        "Failed to get sha256sums for {}: {}, using cached",
+                                        pkg_name,
+                                        e
+                                    );
+                                    (paths_str.clone(), sha256sums_str.clone())
+                                } else {
+                                    tracing::warn!(
+                                        "Failed to get sha256sums for {}: {}, skipping",
+                                        pkg_name,
+                                        e
+                                    );
+                                    (String::new(), String::new())
+                                }
+                            }
+                        }
+                    } else {
+                        (paths_str.clone(), sha256sums_str.clone())
+                    };
+
+                let final_paths: Vec<&str> = final_paths_str.split(' ').collect();
+                let final_sha256sums: Vec<&str> = final_sha256sums_str.split(' ').collect();
+
+                let hashes: Vec<(String, String)> = final_paths
+                    .iter()
+                    .zip(final_sha256sums.iter())
+                    .filter(|(p, s)| !p.is_empty() && s.len() != 64)
+                    .map(|(p, s)| (p.to_string(), s.to_string()))
+                    .collect();
+
+                tracing::info!(
+                    "Analyzing package {} with {} files (Risk: {})",
+                    pkg_name,
+                    hashes.len(),
+                    package_risk_scores.get(pkg_name).copied().unwrap_or(0)
+                );
+
+                if let Err(e) = analyze_package(
+                    pkg_name,
+                    hashes,
+                    &scanner_state_clone,
+                    &rate_limiter_clone,
+                    &api_key,
+                    &device_serial,
+                    effective_submit_enabled,
+                    &None,
+                ) {
+                    tracing::error!("Error analyzing package {}: {}", pkg_name, e);
+                }
+            } else {
+                tracing::error!("Failed to get path and sha256 for package {}", pkg_name);
+            }
+        }
+
+        tracing::info!(
+            "Hybrid Analysis scan complete: {} cached, {} processed",
+            skipped_cached,
+            total - skipped_cached
+        );
+
+        // Second pass: poll pending jobs
+        tracing::info!("Checking for pending jobs...");
+        loop {
+            if let Ok(cancelled) = ha_scan_cancelled_clone.lock() {
+                if *cancelled {
+                    tracing::info!("Hybrid Analysis scan cancelled during pending check");
+                    break;
+                }
+            }
+
+            let pending_count = check_pending_jobs(
+                &scanner_state_clone,
+                &rate_limiter_clone,
+                &api_key,
+                &None,
+            );
+
+            if pending_count == 0 {
+                tracing::info!("All pending jobs completed");
+                break;
+            }
+
+            tracing::info!("{} jobs still pending, waiting 30 seconds", pending_count);
+
+            for _ in 0..30 {
+                if let Ok(cancelled) = ha_scan_cancelled_clone.lock() {
+                    if *cancelled {
+                        tracing::info!("Hybrid Analysis scan cancelled during wait");
+                        break;
+                    }
+                }
+                thread::sleep(Duration::from_secs(1));
+            }
+        }
+
+        if let Ok(mut p) = ha_scan_progress_clone.lock() {
+            *p = None;
+        }
+    });
+
+    (scanner_state, rate_limiter)
 }

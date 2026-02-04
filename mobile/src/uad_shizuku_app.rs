@@ -22,7 +22,7 @@ use crate::db_package_cache::get_cached_packages_with_apk;
 use crate::models::PackageInfoCache;
 use crate::svg_stt::*;
 
-use crate::adb::{get_devices, get_users, PackageFingerprint, UserInfo};
+use crate::adb::{get_devices, get_users, UserInfo};
 // use crate::android_packagemanager::get_installed_packages;
 use crate::tab_apps_control::TabAppsControl;
 use crate::tab_debloat_control::TabDebloatControl;
@@ -242,8 +242,7 @@ impl Default for UadShizukuApp {
             selected_user: None,
             current_user: None,
 
-            installed_packages: Vec::<PackageFingerprint>::new(),
-            uad_ng_lists: None,
+            // NOTE: installed_packages and uad_ng_lists are now in shared_store_stt::SharedStore
 
             tab_debloat_control: TabDebloatControl::default(),
             tab_scan_control: TabScanControl::default(),
@@ -931,71 +930,6 @@ impl UadShizukuApp {
                     });
             }
             1 => {
-                // // Build progress summary from scanner states
-                // let mut progress_parts = Vec::new();
-                // let mut has_active_scans = false;
-
-                // // Check VirusTotal scanner state
-                // if let Some(ref vt_state) = self.tab_scan_control.vt_scanner_state {
-                //     let state = vt_state.lock().unwrap();
-
-                //     // Collect all scanning operations and aggregate progress
-                //     let mut total_scanned = 0;
-                //     let mut total_files = 0;
-                //     let mut current_operation = String::new();
-
-                //     for (_pkg_name, status) in state.iter() {
-                //         if let crate::calc_virustotal::ScanStatus::Scanning { scanned, total, operation } = status {
-                //             total_scanned += scanned;
-                //             total_files += total;
-                //             if current_operation.is_empty() {
-                //                 current_operation = operation.clone();
-                //             }
-                //             has_active_scans = true;
-                //         }
-                //     }
-
-                //     if total_files > 0 {
-                //         progress_parts.push(format!("VirusTotal({} {}/{})", current_operation, total_scanned, total_files));
-                //     }
-                // }
-
-                // // Check HybridAnalysis scanner state
-                // if let Some(ref ha_state) = self.tab_scan_control.ha_scanner_state {
-                //     let state = ha_state.lock().unwrap();
-
-                //     // Collect all scanning operations and aggregate progress
-                //     let mut total_scanned = 0;
-                //     let mut total_files = 0;
-                //     let mut current_operation = String::new();
-
-                //     for (_pkg_name, status) in state.iter() {
-                //         if let crate::calc_hybridanalysis::ScanStatus::Scanning { scanned, total, operation } = status {
-                //             total_scanned += scanned;
-                //             total_files += total;
-                //             if current_operation.is_empty() {
-                //                 current_operation = operation.clone();
-                //             }
-                //             has_active_scans = true;
-                //         }
-                //     }
-
-                //     if total_files > 0 {
-                //         progress_parts.push(format!("HybridAnalysis({} {}/{})", current_operation, total_scanned, total_files));
-                //     }
-                // }
-
-                // // Request continuous repaints while scans are active (for live countdown updates)
-                // if has_active_scans {
-                //     ui.ctx().request_repaint_after(std::time::Duration::from_millis(100)); // 10 FPS for smooth countdown
-                // }
-
-                // // Display the label with or without progress
-                // if progress_parts.is_empty() {
-                //     ui.label("Scan viruses with virustotal and hybridanalysis:");
-                // } else {
-                //     ui.label(format!("Scan viruses with virustotal and hybridanalysis: {}", progress_parts.join(", ")));
-                // }
                 ui.horizontal(|ui| {
                     ui.label(tr!("scan-description"));
                     ui.add_space(8.0);
@@ -1111,13 +1045,8 @@ impl UadShizukuApp {
             }
         }
 
-        // Sync cached app info to TabScanControl after debloat tab renders
-        // (tab_debloat_control updates the cache during UI rendering when fetching new app data)
-        self.tab_scan_control.update_cached_app_info(
-            &self.tab_debloat_control.cached_google_play_apps,
-            &self.tab_debloat_control.cached_fdroid_apps,
-            &self.tab_debloat_control.cached_apkmirror_apps,
-        );
+        // NOTE: Cached app info is now in shared_store_stt::SharedStore
+        // Both tabs access the same shared cache, no need to sync
     }
 
     fn enqueue_visible_packages_for_debloat(
@@ -1126,11 +1055,15 @@ impl UadShizukuApp {
         fdroid_enabled: bool,
         apkmirror_enabled: bool,
     ) {
+        use crate::shared_store_stt::get_shared_store;
+        let store = get_shared_store();
+
         // Separate packages into system and non-system
         let mut non_system_packages = Vec::new();
         let mut system_packages = Vec::new();
 
-        for package in &self.tab_debloat_control.installed_packages {
+        let installed_packages = store.get_installed_packages();
+        for package in &installed_packages {
             if package.flags.contains("SYSTEM") {
                 system_packages.push(package.pkg.clone());
             } else {
@@ -1141,14 +1074,12 @@ impl UadShizukuApp {
         // Enqueue non-system packages for Google Play and F-Droid
         for pkg_id in non_system_packages {
             // Skip if already cached
-            if google_play_enabled
-                && !self.tab_debloat_control.cached_google_play_apps.contains_key(&pkg_id)
-            {
+            if google_play_enabled && store.get_cached_google_play_app(&pkg_id).is_none() {
                 if let Some(queue) = &self.google_play_queue {
                     queue.enqueue(pkg_id.clone());
                 }
             }
-            if fdroid_enabled && !self.tab_debloat_control.cached_fdroid_apps.contains_key(&pkg_id) {
+            if fdroid_enabled && store.get_cached_fdroid_app(&pkg_id).is_none() {
                 if let Some(queue) = &self.fdroid_queue {
                     queue.enqueue(pkg_id.clone());
                 }
@@ -1158,7 +1089,7 @@ impl UadShizukuApp {
         // Enqueue system packages for APKMirror
         if apkmirror_enabled {
             for pkg_id in system_packages {
-                if !self.tab_debloat_control.cached_apkmirror_apps.contains_key(&pkg_id) {
+                if store.get_cached_apkmirror_app(&pkg_id).is_none() {
                     if let Some(queue) = &self.apkmirror_queue {
                         queue.enqueue(pkg_id);
                     }
@@ -1168,16 +1099,20 @@ impl UadShizukuApp {
     }
 
     fn load_renderer_results_to_debloat_cache(&mut self) {
+        use crate::shared_store_stt::get_shared_store;
+        let store = get_shared_store();
+
         // Collect visible packages to check
         let mut visible_packages = Vec::new();
-        for package in &self.tab_debloat_control.installed_packages {
+        let installed_packages = store.get_installed_packages();
+        for package in &installed_packages {
             visible_packages.push((package.pkg.clone(), package.flags.contains("SYSTEM")));
         }
 
         // Check Google Play results for non-system packages
         if let Some(queue) = &self.google_play_queue {
             for (pkg_id, is_system) in &visible_packages {
-                if *is_system || self.tab_debloat_control.cached_google_play_apps.contains_key(pkg_id) {
+                if *is_system || store.get_cached_google_play_app(pkg_id).is_some() {
                     continue;
                 }
                 if let Some(status) = queue.get_status(pkg_id) {
@@ -1213,7 +1148,7 @@ impl UadShizukuApp {
         // Check F-Droid results for non-system packages
         if let Some(queue) = &self.fdroid_queue {
             for (pkg_id, is_system) in &visible_packages {
-                if *is_system || self.tab_debloat_control.cached_fdroid_apps.contains_key(pkg_id) {
+                if *is_system || store.get_cached_fdroid_app(pkg_id).is_some() {
                     continue;
                 }
                 if let Some(status) = queue.get_status(pkg_id) {
@@ -1249,7 +1184,7 @@ impl UadShizukuApp {
         // Check APKMirror results for system packages
         if let Some(queue) = &self.apkmirror_queue {
             for (pkg_id, is_system) in &visible_packages {
-                if !is_system || self.tab_debloat_control.cached_apkmirror_apps.contains_key(pkg_id) {
+                if !is_system || store.get_cached_apkmirror_app(pkg_id).is_some() {
                     continue;
                 }
                 if let Some(status) = queue.get_status(pkg_id) {
@@ -1314,12 +1249,14 @@ impl UadShizukuApp {
     fn refresh_apps_tab_packages(&mut self) {
         {
             use crate::adb::get_all_packages_fingerprints;
+            use crate::shared_store_stt::get_shared_store;
 
             if let Some(ref device) = self.selected_device {
                 tracing::debug!("Refreshing packages for apps tab only...");
                 match get_all_packages_fingerprints(device) {
                     Ok(packages) => {
-                        self.installed_packages = packages.clone();
+                        let store = get_shared_store();
+                        store.set_installed_packages(packages.clone());
                         self.tab_apps_control.update_packages(packages);
                         tracing::debug!("Apps tab packages refreshed");
                     }
@@ -1380,7 +1317,10 @@ impl UadShizukuApp {
             self.adb_users.clear();
             self.selected_user = None;
             self.current_user = None;
-            self.installed_packages.clear();
+            {
+                use crate::shared_store_stt::get_shared_store;
+                get_shared_store().set_installed_packages(Vec::new());
+            }
             self.tab_debloat_control.update_packages(Vec::new());
             self.tab_debloat_control.update_uad_ng_lists(UadNgLists {
                 apps: HashMap::new(),
@@ -1453,7 +1393,8 @@ impl UadShizukuApp {
         // Clone necessary data for the async task
         let selected_user = self.selected_user;
         let debloat_progress = self.package_load_progress.clone();
-        let uad_ng_lists = self.uad_ng_lists.clone();
+        let shared_store = crate::shared_store_stt::get_shared_store();
+        let uad_ng_lists = shared_store.uad_ng_lists.lock().unwrap().clone();
 
         // Start background thread
         let handle = std::thread::spawn(move || {
@@ -1600,7 +1541,11 @@ impl UadShizukuApp {
                         // Loading complete, update UI
                         tracing::debug!("Applying loaded packages to UI");
                         
-                        self.installed_packages = packages.clone();
+                        let shared_store = crate::shared_store_stt::get_shared_store();
+                        {
+                            let mut installed_pkgs = shared_store.installed_packages.lock().unwrap();
+                            *installed_pkgs = packages.clone();
+                        }
                         self.tab_debloat_control.update_packages(packages.clone());
                         
                         if let Some(lists) = uad_lists {
@@ -1624,17 +1569,12 @@ impl UadShizukuApp {
                             self.settings.hybridanalysis_submit
                         );
 
+                        let installed_packages = shared_store.installed_packages.lock().unwrap().clone();
                         self.tab_scan_control
-                            .update_packages(self.installed_packages.clone());
+                            .update_packages(installed_packages.clone());
 
-                        // Share cached app info from TabDebloatControl to TabScanControl
-                        self.tab_scan_control.update_cached_app_info(
-                            &self.tab_debloat_control.cached_google_play_apps,
-                            &self.tab_debloat_control.cached_fdroid_apps,
-                            &self.tab_debloat_control.cached_apkmirror_apps,
-                        );
                         self.tab_apps_control
-                            .update_packages(self.installed_packages.clone());
+                            .update_packages(installed_packages.clone());
                         self.tab_apps_control
                             .set_selected_device(self.selected_device.clone());
                         tracing::debug!("Updated tab controls with packages");
@@ -1741,7 +1681,11 @@ impl UadShizukuApp {
                         "Successfully parsed UAD lists with {} apps",
                         uad_lists.apps.len()
                     );
-                    self.uad_ng_lists = Some(uad_lists);
+                    let shared_store = crate::shared_store_stt::get_shared_store();
+                    {
+                        let mut lists = shared_store.uad_ng_lists.lock().unwrap();
+                        *lists = Some(uad_lists);
+                    }
                 }
                 Err(e) => {
                     tracing::error!("Failed to parse UAD lists JSON: {}", e);
@@ -2441,27 +2385,27 @@ impl UadShizukuApp {
         if old_google_play_renderer && !self.settings.google_play_renderer {
             tracing::info!("Google Play renderer disabled, clearing caches");
             self.google_play_renderer.is_enabled = false;
-            self.tab_debloat_control.google_play_textures.clear();
+            let shared_store = crate::shared_store_stt::get_shared_store();
+            shared_store.google_play_textures.lock().unwrap().clear();
             self.tab_scan_control.google_play_renderer_enabled = false;
-            self.tab_scan_control.app_textures.clear();
         }
 
         // Check if F-Droid renderer was disabled -> clear caches
         if old_fdroid_renderer && !self.settings.fdroid_renderer {
             tracing::info!("F-Droid renderer disabled, clearing caches");
             self.fdroid_renderer.is_enabled = false;
-            self.tab_debloat_control.fdroid_textures.clear();
+            let shared_store = crate::shared_store_stt::get_shared_store();
+            shared_store.fdroid_textures.lock().unwrap().clear();
             self.tab_scan_control.fdroid_renderer_enabled = false;
-            self.tab_scan_control.app_textures.clear();
         }
 
         // Check if APKMirror renderer was disabled -> clear caches
         if old_apkmirror_renderer && !self.settings.apkmirror_renderer {
             tracing::info!("APKMirror renderer disabled, clearing caches");
             self.apkmirror_renderer.is_enabled = false;
-            self.tab_debloat_control.apkmirror_textures.clear();
+            let shared_store = crate::shared_store_stt::get_shared_store();
+            shared_store.apkmirror_textures.lock().unwrap().clear();
             self.tab_scan_control.apkmirror_renderer_enabled = false;
-            self.tab_scan_control.app_textures.clear();
         }
 
         // Check if APKMirror auto upload was disabled
@@ -2499,8 +2443,10 @@ impl UadShizukuApp {
                 *cancelled = false;
             }
             // Re-trigger scan by calling update_packages if packages are already loaded
-            if !self.installed_packages.is_empty() {
-                self.tab_scan_control.update_packages(self.installed_packages.clone());
+            let shared_store = crate::shared_store_stt::get_shared_store();
+            let installed_packages = shared_store.installed_packages.lock().unwrap().clone();
+            if !installed_packages.is_empty() {
+                self.tab_scan_control.update_packages(installed_packages);
             }
         }
 
@@ -2513,8 +2459,10 @@ impl UadShizukuApp {
                 *cancelled = false;
             }
             // Re-trigger scan by calling update_packages if packages are already loaded
-            if !self.installed_packages.is_empty() {
-                self.tab_scan_control.update_packages(self.installed_packages.clone());
+            let shared_store = crate::shared_store_stt::get_shared_store();
+            let installed_packages = shared_store.installed_packages.lock().unwrap().clone();
+            if !installed_packages.is_empty() {
+                self.tab_scan_control.update_packages(installed_packages);
             }
         }
 

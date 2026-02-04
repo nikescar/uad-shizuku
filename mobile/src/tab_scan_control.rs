@@ -1,13 +1,13 @@
 use crate::adb::PackageFingerprint;
-use crate::calc_hybridanalysis::{self};
+use crate::calc_hybridanalysis;
 use crate::calc_izzyrisk;
-use crate::calc_virustotal::{self};
+use crate::calc_virustotal;
 use crate::db;
 use crate::db_hybridanalysis;
 use crate::db_virustotal;
-use crate::uad_shizuku_app::UadNgLists;
+use crate::shared_store_stt::get_shared_store;
 pub use crate::tab_scan_control_stt::*;
-use crate::win_package_details_dialog::PackageDetailsDialog;
+use crate::dlg_package_details::DlgPackageDetails;
 use eframe::egui;
 use egui_async::Bind;
 use egui_i18n::tr;
@@ -15,7 +15,6 @@ use egui_material3::{assist_chip, data_table, theme::get_global_color, MaterialB
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::thread;
-use std::time::Duration;
 
 // SVG icons as constants (moved to svg_stt.rs)
 use crate::svg_stt::*;
@@ -24,17 +23,15 @@ impl Default for TabScanControl {
     fn default() -> Self {
         Self {
             open: false,
-            installed_packages: Vec::new(),
-            uad_ng_lists: None,
+            // NOTE: installed_packages, uad_ng_lists, vt_scanner_state, ha_scanner_state,
+            // cached apps, and textures are now in shared_store_stt::SharedStore
             selected_packages: Vec::new(),
             package_risk_scores: HashMap::new(),
             izzyrisk_bind: Bind::new(true), // retain = true to keep scores across frames
-            package_details_dialog: PackageDetailsDialog::new(),
-            vt_scanner_state: None,
+            package_details_dialog: DlgPackageDetails::new(),
             vt_rate_limiter: None,
             vt_package_paths_cache: None,
             vt_scan_state: ScanStateMachine::default(),
-            ha_scanner_state: None,
             ha_rate_limiter: None,
             ha_package_paths_cache: None,
             ha_scan_state: ScanStateMachine::default(),
@@ -55,10 +52,6 @@ impl Default for TabScanControl {
             vt_scan_cancelled: Arc::new(Mutex::new(false)),
             ha_scan_progress: Arc::new(Mutex::new(None)),
             ha_scan_cancelled: Arc::new(Mutex::new(false)),
-            cached_google_play_apps: HashMap::new(),
-            cached_fdroid_apps: HashMap::new(),
-            cached_apkmirror_apps: HashMap::new(),
-            app_textures: HashMap::new(),
             show_only_enabled: false,
             hide_system_app: false,
             google_play_renderer_enabled: false,
@@ -70,10 +63,12 @@ impl Default for TabScanControl {
 
 impl TabScanControl {
     pub fn update_packages(&mut self, packages: Vec<PackageFingerprint>) {
-        self.installed_packages = packages;
+        // Store packages in shared store
+        let store = get_shared_store();
+        store.set_installed_packages(packages.clone());
+
         // Resize selection vector to match package count
-        self.selected_packages
-            .resize(self.installed_packages.len(), false);
+        self.selected_packages.resize(packages.len(), false);
 
         // Calculate risk scores using Bind state machine
         self.calculate_all_risk_scores();
@@ -89,19 +84,26 @@ impl TabScanControl {
         }
 
         // Clear textures cache when packages are updated (will be reloaded on demand)
-        self.app_textures.clear();
+        store.clear_all_textures();
     }
 
-    /// Update cached app info from TabDebloatControl
+    /// Update cached app info in shared store
     pub fn update_cached_app_info(
         &mut self,
         google_play_apps: &HashMap<String, crate::models::GooglePlayApp>,
         fdroid_apps: &HashMap<String, crate::models::FDroidApp>,
         apkmirror_apps: &HashMap<String, crate::models::ApkMirrorApp>,
     ) {
-        self.cached_google_play_apps = google_play_apps.clone();
-        self.cached_fdroid_apps = fdroid_apps.clone();
-        self.cached_apkmirror_apps = apkmirror_apps.clone();
+        let store = get_shared_store();
+        for (pkg_id, app) in google_play_apps {
+            store.set_cached_google_play_app(pkg_id.clone(), app.clone());
+        }
+        for (pkg_id, app) in fdroid_apps {
+            store.set_cached_fdroid_app(pkg_id.clone(), app.clone());
+        }
+        for (pkg_id, app) in apkmirror_apps {
+            store.set_cached_apkmirror_app(pkg_id.clone(), app.clone());
+        }
     }
 
     /// Load texture from base64 encoded icon data
@@ -111,8 +113,14 @@ impl TabScanControl {
         pkg_id: &str,
         base64_data: &str,
     ) -> Option<egui::TextureHandle> {
-        if let Some(texture) = self.app_textures.get(pkg_id) {
-            return Some(texture.clone());
+        let store = get_shared_store();
+
+        // Check shared store for existing texture
+        if let Some(texture) = store.get_google_play_texture(pkg_id)
+            .or_else(|| store.get_fdroid_texture(pkg_id))
+            .or_else(|| store.get_apkmirror_texture(pkg_id))
+        {
+            return Some(texture);
         }
 
         let raw_base64 = if let Some(comma_pos) = base64_data.find(",") {
@@ -134,8 +142,8 @@ impl TabScanControl {
                         color_image,
                         egui::TextureOptions::LINEAR,
                     );
-                    self.app_textures
-                        .insert(pkg_id.to_string(), texture.clone());
+                    // Store texture in shared store (use google_play as default)
+                    store.set_google_play_texture(pkg_id.to_string(), texture.clone());
                     return Some(texture);
                 }
                 Err(e) => {
@@ -165,6 +173,11 @@ impl TabScanControl {
             return app_data_map;
         }
 
+        let store = get_shared_store();
+        let cached_fdroid_apps = store.get_cached_fdroid_apps();
+        let cached_google_play_apps = store.get_cached_google_play_apps();
+        let cached_apkmirror_apps = store.get_cached_apkmirror_apps();
+
         let mut apps_to_load: Vec<(String, Option<String>, String, String, Option<String>)> =
             Vec::new();
 
@@ -173,7 +186,7 @@ impl TabScanControl {
 
             if !is_system {
                 if self.fdroid_renderer_enabled {
-                    if let Some(fd_app) = self.cached_fdroid_apps.get(pkg_id) {
+                    if let Some(fd_app) = cached_fdroid_apps.get(pkg_id) {
                         if fd_app.raw_response != "404" {
                             apps_to_load.push((
                                 pkg_id.clone(),
@@ -188,7 +201,7 @@ impl TabScanControl {
                 }
 
                 if self.google_play_renderer_enabled {
-                    if let Some(gp_app) = self.cached_google_play_apps.get(pkg_id) {
+                    if let Some(gp_app) = cached_google_play_apps.get(pkg_id) {
                         if gp_app.raw_response != "404" {
                             apps_to_load.push((
                                 pkg_id.clone(),
@@ -203,7 +216,7 @@ impl TabScanControl {
                 }
             } else {
                 if self.apkmirror_renderer_enabled {
-                    if let Some(am_app) = self.cached_apkmirror_apps.get(pkg_id) {
+                    if let Some(am_app) = cached_apkmirror_apps.get(pkg_id) {
                         if am_app.raw_response != "404" {
                             apps_to_load.push((
                                 pkg_id.clone(),
@@ -230,448 +243,62 @@ impl TabScanControl {
     }
 
     fn run_virustotal(&mut self) {
-        let package_names: Vec<String> = self
-            .installed_packages
-            .iter()
-            .map(|p| p.pkg.clone())
-            .collect();
-        self.vt_scanner_state = Some(calc_virustotal::init_scanner_state(&package_names));
-
-        if self.vt_rate_limiter.is_none() {
-            self.vt_rate_limiter = Some(Arc::new(Mutex::new(calc_virustotal::RateLimiter::new(
-                4,
-                Duration::from_secs(60),
-                Duration::from_secs(5),
-            ))));
-        }
+        let store = get_shared_store();
+        let installed_packages = store.get_installed_packages();
 
         if let Some(ref device) = self.device_serial {
-            let device_serial = device.clone();
-            let mut installed_packages = self.installed_packages.clone();
-            let scanner_state = self.vt_scanner_state.clone().unwrap();
             let api_key = self.vt_api_key.clone().unwrap();
-            let rate_limiter = self.vt_rate_limiter.clone().unwrap();
-            let virustotal_submit_enabled = self.virustotal_submit_enabled;
-            let package_risk_scores = self.package_risk_scores.clone();
-
-            let vt_scan_progress_clone = self.vt_scan_progress.clone();
-            let vt_scan_cancelled_clone = self.vt_scan_cancelled.clone();
 
             // Start state machine
             self.vt_scan_state.start();
 
-            if let Ok(mut p) = vt_scan_progress_clone.lock() {
-                *p = Some(0.0);
-            }
-            if let Ok(mut cancelled) = vt_scan_cancelled_clone.lock() {
-                *cancelled = false;
-            }
-
-            tracing::info!(
-                "Starting VirusTotal scan for {} packages",
-                installed_packages.len()
+            // Call the new function from calc_virustotal
+            let (scanner_state, rate_limiter) = calc_virustotal::run_virustotal(
+                installed_packages,
+                device.clone(),
+                api_key,
+                self.virustotal_submit_enabled,
+                self.package_risk_scores.clone(),
+                self.vt_scan_progress.clone(),
+                self.vt_scan_cancelled.clone(),
             );
 
-            std::thread::spawn(move || {
-                installed_packages.sort_by(|a, b| {
-                    let perms_a: usize = a.users.iter().map(|u| u.runtimePermissions.len()).sum();
-                    let perms_b: usize = b.users.iter().map(|u| u.runtimePermissions.len()).sum();
-                    perms_b.cmp(&perms_a)
-                });
-
-                let cached_packages =
-                    crate::db_package_cache::get_cached_packages_with_apk(&device_serial);
-
-                let mut cached_packages_map: HashMap<String, crate::models::PackageInfoCache> =
-                    HashMap::new();
-                for cp in cached_packages {
-                    cached_packages_map.insert(cp.pkg_id.clone(), cp);
-                }
-
-                let total = installed_packages.len();
-                let mut skipped_cached = 0usize;
-
-                for (i, package) in installed_packages.iter().enumerate() {
-                    if let Ok(cancelled) = vt_scan_cancelled_clone.lock() {
-                        if *cancelled {
-                            tracing::info!("VirusTotal scan cancelled by user");
-                            break;
-                        }
-                    }
-
-                    if let Ok(mut p) = vt_scan_progress_clone.lock() {
-                        *p = Some(i as f32 / total as f32);
-                    }
-
-                    let pkg_name = &package.pkg;
-
-                    {
-                        let s = scanner_state.lock().unwrap();
-                        if matches!(
-                            s.get(pkg_name),
-                            Some(calc_virustotal::ScanStatus::Completed(_))
-                        ) {
-                            skipped_cached += 1;
-                            continue;
-                        }
-                    }
-
-                    let mut paths_str = String::new();
-                    let mut sha256sums_str = String::new();
-
-                    if let Some(cached_pkg) = cached_packages_map.get(pkg_name) {
-                        if let (Some(path), Some(sha256)) =
-                            (&cached_pkg.apk_path, &cached_pkg.apk_sha256sum)
-                        {
-                            paths_str = path.clone();
-                            sha256sums_str = sha256.clone();
-                        }
-                    }
-
-                    if paths_str.is_empty() || sha256sums_str.is_empty() {
-                        paths_str = package.codePath.clone();
-                        sha256sums_str = package.pkgChecksum.clone();
-                    }
-
-                    if !paths_str.is_empty() && !sha256sums_str.is_empty() {
-                        let paths: Vec<&str> = paths_str.split(' ').collect();
-                        let sha256sums: Vec<&str> = sha256sums_str.split(' ').collect();
-                        let needs_directory_scan = paths.iter().any(|p| !p.ends_with(".apk"));
-                        let has_invalid_hashes = sha256sums.iter().any(|s| s.len() != 64);
-
-                        let (final_paths_str, final_sha256sums_str) =
-                            if needs_directory_scan || has_invalid_hashes {
-                                match crate::adb::get_single_package_sha256sum(
-                                    &device_serial,
-                                    pkg_name,
-                                ) {
-                                    Ok((new_paths, new_sha256sums)) => {
-                                        if !new_paths.is_empty() && !new_sha256sums.is_empty() {
-                                            (new_paths, new_sha256sums)
-                                        } else if !has_invalid_hashes {
-                                            (paths_str.clone(), sha256sums_str.clone())
-                                        } else {
-                                            (String::new(), String::new())
-                                        }
-                                    }
-                                    Err(e) => {
-                                        if !has_invalid_hashes {
-                                            tracing::warn!(
-                                                "Failed to get sha256sums for {}: {}, using cached values",
-                                                pkg_name,
-                                                e
-                                            );
-                                            (paths_str.clone(), sha256sums_str.clone())
-                                        } else {
-                                            tracing::warn!(
-                                                "Failed to get sha256sums for {}: {}, skipping",
-                                                pkg_name,
-                                                e
-                                            );
-                                            (String::new(), String::new())
-                                        }
-                                    }
-                                }
-                            } else {
-                                (paths_str.clone(), sha256sums_str.clone())
-                            };
-
-                        let final_paths: Vec<&str> = final_paths_str.split(' ').collect();
-                        let final_sha256sums: Vec<&str> = final_sha256sums_str.split(' ').collect();
-
-                        let hashes: Vec<(String, String)> = final_paths
-                            .iter()
-                            .zip(final_sha256sums.iter())
-                            .filter(|(p, s)| !p.is_empty() && s.len() == 64)
-                            .map(|(p, s)| (p.to_string(), s.to_string()))
-                            .collect();
-
-                        tracing::info!(
-                            "Analyzing package {} with {} files (Risk: {})",
-                            pkg_name,
-                            hashes.len(),
-                            package_risk_scores.get(pkg_name).copied().unwrap_or(0)
-                        );
-
-                        if let Err(e) = calc_virustotal::analyze_package(
-                            &pkg_name,
-                            hashes,
-                            &scanner_state,
-                            &rate_limiter,
-                            &api_key,
-                            &device_serial,
-                            virustotal_submit_enabled,
-                            &None,
-                        ) {
-                            tracing::error!("Error analyzing package {}: {}", pkg_name, e);
-                        }
-                    }
-                }
-
-                tracing::info!(
-                    "VirusTotal scan complete: {} cached, {} processed",
-                    skipped_cached,
-                    total - skipped_cached
-                );
-
-                if let Ok(mut p) = vt_scan_progress_clone.lock() {
-                    *p = None;
-                }
-            });
+            // Store scanner state in shared store
+            store.set_vt_scanner_state(Some(scanner_state));
+            self.vt_rate_limiter = Some(rate_limiter);
         }
     }
 
     fn run_hybridanalysis(&mut self) {
-        let package_names: Vec<String> = self
-            .installed_packages
-            .iter()
-            .map(|p| p.pkg.clone())
-            .collect();
-        self.ha_scanner_state = Some(calc_hybridanalysis::init_scanner_state(&package_names));
-
-        if self.ha_rate_limiter.is_none() {
-            self.ha_rate_limiter = Some(Arc::new(Mutex::new(
-                calc_hybridanalysis::RateLimiter::new(Duration::from_secs(3)),
-            )));
-        }
+        let store = get_shared_store();
+        let installed_packages = store.get_installed_packages();
 
         if let Some(ref device) = self.device_serial {
-            let device_serial = device.clone();
-            let mut installed_packages = self.installed_packages.clone();
-            let scanner_state = self.ha_scanner_state.clone().unwrap();
             let api_key = self.ha_api_key.clone().unwrap();
-            let rate_limiter = self.ha_rate_limiter.clone().unwrap();
-            let hybridanalysis_submit_enabled = self.hybridanalysis_submit_enabled;
-            let package_risk_scores = self.package_risk_scores.clone();
-
-            let ha_scan_progress_clone = self.ha_scan_progress.clone();
-            let ha_scan_cancelled_clone = self.ha_scan_cancelled.clone();
 
             // Start state machine
             self.ha_scan_state.start();
 
-            if let Ok(mut p) = ha_scan_progress_clone.lock() {
-                *p = Some(0.0);
-            }
-            if let Ok(mut cancelled) = ha_scan_cancelled_clone.lock() {
-                *cancelled = false;
-            }
-
-            tracing::info!(
-                "Starting HybridAnalysis scan for {} packages",
-                installed_packages.len()
+            // Call the new function from calc_hybridanalysis
+            let (scanner_state, rate_limiter) = calc_hybridanalysis::run_hybridanalysis(
+                installed_packages,
+                device.clone(),
+                api_key,
+                self.hybridanalysis_submit_enabled,
+                self.package_risk_scores.clone(),
+                self.ha_scan_progress.clone(),
+                self.ha_scan_cancelled.clone(),
             );
 
-            std::thread::spawn(move || {
-                let mut effective_submit_enabled = hybridanalysis_submit_enabled;
-                tracing::info!("Checking Hybrid Analysis API quota...");
-                match crate::api_hybridanalysis::check_quota(&api_key) {
-                    Ok(quota) => {
-                        if let Some(detonation) = quota.detonation {
-                            if detonation.quota_reached {
-                                tracing::warn!("Hybrid Analysis detonation quota reached!");
-                                effective_submit_enabled = false;
-                            }
-                            if let Some(apikey_info) = detonation.apikey {
-                                if apikey_info.quota_reached {
-                                    tracing::warn!("Hybrid Analysis API key quota reached!");
-                                    effective_submit_enabled = false;
-                                }
-                            }
-                        }
-                    }
-                    Err(e) => {
-                        tracing::error!("Failed to check Hybrid Analysis quota: {}", e);
-                    }
-                }
-
-                installed_packages.sort_by(|a, b| {
-                    let perms_a: usize = a.users.iter().map(|u| u.runtimePermissions.len()).sum();
-                    let perms_b: usize = b.users.iter().map(|u| u.runtimePermissions.len()).sum();
-                    perms_b.cmp(&perms_a)
-                });
-
-                let cached_packages =
-                    crate::db_package_cache::get_cached_packages_with_apk(&device_serial);
-
-                let mut cached_packages_map: HashMap<String, crate::models::PackageInfoCache> =
-                    HashMap::new();
-                for cp in cached_packages {
-                    cached_packages_map.insert(cp.pkg_id.clone(), cp);
-                }
-
-                let total = installed_packages.len();
-                let mut skipped_cached = 0usize;
-
-                for (i, package) in installed_packages.iter().enumerate() {
-                    if let Ok(cancelled) = ha_scan_cancelled_clone.lock() {
-                        if *cancelled {
-                            tracing::info!("Hybrid Analysis scan cancelled by user");
-                            break;
-                        }
-                    }
-
-                    if let Ok(mut p) = ha_scan_progress_clone.lock() {
-                        *p = Some(i as f32 / total as f32);
-                    }
-
-                    let pkg_name = &package.pkg;
-
-                    {
-                        let s = scanner_state.lock().unwrap();
-                        if matches!(
-                            s.get(pkg_name),
-                            Some(calc_hybridanalysis::ScanStatus::Completed(_))
-                        ) {
-                            skipped_cached += 1;
-                            continue;
-                        }
-                    }
-
-                    let mut paths_str = String::new();
-                    let mut sha256sums_str = String::new();
-
-                    if let Some(cached_pkg) = cached_packages_map.get(pkg_name) {
-                        if let (Some(path), Some(sha256)) =
-                            (&cached_pkg.apk_path, &cached_pkg.apk_sha256sum)
-                        {
-                            paths_str = path.clone();
-                            sha256sums_str = sha256.clone();
-                        }
-                    }
-
-                    if paths_str.is_empty() || sha256sums_str.is_empty() {
-                        paths_str = package.codePath.clone();
-                        sha256sums_str = package.pkgChecksum.clone();
-                    }
-
-                    if !paths_str.is_empty() && !sha256sums_str.is_empty() {
-                        let paths: Vec<&str> = paths_str.split(' ').collect();
-                        let sha256sums: Vec<&str> = sha256sums_str.split(' ').collect();
-                        let needs_directory_scan = paths.iter().any(|p| !p.ends_with(".apk"));
-                        let has_invalid_hashes = sha256sums.iter().any(|s| s.len() != 64);
-
-                        let (final_paths_str, final_sha256sums_str) =
-                            if needs_directory_scan || has_invalid_hashes {
-                                match crate::adb::get_single_package_sha256sum(
-                                    &device_serial,
-                                    pkg_name,
-                                ) {
-                                    Ok((new_paths, new_sha256sums)) => {
-                                        if !new_paths.is_empty() && !new_sha256sums.is_empty() {
-                                            (new_paths, new_sha256sums)
-                                        } else if !has_invalid_hashes {
-                                            (paths_str.clone(), sha256sums_str.clone())
-                                        } else {
-                                            (String::new(), String::new())
-                                        }
-                                    }
-                                    Err(e) => {
-                                        if !has_invalid_hashes {
-                                            tracing::warn!(
-                                                "Failed to get sha256sums for {}: {}, using cached",
-                                                pkg_name,
-                                                e
-                                            );
-                                            (paths_str.clone(), sha256sums_str.clone())
-                                        } else {
-                                            tracing::warn!(
-                                                "Failed to get sha256sums for {}: {}, skipping",
-                                                pkg_name,
-                                                e
-                                            );
-                                            (String::new(), String::new())
-                                        }
-                                    }
-                                }
-                            } else {
-                                (paths_str.clone(), sha256sums_str.clone())
-                            };
-
-                        let final_paths: Vec<&str> = final_paths_str.split(' ').collect();
-                        let final_sha256sums: Vec<&str> = final_sha256sums_str.split(' ').collect();
-
-                        let hashes: Vec<(String, String)> = final_paths
-                            .iter()
-                            .zip(final_sha256sums.iter())
-                            .filter(|(p, s)| !p.is_empty() && s.len() == 64)
-                            .map(|(p, s)| (p.to_string(), s.to_string()))
-                            .collect();
-
-                        tracing::info!(
-                            "Analyzing package {} with {} files (Risk: {})",
-                            pkg_name,
-                            hashes.len(),
-                            package_risk_scores.get(pkg_name).copied().unwrap_or(0)
-                        );
-
-                        if let Err(e) = calc_hybridanalysis::analyze_package(
-                            &pkg_name,
-                            hashes,
-                            &scanner_state,
-                            &rate_limiter,
-                            &api_key,
-                            &device_serial,
-                            effective_submit_enabled,
-                            &None,
-                        ) {
-                            tracing::error!("Error analyzing package {}: {}", pkg_name, e);
-                        }
-                    } else {
-                        tracing::error!("Failed to get path and sha256 for package {}", pkg_name);
-                    }
-                }
-
-                tracing::info!(
-                    "Hybrid Analysis scan complete: {} cached, {} processed",
-                    skipped_cached,
-                    total - skipped_cached
-                );
-
-                // Second pass: poll pending jobs
-                tracing::info!("Checking for pending jobs...");
-                loop {
-                    if let Ok(cancelled) = ha_scan_cancelled_clone.lock() {
-                        if *cancelled {
-                            tracing::info!("Hybrid Analysis scan cancelled during pending check");
-                            break;
-                        }
-                    }
-
-                    let pending_count = calc_hybridanalysis::check_pending_jobs(
-                        &scanner_state,
-                        &rate_limiter,
-                        &api_key,
-                        &None,
-                    );
-
-                    if pending_count == 0 {
-                        tracing::info!("All pending jobs completed");
-                        break;
-                    }
-
-                    tracing::info!("{} jobs still pending, waiting 30 seconds", pending_count);
-
-                    for _ in 0..30 {
-                        if let Ok(cancelled) = ha_scan_cancelled_clone.lock() {
-                            if *cancelled {
-                                tracing::info!("Hybrid Analysis scan cancelled during wait");
-                                break;
-                            }
-                        }
-                        thread::sleep(Duration::from_secs(1));
-                    }
-                }
-
-                if let Ok(mut p) = ha_scan_progress_clone.lock() {
-                    *p = None;
-                }
-            });
+            // Store scanner state in shared store
+            store.set_ha_scanner_state(Some(scanner_state));
+            self.ha_rate_limiter = Some(rate_limiter);
         }
     }
 
-    pub fn update_uad_ng_lists(&mut self, lists: UadNgLists) {
-        self.uad_ng_lists = Some(lists);
+    pub fn update_uad_ng_lists(&mut self, lists: crate::uad_shizuku_app::UadNgLists) {
+        let store = get_shared_store();
+        store.set_uad_ng_lists(Some(lists));
     }
 
     /// Calculate risk scores for all installed packages in background thread
@@ -682,8 +309,9 @@ impl TabScanControl {
             shared.clear();
         }
 
+        let store = get_shared_store();
         let device_serial = self.device_serial.clone();
-        let installed_packages = self.installed_packages.clone();
+        let installed_packages = store.get_installed_packages();
         let shared_scores = self.shared_package_risk_scores.clone();
         let progress_clone = self.izzyrisk_scan_progress.clone();
         let cancelled_clone = self.izzyrisk_scan_cancelled.clone();
@@ -703,73 +331,14 @@ impl TabScanControl {
             installed_packages.len()
         );
 
-        thread::spawn(move || {
-            let device_serial_str = device_serial.as_deref().unwrap_or("");
-
-            let cached_packages_map: HashMap<String, crate::models::PackageInfoCache> =
-                if !device_serial_str.is_empty() {
-                    crate::db_package_cache::get_all_cached_packages(device_serial_str)
-                        .into_iter()
-                        .map(|cp| (cp.pkg_id.clone(), cp))
-                        .collect()
-                } else {
-                    HashMap::new()
-                };
-
-            let mut cache_hits = 0;
-            let mut cache_misses = 0;
-            let total = installed_packages.len();
-
-            for (i, package) in installed_packages.iter().enumerate() {
-                // Check for cancellation
-                if let Ok(cancelled) = cancelled_clone.lock() {
-                    if *cancelled {
-                        tracing::info!("IzzyRisk calculation cancelled by user");
-                        break;
-                    }
-                }
-
-                // Update progress
-                if let Ok(mut p) = progress_clone.lock() {
-                    *p = Some(i as f32 / total as f32);
-                }
-
-                let risk_score = if device_serial_str.is_empty() {
-                    // No device serial: calculate without caching
-                    calc_izzyrisk::calculate_izzyrisk(package)
-                } else {
-                    let cached_pkg = cached_packages_map.get(&package.pkg);
-                    let score = calc_izzyrisk::calculate_and_cache_izzyrisk(
-                        package,
-                        cached_pkg,
-                        device_serial_str,
-                    );
-                    if cached_pkg.and_then(|c| c.izzyscore).is_some() {
-                        cache_hits += 1;
-                    } else {
-                        cache_misses += 1;
-                    }
-                    score
-                };
-
-                // Update shared scores
-                if let Ok(mut shared) = shared_scores.lock() {
-                    shared.insert(package.pkg.clone(), risk_score);
-                }
-            }
-
-            tracing::info!(
-                "IzzyRisk calculation complete: {} packages ({} cached, {} computed)",
-                total,
-                cache_hits,
-                cache_misses
-            );
-
-            // Clear progress when done
-            if let Ok(mut p) = progress_clone.lock() {
-                *p = None;
-            }
-        });
+        // Call the async function from calc_izzyrisk module
+        calc_izzyrisk::calculate_all_risk_scores_async(
+            installed_packages,
+            device_serial,
+            shared_scores,
+            progress_clone,
+            cancelled_clone,
+        );
     }
 
     /// Get the risk score for a package by name
@@ -799,10 +368,14 @@ impl TabScanControl {
     /// Sort packages based on the current sort column and direction
     fn sort_packages(&mut self) {
         if let Some(col_idx) = self.sort_column {
-            let scanner_state = self.vt_scanner_state.clone();
+            let store = get_shared_store();
+            let vt_scanner_state = store.get_vt_scanner_state();
+            let ha_scanner_state = store.get_ha_scanner_state();
             let package_risk_scores = self.package_risk_scores.clone();
+            let sort_ascending = self.sort_ascending;
 
-            self.installed_packages.sort_by(|a, b| {
+            let mut installed_packages = store.get_installed_packages();
+            installed_packages.sort_by(|a, b| {
                 let ordering = match col_idx {
                     0 => {
                         let name_a = format!("{} ({})", a.pkg, a.versionName);
@@ -816,7 +389,7 @@ impl TabScanControl {
                     }
                     2 => {
                         let get_vt_sort_key = |pkg_name: &str| -> i32 {
-                            if let Some(ref state) = scanner_state {
+                            if let Some(ref state) = vt_scanner_state {
                                 let state_lock = state.lock().unwrap();
                                 match state_lock.get(pkg_name) {
                                     Some(calc_virustotal::ScanStatus::Completed(result)) => result
@@ -840,8 +413,8 @@ impl TabScanControl {
                     }
                     3 => {
                         let get_ha_sort_key = |pkg_name: &str| -> i32 {
-                            if let Some(ref ha_state) = self.ha_scanner_state {
-                                let state_lock = ha_state.lock().unwrap();
+                            if let Some(ref state) = ha_scanner_state {
+                                let state_lock = state.lock().unwrap();
                                 match state_lock.get(pkg_name) {
                                     Some(calc_hybridanalysis::ScanStatus::Completed(result)) => {
                                         result
@@ -876,12 +449,13 @@ impl TabScanControl {
                     _ => std::cmp::Ordering::Equal,
                 };
 
-                if self.sort_ascending {
+                if sort_ascending {
                     ordering
                 } else {
                     ordering.reverse()
                 }
             });
+            store.set_installed_packages(installed_packages);
         }
     }
 
@@ -892,9 +466,13 @@ impl TabScanControl {
         let mut safe = 0;
         let mut not_scanned = 0;
 
-        if let Some(ref scanner_state) = self.vt_scanner_state {
+        let store = get_shared_store();
+        let installed_packages = store.get_installed_packages();
+        let vt_scanner_state = store.get_vt_scanner_state();
+
+        if let Some(ref scanner_state) = vt_scanner_state {
             let state = scanner_state.lock().unwrap();
-            for package in &self.installed_packages {
+            for package in &installed_packages {
                 if !self.should_show_package_ha(package) {
                     continue;
                 }
@@ -919,7 +497,7 @@ impl TabScanControl {
                 }
             }
         } else {
-            for package in &self.installed_packages {
+            for package in &installed_packages {
                 if self.should_show_package_ha(package) {
                     total += 1;
                     not_scanned += 1;
@@ -937,9 +515,13 @@ impl TabScanControl {
         let mut safe = 0;
         let mut not_scanned = 0;
 
-        if let Some(ref scanner_state) = self.ha_scanner_state {
+        let store = get_shared_store();
+        let installed_packages = store.get_installed_packages();
+        let ha_scanner_state = store.get_ha_scanner_state();
+
+        if let Some(ref scanner_state) = ha_scanner_state {
             let state = scanner_state.lock().unwrap();
-            for package in &self.installed_packages {
+            for package in &installed_packages {
                 if !self.should_show_package_vt(package) {
                     continue;
                 }
@@ -968,7 +550,7 @@ impl TabScanControl {
                 }
             }
         } else {
-            for package in &self.installed_packages {
+            for package in &installed_packages {
                 if self.should_show_package_vt(package) {
                     total += 1;
                     not_scanned += 1;
@@ -980,10 +562,13 @@ impl TabScanControl {
     }
 
     fn should_show_package_vt(&self, package: &PackageFingerprint) -> bool {
+        let store = get_shared_store();
+        let vt_scanner_state = store.get_vt_scanner_state();
+
         match self.active_vt_filter {
             VtFilter::All => true,
             VtFilter::Malicious => {
-                if let Some(ref scanner_state) = self.vt_scanner_state {
+                if let Some(ref scanner_state) = vt_scanner_state {
                     let state = scanner_state.lock().unwrap();
                     match state.get(&package.pkg) {
                         Some(calc_virustotal::ScanStatus::Completed(result)) => {
@@ -996,7 +581,7 @@ impl TabScanControl {
                 }
             }
             VtFilter::Suspicious => {
-                if let Some(ref scanner_state) = self.vt_scanner_state {
+                if let Some(ref scanner_state) = vt_scanner_state {
                     let state = scanner_state.lock().unwrap();
                     match state.get(&package.pkg) {
                         Some(calc_virustotal::ScanStatus::Completed(result)) => {
@@ -1011,7 +596,7 @@ impl TabScanControl {
                 }
             }
             VtFilter::Safe => {
-                if let Some(ref scanner_state) = self.vt_scanner_state {
+                if let Some(ref scanner_state) = vt_scanner_state {
                     let state = scanner_state.lock().unwrap();
                     match state.get(&package.pkg) {
                         Some(calc_virustotal::ScanStatus::Completed(result)) => {
@@ -1026,7 +611,7 @@ impl TabScanControl {
                 }
             }
             VtFilter::NotScanned => {
-                if let Some(ref scanner_state) = self.vt_scanner_state {
+                if let Some(ref scanner_state) = vt_scanner_state {
                     let state = scanner_state.lock().unwrap();
                     !matches!(
                         state.get(&package.pkg),
@@ -1040,10 +625,13 @@ impl TabScanControl {
     }
 
     fn should_show_package_ha(&self, package: &PackageFingerprint) -> bool {
+        let store = get_shared_store();
+        let ha_scanner_state = store.get_ha_scanner_state();
+
         match self.active_ha_filter {
             HaFilter::All => true,
             HaFilter::Malicious => {
-                if let Some(ref scanner_state) = self.ha_scanner_state {
+                if let Some(ref scanner_state) = ha_scanner_state {
                     let state = scanner_state.lock().unwrap();
                     match state.get(&package.pkg) {
                         Some(calc_hybridanalysis::ScanStatus::Completed(result)) => result
@@ -1057,7 +645,7 @@ impl TabScanControl {
                 }
             }
             HaFilter::Suspicious => {
-                if let Some(ref scanner_state) = self.ha_scanner_state {
+                if let Some(ref scanner_state) = ha_scanner_state {
                     let state = scanner_state.lock().unwrap();
                     match state.get(&package.pkg) {
                         Some(calc_hybridanalysis::ScanStatus::Completed(result)) => {
@@ -1071,7 +659,7 @@ impl TabScanControl {
                 }
             }
             HaFilter::Safe => {
-                if let Some(ref scanner_state) = self.ha_scanner_state {
+                if let Some(ref scanner_state) = ha_scanner_state {
                     let state = scanner_state.lock().unwrap();
                     match state.get(&package.pkg) {
                         Some(calc_hybridanalysis::ScanStatus::Completed(result)) => !result
@@ -1085,7 +673,7 @@ impl TabScanControl {
                 }
             }
             HaFilter::NotScanned => {
-                if let Some(ref scanner_state) = self.ha_scanner_state {
+                if let Some(ref scanner_state) = ha_scanner_state {
                     let state = scanner_state.lock().unwrap();
                     !matches!(
                         state.get(&package.pkg),
@@ -1155,7 +743,9 @@ impl TabScanControl {
         self.sync_risk_scores();
 
         // VirusTotal Filter Buttons
-        if !self.installed_packages.is_empty() {
+        let shared_store = crate::shared_store_stt::get_shared_store();
+        let installed_packages = shared_store.installed_packages.lock().unwrap().clone();
+        if !installed_packages.is_empty() {
             ui.horizontal(|ui| {
                 ui.vertical(|ui| {
                     ui.set_width(150.0);
@@ -1364,7 +954,7 @@ impl TabScanControl {
 
         ui.add_space(10.0);
 
-        if self.installed_packages.is_empty() {
+        if installed_packages.is_empty() {
             ui.label(tr!("no-packages-loaded"));
             return;
         }
@@ -1411,15 +1001,13 @@ impl TabScanControl {
 
         let clicked_package_idx = Arc::new(Mutex::new(None::<usize>));
 
-        let visible_package_ids: Vec<String> = self
-            .installed_packages
+        let visible_package_ids: Vec<String> = installed_packages
             .iter()
             .filter(|p| self.should_show_package(p))
             .map(|p| p.pkg.clone())
             .collect();
 
-        let system_packages: std::collections::HashSet<String> = self
-            .installed_packages
+        let system_packages: std::collections::HashSet<String> = installed_packages
             .iter()
             .filter(|p| p.flags.contains("SYSTEM"))
             .map(|p| p.pkg.clone())
@@ -1428,9 +1016,15 @@ impl TabScanControl {
         let app_data_map =
             self.prepare_app_info_for_display(ui.ctx(), &visible_package_ids, &system_packages);
 
-        // Clone scanner states for use in closures
-        let vt_scanner_state = self.vt_scanner_state.clone();
-        let ha_scanner_state = self.ha_scanner_state.clone();
+        // Clone scanner states for use in closures (lock and release immediately)
+        let vt_scanner_state = {
+            let lock = shared_store.vt_scanner_state.lock().unwrap();
+            lock.clone()
+        };
+        let ha_scanner_state = {
+            let lock = shared_store.ha_scanner_state.lock().unwrap();
+            lock.clone()
+        };
 
         let mut interactive_table = data_table()
             .id(egui::Id::new("scan_data_table"))
@@ -1441,7 +1035,7 @@ impl TabScanControl {
             .sortable_column(tr!("col-tasks"), 170.0, false)
             .allow_selection(false);
 
-        for (idx, package) in self.installed_packages.iter().enumerate() {
+        for (idx, package) in installed_packages.iter().enumerate() {
             if !self.should_show_package(package) {
                 continue;
             }
@@ -1952,16 +1546,16 @@ impl TabScanControl {
                     Ok(output) => {
                         tracing::info!("App uninstalled successfully: {}", output);
 
-                        let is_system = self
-                            .installed_packages
+                        let shared_store = crate::shared_store_stt::get_shared_store();
+                        let mut installed_packages = shared_store.installed_packages.lock().unwrap();
+                        let is_system = installed_packages
                             .iter()
                             .find(|p| p.pkg == pkg_name)
                             .map(|p| p.flags.contains("SYSTEM"))
                             .unwrap_or(false);
 
                         if is_system {
-                            if let Some(pkg) = self
-                                .installed_packages
+                            if let Some(pkg) = installed_packages
                                 .iter_mut()
                                 .find(|p| p.pkg == pkg_name)
                             {
@@ -1971,9 +1565,8 @@ impl TabScanControl {
                                 }
                             }
                         } else {
-                            self.installed_packages.retain(|pkg| pkg.pkg != pkg_name);
-                            if let Some(idx_to_remove) = self
-                                .installed_packages
+                            installed_packages.retain(|pkg| pkg.pkg != pkg_name);
+                            if let Some(idx_to_remove) = installed_packages
                                 .iter()
                                 .position(|p| p.pkg == pkg_name)
                             {
@@ -1999,8 +1592,9 @@ impl TabScanControl {
                     Ok(output) => {
                         tracing::info!("App enabled successfully: {}", output);
 
-                        if let Some(pkg) = self
-                            .installed_packages
+                        let shared_store = crate::shared_store_stt::get_shared_store();
+                        let mut installed_packages = shared_store.installed_packages.lock().unwrap();
+                        if let Some(pkg) = installed_packages
                             .iter_mut()
                             .find(|p| p.pkg == pkg_name)
                         {
@@ -2026,8 +1620,9 @@ impl TabScanControl {
                     Ok(output) => {
                         tracing::info!("App disabled successfully: {}", output);
 
-                        if let Some(pkg) = self
-                            .installed_packages
+                        let shared_store = crate::shared_store_stt::get_shared_store();
+                        let mut installed_packages = shared_store.installed_packages.lock().unwrap();
+                        if let Some(pkg) = installed_packages
                             .iter_mut()
                             .find(|p| p.pkg == pkg_name)
                         {
@@ -2064,7 +1659,9 @@ impl TabScanControl {
             }
 
             // Get package info for scanning
-            let package_info = self.installed_packages.iter().find(|p| p.pkg == pkg_name).cloned();
+            let shared_store = crate::shared_store_stt::get_shared_store();
+            let installed_packages = shared_store.installed_packages.lock().unwrap();
+            let package_info = installed_packages.iter().find(|p| p.pkg == pkg_name).cloned();
 
             if let Some(package) = package_info {
                 // Get hashes for the package
@@ -2118,8 +1715,10 @@ impl TabScanControl {
                     .collect();
 
                 // Start VirusTotal scan in background
+                let shared_store = crate::shared_store_stt::get_shared_store();
+                let vt_scanner_state = shared_store.vt_scanner_state.lock().unwrap().clone();
                 if let (Some(ref vt_state), Some(ref vt_limiter), Some(ref api_key), Some(ref serial)) = (
-                    &self.vt_scanner_state,
+                    &vt_scanner_state,
                     &self.vt_rate_limiter,
                     &self.vt_api_key,
                     &self.device_serial,
@@ -2155,8 +1754,10 @@ impl TabScanControl {
                 }
 
                 // Start HybridAnalysis scan in background
+                let shared_store = crate::shared_store_stt::get_shared_store();
+                let ha_scanner_state = shared_store.ha_scanner_state.lock().unwrap().clone();
                 if let (Some(ref ha_state), Some(ref ha_limiter), Some(ref api_key), Some(ref serial)) = (
-                    &self.ha_scanner_state,
+                    &ha_scanner_state,
                     &self.ha_rate_limiter,
                     &self.ha_api_key,
                     &self.device_serial,
@@ -2194,8 +1795,11 @@ impl TabScanControl {
         }
 
         // Show package details dialog
+        let shared_store = crate::shared_store_stt::get_shared_store();
+        let installed_packages = shared_store.installed_packages.lock().unwrap();
+        let uad_ng_lists = shared_store.uad_ng_lists.lock().unwrap();
         self.package_details_dialog
-            .show(ui.ctx(), &self.installed_packages, &self.uad_ng_lists);
+            .show(ui.ctx(), &installed_packages, &uad_ng_lists);
     }
 }
 

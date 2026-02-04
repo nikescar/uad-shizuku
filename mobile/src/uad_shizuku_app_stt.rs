@@ -1,4 +1,3 @@
-use crate::adb::PackageFingerprint;
 use crate::adb::UserInfo;
 use crate::tab_apps_control::TabAppsControl;
 use crate::tab_debloat_control::TabDebloatControl;
@@ -86,8 +85,8 @@ pub struct UadShizukuApp {
     pub selected_user: Option<i32>, // None means "All Users"
     pub current_user: Option<i32>,
 
-    pub installed_packages: Vec<PackageFingerprint>,
-    pub uad_ng_lists: Option<UadNgLists>,
+    // NOTE: installed_packages and uad_ng_lists are now in shared_store_stt::SharedStore
+    // Access via: crate::shared_store_stt::get_shared_store()
 
     pub tab_debloat_control: TabDebloatControl,
     pub tab_scan_control: TabScanControl,

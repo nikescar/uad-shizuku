@@ -1,14 +1,6 @@
-use crate::adb::PackageFingerprint;
-use crate::calc_hybridanalysis::{
-    ScannerState as HaScannerState, SharedRateLimiter as HaSharedRateLimiter,
-};
-use crate::calc_virustotal::{
-    ScannerState as VtScannerState, SharedRateLimiter as VtSharedRateLimiter,
-};
-use crate::uad_shizuku_app::UadNgLists;
-use crate::models::{ApkMirrorApp, FDroidApp, GooglePlayApp};
-use crate::win_package_details_dialog::PackageDetailsDialog;
-use eframe::egui;
+use crate::calc_hybridanalysis::SharedRateLimiter as HaSharedRateLimiter;
+use crate::calc_virustotal::SharedRateLimiter as VtSharedRateLimiter;
+use crate::dlg_package_details::DlgPackageDetails;
 use egui_async::Bind;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -50,9 +42,10 @@ impl ScanStateMachine {
 
 pub struct TabScanControl {
     pub open: bool,
-    // Store reference to installed packages
-    pub installed_packages: Vec<PackageFingerprint>,
-    pub uad_ng_lists: Option<UadNgLists>,
+    // NOTE: installed_packages, uad_ng_lists, vt_scanner_state, ha_scanner_state,
+    // cached apps, and textures are now in shared_store_stt::SharedStore
+    // Access via: crate::shared_store_stt::get_shared_store()
+
     // Selection state
     pub selected_packages: Vec<bool>,
     // Risk score cache: package_name -> risk_score
@@ -60,9 +53,7 @@ pub struct TabScanControl {
     // Bind for IzzyRisk calculation (calculates all scores asynchronously)
     pub izzyrisk_bind: Bind<HashMap<String, i32>, String>,
     // Package details dialog
-    pub package_details_dialog: PackageDetailsDialog,
-    // VirusTotal scanner state
-    pub vt_scanner_state: Option<VtScannerState>,
+    pub package_details_dialog: DlgPackageDetails,
     // Shared rate limiter for VirusTotal API
     pub vt_rate_limiter: Option<VtSharedRateLimiter>,
     // Package paths cache for faster scanning (path, sha256 hash)
@@ -70,8 +61,6 @@ pub struct TabScanControl {
         Option<std::sync::Arc<std::sync::Mutex<HashMap<String, Vec<(String, String)>>>>>,
     // VirusTotal scan state machine
     pub vt_scan_state: ScanStateMachine,
-    // Hybrid Analysis scanner state
-    pub ha_scanner_state: Option<HaScannerState>,
     // Shared rate limiter for Hybrid Analysis API
     pub ha_rate_limiter: Option<HaSharedRateLimiter>,
     // Package paths cache for faster scanning (path, sha256 hash)
@@ -109,13 +98,6 @@ pub struct TabScanControl {
     // Cancellation flag for HybridAnalysis scan
     pub ha_scan_cancelled: Arc<Mutex<bool>>,
 
-    // Cached app info from database (shared with TabDebloatControl)
-    // Loaded once when packages are updated, used for fast lookup in UI
-    pub cached_google_play_apps: HashMap<String, GooglePlayApp>,
-    pub cached_fdroid_apps: HashMap<String, FDroidApp>,
-    pub cached_apkmirror_apps: HashMap<String, ApkMirrorApp>,
-    // Cache for app icons (package_id -> TextureHandle)
-    pub app_textures: HashMap<String, egui::TextureHandle>,
     // Filter to show only enabled (green) packages
     pub show_only_enabled: bool,
     // Filter to hide system apps

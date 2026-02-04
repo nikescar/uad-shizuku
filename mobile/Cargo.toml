@@ -48,6 +48,7 @@ base64 = "0.22"
 tokio = { version = "1", features = ["rt-multi-thread"] }
 image = "0.25"
 md5 = "0.7"
+crossbeam-queue = "0.3"
 # html2md = "0.2"
 xee-xpath = "0.1.5"
 # diesel related dependencies

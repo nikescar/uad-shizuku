@@ -1,12 +1,12 @@
 use crate::adb::PackageFingerprint;
-use crate::uad_shizuku_app::UadNgLists;
 use crate::models::{ApkMirrorApp, FDroidApp, GooglePlayApp};
+use crate::shared_store_stt::get_shared_store;
+use crate::uad_shizuku_app::UadNgLists;
 pub use crate::tab_debloat_control_stt::*;
-use crate::win_package_details_dialog::PackageDetailsDialog;
+use crate::dlg_package_details::DlgPackageDetails;
 use eframe::egui;
 use egui_i18n::tr;
 use egui_material3::{assist_chip, data_table, theme::get_global_color, MaterialButton};
-use std::collections::HashMap;
 
 use crate::svg_stt::*;
 
@@ -14,21 +14,14 @@ impl Default for TabDebloatControl {
     fn default() -> Self {
         Self {
             open: false,
-            installed_packages: Vec::new(),
-            uad_ng_lists: None,
+            // NOTE: installed_packages, uad_ng_lists, textures, and cached apps are now in shared_store_stt::SharedStore
             selected_packages: std::collections::HashSet::new(),
-            package_details_dialog: PackageDetailsDialog::new(),
+            package_details_dialog: DlgPackageDetails::new(),
             active_filter: DebloatFilter::All,
             sort_column: None,
             sort_ascending: true,
             selected_device: None,
             table_version: 0,
-            google_play_textures: HashMap::new(),
-            fdroid_textures: HashMap::new(),
-            apkmirror_textures: HashMap::new(),
-            cached_google_play_apps: HashMap::new(),
-            cached_fdroid_apps: HashMap::new(),
-            cached_apkmirror_apps: HashMap::new(),
             show_only_enabled: false,
             hide_system_app: false,
         }
@@ -64,12 +57,13 @@ impl TabDebloatControl {
     }
 
     pub fn update_packages(&mut self, packages: Vec<PackageFingerprint>) {
+        let store = get_shared_store();
         let package_names: std::collections::HashSet<String> =
             packages.iter().map(|p| p.pkg.clone()).collect();
         self.selected_packages
             .retain(|pkg| package_names.contains(pkg));
 
-        self.installed_packages = packages;
+        store.set_installed_packages(packages);
         self.table_version = self.table_version.wrapping_add(1);
         self.sort_column = None;
         self.sort_ascending = true;
@@ -80,20 +74,24 @@ impl TabDebloatControl {
     }
 
     pub fn update_uad_ng_lists(&mut self, lists: UadNgLists) {
-        self.uad_ng_lists = Some(lists);
+        let store = get_shared_store();
+        store.set_uad_ng_lists(Some(lists));
     }
 
     /// Update cached app info from fetched results
     pub fn update_cached_google_play(&mut self, pkg_id: String, app: GooglePlayApp) {
-        self.cached_google_play_apps.insert(pkg_id, app);
+        let store = get_shared_store();
+        store.set_cached_google_play_app(pkg_id, app);
     }
 
     pub fn update_cached_fdroid(&mut self, pkg_id: String, app: FDroidApp) {
-        self.cached_fdroid_apps.insert(pkg_id, app);
+        let store = get_shared_store();
+        store.set_cached_fdroid_app(pkg_id, app);
     }
 
     pub fn update_cached_apkmirror(&mut self, pkg_id: String, app: ApkMirrorApp) {
-        self.cached_apkmirror_apps.insert(pkg_id, app);
+        let store = get_shared_store();
+        store.set_cached_apkmirror_app(pkg_id, app);
     }
 
     fn get_recommended_count(&self) -> (usize, usize) {
@@ -113,9 +111,10 @@ impl TabDebloatControl {
     }
 
     fn get_unknown_count(&self) -> (usize, usize) {
-        if let Some(uad_ng_lists) = &self.uad_ng_lists {
-            let unknown_packages: Vec<_> = self
-                .installed_packages
+        let store = get_shared_store();
+        if let Some(uad_ng_lists) = store.get_uad_ng_lists() {
+            let installed_packages = store.get_installed_packages();
+            let unknown_packages: Vec<_> = installed_packages
                 .iter()
                 .filter(|package| uad_ng_lists.apps.get(&package.pkg).is_none())
                 .collect();
@@ -133,9 +132,10 @@ impl TabDebloatControl {
     }
 
     fn get_category_count(&self, category: &str) -> (usize, usize) {
-        if let Some(uad_ng_lists) = &self.uad_ng_lists {
-            let category_packages: Vec<_> = self
-                .installed_packages
+        let store = get_shared_store();
+        if let Some(uad_ng_lists) = store.get_uad_ng_lists() {
+            let installed_packages = store.get_installed_packages();
+            let category_packages: Vec<_> = installed_packages
                 .iter()
                 .filter(|package| {
                     uad_ng_lists
@@ -202,7 +202,8 @@ impl TabDebloatControl {
             DebloatFilter::Expert => self.matches_category(package, "Expert"),
             DebloatFilter::Unsafe => self.matches_category(package, "Unsafe"),
             DebloatFilter::Unknown => {
-                if let Some(uad_ng_lists) = &self.uad_ng_lists {
+                let store = get_shared_store();
+                if let Some(uad_ng_lists) = store.get_uad_ng_lists() {
                     uad_ng_lists.apps.get(&package.pkg).is_none()
                 } else {
                     true
@@ -212,7 +213,8 @@ impl TabDebloatControl {
     }
 
     fn matches_category(&self, package: &PackageFingerprint, category: &str) -> bool {
-        if let Some(uad_ng_lists) = &self.uad_ng_lists {
+        let store = get_shared_store();
+        if let Some(uad_ng_lists) = store.get_uad_ng_lists() {
             uad_ng_lists
                 .apps
                 .get(&package.pkg)
@@ -225,9 +227,11 @@ impl TabDebloatControl {
 
     fn sort_packages(&mut self) {
         if let Some(col_idx) = self.sort_column {
-            let uad_ng_lists = self.uad_ng_lists.clone();
+            let store = get_shared_store();
+            let uad_ng_lists = store.get_uad_ng_lists();
+            let mut installed_packages = store.get_installed_packages();
 
-            self.installed_packages.sort_by(|a, b| {
+            installed_packages.sort_by(|a, b| {
                 let ordering = match col_idx {
                     0 => {
                         let name_a = format!("{} ({})", a.pkg, a.versionName);
@@ -312,18 +316,29 @@ impl TabDebloatControl {
                     ordering.reverse()
                 }
             });
+
+            // Save sorted packages back to shared store
+            store.set_installed_packages(installed_packages);
         }
     }
 
     fn load_texture_from_base64(
         ctx: &egui::Context,
-        textures: &mut HashMap<String, egui::TextureHandle>,
         prefix: &str,
         package_id: &str,
         base64_data: &str,
     ) -> Option<egui::TextureHandle> {
-        if let Some(texture) = textures.get(package_id) {
-            return Some(texture.clone());
+        let store = get_shared_store();
+
+        // Check shared store for existing texture
+        let existing_texture = match prefix {
+            "gp" => store.get_google_play_texture(package_id),
+            "fd" => store.get_fdroid_texture(package_id),
+            "am" => store.get_apkmirror_texture(package_id),
+            _ => None,
+        };
+        if let Some(texture) = existing_texture {
+            return Some(texture);
         }
 
         use base64::{engine::general_purpose, Engine as _};
@@ -362,7 +377,13 @@ impl TabDebloatControl {
             Default::default(),
         );
 
-        textures.insert(package_id.to_string(), texture.clone());
+        // Store texture in shared store
+        match prefix {
+            "gp" => store.set_google_play_texture(package_id.to_string(), texture.clone()),
+            "fd" => store.set_fdroid_texture(package_id.to_string(), texture.clone()),
+            "am" => store.set_apkmirror_texture(package_id.to_string(), texture.clone()),
+            _ => {}
+        }
         Some(texture)
     }
 
@@ -375,13 +396,15 @@ impl TabDebloatControl {
         apkmirror_enabled: bool,
     ) -> Option<AdbResult> {
         let mut result = None;
+        let store = get_shared_store();
+        let installed_packages = store.get_installed_packages();
 
         // Filter Buttons
-        if !self.installed_packages.is_empty() {
+        if !installed_packages.is_empty() {
             ui.horizontal(|ui| {
                 let show_all_colors = self.active_filter == DebloatFilter::All;
 
-                let all_count = self.installed_packages.len();
+                let all_count = installed_packages.len();
                 let all_text = tr!("all", { count: all_count });
                 let button = if self.active_filter == DebloatFilter::All {
                     MaterialButton::filled(&all_text)
@@ -455,7 +478,7 @@ impl TabDebloatControl {
             });
         }
 
-        if self.installed_packages.is_empty() {
+        if installed_packages.is_empty() {
             ui.label(tr!("no-packages-loaded"));
             return None;
         }
@@ -575,15 +598,15 @@ impl TabDebloatControl {
         let mut filtered_package_names = Vec::new();
 
         // Collect filtered packages info first to avoid borrow issues
-        let filtered_packages: Vec<(usize, String, String, bool, String, String, String, String, bool)> = self
-            .installed_packages
+        let uad_ng_lists = store.get_uad_ng_lists();
+        let filtered_packages: Vec<(usize, String, String, bool, String, String, String, String, bool)> = installed_packages
             .iter()
             .enumerate()
             .filter(|(_, p)| self.should_show_package(p))
             .map(|(idx, package)| {
                 let is_system = package.flags.contains("SYSTEM");
                 let package_name = format!("{} ({})", package.pkg, package.versionName);
-                let debloat_category = if let Some(uad_ng_lists) = &self.uad_ng_lists {
+                let debloat_category = if let Some(ref uad_ng_lists) = uad_ng_lists {
                     uad_ng_lists
                         .apps
                         .get(&package.pkg)
@@ -628,17 +651,17 @@ impl TabDebloatControl {
             let enabled_str = enabled_text.clone();
             let debloat_category_clone = debloat_category.clone();
 
-            // Get cached app info for this package
-            let fd_cached = self.cached_fdroid_apps.get(&pkg_id).cloned();
-            let gp_cached = self.cached_google_play_apps.get(&pkg_id).cloned();
-            let am_cached = self.cached_apkmirror_apps.get(&pkg_id).cloned();
+            // Get cached app info for this package from shared store
+            let fd_cached = store.get_cached_fdroid_app(&pkg_id);
+            let gp_cached = store.get_cached_google_play_app(&pkg_id);
+            let am_cached = store.get_cached_apkmirror_app(&pkg_id);
 
             // Prepare texture data
             let (fd_texture, fd_title, fd_developer) = if !is_system && fdroid_enabled {
                 if let Some(ref fd_app) = fd_cached {
                     if fd_app.raw_response != "404" {
                         let tex = fd_app.icon_base64.as_ref().and_then(|icon| {
-                            Self::load_texture_from_base64(ui.ctx(), &mut self.fdroid_textures, "fdroid", &pkg_id, icon)
+                            Self::load_texture_from_base64(ui.ctx(), "fd", &pkg_id, icon)
                         });
                         (tex.map(|t| t.id()), Some(fd_app.title.clone()), Some(fd_app.developer.clone()))
                     } else {
@@ -655,7 +678,7 @@ impl TabDebloatControl {
                 if let Some(ref gp_app) = gp_cached {
                     if gp_app.raw_response != "404" {
                         let tex = gp_app.icon_base64.as_ref().and_then(|icon| {
-                            Self::load_texture_from_base64(ui.ctx(), &mut self.google_play_textures, "googleplay", &pkg_id, icon)
+                            Self::load_texture_from_base64(ui.ctx(), "gp", &pkg_id, icon)
                         });
                         (tex.map(|t| t.id()), Some(gp_app.title.clone()), Some(gp_app.developer.clone()))
                     } else {
@@ -672,7 +695,7 @@ impl TabDebloatControl {
                 if let Some(ref am_app) = am_cached {
                     if am_app.raw_response != "404" {
                         let tex = am_app.icon_base64.as_ref().and_then(|icon| {
-                            Self::load_texture_from_base64(ui.ctx(), &mut self.apkmirror_textures, "apkmirror", &pkg_id, icon)
+                            Self::load_texture_from_base64(ui.ctx(), "am", &pkg_id, icon)
                         });
                         (tex.map(|t| t.id()), Some(am_app.title.clone()), Some(am_app.developer.clone()))
                     } else {
@@ -939,19 +962,21 @@ impl TabDebloatControl {
                 match uninstall_result {
                     Ok(output) => {
                         tracing::info!("App uninstalled successfully: {}", output);
-                        let is_system = self.installed_packages.iter().find(|p| p.pkg == pkg_name).map(|p| p.flags.contains("SYSTEM")).unwrap_or(false);
+                        let mut packages = store.get_installed_packages();
+                        let is_system = packages.iter().find(|p| p.pkg == pkg_name).map(|p| p.flags.contains("SYSTEM")).unwrap_or(false);
 
                         if is_system {
-                            if let Some(pkg) = self.installed_packages.iter_mut().find(|p| p.pkg == pkg_name) {
+                            if let Some(pkg) = packages.iter_mut().find(|p| p.pkg == pkg_name) {
                                 for user in pkg.users.iter_mut() {
                                     user.installed = false;
                                     user.enabled = 0;
                                 }
                             }
                         } else {
-                            self.installed_packages.retain(|pkg| pkg.pkg != pkg_name);
+                            packages.retain(|pkg| pkg.pkg != pkg_name);
                             self.selected_packages.remove(&pkg_name);
                         }
+                        store.set_installed_packages(packages);
                         result = Some(AdbResult::Success(pkg_name.clone()));
                     }
                     Err(e) => {
@@ -971,12 +996,14 @@ impl TabDebloatControl {
                 match crate::adb::enable_app(&pkg_name, device) {
                     Ok(output) => {
                         tracing::info!("App enabled successfully: {}", output);
-                        if let Some(pkg) = self.installed_packages.iter_mut().find(|p| p.pkg == pkg_name) {
+                        let mut packages = store.get_installed_packages();
+                        if let Some(pkg) = packages.iter_mut().find(|p| p.pkg == pkg_name) {
                             for user in pkg.users.iter_mut() {
                                 user.enabled = 1;
                                 user.installed = true;
                             }
                         }
+                        store.set_installed_packages(packages);
                         result = Some(AdbResult::Success(pkg_name.clone()));
                     }
                     Err(e) => {
@@ -996,11 +1023,13 @@ impl TabDebloatControl {
                 match crate::adb::disable_app_current_user(&pkg_name, device, None) {
                     Ok(output) => {
                         tracing::info!("App disabled successfully: {}", output);
-                        if let Some(pkg) = self.installed_packages.iter_mut().find(|p| p.pkg == pkg_name) {
+                        let mut packages = store.get_installed_packages();
+                        if let Some(pkg) = packages.iter_mut().find(|p| p.pkg == pkg_name) {
                             for user in pkg.users.iter_mut() {
                                 user.enabled = 3;
                             }
                         }
+                        store.set_installed_packages(packages);
                         result = Some(AdbResult::Success(pkg_name.clone()));
                     }
                     Err(e) => {
@@ -1018,8 +1047,9 @@ impl TabDebloatControl {
         if batch_uninstall {
             if let Some(ref device) = self.selected_device {
                 let packages_to_uninstall: Vec<String> = self.selected_packages.iter().cloned().collect();
+                let mut packages = store.get_installed_packages();
                 for pkg_name in packages_to_uninstall {
-                    let is_system = self.installed_packages.iter().find(|p| p.pkg == pkg_name).map(|p| p.flags.contains("SYSTEM")).unwrap_or(false);
+                    let is_system = packages.iter().find(|p| p.pkg == pkg_name).map(|p| p.flags.contains("SYSTEM")).unwrap_or(false);
                     let uninstall_result = if is_system {
                         crate::adb::uninstall_app_user(&pkg_name, device, None)
                     } else {
@@ -1030,14 +1060,14 @@ impl TabDebloatControl {
                         Ok(output) => {
                             tracing::info!("App uninstalled successfully: {}", output);
                             if is_system {
-                                if let Some(pkg) = self.installed_packages.iter_mut().find(|p| p.pkg == pkg_name) {
+                                if let Some(pkg) = packages.iter_mut().find(|p| p.pkg == pkg_name) {
                                     for user in pkg.users.iter_mut() {
                                         user.installed = false;
                                         user.enabled = 0;
                                     }
                                 }
                             } else {
-                                self.installed_packages.retain(|pkg| pkg.pkg != pkg_name);
+                                packages.retain(|pkg| pkg.pkg != pkg_name);
                                 self.selected_packages.remove(&pkg_name);
                             }
                             result = Some(AdbResult::Success(pkg_name.clone()));
@@ -1048,6 +1078,7 @@ impl TabDebloatControl {
                         }
                     }
                 }
+                store.set_installed_packages(packages);
             } else {
                 tracing::error!("No device selected for batch uninstall");
                 result = Some(AdbResult::Failure);
@@ -1058,11 +1089,12 @@ impl TabDebloatControl {
         if batch_disable {
             if let Some(ref device) = self.selected_device {
                 let packages_to_disable: Vec<String> = self.selected_packages.iter().cloned().collect();
+                let mut packages = store.get_installed_packages();
                 for pkg_name in packages_to_disable {
                     match crate::adb::disable_app_current_user(&pkg_name, device, None) {
                         Ok(output) => {
                             tracing::info!("App disabled successfully: {}", output);
-                            if let Some(pkg) = self.installed_packages.iter_mut().find(|p| p.pkg == pkg_name) {
+                            if let Some(pkg) = packages.iter_mut().find(|p| p.pkg == pkg_name) {
                                 for user in pkg.users.iter_mut() {
                                     user.enabled = 3;
                                 }
@@ -1075,6 +1107,7 @@ impl TabDebloatControl {
                         }
                     }
                 }
+                store.set_installed_packages(packages);
             } else {
                 tracing::error!("No device selected for batch disable");
                 result = Some(AdbResult::Failure);
@@ -1085,11 +1118,12 @@ impl TabDebloatControl {
         if batch_enable {
             if let Some(ref device) = self.selected_device {
                 let packages_to_enable: Vec<String> = self.selected_packages.iter().cloned().collect();
+                let mut packages = store.get_installed_packages();
                 for pkg_name in packages_to_enable {
                     match crate::adb::enable_app(&pkg_name, device) {
                         Ok(output) => {
                             tracing::info!("App enabled successfully: {}", output);
-                            if let Some(pkg) = self.installed_packages.iter_mut().find(|p| p.pkg == pkg_name) {
+                            if let Some(pkg) = packages.iter_mut().find(|p| p.pkg == pkg_name) {
                                 for user in pkg.users.iter_mut() {
                                     user.enabled = 1;
                                     user.installed = true;
@@ -1103,6 +1137,7 @@ impl TabDebloatControl {
                         }
                     }
                 }
+                store.set_installed_packages(packages);
             } else {
                 tracing::error!("No device selected for batch enable");
                 result = Some(AdbResult::Failure);
@@ -1110,7 +1145,9 @@ impl TabDebloatControl {
         }
 
         // Show package details dialog
-        self.package_details_dialog.show(ui.ctx(), &self.installed_packages, &self.uad_ng_lists);
+        let packages_for_dialog = store.get_installed_packages();
+        let uad_lists_for_dialog = store.get_uad_ng_lists();
+        self.package_details_dialog.show(ui.ctx(), &packages_for_dialog, &uad_lists_for_dialog);
 
         result
     }
