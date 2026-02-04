@@ -51,6 +51,7 @@ include:
   - CODE_OF_CONDUCT.md
   - PRIVACYPOLICY.md
   - SECURITY.md
+  - CHANGELOG.md
   - kr
 
 # Theme settings
@@ -62,6 +63,7 @@ theme_config:
     Docs: /docs
     Readme: /readme
     Credits: /credits
+    # Changelog: /changelog
     # "Code of Conduct": /code_of_conduct
     # "Privacy Policy": /privacypolicy
     # Security: /security
@@ -78,6 +80,8 @@ theme_config:
       - Readme: []
     - Credits: 
       - Credits: []
+    # - Changelog:
+    #   - Changelog: []
     # - "Code of Conduct": /code_of_conduct
     # - "Privacy Policy": /privacypolicy
     # - Security: /security

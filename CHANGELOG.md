@@ -1,6 +1,17 @@
 ## What's Changed
-* docs. add todos.
+* show classification_tags for hybridanalysis results. by @nikescar in [#16](https://github.com/nikescar/uad-shizuku/pull/16)
+* show classification_tags for hybridanalysis results. by @nikescar
+* Feat.add textbox filter on datatable by @nikescar in [#15](https://github.com/nikescar/uad-shizuku/pull/15)
+* fix. add store cache for scan table. by @nikescar
+* fix. add textbox filter table. by @nikescar
+* fix. make cache for render data on debloat table. by @nikescar in [#14](https://github.com/nikescar/uad-shizuku/pull/14)
+* fix. make cache for render data on debloat table. by @nikescar
+* Merge branch 'main' of github.com:nikescar/uad-shizuku by @nikescar
+* docs. add todos. by @nikescar in [#13](https://github.com/nikescar/uad-shizuku/pull/13)
+* docs. add todos. by @nikescar
+* feat. disable github download switch on apps. by @nikescar in [#12](https://github.com/nikescar/uad-shizuku/pull/12)
 * feat. disable github download switch on apps. by @nikescar
+* docs. add git cliff to makr changelog. by @nikescar
 
 ## What's Changed in 0.0.5
 * docs. add docs. by @nikescar
