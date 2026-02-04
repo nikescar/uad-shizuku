@@ -16,6 +16,17 @@ pub enum DebloatFilter {
     Unknown,
 }
 
+/// Cached category counts to avoid recomputing every frame
+#[derive(Default, Clone)]
+pub struct CachedCategoryCounts {
+    pub recommended: (usize, usize), // (enabled, total)
+    pub advanced: (usize, usize),
+    pub expert: (usize, usize),
+    pub unsafe_count: (usize, usize),
+    pub unknown: (usize, usize),
+    pub version: u64, // tracks when cache was computed
+}
+
 pub struct TabDebloatControl {
     pub open: bool,
     // NOTE: installed_packages, uad_ng_lists, textures, and cached apps are now in shared_store_stt::SharedStore
@@ -38,4 +49,7 @@ pub struct TabDebloatControl {
     // Filter toggles
     pub show_only_enabled: bool,
     pub hide_system_app: bool,
+
+    // Cached category counts to avoid recomputing every frame
+    pub cached_counts: CachedCategoryCounts,
 }
