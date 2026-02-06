@@ -91,7 +91,6 @@ Get list of FOSS apps, and install directly. github and fdroid auto-install supp
 
 ## Todos
 
-* installation button on menu.(icons desktop, icons start menu, copy app exe to user application dir.)
 * match datatable color to theme.
 * android version through shizuku
 * android keyboard & clipboard

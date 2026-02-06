@@ -1,4 +1,21 @@
 ## What's Changed
+* Feat.installation autoupdate by @nikescar in [#19](https://github.com/nikescar/uad-shizuku/pull/19)
+* feat. installation for windows, macos, linux. by @nikescar
+* docs. update todos. by @nikescar
+* feat. add hybrid-analysis tag blacklist setting. by @nikescar in [#18](https://github.com/nikescar/uad-shizuku/pull/18)
+* feat. add hybrid-analysis tag blacklist setting. by @nikescar
+* Feat.mobile UI by @nikescar in [#17](https://github.com/nikescar/uad-shizuku/pull/17)
+* fix. change button size for mobile view. by @nikescar
+* fix. add missing sort options for mobile. by @nikescar
+* feat. mobile view for debloat, scan, app tables. by @nikescar
+* bump by @nikescar
+* bump by @nikescar
+* docs. update todos. by @nikescar
+* docs. add screenshot image. by @nikescar
+
+## What's Changed in 0.0.6
+* fix. hybridanalysis init scan bug. by @nikescar
+* release v0.0.6 by @nikescar
 * show classification_tags for hybridanalysis results. by @nikescar in [#16](https://github.com/nikescar/uad-shizuku/pull/16)
 * show classification_tags for hybridanalysis results. by @nikescar
 * Feat.add textbox filter on datatable by @nikescar in [#15](https://github.com/nikescar/uad-shizuku/pull/15)
@@ -12,6 +29,8 @@
 * feat. disable github download switch on apps. by @nikescar in [#12](https://github.com/nikescar/uad-shizuku/pull/12)
 * feat. disable github download switch on apps. by @nikescar
 * docs. add git cliff to makr changelog. by @nikescar
+
+**Full Changelog**: https://github.com/nikescar/uad-shizuku/compare/v0.0.5...v0.0.6
 
 ## What's Changed in 0.0.5
 * docs. add docs. by @nikescar
