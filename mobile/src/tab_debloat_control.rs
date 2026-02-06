@@ -1064,7 +1064,9 @@ impl TabDebloatControl {
                 let sort_options = [
                     (0, tr!("col-package-name")),
                     (1, tr!("col-debloat-category")),
+                    (2, "RP".to_string()),
                     (3, tr!("col-enabled")),
+                    (4, tr!("col-install-reason")),
                 ];
                 for (col_idx, label) in sort_options {
                     let is_selected = self.sort_column == Some(col_idx);

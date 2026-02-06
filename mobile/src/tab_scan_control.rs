@@ -1761,6 +1761,8 @@ impl TabScanControl {
                 let sort_options = [
                     (0, tr!("col-package-name")),
                     (1, tr!("col-izzy-risk")),
+                    (2, tr!("col-virustotal")),
+                    (3, tr!("col-hybrid-analysis")),
                 ];
                 for (col_idx, label) in sort_options {
                     let is_selected = self.sort_column == Some(col_idx);

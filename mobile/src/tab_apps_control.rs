@@ -85,6 +85,13 @@ impl TabAppsControl {
                         if ascending { cmp } else { cmp.reverse() }
                     });
                 }
+                2 => {
+                    // Sort by number of links (more links = higher priority)
+                    self.app_entries.sort_by(|a, b| {
+                        let cmp = a.links.len().cmp(&b.links.len());
+                        if ascending { cmp } else { cmp.reverse() }
+                    });
+                }
                 _ => {}
             }
         }
@@ -1254,6 +1261,7 @@ impl TabAppsControl {
                 let sort_options = [
                     (0, tr!("category")),
                     (1, tr!("app-name")),
+                    (2, tr!("links")),
                 ];
                 for (col_idx, label) in sort_options {
                     let is_selected = self.sort_column == Some(col_idx);
