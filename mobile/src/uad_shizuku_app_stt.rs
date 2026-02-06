@@ -111,6 +111,7 @@ pub struct UadShizukuApp {
     pub settings_apkmirror_renderer: bool,
     pub settings_virustotal_submit: bool,
     pub settings_hybridanalysis_submit: bool,
+    pub settings_hybridanalysis_tag_blacklist: String,
 
     // Progress tracking for background tasks
     pub package_load_progress: std::sync::Arc<std::sync::Mutex<Option<f32>>>,

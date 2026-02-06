@@ -265,6 +265,7 @@ impl Default for UadShizukuApp {
             settings_apkmirror_renderer: settings.apkmirror_renderer,
             settings_virustotal_submit: settings.virustotal_submit,
             settings_hybridanalysis_submit: settings.hybridanalysis_submit,
+            settings_hybridanalysis_tag_blacklist: settings.hybridanalysis_tag_blacklist.clone(),
             settings: settings,
 
             package_load_progress: Arc::new(Mutex::new(None)),
@@ -1222,7 +1223,7 @@ impl UadShizukuApp {
         self.tab_scan_control.fdroid_renderer_enabled = self.settings.fdroid_renderer;
         self.tab_scan_control.apkmirror_renderer_enabled = self.settings.apkmirror_renderer;
 
-        self.tab_scan_control.ui(ui);
+        self.tab_scan_control.ui(ui, &self.settings.hybridanalysis_tag_blacklist);
     }
 
     fn render_apps_tab(&mut self, ui: &mut egui::Ui) {
@@ -1997,6 +1998,13 @@ impl UadShizukuApp {
                     ui.add_space(8.0);
 
                     ui.horizontal(|ui| {
+                        ui.label(tr!("hybridanalysis-tag-blacklist"));
+                        ui.text_edit_singleline(&mut self.settings_hybridanalysis_tag_blacklist);
+                    });
+
+                    ui.add_space(8.0);
+
+                    ui.horizontal(|ui| {
                         ui.checkbox(
                             &mut self.settings_google_play_renderer,
                             tr!("google-play-renderer"),
@@ -2341,6 +2349,7 @@ impl UadShizukuApp {
         self.settings.hybridanalysis_apikey = self.settings_hybridanalysis_apikey.clone();
         self.settings.virustotal_submit = self.settings_virustotal_submit;
         self.settings.hybridanalysis_submit = self.settings_hybridanalysis_submit;
+        self.settings.hybridanalysis_tag_blacklist = self.settings_hybridanalysis_tag_blacklist.clone();
         self.settings.google_play_renderer = self.settings_google_play_renderer;
         self.settings.fdroid_renderer = self.settings_fdroid_renderer;
         self.settings.apkmirror_renderer = self.settings_apkmirror_renderer;
