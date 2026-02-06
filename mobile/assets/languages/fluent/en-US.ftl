@@ -29,7 +29,7 @@ install = Install
 installed = Installed
 
 # Debloat Tab
-all = All ({ $count })
+all = All ({ $enabled }/{ $total })
 recommended = Recommended ({ $enabled }/{ $total })
 advanced = Advanced ({ $enabled }/{ $total })
 expert = Expert ({ $enabled }/{ $total })
@@ -62,11 +62,11 @@ enable-selected = Enable Selected ({ $count })
 # Scan Tab
 virustotal-filter = VirusTotal Filter:
 scanning-packages = Scanning packages...
-malicious = Malicious ({ $count })
-suspicious = Suspicious ({ $count })
-safe = Safe ({ $count })
-no-specific-threat = No Specific Threat ({ $count })
-not-scanned = Not Scanned ({ $count })
+malicious = Malicious ({ $enabled }/{ $total })
+suspicious = Suspicious ({ $enabled }/{ $total })
+safe = Safe ({ $enabled }/{ $total })
+no-specific-threat = No Specific Threat ({ $enabled }/{ $total })
+not-scanned = Not Scanned ({ $enabled }/{ $total })
 hybrid-analysis-filter = Hybrid-Analysis Filter:
 col-izzy-risk = IzzyRisk
 col-virustotal = VirusTotal

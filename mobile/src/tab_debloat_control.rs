@@ -536,8 +536,9 @@ impl TabDebloatControl {
             ui.horizontal(|ui| {
                 let show_all_colors = self.active_filter == DebloatFilter::All;
 
-                let all_count = installed_packages.len();
-                let all_text = tr!("all", { count: all_count });
+                let all_total = installed_packages.len();
+                let all_enabled = installed_packages.iter().filter(|p| self.is_package_enabled(p)).count();
+                let all_text = tr!("all", { enabled: all_enabled, total: all_total });
                 let button = if self.active_filter == DebloatFilter::All {
                     MaterialButton::filled(&all_text)
                         .fill(egui::Color32::from_rgb(158, 158, 158))
