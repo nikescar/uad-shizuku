@@ -33,6 +33,11 @@ use crate::LogLevel;
 pub use crate::uad_shizuku_app_stt::*;
 use crate::{Config, Settings};
 
+#[cfg(not(target_os = "android"))]
+use crate::install;
+#[cfg(not(target_os = "android"))]
+use crate::install_stt::InstallStatus;
+
 use eframe::egui::Context;
 use egui_material3::theme::{
     load_fonts, load_themes, setup_local_fonts, setup_local_fonts_from_bytes, setup_local_theme,
@@ -278,6 +283,24 @@ impl Default for UadShizukuApp {
 
             // About dialog
             about_dialog_open: false,
+
+            // Installation status (desktop only)
+            #[cfg(not(target_os = "android"))]
+            install_status: install::check_install(),
+            #[cfg(not(target_os = "android"))]
+            install_dialog_open: false,
+            #[cfg(not(target_os = "android"))]
+            install_message: String::new(),
+
+            // Update status (desktop only)
+            #[cfg(not(target_os = "android"))]
+            update_status: String::new(),
+            #[cfg(not(target_os = "android"))]
+            update_available: false,
+            #[cfg(not(target_os = "android"))]
+            update_download_url: String::new(),
+            #[cfg(not(target_os = "android"))]
+            update_checking: false,
 
             // Font selector state
             system_fonts: Vec::new(),
@@ -798,6 +821,11 @@ impl UadShizukuApp {
         self.show_about_dialog(ui.ctx());
         // === About dialog end
 
+        // === Install dialog (desktop only)
+        #[cfg(not(target_os = "android"))]
+        self.show_install_dialog(ui.ctx());
+        // === Install dialog end
+
         // === Package loading dialog
         self.show_package_loading_dialog(ui.ctx());
         self.handle_package_loading_result();
@@ -813,6 +841,8 @@ impl UadShizukuApp {
             let should_exit = Cell::new(false);
             let open_settings = Cell::new(false);
             let open_about = Cell::new(false);
+            #[cfg(not(target_os = "android"))]
+            let do_install_action = Cell::new(false);
             let settings_text = tr!("settings");
             let about_text = tr!("about");
             let exit_text = tr!("exit");
@@ -826,16 +856,40 @@ impl UadShizukuApp {
                 open_about.set(true);
                 close_menu.set(true);
             });
+
+            // Install/Uninstall menu item (desktop only)
+            #[cfg(not(target_os = "android"))]
+            let install_text = if self.install_status == InstallStatus::Installed {
+                tr!("uninstall")
+            } else {
+                tr!("install")
+            };
+            #[cfg(not(target_os = "android"))]
+            let install_item = self.create_menu_item(&install_text, "install", || {
+                do_install_action.set(true);
+                close_menu.set(true);
+            });
+
             let exit_item = self.create_menu_item(&exit_text, "exit", || {
                 close_menu.set(true);
                 should_exit.set(true);
                 println!("Exit clicked!");
             });
 
-            let mut menu_builder = menu("standard_menu", &mut self.standard_menu_open)
+            #[cfg(not(target_os = "android"))]
+            let menu_builder = menu("standard_menu", &mut self.standard_menu_open)
+                .item(settings_item)
+                .item(install_item)
+                .item(about_item)
+                .item(exit_item);
+
+            #[cfg(target_os = "android")]
+            let menu_builder = menu("standard_menu", &mut self.standard_menu_open)
                 .item(settings_item)
                 .item(about_item)
-                .item(exit_item)
+                .item(exit_item);
+
+            let mut menu_builder = menu_builder
                 .anchor_corner(self.anchor_corner)
                 .menu_corner(self.menu_corner)
                 .default_focus(self.default_focus)
@@ -876,6 +930,11 @@ impl UadShizukuApp {
                 self.about_dialog_open = true;
             }
 
+            #[cfg(not(target_os = "android"))]
+            if do_install_action.get() {
+                self.perform_install_action();
+            }
+
             if should_exit.get() {
                 ctx.send_viewport_cmd(egui::ViewportCommand::Close);
             }
@@ -896,6 +955,112 @@ impl UadShizukuApp {
             item = item.enabled(false);
         }
         item
+    }
+
+    /// Perform install or uninstall action based on current status
+    #[cfg(not(target_os = "android"))]
+    fn perform_install_action(&mut self) {
+        use crate::install_stt::InstallResult;
+
+        let result = if self.install_status == InstallStatus::Installed {
+            install::do_uninstall()
+        } else {
+            install::do_install()
+        };
+
+        match result {
+            InstallResult::Success(msg) => {
+                self.install_message = msg;
+                // Refresh install status
+                self.install_status = install::check_install();
+            }
+            InstallResult::Error(err) => {
+                self.install_message = format!("Error: {}", err);
+            }
+        }
+        self.install_dialog_open = true;
+    }
+
+    /// Show installation result dialog
+    #[cfg(not(target_os = "android"))]
+    fn show_install_dialog(&mut self, ctx: &egui::Context) {
+        if self.install_dialog_open {
+            let title = if self.install_message.starts_with("Error") {
+                tr!("install-error")
+            } else if self.install_status == InstallStatus::Installed {
+                tr!("install-success")
+            } else {
+                tr!("uninstall-success")
+            };
+
+            let mut should_close = false;
+
+            dialog("install_dialog", &title, &mut self.install_dialog_open)
+                .content(|ui| {
+                    ui.label(&self.install_message);
+                    ui.add_space(16.0);
+
+                    ui.horizontal(|ui| {
+                        if ui.add(MaterialButton::filled(tr!("ok"))).clicked() {
+                            should_close = true;
+                        }
+                    });
+                })
+                .show(ctx);
+
+            if should_close {
+                self.install_dialog_open = false;
+            }
+        }
+    }
+
+    /// Check for updates from GitHub
+    #[cfg(not(target_os = "android"))]
+    fn check_for_update(&mut self) {
+        self.update_checking = true;
+        self.update_status.clear();
+        self.update_available = false;
+
+        match install::check_update() {
+            Ok(info) => {
+                self.update_checking = false;
+                if info.available {
+                    self.update_available = true;
+                    self.update_download_url = info.download_url;
+                    self.update_status = format!("{} {} → {}", tr!("update-available"), info.current_version, info.latest_version);
+                } else {
+                    self.update_status = tr!("up-to-date").to_string();
+                }
+            }
+            Err(e) => {
+                self.update_checking = false;
+                self.update_status = format!("{}: {}", tr!("update-error"), e);
+            }
+        }
+    }
+
+    /// Perform update
+    #[cfg(not(target_os = "android"))]
+    fn perform_update(&mut self) {
+        use crate::install_stt::InstallResult;
+
+        let tmp_dir = if let Some(ref cfg) = self.config {
+            cfg.tmp_dir.clone()
+        } else {
+            std::path::PathBuf::from("./tmp")
+        };
+
+        match install::do_update(&self.update_download_url, &tmp_dir) {
+            InstallResult::Success(msg) => {
+                self.install_message = msg;
+                self.update_available = false;
+                self.update_status.clear();
+            }
+            InstallResult::Error(err) => {
+                self.install_message = format!("Error: {}", err);
+            }
+        }
+        self.install_dialog_open = true;
     }
 
     fn render_custom_tabs(&mut self, ui: &mut egui::Ui) {
@@ -2266,6 +2431,18 @@ impl UadShizukuApp {
             let website_label = tr!("about-website");
             let credits_label = tr!("about-credits");
 
+            // Use Cell pattern for update button actions
+            #[cfg(not(target_os = "android"))]
+            let do_check_update = Cell::new(false);
+            #[cfg(not(target_os = "android"))]
+            let do_perform_update = Cell::new(false);
+            #[cfg(not(target_os = "android"))]
+            let update_checking = self.update_checking;
+            #[cfg(not(target_os = "android"))]
+            let update_available = self.update_available;
+            #[cfg(not(target_os = "android"))]
+            let update_status = self.update_status.clone();
+
             dialog("about_dialog", &about_title, &mut self.about_dialog_open)
                 .content(|ui| {
                     ui.vertical(|ui| {
@@ -2275,7 +2452,28 @@ impl UadShizukuApp {
 
                         // App name and version
                         ui.heading("UAD-Shizuku");
-                        ui.label(format!("Version: {}", version));
+                        ui.horizontal(|ui| {
+                            ui.label(format!("Version: {}", version));
+
+                            #[cfg(not(target_os = "android"))]
+                            {
+                                ui.add_space(8.0);
+
+                                if update_checking {
+                                    ui.spinner();
+                                    ui.label(tr!("checking-update"));
+                                } else if update_available {
+                                    ui.label(&update_status);
+                                    if ui.button(tr!("update-now")).clicked() {
+                                        do_perform_update.set(true);
+                                    }
+                                } else if !update_status.is_empty() {
+                                    ui.label(&update_status);
+                                } else if ui.button(tr!("check-update")).clicked() {
+                                    do_check_update.set(true);
+                                }
+                            }
+                        });
 
                         ui.add_space(12.0);
 
@@ -2324,6 +2522,16 @@ impl UadShizukuApp {
                 })
                 .action(tr!("ok"), || {})
                 .show(ctx);
+
+            // Handle update button actions
+            #[cfg(not(target_os = "android"))]
+            if do_check_update.get() {
+                self.check_for_update();
+            }
+            #[cfg(not(target_os = "android"))]
+            if do_perform_update.get() {
+                self.perform_update();
+            }
         }
     }
 

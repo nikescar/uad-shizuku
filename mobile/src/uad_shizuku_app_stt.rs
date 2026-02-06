@@ -1,4 +1,6 @@
 use crate::adb::UserInfo;
+#[cfg(not(target_os = "android"))]
+use crate::install_stt::InstallStatus;
 use crate::tab_apps_control::TabAppsControl;
 use crate::tab_debloat_control::TabDebloatControl;
 use crate::tab_scan_control::TabScanControl;
@@ -124,6 +126,24 @@ pub struct UadShizukuApp {
 
     // About dialog state
     pub about_dialog_open: bool,
+
+    // Installation status (desktop only)
+    #[cfg(not(target_os = "android"))]
+    pub install_status: InstallStatus,
+    #[cfg(not(target_os = "android"))]
+    pub install_dialog_open: bool,
+    #[cfg(not(target_os = "android"))]
+    pub install_message: String,
+
+    // Update status (desktop only)
+    #[cfg(not(target_os = "android"))]
+    pub update_status: String,
+    #[cfg(not(target_os = "android"))]
+    pub update_available: bool,
+    #[cfg(not(target_os = "android"))]
+    pub update_download_url: String,
+    #[cfg(not(target_os = "android"))]
+    pub update_checking: bool,
 
     // Font selector state
     pub system_fonts: Vec<(String, String)>,

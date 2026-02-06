@@ -28,6 +28,16 @@ app-name = App Name
 links = Links
 install = Install
 installed = Installed
+uninstall = Uninstall
+install-success = Installation Successful
+uninstall-success = Uninstallation Successful
+install-error = Installation Error
+check-update = Check for Update
+update-now = Update Now
+checking-update = Checking...
+update-available = Update available:
+up-to-date = Up to date
+update-error = Update check failed
 
 # Debloat Tab
 all = All ({ $enabled }/{ $total })

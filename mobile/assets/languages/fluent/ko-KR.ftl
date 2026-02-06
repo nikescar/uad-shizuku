@@ -28,6 +28,16 @@ app-name = 앱 이름
 links = 링크
 install = 설치
 installed = 설치됨
+uninstall = 제거
+install-success = 설치 완료
+uninstall-success = 제거 완료
+install-error = 설치 오류
+check-update = 업데이트 확인
+update-now = 지금 업데이트
+checking-update = 확인 중...
+update-available = 업데이트 가능:
+up-to-date = 최신 버전
+update-error = 업데이트 확인 실패
 
 # Debloat Tab
 all = 전체 ({ $enabled }/{ $total })
