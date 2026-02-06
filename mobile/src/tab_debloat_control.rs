@@ -6,9 +6,15 @@ pub use crate::tab_debloat_control_stt::*;
 use crate::dlg_package_details::DlgPackageDetails;
 use eframe::egui;
 use egui_i18n::tr;
-use egui_material3::{assist_chip, data_table, theme::get_global_color, MaterialButton};
+use egui_material3::{assist_chip, data_table, outlined_card2, theme::get_global_color, MaterialButton};
 
 use crate::svg_stt::*;
+
+/// Minimum viewport width for desktop table view
+const DESKTOP_MIN_WIDTH: f32 = 1008.0;
+
+/// Base table width for calculating column ratios
+const BASE_TABLE_WIDTH: f32 = 1024.0;
 
 impl Default for TabDebloatControl {
     fn default() -> Self {
@@ -705,18 +711,23 @@ impl TabDebloatControl {
         );
         ui.ctx().set_style(style);
 
-        // Build table
+        // Get viewport width for responsive design
+        let available_width = ui.available_width();
+        let is_desktop = available_width >= DESKTOP_MIN_WIDTH;
+
+        // Build table with proportional column widths for desktop
+        let width_ratio = if is_desktop { available_width / BASE_TABLE_WIDTH } else { 1.0 };
         let mut debloat_table = data_table()
             .id(egui::Id::new(format!(
                 "debloat_data_table_v{}",
                 self.table_version
             )))
-            .sortable_column(tr!("col-package-name"), 350.0, false)
-            .sortable_column(tr!("col-debloat-category"), 130.0, false)
-            .sortable_column("RP", 80.0, true)
-            .sortable_column(tr!("col-enabled"), 120.0, false)
-            .sortable_column(tr!("col-install-reason"), 110.0, false)
-            .sortable_column(tr!("col-tasks"), 160.0, false)
+            .sortable_column(tr!("col-package-name"), 350.0 * width_ratio, false)
+            .sortable_column(tr!("col-debloat-category"), 130.0 * width_ratio, false)
+            .sortable_column("RP", 80.0 * width_ratio, true)
+            .sortable_column(tr!("col-enabled"), 120.0 * width_ratio, false)
+            .sortable_column(tr!("col-install-reason"), 110.0 * width_ratio, false)
+            .sortable_column(tr!("col-tasks"), 160.0 * width_ratio, false)
             .allow_selection(true);
 
         if let Some(sort_col) = self.sort_column {
@@ -777,19 +788,24 @@ impl TabDebloatControl {
             })
             .collect();
 
-        for (idx, pkg_id, package_name, is_system, debloat_category, runtime_perms, enabled_text, install_reason, is_selected) in filtered_packages {
+        // Collect filtered package names for both views
+        for (_, pkg_id, _, _, _, _, _, _, _) in &filtered_packages {
             filtered_package_names.push(pkg_id.clone());
+        }
 
-            let clicked_idx_clone = clicked_package_idx.clone();
-            let pkg_id_clone = pkg_id.clone();
-            let package_name_clone = package_name.clone();
-            let enabled_str = enabled_text.clone();
-            let debloat_category_clone = debloat_category.clone();
+        if is_desktop {
+            // === DESKTOP TABLE VIEW ===
+            for (idx, pkg_id, package_name, is_system, debloat_category, runtime_perms, enabled_text, install_reason, is_selected) in filtered_packages {
+                let clicked_idx_clone = clicked_package_idx.clone();
+                let pkg_id_clone = pkg_id.clone();
+                let package_name_clone = package_name.clone();
+                let enabled_str = enabled_text.clone();
+                let debloat_category_clone = debloat_category.clone();
 
-            // Get cached app info from pre-fetched maps (avoids repeated mutex locks)
-            let fd_cached = cached_fdroid_apps.get(&pkg_id);
-            let gp_cached = cached_google_play_apps.get(&pkg_id);
-            let am_cached = cached_apkmirror_apps.get(&pkg_id);
+                // Get cached app info from pre-fetched maps (avoids repeated mutex locks)
+                let fd_cached = cached_fdroid_apps.get(&pkg_id);
+                let gp_cached = cached_google_play_apps.get(&pkg_id);
+                let am_cached = cached_apkmirror_apps.get(&pkg_id);
 
             // Prepare texture data
             let (fd_texture, fd_title, fd_developer) = if !is_system && fdroid_enabled {
@@ -1027,17 +1043,185 @@ impl TabDebloatControl {
             self.sort_packages();
         }
 
-        // Sync selection state
-        if table_response.selected_rows.len() == filtered_package_names.len() {
-            for (filtered_idx, package_name) in filtered_package_names.iter().enumerate() {
-                if let Some(&selected) = table_response.selected_rows.get(filtered_idx) {
-                    if selected {
-                        self.selected_packages.insert(package_name.clone());
-                    } else {
-                        self.selected_packages.remove(package_name);
+            // Sync selection state
+            if table_response.selected_rows.len() == filtered_package_names.len() {
+                for (filtered_idx, package_name) in filtered_package_names.iter().enumerate() {
+                    if let Some(&selected) = table_response.selected_rows.get(filtered_idx) {
+                        if selected {
+                            self.selected_packages.insert(package_name.clone());
+                        } else {
+                            self.selected_packages.remove(package_name);
+                        }
                     }
                 }
             }
+        } else {
+            // === MOBILE CARD VIEW ===
+            egui::ScrollArea::vertical()
+                .id_salt("debloat_cards_scroll")
+                .show(ui, |ui| {
+                    ui.horizontal_wrapped(|ui| {
+                        for (idx, pkg_id, package_name, is_system, debloat_category, _runtime_perms, enabled_text, _install_reason, is_selected) in filtered_packages {
+                            let pkg_id_clone = pkg_id.clone();
+                            let enabled_str = enabled_text.clone();
+
+                            // Get cached app info
+                            let fd_cached = cached_fdroid_apps.get(&pkg_id);
+                            let gp_cached = cached_google_play_apps.get(&pkg_id);
+                            let am_cached = cached_apkmirror_apps.get(&pkg_id);
+
+                            // Get app title and icon
+                            let (texture_id, title, developer) = if !is_system && fdroid_enabled {
+                                if let Some(fd_app) = fd_cached {
+                                    if fd_app.raw_response != "404" {
+                                        let tex = fd_app.icon_base64.as_ref().and_then(|icon| {
+                                            Self::load_texture_from_base64(ui.ctx(), "fd", &pkg_id, icon)
+                                        });
+                                        (tex.map(|t| t.id()), Some(fd_app.title.clone()), Some(fd_app.developer.clone()))
+                                    } else { (None, None, None) }
+                                } else { (None, None, None) }
+                            } else if !is_system && google_play_enabled {
+                                if let Some(gp_app) = gp_cached {
+                                    if gp_app.raw_response != "404" {
+                                        let tex = gp_app.icon_base64.as_ref().and_then(|icon| {
+                                            Self::load_texture_from_base64(ui.ctx(), "gp", &pkg_id, icon)
+                                        });
+                                        (tex.map(|t| t.id()), Some(gp_app.title.clone()), Some(gp_app.developer.clone()))
+                                    } else { (None, None, None) }
+                                } else { (None, None, None) }
+                            } else if is_system && apkmirror_enabled {
+                                if let Some(am_app) = am_cached {
+                                    if am_app.raw_response != "404" {
+                                        let tex = am_app.icon_base64.as_ref().and_then(|icon| {
+                                            Self::load_texture_from_base64(ui.ctx(), "am", &pkg_id, icon)
+                                        });
+                                        (tex.map(|t| t.id()), Some(am_app.title.clone()), Some(am_app.developer.clone()))
+                                    } else { (None, None, None) }
+                                } else { (None, None, None) }
+                            } else {
+                                (None, None, None)
+                            };
+
+                            let display_title = title.unwrap_or_else(|| package_name.clone());
+                            let display_subtitle = developer.unwrap_or_else(|| pkg_id.clone());
+
+                            // Category color
+                            let category_color = match debloat_category.as_str() {
+                                "Recommended" => egui::Color32::from_rgb(56, 142, 60),
+                                "Advanced" => egui::Color32::from_rgb(33, 150, 243),
+                                "Expert" => egui::Color32::from_rgb(255, 152, 0),
+                                "Unsafe" => egui::Color32::from_rgb(255, 235, 59),
+                                _ => egui::Color32::from_rgb(158, 158, 158),
+                            };
+
+                            let card = outlined_card2()
+                                .clickable(true)
+                                .header(&display_title, Some(&display_subtitle))
+                                .content(|ui| {
+                                    ui.horizontal(|ui| {
+                                        if let Some(tex_id) = texture_id {
+                                            ui.image((tex_id, egui::vec2(48.0, 48.0)));
+                                        }
+                                        ui.vertical(|ui| {
+                                            // Category badge
+                                            egui::Frame::new()
+                                                .fill(category_color)
+                                                .corner_radius(4.0)
+                                                .inner_margin(egui::Margin::symmetric(8, 4))
+                                                .show(ui, |ui| {
+                                                    let text_color = if debloat_category == "Unsafe" || debloat_category == "Unknown" {
+                                                        egui::Color32::BLACK
+                                                    } else {
+                                                        egui::Color32::WHITE
+                                                    };
+                                                    ui.label(egui::RichText::new(&debloat_category).color(text_color).size(11.0));
+                                                });
+                                            // Status badge
+                                            let status_color = if enabled_text.contains("DISABLED") || enabled_text.contains("REMOVED") {
+                                                egui::Color32::from_rgb(211, 47, 47)
+                                            } else {
+                                                egui::Color32::from_rgb(56, 142, 60)
+                                            };
+                                            egui::Frame::new()
+                                                .fill(status_color)
+                                                .corner_radius(4.0)
+                                                .inner_margin(egui::Margin::symmetric(8, 4))
+                                                .show(ui, |ui| {
+                                                    ui.label(egui::RichText::new(&enabled_text).color(egui::Color32::WHITE).size(11.0));
+                                                });
+                                        });
+                                    });
+                                })
+                                .actions(|ui| {
+                                    // Selection checkbox
+                                    let mut selected = is_selected;
+                                    if ui.checkbox(&mut selected, "").changed() {
+                                        if selected {
+                                            ui.data_mut(|data| {
+                                                data.insert_temp(egui::Id::new("card_select_package"), pkg_id_clone.clone());
+                                            });
+                                        } else {
+                                            ui.data_mut(|data| {
+                                                data.insert_temp(egui::Id::new("card_deselect_package"), pkg_id_clone.clone());
+                                            });
+                                        }
+                                    }
+
+                                    // Info button
+                                    let info_chip = assist_chip("").leading_icon_svg(INFO_SVG).elevated(true);
+                                    if ui.add(info_chip.on_click(|| {})).clicked() {
+                                        ui.data_mut(|data| {
+                                            data.insert_temp(egui::Id::new("card_info_clicked_idx"), idx);
+                                        });
+                                    }
+
+                                    // Action buttons based on status
+                                    if enabled_str.contains("DEFAULT") || enabled_str.contains("ENABLED") {
+                                        let uninstall_chip = assist_chip("").leading_icon_svg(TRASH_RED_SVG).elevated(true);
+                                        if ui.add(uninstall_chip.on_click(|| {})).clicked() {
+                                            ui.data_mut(|data| {
+                                                data.insert_temp(egui::Id::new("uninstall_clicked_package"), pkg_id_clone.clone());
+                                                data.insert_temp(egui::Id::new("uninstall_clicked_is_system"), is_system);
+                                            });
+                                        }
+                                        let disable_chip = assist_chip("").leading_icon_svg(DISABLE_RED_SVG).elevated(true);
+                                        if ui.add(disable_chip.on_click(|| {})).clicked() {
+                                            ui.data_mut(|data| {
+                                                data.insert_temp(egui::Id::new("disable_clicked_package"), pkg_id_clone.clone());
+                                            });
+                                        }
+                                    }
+
+                                    if enabled_str.contains("REMOVED_USER") || enabled_str.contains("DISABLED_USER") || enabled_str.contains("DISABLED") {
+                                        let enable_chip = assist_chip("").leading_icon_svg(ENABLE_GREEN_SVG).elevated(true);
+                                        if ui.add(enable_chip.on_click(|| {})).clicked() {
+                                            ui.data_mut(|data| {
+                                                data.insert_temp(egui::Id::new("enable_clicked_package"), pkg_id_clone.clone());
+                                            });
+                                        }
+                                    }
+                                });
+
+                            ui.add(card);
+                        }
+                    });
+                });
+
+            // Handle card-specific temp data
+            ui.data_mut(|data| {
+                if let Some(pkg) = data.get_temp::<String>(egui::Id::new("card_select_package")) {
+                    self.selected_packages.insert(pkg);
+                    data.remove::<String>(egui::Id::new("card_select_package"));
+                }
+                if let Some(pkg) = data.get_temp::<String>(egui::Id::new("card_deselect_package")) {
+                    self.selected_packages.remove(&pkg);
+                    data.remove::<String>(egui::Id::new("card_deselect_package"));
+                }
+                if let Some(idx) = data.get_temp::<usize>(egui::Id::new("card_info_clicked_idx")) {
+                    self.package_details_dialog.open(idx);
+                    data.remove::<usize>(egui::Id::new("card_info_clicked_idx"));
+                }
+            });
         }
 
         // Handle package details dialog
