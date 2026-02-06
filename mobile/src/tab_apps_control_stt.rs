@@ -33,4 +33,6 @@ pub struct TabAppsControl {
     pub show_only_installable: bool, // Filter to show only apps with downloadable links
     pub disable_github_install: bool, // Option to disable GitHub installations
     pub text_filter: String, // Text filter for searching all visible text in the table
+    pub sort_column: Option<usize>, // Sort column for mobile view
+    pub sort_ascending: bool, // Sort direction
 }

@@ -2,10 +2,16 @@ use crate::adb::PackageFingerprint;
 pub use crate::tab_apps_control_stt::*;
 use eframe::egui;
 use egui_i18n::tr;
-use egui_material3::{assist_chip, data_table, theme::get_global_color};
+use egui_material3::{assist_chip, data_table, outlined_card2, theme::get_global_color};
 
 // SVG icons as constants (moved to svg_stt.rs)
 use crate::svg_stt::*;
+
+/// Minimum viewport width for desktop table view
+const DESKTOP_MIN_WIDTH: f32 = 1008.0;
+
+/// Base table width for calculating column ratios
+const BASE_TABLE_WIDTH: f32 = 1024.0;
 
 // Pre-compiled regex patterns for performance (avoid recompiling on every call)
 lazy_static::lazy_static! {
@@ -37,6 +43,8 @@ impl Default for TabAppsControl {
             show_only_installable: true, // Default to showing only installable apps
             disable_github_install: true, // Default to allowing GitHub installs
             text_filter: String::new(),
+            sort_column: None,
+            sort_ascending: true,
         }
     }
 }
@@ -56,6 +64,37 @@ impl TabAppsControl {
 
     pub fn set_selected_device(&mut self, device: Option<String>) {
         self.selected_device = device;
+    }
+
+    /// Sort app entries based on current sort column and direction
+    pub fn sort_apps(&mut self) {
+        if let Some(col) = self.sort_column {
+            let ascending = self.sort_ascending;
+            match col {
+                0 => {
+                    // Sort by category
+                    self.app_entries.sort_by(|a, b| {
+                        let cmp = a.category.to_lowercase().cmp(&b.category.to_lowercase());
+                        if ascending { cmp } else { cmp.reverse() }
+                    });
+                }
+                1 => {
+                    // Sort by app name
+                    self.app_entries.sort_by(|a, b| {
+                        let cmp = a.name.to_lowercase().cmp(&b.name.to_lowercase());
+                        if ascending { cmp } else { cmp.reverse() }
+                    });
+                }
+                2 => {
+                    // Sort by number of links (more links = higher priority)
+                    self.app_entries.sort_by(|a, b| {
+                        let cmp = a.links.len().cmp(&b.links.len());
+                        if ascending { cmp } else { cmp.reverse() }
+                    });
+                }
+                _ => {}
+            }
+        }
     }
 
     pub fn load_app_lists(&mut self) {
@@ -993,20 +1032,33 @@ impl TabAppsControl {
         );
         ui.ctx().set_style(style);
 
-        // Use the data_table widget
+        // Get viewport width for responsive design
+        let available_width = ui.available_width();
+        let is_desktop = available_width >= DESKTOP_MIN_WIDTH;
+        let width_ratio = if is_desktop { available_width / BASE_TABLE_WIDTH } else { 1.0 };
+        // tracing::debug!(
+        //     "Viewport width: {}, is_desktop: {}, width_ratio: {}",
+        //     available_width,
+        //     is_desktop,
+        //     width_ratio
+        // );
+
+        // Use the data_table widget with proportional column widths
         let mut interactive_table = data_table()
             .id(egui::Id::new("apps_control_data_table"))
-            .column(tr!("category"), 200.0, false)
-            .column(tr!("app-name"), 200.0, false)
-            .column(tr!("links"), 298.0, false)
-            .column(tr!("install"), 300.0, false)
+            .column(tr!("category"), 200.0 * width_ratio, false)
+            .column(tr!("app-name"), 200.0 * width_ratio, false)
+            .column(tr!("links"), 298.0 * width_ratio, false)
+            .column(tr!("install"), 300.0 * width_ratio, false)
             .allow_selection(false);
 
         // Track which app's install button was clicked
         let mut install_clicked_app: Option<AppEntry> = None;
 
-        // Add rows to the table
-        for (idx, app) in self.app_entries.clone().iter().enumerate() {
+        if is_desktop {
+            // === DESKTOP TABLE VIEW ===
+            // Add rows to the table
+            for (idx, app) in self.app_entries.clone().iter().enumerate() {
             // Filter based on show_only_installable setting
             let downloadable_link = self.get_downloadable_link(&app);
             if self.show_only_installable && downloadable_link.is_none() {
@@ -1197,10 +1249,126 @@ impl TabAppsControl {
                         });
                     })
             });
-        }
+            }
 
-        // Show the table
-        interactive_table.show(ui);
+            // Show the table
+            interactive_table.show(ui);
+        } else {
+            // === MOBILE CARD VIEW ===
+            // Sort buttons for mobile view
+            ui.horizontal_wrapped(|ui| {
+                ui.label(tr!("sort-by"));
+                let sort_options = [
+                    (0, tr!("category")),
+                    (1, tr!("app-name")),
+                    (2, tr!("links")),
+                ];
+                for (col_idx, label) in sort_options {
+                    let is_selected = self.sort_column == Some(col_idx);
+                    let arrow = if is_selected {
+                        if self.sort_ascending { " ▲" } else { " ▼" }
+                    } else { "" };
+                    let text = format!("{}{}", label, arrow);
+                    let chip = if is_selected {
+                        assist_chip(&text).elevated(true)
+                    } else {
+                        assist_chip(&text)
+                    };
+                    if ui.add(chip.on_click(|| {})).clicked() {
+                        if self.sort_column == Some(col_idx) {
+                            self.sort_ascending = !self.sort_ascending;
+                        } else {
+                            self.sort_column = Some(col_idx);
+                            self.sort_ascending = true;
+                        }
+                        self.sort_apps();
+                    }
+                }
+            });
+            ui.add_space(4.0);
+
+            egui::ScrollArea::vertical()
+                .id_salt("apps_cards_scroll")
+                .show(ui, |ui| {
+                    ui.horizontal_wrapped(|ui| {
+                        for app in self.app_entries.clone().iter() {
+                            // Filter based on show_only_installable setting
+                            let downloadable_link = self.get_downloadable_link(&app);
+                            if self.show_only_installable && downloadable_link.is_none() {
+                                continue;
+                            }
+
+                            // Filter based on text filter
+                            if !self.matches_text_filter(&app) {
+                                continue;
+                            }
+
+                            let app_for_install = app.clone();
+                            let is_installed = self.is_app_installed(&app);
+                            let installed_pkg_info = self.get_installed_package_info(&app);
+                            let install_status = self.installing_apps.get(&app.name).cloned();
+
+                            // Collect link icons for display
+                            let link_types: Vec<&str> = app.links.iter()
+                                .map(|(_, lt)| lt.as_str())
+                                .take(4)
+                                .collect();
+
+                            let card = outlined_card2()
+                                .clickable(true)
+                                .header(&app.name, Some(&app.category))
+                                .content(|ui| {
+                                    // Show link type badges
+                                    ui.horizontal(|ui| {
+                                        for lt in &link_types {
+                                            let color = match *lt {
+                                                "fdroid-downloadable" | "fdroid" => egui::Color32::from_rgb(56, 142, 60),
+                                                "github-downloadable" | "github" => egui::Color32::from_rgb(33, 33, 33),
+                                                "googleplay" => egui::Color32::from_rgb(66, 133, 244),
+                                                _ => egui::Color32::GRAY,
+                                            };
+                                            egui::Frame::new()
+                                                .fill(color)
+                                                .corner_radius(4.0)
+                                                .inner_margin(egui::Margin::symmetric(6, 3))
+                                                .show(ui, |ui| {
+                                                    ui.label(egui::RichText::new(*lt).color(egui::Color32::WHITE).size(9.0));
+                                                });
+                                        }
+                                    });
+                                })
+                                .actions(|ui| {
+                                    if let Some(ref status) = install_status {
+                                        ui.label(status);
+                                    } else if is_installed {
+                                        ui.label(egui::RichText::new(tr!("installed")).color(egui::Color32::GREEN).small());
+
+                                        if let Some((ref pkg_name, is_system, ref enabled_state)) = installed_pkg_info {
+                                            if enabled_state == "DEFAULT" || enabled_state == "ENABLED" {
+                                                let uninstall_chip = assist_chip("").leading_icon_svg(TRASH_RED_SVG).elevated(true);
+                                                if ui.add(uninstall_chip.on_click(|| {})).clicked() {
+                                                    ui.data_mut(|data| {
+                                                        data.insert_temp(egui::Id::new("apps_uninstall_clicked_package"), pkg_name.clone());
+                                                        data.insert_temp(egui::Id::new("apps_uninstall_clicked_is_system"), is_system);
+                                                        data.insert_temp(egui::Id::new("apps_uninstall_clicked_app_name"), app_for_install.name.clone());
+                                                    });
+                                                }
+                                            }
+                                        }
+                                    } else if downloadable_link.is_some() {
+                                        let install_chip = assist_chip(tr!("install")).leading_icon_svg(INSTALL_SVG).elevated(true);
+                                        if ui.add(install_chip.on_click(|| {})).clicked() {
+                                            ui.data_mut(|data| {
+                                                data.insert_temp(egui::Id::new("install_clicked_app"), app_for_install.clone());
+                                            });
+                                        }
+                                    }
+                                });
+                            ui.add(card);
+                        }
+                    });
+                });
+        }
 
         // Track action button clicks
         let mut uninstall_package: Option<String> = None;

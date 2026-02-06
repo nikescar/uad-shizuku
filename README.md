@@ -100,6 +100,8 @@ Get list of FOSS apps, and install directly. github and fdroid auto-install supp
 * windows app signing & attestation
 * web version through webusb on browser
 * usage history & netstats history
+* disable unsafe app delete from debloat & scan table
+* detach app installer from app table
 * logcat ?
 * android : add obtainium list https://apps.obtainium.imranr.dev/data.json?rand=6958.845712989482
 * izzy auto install

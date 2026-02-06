@@ -17,6 +17,7 @@ contrast-level = 대비 수준:
 log-level = 로그 레벨:
 ok = 확인
 stop = 중지
+sort-by = 정렬:
 
 # Apps Tab
 app-list = 앱 목록:
@@ -29,7 +30,7 @@ install = 설치
 installed = 설치됨
 
 # Debloat Tab
-all = 전체 ({ $count })
+all = 전체 ({ $enabled }/{ $total })
 recommended = 권장 ({ $enabled }/{ $total })
 advanced = 고급 ({ $enabled }/{ $total })
 expert = 전문가 ({ $enabled }/{ $total })
@@ -62,11 +63,11 @@ enable-selected = 선택 항목 활성화 ({ $count })
 # Scan Tab
 virustotal-filter = VirusTotal 필터:
 scanning-packages = 패키지 검사 중...
-malicious = 악성 ({ $count })
-suspicious = 의심 ({ $count })
-safe = 안전 ({ $count })
-no-specific-threat = 특정 위협 없음 ({ $count })
-not-scanned = 미검사 ({ $count })
+malicious = 악성 ({ $enabled }/{ $total })
+suspicious = 의심 ({ $enabled }/{ $total })
+safe = 안전 ({ $enabled }/{ $total })
+no-specific-threat = 특정 위협 없음 ({ $enabled }/{ $total })
+not-scanned = 미검사 ({ $enabled }/{ $total })
 hybrid-analysis-filter = Hybrid-Analysis 필터:
 col-izzy-risk = IzzyRisk
 col-virustotal = VirusTotal

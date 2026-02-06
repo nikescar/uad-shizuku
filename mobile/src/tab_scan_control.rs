@@ -11,13 +11,19 @@ use crate::dlg_package_details::DlgPackageDetails;
 use eframe::egui;
 use egui_async::Bind;
 use egui_i18n::tr;
-use egui_material3::{assist_chip, data_table, theme::get_global_color, MaterialButton};
+use egui_material3::{assist_chip, data_table, outlined_card2, theme::get_global_color, MaterialButton};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::thread;
 
 // SVG icons as constants (moved to svg_stt.rs)
 use crate::svg_stt::*;
+
+/// Minimum viewport width for desktop table view
+const DESKTOP_MIN_WIDTH: f32 = 1008.0;
+
+/// Base table width for calculating column ratios
+const BASE_TABLE_WIDTH: f32 = 1024.0;
 
 impl Default for TabScanControl {
     fn default() -> Self {
@@ -489,6 +495,21 @@ impl TabScanControl {
         }
     }
 
+    /// Check if a package is enabled (not disabled or removed)
+    fn is_package_enabled(package: &PackageFingerprint) -> bool {
+        let is_system = package.flags.contains("SYSTEM");
+        package
+            .users
+            .first()
+            .map(|u| {
+                let is_removed_user = u.enabled == 0 && !u.installed && is_system;
+                let is_disabled = u.enabled == 2;
+                let is_disabled_user = u.enabled == 3;
+                !(is_removed_user || is_disabled || is_disabled_user)
+            })
+            .unwrap_or(true)
+    }
+
     /// Update cached VT/HA counts if scanner state has changed
     fn update_cached_scan_counts(
         &mut self,
@@ -507,12 +528,12 @@ impl TabScanControl {
             return;
         }
 
-        // Compute VT counts
-        let mut vt_total = 0;
-        let mut vt_malicious = 0;
-        let mut vt_suspicious = 0;
-        let mut vt_safe = 0;
-        let mut vt_not_scanned = 0;
+        // Compute VT counts with enabled/total pairs
+        let mut vt_all = (0usize, 0usize);  // (enabled, total)
+        let mut vt_malicious = (0usize, 0usize);
+        let mut vt_suspicious = (0usize, 0usize);
+        let mut vt_safe = (0usize, 0usize);
+        let mut vt_not_scanned = (0usize, 0usize);
 
         if let Some(ref scanner_state) = vt_scanner_state {
             let state = scanner_state.lock().unwrap();
@@ -521,7 +542,10 @@ impl TabScanControl {
                     continue;
                 }
 
-                vt_total += 1;
+                let is_enabled = Self::is_package_enabled(package);
+                vt_all.1 += 1;
+                if is_enabled { vt_all.0 += 1; }
+
                 match state.get(&package.pkg) {
                     Some(calc_virustotal::ScanStatus::Completed(result)) => {
                         let mal_count: i32 =
@@ -530,31 +554,42 @@ impl TabScanControl {
                             result.file_results.iter().map(|fr| fr.suspicious).sum();
 
                         if mal_count > 0 {
-                            vt_malicious += 1;
+                            vt_malicious.1 += 1;
+                            if is_enabled { vt_malicious.0 += 1; }
                         } else if sus_count > 0 {
-                            vt_suspicious += 1;
+                            vt_suspicious.1 += 1;
+                            if is_enabled { vt_suspicious.0 += 1; }
                         } else {
-                            vt_safe += 1;
+                            vt_safe.1 += 1;
+                            if is_enabled { vt_safe.0 += 1; }
                         }
                     }
-                    _ => vt_not_scanned += 1,
+                    _ => {
+                        vt_not_scanned.1 += 1;
+                        if is_enabled { vt_not_scanned.0 += 1; }
+                    }
                 }
             }
         } else {
             for package in installed_packages {
                 if self.should_show_package_ha_with_state(package, ha_scanner_state) {
-                    vt_total += 1;
-                    vt_not_scanned += 1;
+                    let is_enabled = Self::is_package_enabled(package);
+                    vt_all.1 += 1;
+                    vt_not_scanned.1 += 1;
+                    if is_enabled {
+                        vt_all.0 += 1;
+                        vt_not_scanned.0 += 1;
+                    }
                 }
             }
         }
 
-        // Compute HA counts
-        let mut ha_total = 0;
-        let mut ha_malicious = 0;
-        let mut ha_suspicious = 0;
-        let mut ha_safe = 0;
-        let mut ha_not_scanned = 0;
+        // Compute HA counts with enabled/total pairs
+        let mut ha_all = (0usize, 0usize);
+        let mut ha_malicious = (0usize, 0usize);
+        let mut ha_suspicious = (0usize, 0usize);
+        let mut ha_safe = (0usize, 0usize);
+        let mut ha_not_scanned = (0usize, 0usize);
 
         if let Some(ref scanner_state) = ha_scanner_state {
             let state = scanner_state.lock().unwrap();
@@ -563,7 +598,10 @@ impl TabScanControl {
                     continue;
                 }
 
-                ha_total += 1;
+                let is_enabled = Self::is_package_enabled(package);
+                ha_all.1 += 1;
+                if is_enabled { ha_all.0 += 1; }
+
                 match state.get(&package.pkg) {
                     Some(calc_hybridanalysis::ScanStatus::Completed(result)) => {
                         let max_severity = result
@@ -578,35 +616,54 @@ impl TabScanControl {
                             .unwrap_or(0);
 
                         match max_severity {
-                            2 => ha_malicious += 1,
-                            1 => ha_suspicious += 1,
-                            _ => ha_safe += 1,
+                            2 => {
+                                ha_malicious.1 += 1;
+                                if is_enabled { ha_malicious.0 += 1; }
+                            }
+                            1 => {
+                                ha_suspicious.1 += 1;
+                                if is_enabled { ha_suspicious.0 += 1; }
+                            }
+                            _ => {
+                                ha_safe.1 += 1;
+                                if is_enabled { ha_safe.0 += 1; }
+                            }
                         }
                     }
-                    _ => ha_not_scanned += 1,
+                    _ => {
+                        ha_not_scanned.1 += 1;
+                        if is_enabled { ha_not_scanned.0 += 1; }
+                    }
                 }
             }
         } else {
             for package in installed_packages {
                 if self.should_show_package_vt_with_state(package, vt_scanner_state) {
-                    ha_total += 1;
-                    ha_not_scanned += 1;
+                    let is_enabled = Self::is_package_enabled(package);
+                    ha_all.1 += 1;
+                    ha_not_scanned.1 += 1;
+                    if is_enabled {
+                        ha_all.0 += 1;
+                        ha_not_scanned.0 += 1;
+                    }
                 }
             }
         }
 
-        // Update cache
-        self.cached_scan_counts.vt_counts = (vt_total, vt_malicious, vt_suspicious, vt_safe, vt_not_scanned);
-        self.cached_scan_counts.ha_counts = (ha_total, ha_malicious, ha_suspicious, ha_safe, ha_not_scanned);
+        // Update cache with (enabled, total) tuples for each category
+        self.cached_scan_counts.vt_counts = (vt_all, vt_malicious, vt_suspicious, vt_safe, vt_not_scanned);
+        self.cached_scan_counts.ha_counts = (ha_all, ha_malicious, ha_suspicious, ha_safe, ha_not_scanned);
         self.cached_scan_counts.vt_progress = vt_progress;
         self.cached_scan_counts.ha_progress = ha_progress;
     }
 
-    fn get_vt_counts(&self) -> (usize, usize, usize, usize, usize) {
+    /// Returns ((all_enabled, all_total), (mal_enabled, mal_total), (sus_enabled, sus_total), (safe_enabled, safe_total), (not_scanned_enabled, not_scanned_total))
+    fn get_vt_counts(&self) -> ((usize, usize), (usize, usize), (usize, usize), (usize, usize), (usize, usize)) {
         self.cached_scan_counts.vt_counts
     }
 
-    fn get_ha_counts(&self) -> (usize, usize, usize, usize, usize) {
+    /// Returns ((all_enabled, all_total), (mal_enabled, mal_total), (sus_enabled, sus_total), (safe_enabled, safe_total), (not_scanned_enabled, not_scanned_total))
+    fn get_ha_counts(&self) -> ((usize, usize), (usize, usize), (usize, usize), (usize, usize), (usize, usize)) {
         self.cached_scan_counts.ha_counts
     }
 
@@ -913,9 +970,12 @@ impl TabScanControl {
         // Update cached scan counts if needed (only recomputes when scanner progress changes)
         self.update_cached_scan_counts(&installed_packages, &vt_scanner_state, &ha_scanner_state);
 
+        // Check if mobile view for filter button style
+        let filter_is_mobile = ui.available_width() < DESKTOP_MIN_WIDTH;
+
         // VirusTotal Filter Buttons
         if !installed_packages.is_empty() {
-            ui.horizontal(|ui| {
+            ui.horizontal_wrapped(|ui| {
                 ui.vertical(|ui| {
                     ui.set_width(150.0);
                     ui.label(tr!("virustotal-filter"));
@@ -943,68 +1003,84 @@ impl TabScanControl {
                     }
                 });
 
-                let (total, malicious, suspicious, safe, not_scanned) = self.get_vt_counts();
-                let show_all_colors = self.active_vt_filter == VtFilter::All;
+                let (all, malicious, suspicious, safe, not_scanned) = self.get_vt_counts();
+                let all_text = tr!("all", { enabled: all.0, total: all.1 });
+                let mal_text = tr!("malicious", { enabled: malicious.0, total: malicious.1 });
+                let sus_text = tr!("suspicious", { enabled: suspicious.0, total: suspicious.1 });
+                let safe_text = tr!("safe", { enabled: safe.0, total: safe.1 });
+                let not_scanned_text = tr!("not-scanned", { enabled: not_scanned.0, total: not_scanned.1 });
 
-                let all_text = tr!("all", { count: total });
-                let button = if self.active_vt_filter == VtFilter::All {
-                    MaterialButton::filled(&all_text)
-                        .fill(egui::Color32::from_rgb(158, 158, 158))
+                if filter_is_mobile {
+                    // Mobile: use compact selectable_label
+                    if ui.selectable_label(self.active_vt_filter == VtFilter::All, &all_text).clicked() {
+                        self.active_vt_filter = VtFilter::All;
+                    }
+                    if ui.selectable_label(self.active_vt_filter == VtFilter::Malicious, &mal_text).clicked() {
+                        self.active_vt_filter = VtFilter::Malicious;
+                    }
+                    if ui.selectable_label(self.active_vt_filter == VtFilter::Suspicious, &sus_text).clicked() {
+                        self.active_vt_filter = VtFilter::Suspicious;
+                    }
+                    if ui.selectable_label(self.active_vt_filter == VtFilter::Safe, &safe_text).clicked() {
+                        self.active_vt_filter = VtFilter::Safe;
+                    }
+                    if ui.selectable_label(self.active_vt_filter == VtFilter::NotScanned, &not_scanned_text).clicked() {
+                        self.active_vt_filter = VtFilter::NotScanned;
+                    }
                 } else {
-                    MaterialButton::outlined(&all_text)
-                };
-                if ui.add(button).clicked() {
-                    self.active_vt_filter = VtFilter::All;
-                }
+                    // Desktop: use MaterialButton
+                    let show_all_colors = self.active_vt_filter == VtFilter::All;
 
-                let mal_text = tr!("malicious", { count: malicious });
-                let button = if self.active_vt_filter == VtFilter::Malicious || show_all_colors {
-                    MaterialButton::filled(&mal_text)
-                        .fill(egui::Color32::from_rgb(211, 47, 47))
-                } else {
-                    MaterialButton::outlined(&mal_text)
-                };
-                if ui.add(button).clicked() {
-                    self.active_vt_filter = VtFilter::Malicious;
-                }
+                    let button = if self.active_vt_filter == VtFilter::All {
+                        MaterialButton::filled(&all_text).fill(egui::Color32::from_rgb(158, 158, 158))
+                    } else {
+                        MaterialButton::outlined(&all_text)
+                    };
+                    if ui.add(button).clicked() {
+                        self.active_vt_filter = VtFilter::All;
+                    }
 
-                let sus_text = tr!("suspicious", { count: suspicious });
-                let button = if self.active_vt_filter == VtFilter::Suspicious || show_all_colors {
-                    MaterialButton::filled(&sus_text)
-                        .fill(egui::Color32::from_rgb(255, 152, 0))
-                } else {
-                    MaterialButton::outlined(&sus_text)
-                };
-                if ui.add(button).clicked() {
-                    self.active_vt_filter = VtFilter::Suspicious;
-                }
+                    let button = if self.active_vt_filter == VtFilter::Malicious || show_all_colors {
+                        MaterialButton::filled(&mal_text).fill(egui::Color32::from_rgb(211, 47, 47))
+                    } else {
+                        MaterialButton::outlined(&mal_text)
+                    };
+                    if ui.add(button).clicked() {
+                        self.active_vt_filter = VtFilter::Malicious;
+                    }
 
-                let safe_text = tr!("safe", { count: safe });
-                let button = if self.active_vt_filter == VtFilter::Safe || show_all_colors {
-                    MaterialButton::filled(&safe_text)
-                        .fill(egui::Color32::from_rgb(56, 142, 60))
-                } else {
-                    MaterialButton::outlined(&safe_text)
-                };
-                if ui.add(button).clicked() {
-                    self.active_vt_filter = VtFilter::Safe;
-                }
+                    let button = if self.active_vt_filter == VtFilter::Suspicious || show_all_colors {
+                        MaterialButton::filled(&sus_text).fill(egui::Color32::from_rgb(255, 152, 0))
+                    } else {
+                        MaterialButton::outlined(&sus_text)
+                    };
+                    if ui.add(button).clicked() {
+                        self.active_vt_filter = VtFilter::Suspicious;
+                    }
 
-                let not_scanned_text = tr!("not-scanned", { count: not_scanned });
-                let button = if self.active_vt_filter == VtFilter::NotScanned || show_all_colors {
-                    MaterialButton::filled(&not_scanned_text)
-                        .fill(egui::Color32::from_rgb(128, 128, 128))
-                } else {
-                    MaterialButton::outlined(&not_scanned_text)
-                };
-                if ui.add(button).clicked() {
-                    self.active_vt_filter = VtFilter::NotScanned;
+                    let button = if self.active_vt_filter == VtFilter::Safe || show_all_colors {
+                        MaterialButton::filled(&safe_text).fill(egui::Color32::from_rgb(56, 142, 60))
+                    } else {
+                        MaterialButton::outlined(&safe_text)
+                    };
+                    if ui.add(button).clicked() {
+                        self.active_vt_filter = VtFilter::Safe;
+                    }
+
+                    let button = if self.active_vt_filter == VtFilter::NotScanned || show_all_colors {
+                        MaterialButton::filled(&not_scanned_text).fill(egui::Color32::from_rgb(128, 128, 128))
+                    } else {
+                        MaterialButton::outlined(&not_scanned_text)
+                    };
+                    if ui.add(button).clicked() {
+                        self.active_vt_filter = VtFilter::NotScanned;
+                    }
                 }
             });
             ui.add_space(5.0);
 
             // Hybrid Analysis Filter Buttons
-            ui.horizontal(|ui| {
+            ui.horizontal_wrapped(|ui| {
                 ui.vertical(|ui| {
                     ui.set_width(150.0);
                     ui.label(tr!("hybrid-analysis-filter"));
@@ -1032,62 +1108,78 @@ impl TabScanControl {
                     }
                 });
 
-                let (total, malicious, suspicious, safe, not_scanned) = self.get_ha_counts();
-                let show_all_colors = self.active_ha_filter == HaFilter::All;
+                let (all, malicious, suspicious, safe, not_scanned) = self.get_ha_counts();
+                let all_text = tr!("all", { enabled: all.0, total: all.1 });
+                let mal_text = tr!("malicious", { enabled: malicious.0, total: malicious.1 });
+                let sus_text = tr!("suspicious", { enabled: suspicious.0, total: suspicious.1 });
+                let safe_text = tr!("no-specific-threat", { enabled: safe.0, total: safe.1 });
+                let not_scanned_text = tr!("not-scanned", { enabled: not_scanned.0, total: not_scanned.1 });
 
-                let all_text = tr!("all", { count: total });
-                let button = if self.active_ha_filter == HaFilter::All {
-                    MaterialButton::filled(&all_text)
-                        .fill(egui::Color32::from_rgb(158, 158, 158))
+                if filter_is_mobile {
+                    // Mobile: use compact selectable_label
+                    if ui.selectable_label(self.active_ha_filter == HaFilter::All, &all_text).clicked() {
+                        self.active_ha_filter = HaFilter::All;
+                    }
+                    if ui.selectable_label(self.active_ha_filter == HaFilter::Malicious, &mal_text).clicked() {
+                        self.active_ha_filter = HaFilter::Malicious;
+                    }
+                    if ui.selectable_label(self.active_ha_filter == HaFilter::Suspicious, &sus_text).clicked() {
+                        self.active_ha_filter = HaFilter::Suspicious;
+                    }
+                    if ui.selectable_label(self.active_ha_filter == HaFilter::Safe, &safe_text).clicked() {
+                        self.active_ha_filter = HaFilter::Safe;
+                    }
+                    if ui.selectable_label(self.active_ha_filter == HaFilter::NotScanned, &not_scanned_text).clicked() {
+                        self.active_ha_filter = HaFilter::NotScanned;
+                    }
                 } else {
-                    MaterialButton::outlined(&all_text)
-                };
-                if ui.add(button).clicked() {
-                    self.active_ha_filter = HaFilter::All;
-                }
+                    // Desktop: use MaterialButton
+                    let show_all_colors = self.active_ha_filter == HaFilter::All;
 
-                let mal_text = tr!("malicious", { count: malicious });
-                let button = if self.active_ha_filter == HaFilter::Malicious || show_all_colors {
-                    MaterialButton::filled(&mal_text)
-                        .fill(egui::Color32::from_rgb(211, 47, 47))
-                } else {
-                    MaterialButton::outlined(&mal_text)
-                };
-                if ui.add(button).clicked() {
-                    self.active_ha_filter = HaFilter::Malicious;
-                }
+                    let button = if self.active_ha_filter == HaFilter::All {
+                        MaterialButton::filled(&all_text).fill(egui::Color32::from_rgb(158, 158, 158))
+                    } else {
+                        MaterialButton::outlined(&all_text)
+                    };
+                    if ui.add(button).clicked() {
+                        self.active_ha_filter = HaFilter::All;
+                    }
 
-                let sus_text = tr!("suspicious", { count: suspicious });
-                let button = if self.active_ha_filter == HaFilter::Suspicious || show_all_colors {
-                    MaterialButton::filled(&sus_text)
-                        .fill(egui::Color32::from_rgb(255, 152, 0))
-                } else {
-                    MaterialButton::outlined(&sus_text)
-                };
-                if ui.add(button).clicked() {
-                    self.active_ha_filter = HaFilter::Suspicious;
-                }
+                    let button = if self.active_ha_filter == HaFilter::Malicious || show_all_colors {
+                        MaterialButton::filled(&mal_text).fill(egui::Color32::from_rgb(211, 47, 47))
+                    } else {
+                        MaterialButton::outlined(&mal_text)
+                    };
+                    if ui.add(button).clicked() {
+                        self.active_ha_filter = HaFilter::Malicious;
+                    }
 
-                let safe_text = tr!("no-specific-threat", { count: safe });
-                let button = if self.active_ha_filter == HaFilter::Safe || show_all_colors {
-                    MaterialButton::filled(&safe_text)
-                        .fill(egui::Color32::from_rgb(0, 150, 136))
-                } else {
-                    MaterialButton::outlined(&safe_text)
-                };
-                if ui.add(button).clicked() {
-                    self.active_ha_filter = HaFilter::Safe;
-                }
+                    let button = if self.active_ha_filter == HaFilter::Suspicious || show_all_colors {
+                        MaterialButton::filled(&sus_text).fill(egui::Color32::from_rgb(255, 152, 0))
+                    } else {
+                        MaterialButton::outlined(&sus_text)
+                    };
+                    if ui.add(button).clicked() {
+                        self.active_ha_filter = HaFilter::Suspicious;
+                    }
 
-                let not_scanned_text = tr!("not-scanned", { count: not_scanned });
-                let button = if self.active_ha_filter == HaFilter::NotScanned || show_all_colors {
-                    MaterialButton::filled(&not_scanned_text)
-                        .fill(egui::Color32::from_rgb(128, 128, 128))
-                } else {
-                    MaterialButton::outlined(&not_scanned_text)
-                };
-                if ui.add(button).clicked() {
-                    self.active_ha_filter = HaFilter::NotScanned;
+                    let button = if self.active_ha_filter == HaFilter::Safe || show_all_colors {
+                        MaterialButton::filled(&safe_text).fill(egui::Color32::from_rgb(0, 150, 136))
+                    } else {
+                        MaterialButton::outlined(&safe_text)
+                    };
+                    if ui.add(button).clicked() {
+                        self.active_ha_filter = HaFilter::Safe;
+                    }
+
+                    let button = if self.active_ha_filter == HaFilter::NotScanned || show_all_colors {
+                        MaterialButton::filled(&not_scanned_text).fill(egui::Color32::from_rgb(128, 128, 128))
+                    } else {
+                        MaterialButton::outlined(&not_scanned_text)
+                    };
+                    if ui.add(button).clicked() {
+                        self.active_ha_filter = HaFilter::NotScanned;
+                    }
                 }
             });
 
@@ -1196,24 +1288,31 @@ impl TabScanControl {
 
         // Note: vt_scanner_state and ha_scanner_state are already pre-fetched at the start of ui()
 
+        // Get viewport width for responsive design
+        let available_width = ui.available_width();
+        let is_desktop = available_width >= DESKTOP_MIN_WIDTH;
+        let width_ratio = if is_desktop { available_width / BASE_TABLE_WIDTH } else { 1.0 };
+
         let mut interactive_table = data_table()
             .id(egui::Id::new("scan_data_table"))
-            .sortable_column(tr!("col-package-name"), 350.0, false)
-            .sortable_column(tr!("col-izzy-risk"), 80.0, true)
-            .sortable_column(tr!("col-virustotal"), 200.0, false)
-            .sortable_column(tr!("col-hybrid-analysis"), 200.0, false)
-            .sortable_column(tr!("col-tasks"), 170.0, false)
+            .sortable_column(tr!("col-package-name"), 350.0 * width_ratio, false)
+            .sortable_column(tr!("col-izzy-risk"), 80.0 * width_ratio, true)
+            .sortable_column(tr!("col-virustotal"), 200.0 * width_ratio, false)
+            .sortable_column(tr!("col-hybrid-analysis"), 200.0 * width_ratio, false)
+            .sortable_column(tr!("col-tasks"), 170.0 * width_ratio, false)
             .allow_selection(false);
 
-        for (idx, package) in installed_packages.iter().enumerate() {
-            if !self.should_show_package_with_state(package, &vt_scanner_state, &ha_scanner_state)
-                || !self.matches_text_filter_with_cache(package, &cached_fdroid_apps, &cached_google_play_apps, &cached_apkmirror_apps)
-            {
-                continue;
-            }
+        if is_desktop {
+            // === DESKTOP TABLE VIEW ===
+            for (idx, package) in installed_packages.iter().enumerate() {
+                if !self.should_show_package_with_state(package, &vt_scanner_state, &ha_scanner_state)
+                    || !self.matches_text_filter_with_cache(package, &cached_fdroid_apps, &cached_google_play_apps, &cached_apkmirror_apps)
+                {
+                    continue;
+                }
 
-            let package_name = format!("{} ({})", package.pkg, package.versionName);
-            let app_display_data = app_data_map.get(&package.pkg).cloned();
+                let package_name = format!("{} ({})", package.pkg, package.versionName);
+                let app_display_data = app_data_map.get(&package.pkg).cloned();
             let risk_score = self.get_risk_score(&package.pkg);
             let izzyrisk = risk_score.to_string();
 
@@ -1686,8 +1785,164 @@ impl TabScanControl {
             self.sort_packages();
         }
 
-        if table_response.selected_rows.len() == self.selected_packages.len() {
-            self.selected_packages = table_response.selected_rows;
+            if table_response.selected_rows.len() == self.selected_packages.len() {
+                self.selected_packages = table_response.selected_rows;
+            }
+        } else {
+            // === MOBILE CARD VIEW ===
+            // Sort buttons for mobile view
+            ui.horizontal_wrapped(|ui| {
+                ui.label(tr!("sort-by"));
+                let sort_options = [
+                    (0, tr!("col-package-name")),
+                    (1, tr!("col-izzy-risk")),
+                    (2, tr!("col-virustotal")),
+                    (3, tr!("col-hybrid-analysis")),
+                ];
+                for (col_idx, label) in sort_options {
+                    let is_selected = self.sort_column == Some(col_idx);
+                    let arrow = if is_selected {
+                        if self.sort_ascending { " ▲" } else { " ▼" }
+                    } else { "" };
+                    let text = format!("{}{}", label, arrow);
+                    let chip = if is_selected {
+                        assist_chip(&text).elevated(true)
+                    } else {
+                        assist_chip(&text)
+                    };
+                    if ui.add(chip.on_click(|| {})).clicked() {
+                        if self.sort_column == Some(col_idx) {
+                            self.sort_ascending = !self.sort_ascending;
+                        } else {
+                            self.sort_column = Some(col_idx);
+                            self.sort_ascending = true;
+                        }
+                        self.sort_packages();
+                    }
+                }
+            });
+            ui.add_space(4.0);
+
+            egui::ScrollArea::vertical()
+                .id_salt("scan_cards_scroll")
+                .show(ui, |ui| {
+                    ui.horizontal_wrapped(|ui| {
+                        for (idx, package) in installed_packages.iter().enumerate() {
+                            if !self.should_show_package_with_state(package, &vt_scanner_state, &ha_scanner_state)
+                                || !self.matches_text_filter_with_cache(package, &cached_fdroid_apps, &cached_google_play_apps, &cached_apkmirror_apps)
+                            {
+                                continue;
+                            }
+
+                            let package_name = format!("{} ({})", package.pkg, package.versionName);
+                            let app_display_data = app_data_map.get(&package.pkg).cloned();
+                            let risk_score = self.get_risk_score(&package.pkg);
+                            let is_system = package.flags.contains("SYSTEM");
+                            let pkg_id = package.pkg.clone();
+
+                            // Get scan results
+                            let vt_result = if let Some(ref scanner_state) = vt_scanner_state {
+                                scanner_state.lock().unwrap().get(&package.pkg).cloned()
+                            } else {
+                                None
+                            };
+                            let ha_result = if let Some(ref scanner_state) = ha_scanner_state {
+                                scanner_state.lock().unwrap().get(&package.pkg).cloned()
+                            } else {
+                                None
+                            };
+
+                            // Get app title and texture
+                            let (texture_id, title, developer) = if let Some((tex_opt, t, d, _)) = &app_display_data {
+                                (tex_opt.as_ref().map(|t| t.id()), Some(t.clone()), Some(d.clone()))
+                            } else {
+                                (None, None, None)
+                            };
+
+                            let display_title = title.unwrap_or_else(|| package_name.clone());
+                            let display_subtitle = developer.unwrap_or_else(|| pkg_id.clone());
+
+                            // VT status
+                            let vt_status = match &vt_result {
+                                Some(calc_virustotal::ScanStatus::Completed(result)) => {
+                                    let mal: i32 = result.file_results.iter().map(|fr| fr.malicious).sum();
+                                    let sus: i32 = result.file_results.iter().map(|fr| fr.suspicious).sum();
+                                    if mal > 0 { ("Malicious", egui::Color32::from_rgb(211, 47, 47)) }
+                                    else if sus > 0 { ("Suspicious", egui::Color32::from_rgb(255, 152, 0)) }
+                                    else { ("Safe", egui::Color32::from_rgb(56, 142, 60)) }
+                                }
+                                Some(calc_virustotal::ScanStatus::Scanning { .. }) |
+                                Some(calc_virustotal::ScanStatus::Pending) => ("Scanning...", egui::Color32::GRAY),
+                                _ => ("Not scanned", egui::Color32::GRAY),
+                            };
+
+                            // HA status
+                            let ha_status = match &ha_result {
+                                Some(calc_hybridanalysis::ScanStatus::Completed(result)) => {
+                                    let max_sev = result.file_results.iter()
+                                        .map(|fr| match fr.verdict.as_str() { "malicious" => 2, "suspicious" => 1, _ => 0 })
+                                        .max().unwrap_or(0);
+                                    match max_sev {
+                                        2 => ("Malicious", egui::Color32::from_rgb(211, 47, 47)),
+                                        1 => ("Suspicious", egui::Color32::from_rgb(255, 152, 0)),
+                                        _ => ("Safe", egui::Color32::from_rgb(56, 142, 60)),
+                                    }
+                                }
+                                Some(calc_hybridanalysis::ScanStatus::Scanning { .. }) |
+                                Some(calc_hybridanalysis::ScanStatus::Pending) => ("Scanning...", egui::Color32::GRAY),
+                                _ => ("Not scanned", egui::Color32::GRAY),
+                            };
+
+                            let card = outlined_card2()
+                                .clickable(true)
+                                .header(&display_title, Some(&display_subtitle))
+                                .content(|ui| {
+                                    ui.horizontal(|ui| {
+                                        if let Some(tex_id) = texture_id {
+                                            ui.image((tex_id, egui::vec2(48.0, 48.0)));
+                                        }
+                                        ui.vertical(|ui| {
+                                            // Risk score
+                                            ui.label(format!("Risk: {}", risk_score));
+                                            // VT badge
+                                            egui::Frame::new()
+                                                .fill(vt_status.1)
+                                                .corner_radius(4.0)
+                                                .inner_margin(egui::Margin::symmetric(6, 3))
+                                                .show(ui, |ui| {
+                                                    ui.label(egui::RichText::new(format!("VT: {}", vt_status.0)).color(egui::Color32::WHITE).size(10.0));
+                                                });
+                                            // HA badge
+                                            egui::Frame::new()
+                                                .fill(ha_status.1)
+                                                .corner_radius(4.0)
+                                                .inner_margin(egui::Margin::symmetric(6, 3))
+                                                .show(ui, |ui| {
+                                                    ui.label(egui::RichText::new(format!("HA: {}", ha_status.0)).color(egui::Color32::WHITE).size(10.0));
+                                                });
+                                        });
+                                    });
+                                })
+                                .actions(|ui| {
+                                    let info_chip = assist_chip("").leading_icon_svg(INFO_SVG).elevated(true);
+                                    if ui.add(info_chip.on_click(|| {})).clicked() {
+                                        ui.data_mut(|data| {
+                                            data.insert_temp(egui::Id::new("card_info_clicked_idx"), idx);
+                                        });
+                                    }
+                                });
+                            ui.add(card);
+                        }
+                    });
+                });
+
+            // Handle card-specific temp data
+            ui.data_mut(|data| {
+                if let Some(idx) = data.get_temp::<usize>(egui::Id::new("card_info_clicked_idx")) {
+                    self.package_details_dialog.open(idx);
+                    data.remove::<usize>(egui::Id::new("card_info_clicked_idx"));
+                }
+            });
         }
 
         // Handle package info button click
