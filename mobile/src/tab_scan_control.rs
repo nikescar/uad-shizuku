@@ -929,7 +929,7 @@ impl TabScanControl {
         )
     }
 
-    pub fn ui(&mut self, ui: &mut egui::Ui) {
+    pub fn ui(&mut self, ui: &mut egui::Ui, hybridanalysis_tag_blacklist: &str) {
         // Sync progress from background threads to state machines
         if let Ok(progress) = self.vt_scan_progress.lock() {
             if let Some(p) = *progress {
@@ -957,6 +957,7 @@ impl TabScanControl {
         self.sync_risk_scores();
 
         // Pre-fetch data once at the start to avoid repeated clones
+        let hybridanalysis_tag_blacklist = hybridanalysis_tag_blacklist.to_string();
         let shared_store = crate::shared_store_stt::get_shared_store();
         let installed_packages = shared_store.get_installed_packages();
         let vt_scanner_state = shared_store.get_vt_scanner_state();
@@ -1472,6 +1473,7 @@ impl TabScanControl {
 
                 // HybridAnalysis column with state machine rendering
                 let ha_result = ha_scan_result.clone();
+                let ha_tag_blacklist = hybridanalysis_tag_blacklist.clone();
                 let row_builder = row_builder.widget_cell(move |ui: &mut egui::Ui| {
                     egui::ScrollArea::horizontal()
                         .id_salt(format!("ha_scroll_{}", idx))
@@ -1617,8 +1619,32 @@ impl TabScanControl {
                                                     }
                                                 }
                                             };
+                                            
+                                            // Check if all tags are blacklisted
+                                            let blacklist_tags: Vec<String> = ha_tag_blacklist
+                                                .split(',')
+                                                .map(|s| s.trim().to_lowercase())
+                                                .filter(|s| !s.is_empty())
+                                                .collect();
+                                            
+                                            let all_tags_blacklisted = if file_result.classification_tags.is_empty() {
+                                                // No tags means we should treat it as blacklisted
+                                                true
+                                            } else {
+                                                // Check if all tags are in the blacklist
+                                                file_result.classification_tags.iter().all(|tag| {
+                                                    blacklist_tags.contains(&tag.to_lowercase())
+                                                })
+                                            };
+                                            
                                             let bg_color = match file_result.verdict.as_str() {
-                                                "malicious" => egui::Color32::from_rgb(211, 47, 47),
+                                                "malicious" => {
+                                                    if all_tags_blacklisted {
+                                                        egui::Color32::from_rgb(128, 128, 128) // Gray for blacklisted tags
+                                                    } else {
+                                                        egui::Color32::from_rgb(211, 47, 47) // Red for real malicious
+                                                    }
+                                                },
                                                 "suspicious" => egui::Color32::from_rgb(255, 152, 0),
                                                 "whitelisted" => egui::Color32::from_rgb(56, 142, 60),
                                                 "no specific threat" => egui::Color32::from_rgb(0, 150, 136),

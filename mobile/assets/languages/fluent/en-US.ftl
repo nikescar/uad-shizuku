@@ -137,6 +137,7 @@ virustotal-upload-desc = (Upload files not found in VirusTotal for analysis)
 hybridanalysis-api-key = HybridAnalysis(200/min) API Key:
 allow-hybridanalysis-upload = Allow Hybrid Analysis file upload
 hybridanalysis-upload-desc = (Upload files not found in Hybrid Analysis for scanning)
+hybridanalysis-tag-blacklist = HybridAnalysis Tag Blacklist:
 google-play-renderer = Google Play Renderer
 google-play-renderer-desc = (Fetch and display app info from Google Play Store)
 fdroid-renderer = F-Droid Renderer
