@@ -970,9 +970,12 @@ impl TabScanControl {
         // Update cached scan counts if needed (only recomputes when scanner progress changes)
         self.update_cached_scan_counts(&installed_packages, &vt_scanner_state, &ha_scanner_state);
 
+        // Check if mobile view for filter button style
+        let filter_is_mobile = ui.available_width() < DESKTOP_MIN_WIDTH;
+
         // VirusTotal Filter Buttons
         if !installed_packages.is_empty() {
-            ui.horizontal(|ui| {
+            ui.horizontal_wrapped(|ui| {
                 ui.vertical(|ui| {
                     ui.set_width(150.0);
                     ui.label(tr!("virustotal-filter"));
@@ -1001,67 +1004,83 @@ impl TabScanControl {
                 });
 
                 let (all, malicious, suspicious, safe, not_scanned) = self.get_vt_counts();
-                let show_all_colors = self.active_vt_filter == VtFilter::All;
-
                 let all_text = tr!("all", { enabled: all.0, total: all.1 });
-                let button = if self.active_vt_filter == VtFilter::All {
-                    MaterialButton::filled(&all_text)
-                        .fill(egui::Color32::from_rgb(158, 158, 158))
-                } else {
-                    MaterialButton::outlined(&all_text)
-                };
-                if ui.add(button).clicked() {
-                    self.active_vt_filter = VtFilter::All;
-                }
-
                 let mal_text = tr!("malicious", { enabled: malicious.0, total: malicious.1 });
-                let button = if self.active_vt_filter == VtFilter::Malicious || show_all_colors {
-                    MaterialButton::filled(&mal_text)
-                        .fill(egui::Color32::from_rgb(211, 47, 47))
-                } else {
-                    MaterialButton::outlined(&mal_text)
-                };
-                if ui.add(button).clicked() {
-                    self.active_vt_filter = VtFilter::Malicious;
-                }
-
                 let sus_text = tr!("suspicious", { enabled: suspicious.0, total: suspicious.1 });
-                let button = if self.active_vt_filter == VtFilter::Suspicious || show_all_colors {
-                    MaterialButton::filled(&sus_text)
-                        .fill(egui::Color32::from_rgb(255, 152, 0))
-                } else {
-                    MaterialButton::outlined(&sus_text)
-                };
-                if ui.add(button).clicked() {
-                    self.active_vt_filter = VtFilter::Suspicious;
-                }
-
                 let safe_text = tr!("safe", { enabled: safe.0, total: safe.1 });
-                let button = if self.active_vt_filter == VtFilter::Safe || show_all_colors {
-                    MaterialButton::filled(&safe_text)
-                        .fill(egui::Color32::from_rgb(56, 142, 60))
-                } else {
-                    MaterialButton::outlined(&safe_text)
-                };
-                if ui.add(button).clicked() {
-                    self.active_vt_filter = VtFilter::Safe;
-                }
-
                 let not_scanned_text = tr!("not-scanned", { enabled: not_scanned.0, total: not_scanned.1 });
-                let button = if self.active_vt_filter == VtFilter::NotScanned || show_all_colors {
-                    MaterialButton::filled(&not_scanned_text)
-                        .fill(egui::Color32::from_rgb(128, 128, 128))
+
+                if filter_is_mobile {
+                    // Mobile: use compact selectable_label
+                    if ui.selectable_label(self.active_vt_filter == VtFilter::All, &all_text).clicked() {
+                        self.active_vt_filter = VtFilter::All;
+                    }
+                    if ui.selectable_label(self.active_vt_filter == VtFilter::Malicious, &mal_text).clicked() {
+                        self.active_vt_filter = VtFilter::Malicious;
+                    }
+                    if ui.selectable_label(self.active_vt_filter == VtFilter::Suspicious, &sus_text).clicked() {
+                        self.active_vt_filter = VtFilter::Suspicious;
+                    }
+                    if ui.selectable_label(self.active_vt_filter == VtFilter::Safe, &safe_text).clicked() {
+                        self.active_vt_filter = VtFilter::Safe;
+                    }
+                    if ui.selectable_label(self.active_vt_filter == VtFilter::NotScanned, &not_scanned_text).clicked() {
+                        self.active_vt_filter = VtFilter::NotScanned;
+                    }
                 } else {
-                    MaterialButton::outlined(&not_scanned_text)
-                };
-                if ui.add(button).clicked() {
-                    self.active_vt_filter = VtFilter::NotScanned;
+                    // Desktop: use MaterialButton
+                    let show_all_colors = self.active_vt_filter == VtFilter::All;
+
+                    let button = if self.active_vt_filter == VtFilter::All {
+                        MaterialButton::filled(&all_text).fill(egui::Color32::from_rgb(158, 158, 158))
+                    } else {
+                        MaterialButton::outlined(&all_text)
+                    };
+                    if ui.add(button).clicked() {
+                        self.active_vt_filter = VtFilter::All;
+                    }
+
+                    let button = if self.active_vt_filter == VtFilter::Malicious || show_all_colors {
+                        MaterialButton::filled(&mal_text).fill(egui::Color32::from_rgb(211, 47, 47))
+                    } else {
+                        MaterialButton::outlined(&mal_text)
+                    };
+                    if ui.add(button).clicked() {
+                        self.active_vt_filter = VtFilter::Malicious;
+                    }
+
+                    let button = if self.active_vt_filter == VtFilter::Suspicious || show_all_colors {
+                        MaterialButton::filled(&sus_text).fill(egui::Color32::from_rgb(255, 152, 0))
+                    } else {
+                        MaterialButton::outlined(&sus_text)
+                    };
+                    if ui.add(button).clicked() {
+                        self.active_vt_filter = VtFilter::Suspicious;
+                    }
+
+                    let button = if self.active_vt_filter == VtFilter::Safe || show_all_colors {
+                        MaterialButton::filled(&safe_text).fill(egui::Color32::from_rgb(56, 142, 60))
+                    } else {
+                        MaterialButton::outlined(&safe_text)
+                    };
+                    if ui.add(button).clicked() {
+                        self.active_vt_filter = VtFilter::Safe;
+                    }
+
+                    let button = if self.active_vt_filter == VtFilter::NotScanned || show_all_colors {
+                        MaterialButton::filled(&not_scanned_text).fill(egui::Color32::from_rgb(128, 128, 128))
+                    } else {
+                        MaterialButton::outlined(&not_scanned_text)
+                    };
+                    if ui.add(button).clicked() {
+                        self.active_vt_filter = VtFilter::NotScanned;
+                    }
                 }
             });
             ui.add_space(5.0);
 
             // Hybrid Analysis Filter Buttons
-            ui.horizontal(|ui| {
+            ui.horizontal_wrapped(|ui| {
                 ui.vertical(|ui| {
                     ui.set_width(150.0);
                     ui.label(tr!("hybrid-analysis-filter"));
@@ -1090,61 +1109,77 @@ impl TabScanControl {
                 });
 
                 let (all, malicious, suspicious, safe, not_scanned) = self.get_ha_counts();
-                let show_all_colors = self.active_ha_filter == HaFilter::All;
-
                 let all_text = tr!("all", { enabled: all.0, total: all.1 });
-                let button = if self.active_ha_filter == HaFilter::All {
-                    MaterialButton::filled(&all_text)
-                        .fill(egui::Color32::from_rgb(158, 158, 158))
-                } else {
-                    MaterialButton::outlined(&all_text)
-                };
-                if ui.add(button).clicked() {
-                    self.active_ha_filter = HaFilter::All;
-                }
-
                 let mal_text = tr!("malicious", { enabled: malicious.0, total: malicious.1 });
-                let button = if self.active_ha_filter == HaFilter::Malicious || show_all_colors {
-                    MaterialButton::filled(&mal_text)
-                        .fill(egui::Color32::from_rgb(211, 47, 47))
-                } else {
-                    MaterialButton::outlined(&mal_text)
-                };
-                if ui.add(button).clicked() {
-                    self.active_ha_filter = HaFilter::Malicious;
-                }
-
                 let sus_text = tr!("suspicious", { enabled: suspicious.0, total: suspicious.1 });
-                let button = if self.active_ha_filter == HaFilter::Suspicious || show_all_colors {
-                    MaterialButton::filled(&sus_text)
-                        .fill(egui::Color32::from_rgb(255, 152, 0))
-                } else {
-                    MaterialButton::outlined(&sus_text)
-                };
-                if ui.add(button).clicked() {
-                    self.active_ha_filter = HaFilter::Suspicious;
-                }
-
                 let safe_text = tr!("no-specific-threat", { enabled: safe.0, total: safe.1 });
-                let button = if self.active_ha_filter == HaFilter::Safe || show_all_colors {
-                    MaterialButton::filled(&safe_text)
-                        .fill(egui::Color32::from_rgb(0, 150, 136))
-                } else {
-                    MaterialButton::outlined(&safe_text)
-                };
-                if ui.add(button).clicked() {
-                    self.active_ha_filter = HaFilter::Safe;
-                }
-
                 let not_scanned_text = tr!("not-scanned", { enabled: not_scanned.0, total: not_scanned.1 });
-                let button = if self.active_ha_filter == HaFilter::NotScanned || show_all_colors {
-                    MaterialButton::filled(&not_scanned_text)
-                        .fill(egui::Color32::from_rgb(128, 128, 128))
+
+                if filter_is_mobile {
+                    // Mobile: use compact selectable_label
+                    if ui.selectable_label(self.active_ha_filter == HaFilter::All, &all_text).clicked() {
+                        self.active_ha_filter = HaFilter::All;
+                    }
+                    if ui.selectable_label(self.active_ha_filter == HaFilter::Malicious, &mal_text).clicked() {
+                        self.active_ha_filter = HaFilter::Malicious;
+                    }
+                    if ui.selectable_label(self.active_ha_filter == HaFilter::Suspicious, &sus_text).clicked() {
+                        self.active_ha_filter = HaFilter::Suspicious;
+                    }
+                    if ui.selectable_label(self.active_ha_filter == HaFilter::Safe, &safe_text).clicked() {
+                        self.active_ha_filter = HaFilter::Safe;
+                    }
+                    if ui.selectable_label(self.active_ha_filter == HaFilter::NotScanned, &not_scanned_text).clicked() {
+                        self.active_ha_filter = HaFilter::NotScanned;
+                    }
                 } else {
-                    MaterialButton::outlined(&not_scanned_text)
-                };
-                if ui.add(button).clicked() {
-                    self.active_ha_filter = HaFilter::NotScanned;
+                    // Desktop: use MaterialButton
+                    let show_all_colors = self.active_ha_filter == HaFilter::All;
+
+                    let button = if self.active_ha_filter == HaFilter::All {
+                        MaterialButton::filled(&all_text).fill(egui::Color32::from_rgb(158, 158, 158))
+                    } else {
+                        MaterialButton::outlined(&all_text)
+                    };
+                    if ui.add(button).clicked() {
+                        self.active_ha_filter = HaFilter::All;
+                    }
+
+                    let button = if self.active_ha_filter == HaFilter::Malicious || show_all_colors {
+                        MaterialButton::filled(&mal_text).fill(egui::Color32::from_rgb(211, 47, 47))
+                    } else {
+                        MaterialButton::outlined(&mal_text)
+                    };
+                    if ui.add(button).clicked() {
+                        self.active_ha_filter = HaFilter::Malicious;
+                    }
+
+                    let button = if self.active_ha_filter == HaFilter::Suspicious || show_all_colors {
+                        MaterialButton::filled(&sus_text).fill(egui::Color32::from_rgb(255, 152, 0))
+                    } else {
+                        MaterialButton::outlined(&sus_text)
+                    };
+                    if ui.add(button).clicked() {
+                        self.active_ha_filter = HaFilter::Suspicious;
+                    }
+
+                    let button = if self.active_ha_filter == HaFilter::Safe || show_all_colors {
+                        MaterialButton::filled(&safe_text).fill(egui::Color32::from_rgb(0, 150, 136))
+                    } else {
+                        MaterialButton::outlined(&safe_text)
+                    };
+                    if ui.add(button).clicked() {
+                        self.active_ha_filter = HaFilter::Safe;
+                    }
+
+                    let button = if self.active_ha_filter == HaFilter::NotScanned || show_all_colors {
+                        MaterialButton::filled(&not_scanned_text).fill(egui::Color32::from_rgb(128, 128, 128))
+                    } else {
+                        MaterialButton::outlined(&not_scanned_text)
+                    };
+                    if ui.add(button).clicked() {
+                        self.active_ha_filter = HaFilter::NotScanned;
+                    }
                 }
             });
 
@@ -1896,7 +1931,6 @@ impl TabScanControl {
                                         });
                                     }
                                 });
-
                             ui.add(card);
                         }
                     });

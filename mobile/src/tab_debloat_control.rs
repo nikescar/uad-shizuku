@@ -531,82 +531,108 @@ impl TabDebloatControl {
         // Update cached counts if needed (only recomputes when table_version changes)
         self.update_cached_counts(&installed_packages, uad_ng_lists_ref);
 
+        // Check if mobile view for filter button style
+        let filter_is_mobile = ui.available_width() < DESKTOP_MIN_WIDTH;
+
         // Filter Buttons
         if !installed_packages.is_empty() {
-            ui.horizontal(|ui| {
-                let show_all_colors = self.active_filter == DebloatFilter::All;
-
+            ui.horizontal_wrapped(|ui| {
                 let all_total = installed_packages.len();
                 let all_enabled = installed_packages.iter().filter(|p| self.is_package_enabled(p)).count();
                 let all_text = tr!("all", { enabled: all_enabled, total: all_total });
-                let button = if self.active_filter == DebloatFilter::All {
-                    MaterialButton::filled(&all_text)
-                        .fill(egui::Color32::from_rgb(158, 158, 158))
-                } else {
-                    MaterialButton::outlined(&all_text)
-                };
-                if ui.add(button).clicked() {
-                    self.active_filter = DebloatFilter::All;
-                }
 
-                let (enabled, total) = self.get_recommended_count();
-                let rec_text = tr!("recommended", { enabled: enabled, total: total });
-                let button = if self.active_filter == DebloatFilter::Recommended || show_all_colors {
-                    MaterialButton::filled(&rec_text)
-                        .fill(egui::Color32::from_rgb(56, 142, 60))
-                } else {
-                    MaterialButton::outlined(&rec_text)
-                };
-                if ui.add(button).clicked() {
-                    self.active_filter = DebloatFilter::Recommended;
-                }
+                let (rec_enabled, rec_total) = self.get_recommended_count();
+                let rec_text = tr!("recommended", { enabled: rec_enabled, total: rec_total });
 
-                let (enabled, total) = self.get_advanced_count();
-                let adv_text = tr!("advanced", { enabled: enabled, total: total });
-                let button = if self.active_filter == DebloatFilter::Advanced || show_all_colors {
-                    MaterialButton::filled(&adv_text)
-                        .fill(egui::Color32::from_rgb(33, 150, 243))
-                } else {
-                    MaterialButton::outlined(&adv_text)
-                };
-                if ui.add(button).clicked() {
-                    self.active_filter = DebloatFilter::Advanced;
-                }
+                let (adv_enabled, adv_total) = self.get_advanced_count();
+                let adv_text = tr!("advanced", { enabled: adv_enabled, total: adv_total });
 
-                let (enabled, total) = self.get_expert_count();
-                let exp_text = tr!("expert", { enabled: enabled, total: total });
-                let button = if self.active_filter == DebloatFilter::Expert || show_all_colors {
-                    MaterialButton::filled(&exp_text)
-                        .fill(egui::Color32::from_rgb(255, 152, 0))
-                } else {
-                    MaterialButton::outlined(&exp_text)
-                };
-                if ui.add(button).clicked() {
-                    self.active_filter = DebloatFilter::Expert;
-                }
+                let (exp_enabled, exp_total) = self.get_expert_count();
+                let exp_text = tr!("expert", { enabled: exp_enabled, total: exp_total });
 
-                let (enabled, total) = self.get_unsafe_count();
-                let unsafe_text = tr!("unsafe", { enabled: enabled, total: total });
-                let button = if self.active_filter == DebloatFilter::Unsafe || show_all_colors {
-                    MaterialButton::filled(&unsafe_text)
-                        .fill(egui::Color32::from_rgb(255, 235, 59))
-                } else {
-                    MaterialButton::outlined(&unsafe_text)
-                };
-                if ui.add(button).clicked() {
-                    self.active_filter = DebloatFilter::Unsafe;
-                }
+                let (unsafe_enabled, unsafe_total) = self.get_unsafe_count();
+                let unsafe_text = tr!("unsafe", { enabled: unsafe_enabled, total: unsafe_total });
 
-                let (enabled, total) = self.get_unknown_count();
-                let unknown_text = tr!("unknown", { enabled: enabled, total: total });
-                let button = if self.active_filter == DebloatFilter::Unknown || show_all_colors {
-                    MaterialButton::filled(&unknown_text)
-                        .fill(egui::Color32::from_rgb(255, 255, 255))
+                let (unknown_enabled, unknown_total) = self.get_unknown_count();
+                let unknown_text = tr!("unknown", { enabled: unknown_enabled, total: unknown_total });
+
+                if filter_is_mobile {
+                    // Mobile: use compact selectable_label
+                    if ui.selectable_label(self.active_filter == DebloatFilter::All, &all_text).clicked() {
+                        self.active_filter = DebloatFilter::All;
+                    }
+                    if ui.selectable_label(self.active_filter == DebloatFilter::Recommended, &rec_text).clicked() {
+                        self.active_filter = DebloatFilter::Recommended;
+                    }
+                    if ui.selectable_label(self.active_filter == DebloatFilter::Advanced, &adv_text).clicked() {
+                        self.active_filter = DebloatFilter::Advanced;
+                    }
+                    if ui.selectable_label(self.active_filter == DebloatFilter::Expert, &exp_text).clicked() {
+                        self.active_filter = DebloatFilter::Expert;
+                    }
+                    if ui.selectable_label(self.active_filter == DebloatFilter::Unsafe, &unsafe_text).clicked() {
+                        self.active_filter = DebloatFilter::Unsafe;
+                    }
+                    if ui.selectable_label(self.active_filter == DebloatFilter::Unknown, &unknown_text).clicked() {
+                        self.active_filter = DebloatFilter::Unknown;
+                    }
                 } else {
-                    MaterialButton::outlined(&unknown_text)
-                };
-                if ui.add(button).clicked() {
-                    self.active_filter = DebloatFilter::Unknown;
+                    // Desktop: use MaterialButton
+                    let show_all_colors = self.active_filter == DebloatFilter::All;
+
+                    let button = if self.active_filter == DebloatFilter::All {
+                        MaterialButton::filled(&all_text).fill(egui::Color32::from_rgb(158, 158, 158))
+                    } else {
+                        MaterialButton::outlined(&all_text)
+                    };
+                    if ui.add(button).clicked() {
+                        self.active_filter = DebloatFilter::All;
+                    }
+
+                    let button = if self.active_filter == DebloatFilter::Recommended || show_all_colors {
+                        MaterialButton::filled(&rec_text).fill(egui::Color32::from_rgb(56, 142, 60))
+                    } else {
+                        MaterialButton::outlined(&rec_text)
+                    };
+                    if ui.add(button).clicked() {
+                        self.active_filter = DebloatFilter::Recommended;
+                    }
+
+                    let button = if self.active_filter == DebloatFilter::Advanced || show_all_colors {
+                        MaterialButton::filled(&adv_text).fill(egui::Color32::from_rgb(33, 150, 243))
+                    } else {
+                        MaterialButton::outlined(&adv_text)
+                    };
+                    if ui.add(button).clicked() {
+                        self.active_filter = DebloatFilter::Advanced;
+                    }
+
+                    let button = if self.active_filter == DebloatFilter::Expert || show_all_colors {
+                        MaterialButton::filled(&exp_text).fill(egui::Color32::from_rgb(255, 152, 0))
+                    } else {
+                        MaterialButton::outlined(&exp_text)
+                    };
+                    if ui.add(button).clicked() {
+                        self.active_filter = DebloatFilter::Expert;
+                    }
+
+                    let button = if self.active_filter == DebloatFilter::Unsafe || show_all_colors {
+                        MaterialButton::filled(&unsafe_text).fill(egui::Color32::from_rgb(255, 235, 59))
+                    } else {
+                        MaterialButton::outlined(&unsafe_text)
+                    };
+                    if ui.add(button).clicked() {
+                        self.active_filter = DebloatFilter::Unsafe;
+                    }
+
+                    let button = if self.active_filter == DebloatFilter::Unknown || show_all_colors {
+                        MaterialButton::filled(&unknown_text).fill(egui::Color32::from_rgb(255, 255, 255))
+                    } else {
+                        MaterialButton::outlined(&unknown_text)
+                    };
+                    if ui.add(button).clicked() {
+                        self.active_filter = DebloatFilter::Unknown;
+                    }
                 }
             });
         }
@@ -620,40 +646,72 @@ impl TabDebloatControl {
         ui.horizontal(|ui| {
             let selected_count = self.selected_packages.len();
 
-            if ui.add(MaterialButton::outlined(tr!("deselect-all"))).clicked() {
-                self.selected_packages.clear();
-            }
-
-            ui.separator();
-
-            ui.label(tr!("selected-count", { count: selected_count }));
-
-            if selected_count > 0 {
-                if ui
-                    .add(MaterialButton::filled(&tr!("uninstall-selected", { count: selected_count })))
-                    .clicked()
-                {
-                    ui.data_mut(|data| {
-                        data.insert_temp(egui::Id::new("batch_uninstall_clicked"), true);
-                    });
+            if filter_is_mobile {
+                // Mobile: use compact plain buttons
+                if ui.button(tr!("deselect-all")).clicked() {
+                    self.selected_packages.clear();
                 }
 
-                if ui
-                    .add(MaterialButton::filled(&tr!("disable-selected", { count: selected_count })))
-                    .clicked()
-                {
-                    ui.data_mut(|data| {
-                        data.insert_temp(egui::Id::new("batch_disable_clicked"), true);
-                    });
+                ui.separator();
+
+                ui.label(tr!("selected-count", { count: selected_count }));
+
+                if selected_count > 0 {
+                    if ui.button(&tr!("uninstall-selected", { count: selected_count })).clicked() {
+                        ui.data_mut(|data| {
+                            data.insert_temp(egui::Id::new("batch_uninstall_clicked"), true);
+                        });
+                    }
+
+                    if ui.button(&tr!("disable-selected", { count: selected_count })).clicked() {
+                        ui.data_mut(|data| {
+                            data.insert_temp(egui::Id::new("batch_disable_clicked"), true);
+                        });
+                    }
+
+                    if ui.button(&tr!("enable-selected", { count: selected_count })).clicked() {
+                        ui.data_mut(|data| {
+                            data.insert_temp(egui::Id::new("batch_enable_clicked"), true);
+                        });
+                    }
+                }
+            } else {
+                // Desktop: use MaterialButton
+                if ui.add(MaterialButton::outlined(tr!("deselect-all"))).clicked() {
+                    self.selected_packages.clear();
                 }
 
-                if ui
-                    .add(MaterialButton::filled(&tr!("enable-selected", { count: selected_count })))
-                    .clicked()
-                {
-                    ui.data_mut(|data| {
-                        data.insert_temp(egui::Id::new("batch_enable_clicked"), true);
-                    });
+                ui.separator();
+
+                ui.label(tr!("selected-count", { count: selected_count }));
+
+                if selected_count > 0 {
+                    if ui
+                        .add(MaterialButton::filled(&tr!("uninstall-selected", { count: selected_count })))
+                        .clicked()
+                    {
+                        ui.data_mut(|data| {
+                            data.insert_temp(egui::Id::new("batch_uninstall_clicked"), true);
+                        });
+                    }
+
+                    if ui
+                        .add(MaterialButton::filled(&tr!("disable-selected", { count: selected_count })))
+                        .clicked()
+                    {
+                        ui.data_mut(|data| {
+                            data.insert_temp(egui::Id::new("batch_disable_clicked"), true);
+                        });
+                    }
+
+                    if ui
+                        .add(MaterialButton::filled(&tr!("enable-selected", { count: selected_count })))
+                        .clicked()
+                    {
+                        ui.data_mut(|data| {
+                            data.insert_temp(egui::Id::new("batch_enable_clicked"), true);
+                        });
+                    }
                 }
             }
         });
@@ -1096,7 +1154,7 @@ impl TabDebloatControl {
                 .id_salt("debloat_cards_scroll")
                 .show(ui, |ui| {
                     ui.horizontal_wrapped(|ui| {
-                        for (idx, pkg_id, package_name, is_system, debloat_category, _runtime_perms, enabled_text, _install_reason, is_selected) in filtered_packages {
+                        for (idx, pkg_id, package_name, is_system, debloat_category, runtime_perms, enabled_text, _install_reason, is_selected) in filtered_packages {
                             let pkg_id_clone = pkg_id.clone();
                             let enabled_str = enabled_text.clone();
 
@@ -1158,6 +1216,14 @@ impl TabDebloatControl {
                                             ui.image((tex_id, egui::vec2(48.0, 48.0)));
                                         }
                                         ui.vertical(|ui| {
+                                            // Runtime permissions badge
+                                            egui::Frame::new()
+                                                .fill(egui::Color32::from_rgb(103, 58, 183))
+                                                .corner_radius(4.0)
+                                                .inner_margin(egui::Margin::symmetric(8, 4))
+                                                .show(ui, |ui| {
+                                                    ui.label(egui::RichText::new(format!("RP: {}", runtime_perms)).color(egui::Color32::WHITE).size(11.0));
+                                                });
                                             // Category badge
                                             egui::Frame::new()
                                                 .fill(category_color)
@@ -1236,7 +1302,6 @@ impl TabDebloatControl {
                                         }
                                     }
                                 });
-
                             ui.add(card);
                         }
                     });

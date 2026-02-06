@@ -1319,7 +1319,7 @@ impl TabAppsControl {
                                 .header(&app.name, Some(&app.category))
                                 .content(|ui| {
                                     // Show link type badges
-                                    ui.horizontal_wrapped(|ui| {
+                                    ui.horizontal(|ui| {
                                         for lt in &link_types {
                                             let color = match *lt {
                                                 "fdroid-downloadable" | "fdroid" => egui::Color32::from_rgb(56, 142, 60),
@@ -1364,7 +1364,6 @@ impl TabAppsControl {
                                         }
                                     }
                                 });
-
                             ui.add(card);
                         }
                     });
