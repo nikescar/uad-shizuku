@@ -91,9 +91,7 @@ Get list of FOSS apps, and install directly. github and fdroid auto-install supp
 
 ## Todos
 
-* fluid width datatable.(same dividened.)
 * installation button on menu.(icons desktop, icons start menu, copy app exe to user application dir.)
-* gui screen for less than 1024 width.
 * match datatable color to theme.
 * android version through shizuku
 * android keyboard & clipboard

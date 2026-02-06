@@ -103,6 +103,32 @@ fn hide_console() {
 }
 
 fn main() -> eframe::Result<()> {
+    // Handle --uninstall argument (for Windows Add/Remove Programs)
+    let args: Vec<String> = std::env::args().collect();
+    if args.iter().any(|arg| arg == "--uninstall") {
+        #[cfg(not(target_os = "android"))]
+        {
+            use uad_shizuku::install;
+            use uad_shizuku::install_stt::InstallResult;
+
+            match install::do_uninstall() {
+                InstallResult::Success(msg) => {
+                    println!("{}", msg);
+                    std::process::exit(0);
+                }
+                InstallResult::Error(err) => {
+                    eprintln!("Uninstall error: {}", err);
+                    std::process::exit(1);
+                }
+            }
+        }
+        #[cfg(target_os = "android")]
+        {
+            eprintln!("Uninstall not supported on Android");
+            std::process::exit(1);
+        }
+    }
+
     // Hide console on Windows for GUI mode
     #[cfg(target_os = "windows")]
     hide_console();

@@ -60,6 +60,12 @@ pub mod shared_store_stt;
 mod shared_store;
 pub mod svg_stt;
 
+// Installation management for desktop platforms
+#[cfg(not(target_os = "android"))]
+pub mod install;
+#[cfg(not(target_os = "android"))]
+pub mod install_stt;
+
 #[cfg(target_os = "android")]
 mod main_android;
 
