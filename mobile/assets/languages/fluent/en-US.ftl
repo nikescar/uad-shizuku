@@ -17,6 +17,7 @@ contrast-level = Contrast Level:
 log-level = Log Level:
 ok = OK
 stop = Stop
+sort-by = Sort:
 
 # Apps Tab
 app-list = App List:

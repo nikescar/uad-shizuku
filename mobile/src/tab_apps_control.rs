@@ -43,6 +43,8 @@ impl Default for TabAppsControl {
             show_only_installable: true, // Default to showing only installable apps
             disable_github_install: true, // Default to allowing GitHub installs
             text_filter: String::new(),
+            sort_column: None,
+            sort_ascending: true,
         }
     }
 }
@@ -62,6 +64,30 @@ impl TabAppsControl {
 
     pub fn set_selected_device(&mut self, device: Option<String>) {
         self.selected_device = device;
+    }
+
+    /// Sort app entries based on current sort column and direction
+    pub fn sort_apps(&mut self) {
+        if let Some(col) = self.sort_column {
+            let ascending = self.sort_ascending;
+            match col {
+                0 => {
+                    // Sort by category
+                    self.app_entries.sort_by(|a, b| {
+                        let cmp = a.category.to_lowercase().cmp(&b.category.to_lowercase());
+                        if ascending { cmp } else { cmp.reverse() }
+                    });
+                }
+                1 => {
+                    // Sort by app name
+                    self.app_entries.sort_by(|a, b| {
+                        let cmp = a.name.to_lowercase().cmp(&b.name.to_lowercase());
+                        if ascending { cmp } else { cmp.reverse() }
+                    });
+                }
+                _ => {}
+            }
+        }
     }
 
     pub fn load_app_lists(&mut self) {
@@ -1222,6 +1248,37 @@ impl TabAppsControl {
             interactive_table.show(ui);
         } else {
             // === MOBILE CARD VIEW ===
+            // Sort buttons for mobile view
+            ui.horizontal_wrapped(|ui| {
+                ui.label(tr!("sort-by"));
+                let sort_options = [
+                    (0, tr!("category")),
+                    (1, tr!("app-name")),
+                ];
+                for (col_idx, label) in sort_options {
+                    let is_selected = self.sort_column == Some(col_idx);
+                    let arrow = if is_selected {
+                        if self.sort_ascending { " ▲" } else { " ▼" }
+                    } else { "" };
+                    let text = format!("{}{}", label, arrow);
+                    let chip = if is_selected {
+                        assist_chip(&text).elevated(true)
+                    } else {
+                        assist_chip(&text)
+                    };
+                    if ui.add(chip.on_click(|| {})).clicked() {
+                        if self.sort_column == Some(col_idx) {
+                            self.sort_ascending = !self.sort_ascending;
+                        } else {
+                            self.sort_column = Some(col_idx);
+                            self.sort_ascending = true;
+                        }
+                        self.sort_apps();
+                    }
+                }
+            });
+            ui.add_space(4.0);
+
             egui::ScrollArea::vertical()
                 .id_salt("apps_cards_scroll")
                 .show(ui, |ui| {

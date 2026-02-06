@@ -17,6 +17,7 @@ contrast-level = 대비 수준:
 log-level = 로그 레벨:
 ok = 확인
 stop = 중지
+sort-by = 정렬:
 
 # Apps Tab
 app-list = 앱 목록:

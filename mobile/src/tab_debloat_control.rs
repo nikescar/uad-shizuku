@@ -1058,6 +1058,38 @@ impl TabDebloatControl {
             }
         } else {
             // === MOBILE CARD VIEW ===
+            // Sort buttons for mobile view
+            ui.horizontal_wrapped(|ui| {
+                ui.label(tr!("sort-by"));
+                let sort_options = [
+                    (0, tr!("col-package-name")),
+                    (1, tr!("col-debloat-category")),
+                    (3, tr!("col-enabled")),
+                ];
+                for (col_idx, label) in sort_options {
+                    let is_selected = self.sort_column == Some(col_idx);
+                    let arrow = if is_selected {
+                        if self.sort_ascending { " ▲" } else { " ▼" }
+                    } else { "" };
+                    let text = format!("{}{}", label, arrow);
+                    let chip = if is_selected {
+                        assist_chip(&text).elevated(true)
+                    } else {
+                        assist_chip(&text)
+                    };
+                    if ui.add(chip.on_click(|| {})).clicked() {
+                        if self.sort_column == Some(col_idx) {
+                            self.sort_ascending = !self.sort_ascending;
+                        } else {
+                            self.sort_column = Some(col_idx);
+                            self.sort_ascending = true;
+                        }
+                        self.sort_packages();
+                    }
+                }
+            });
+            ui.add_space(4.0);
+
             egui::ScrollArea::vertical()
                 .id_salt("debloat_cards_scroll")
                 .show(ui, |ui| {
