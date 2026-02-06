@@ -70,6 +70,7 @@ theme_config:
   sidebar:
     - Docs:
       - Guide: # []
+          Docs : /index
           Usage : /usage
           Installation : /installation
           Development : /development
@@ -130,6 +131,8 @@ locales:
           - title: "가이드"
             collapsed: false
             items: # []
+              - title: "문서"
+                link: "/index"
               - title: "사용법"
                 link: "/usage"
               - title: "설치"
