@@ -9,67 +9,90 @@
 pub use crate::adb_stt::{AdbPackageInfoUser, PackageFingerprint, UserInfo};
 use tracing::{debug, error};
 
+/// Execute a shell command on the device.
+/// On Android, uses Shizuku to run the command locally.
+/// On desktop, uses `adb -s <device> shell <command>`.
+fn shell_exec(device: &str, command: &str) -> std::io::Result<String> {
+    #[cfg(target_os = "android")]
+    {
+        let _ = device; // device is implicit on Android (local)
+        // Use file-based execution to bypass Binder IPC size limit.
+        // The ShellService writes output to a temp file, then Rust reads it.
+        let output_path = "/data/local/tmp/uad_shizuku_output.txt";
+        let result = crate::android_shizuku::shizuku_exec_to_file(command, output_path);
+        // Clean up the temp file regardless of result
+        let _ = std::fs::remove_file(output_path);
+        result
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        use std::process::Command;
+        let output = Command::new("adb")
+            .arg("-s")
+            .arg(device)
+            .arg("shell")
+            .arg(command)
+            .output()?;
+        if output.status.success() {
+            Ok(String::from_utf8_lossy(&output.stdout).to_string())
+        } else {
+            let err = String::from_utf8_lossy(&output.stderr).to_string();
+            Err(std::io::Error::new(std::io::ErrorKind::Other, err))
+        }
+    }
+}
+
 pub fn get_devices() -> std::io::Result<Vec<String>> {
-    use std::process::Command;
-    // Run adb root first to ensure root access
-    // let _ = Command::new("adb").arg("root").output();
-    let output = Command::new("adb").arg("devices").arg("-l").output()?;
+    #[cfg(target_os = "android")]
+    {
+        // On Android, the app runs on the device itself
+        Ok(vec!["local".to_string()])
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        use std::process::Command;
+        let output = Command::new("adb").arg("devices").arg("-l").output()?;
 
-    if output.status.success() {
-        let devices = String::from_utf8_lossy(&output.stdout).to_string();
+        if output.status.success() {
+            let devices = String::from_utf8_lossy(&output.stdout).to_string();
 
-        let parsed: Vec<String> = devices
-            .lines()
-            .filter_map(|line| {
-                // Skip empty lines and the header line
-                if line.trim().is_empty() || line.starts_with("List of devices") {
-                    return None;
-                }
+            let parsed: Vec<String> = devices
+                .lines()
+                .filter_map(|line| {
+                    // Skip empty lines and the header line
+                    if line.trim().is_empty() || line.starts_with("List of devices") {
+                        return None;
+                    }
 
-                // Check if line contains "device" status
-                if line.contains("device") {
-                    let first_token = line.split_whitespace().next()?.trim().to_string();
-                    if !first_token.is_empty() {
-                        Some(first_token)
+                    // Check if line contains "device" status
+                    if line.contains("device") {
+                        let first_token = line.split_whitespace().next()?.trim().to_string();
+                        if !first_token.is_empty() {
+                            Some(first_token)
+                        } else {
+                            None
+                        }
                     } else {
                         None
                     }
-                } else {
-                    None
-                }
-            })
-            .collect();
+                })
+                .collect();
 
-        Ok(parsed)
-    } else {
-        let err = String::from_utf8_lossy(&output.stderr).to_string();
-        Err(std::io::Error::new(std::io::ErrorKind::Other, err))
+            Ok(parsed)
+        } else {
+            let err = String::from_utf8_lossy(&output.stderr).to_string();
+            Err(std::io::Error::new(std::io::ErrorKind::Other, err))
+        }
     }
 }
 
 pub fn get_users(device: &str) -> std::io::Result<Vec<UserInfo>> {
-    use std::process::Command;
     debug!("Getting users list for device: {}", device);
-    let output = Command::new("adb")
-        .arg("-s")
-        .arg(device)
-        .arg("shell")
-        .arg("pm")
-        .arg("list")
-        .arg("users")
-        .output()?;
-
-    if output.status.success() {
-        let users_text = String::from_utf8_lossy(&output.stdout).to_string();
-        debug!("Received users data: {}", users_text);
-        let users = parse_users(&users_text);
-        debug!("Parsed {} users", users.len());
-        Ok(users)
-    } else {
-        let err = String::from_utf8_lossy(&output.stderr).to_string();
-        error!("ADB command failed: {}", err);
-        Err(std::io::Error::new(std::io::ErrorKind::Other, err))
-    }
+    let users_text = shell_exec(device, "pm list users")?;
+    debug!("Received users data: {}", users_text);
+    let users = parse_users(&users_text);
+    debug!("Parsed {} users", users.len());
+    Ok(users)
 }
 
 fn parse_users(text: &str) -> Vec<UserInfo> {
@@ -175,27 +198,10 @@ fn parse_users(text: &str) -> Vec<UserInfo> {
 /// Output format: package_name|sha256|path
 /// Cross-platform implementation (works on Windows, macOS, and Linux)
 pub fn get_all_packages_sha256sum(device: &str) -> std::io::Result<Vec<(String, String, String)>> {
-    use std::process::Command;
     debug!("Getting all package sha256sums for device: {}", device);
 
-    // Step 1: Get package list with paths using adb shell pm list packages -f
-    let output = Command::new("adb")
-        .arg("-s")
-        .arg(device)
-        .arg("shell")
-        .arg("pm")
-        .arg("list")
-        .arg("packages")
-        .arg("-f")
-        .output()?;
-
-    if !output.status.success() {
-        let err = String::from_utf8_lossy(&output.stderr).to_string();
-        error!("ADB pm list packages failed: {}", err);
-        return Err(std::io::Error::new(std::io::ErrorKind::Other, err));
-    }
-
-    let packages_text = String::from_utf8_lossy(&output.stdout).to_string();
+    // Step 1: Get package list with paths using pm list packages -f
+    let packages_text = shell_exec(device, "pm list packages -f")?;
     debug!(
         "Received {} bytes of package list data",
         packages_text.len()
@@ -243,15 +249,7 @@ pub fn get_all_packages_sha256sum(device: &str) -> std::io::Result<Vec<(String, 
         .join(" ");
 
     let sha256_cmd = format!("sha256sum {} 2>/dev/null", paths_arg);
-    let sha256_output = Command::new("adb")
-        .arg("-s")
-        .arg(device)
-        .arg("shell")
-        .arg(&sha256_cmd)
-        .output()?;
-
-    // Parse sha256sum output: each line is "hash  path"
-    let sha256_text = String::from_utf8_lossy(&sha256_output.stdout).to_string();
+    let sha256_text = shell_exec(device, &sha256_cmd)?;
 
     // Create a map of path -> hash for quick lookup
     let mut hash_map: std::collections::HashMap<String, String> = std::collections::HashMap::new();
@@ -290,26 +288,10 @@ pub fn get_all_packages_sha256sum(device: &str) -> std::io::Result<Vec<(String, 
 /// Get fingerprints of all packages
 /// Cross-platform implementation (works on Windows, macOS, and Linux)
 pub fn get_all_packages_fingerprints(device: &str) -> std::io::Result<Vec<PackageFingerprint>> {
-    use std::process::Command;
     debug!("Getting all package fingerprints for device: {}", device);
 
     // Step 1: Get full dumpsys package packages output
-    let output = Command::new("adb")
-        .arg("-s")
-        .arg(device)
-        .arg("shell")
-        .arg("dumpsys")
-        .arg("package")
-        .arg("packages")
-        .output()?;
-
-    if !output.status.success() {
-        let err = String::from_utf8_lossy(&output.stderr).to_string();
-        error!("ADB command failed: {}", err);
-        return Err(std::io::Error::new(std::io::ErrorKind::Other, err));
-    }
-
-    let fingerprints_text = String::from_utf8_lossy(&output.stdout).to_string();
+    let fingerprints_text = shell_exec(device, "dumpsys package packages")?;
     debug!(
         "Received {} bytes of package fingerprint data",
         fingerprints_text.len()
@@ -637,29 +619,13 @@ pub fn get_single_package_sha256sum(
     device: &str,
     package_name: &str,
 ) -> std::io::Result<(String, String)> {
-    use std::process::Command;
     debug!(
         "Getting package paths for {} on device: {}",
         package_name, device
     );
 
     // Step 1: Get package info using dumpsys package
-    let output = Command::new("adb")
-        .arg("-s")
-        .arg(device)
-        .arg("shell")
-        .arg("dumpsys")
-        .arg("package")
-        .arg(package_name)
-        .output()?;
-
-    if !output.status.success() {
-        let err = String::from_utf8_lossy(&output.stderr).to_string();
-        error!("ADB dumpsys package failed: {}", err);
-        return Err(std::io::Error::new(std::io::ErrorKind::Other, err));
-    }
-
-    let dumpsys_text = String::from_utf8_lossy(&output.stdout).to_string();
+    let dumpsys_text = shell_exec(device, &format!("dumpsys package {}", package_name))?;
 
     // Step 2: Parse codePath values from dumpsys output
     // Lines look like: "    codePath=/data/app/~~xxx==/com.example.app-yyy=="
@@ -705,18 +671,8 @@ pub fn get_single_package_sha256sum(
         let mut found_files = false;
 
         // First try the find command
-        let find_output = Command::new("adb")
-            .arg("-s")
-            .arg(device)
-            .arg("shell")
-            .arg("find")
-            .arg(code_path)
-            .arg("-type")
-            .arg("f")
-            .output()?;
-
-        if find_output.status.success() {
-            let files_text = String::from_utf8_lossy(&find_output.stdout).to_string();
+        let find_cmd = format!("find {} -type f", code_path);
+        if let Ok(files_text) = shell_exec(device, &find_cmd) {
             for line in files_text.lines() {
                 let path = line.trim();
                 if !path.is_empty() {
@@ -725,27 +681,14 @@ pub fn get_single_package_sha256sum(
                 }
             }
         } else {
-            debug!(
-                "find command failed for path {}: {}",
-                code_path,
-                String::from_utf8_lossy(&find_output.stderr)
-            );
+            debug!("find command failed for path {}", code_path);
         }
 
         // If find failed or returned no results, try common APK locations directly
         // This is needed for user apps where find fails due to permission issues
         if !found_files {
-            // Use ls to list all .apk files in the directory
-            let ls_output = Command::new("adb")
-                .arg("-s")
-                .arg(device)
-                .arg("shell")
-                .arg("ls")
-                .arg(format!("{}/*.apk", code_path))
-                .output()?;
-
-            if ls_output.status.success() {
-                let files_text = String::from_utf8_lossy(&ls_output.stdout).to_string();
+            let ls_cmd = format!("ls {}/*.apk", code_path);
+            if let Ok(files_text) = shell_exec(device, &ls_cmd) {
                 for line in files_text.lines() {
                     let path = line.trim();
                     if !path.is_empty() && !path.contains("No such file") {
@@ -755,11 +698,7 @@ pub fn get_single_package_sha256sum(
                     }
                 }
             } else {
-                debug!(
-                    "ls command failed for path {}: {}",
-                    code_path,
-                    String::from_utf8_lossy(&ls_output.stderr)
-                );
+                debug!("ls command failed for path {}", code_path);
             }
 
             if !found_files {
@@ -795,14 +734,7 @@ pub fn get_single_package_sha256sum(
         .join(" ");
 
     let sha256_cmd = format!("sha256sum {} 2>/dev/null", paths_arg);
-    let sha256_output = Command::new("adb")
-        .arg("-s")
-        .arg(device)
-        .arg("shell")
-        .arg(&sha256_cmd)
-        .output()?;
-
-    let output_text = String::from_utf8_lossy(&sha256_output.stdout).to_string();
+    let output_text = shell_exec(device, &sha256_cmd).unwrap_or_default();
     debug!("SHA256 output length: {}", output_text.len());
 
     // Step 5: Parse sha256sum output
@@ -1242,38 +1174,52 @@ pub fn get_single_package_sha256sum(
 
 #[allow(dead_code)]
 pub fn install_apk(apk_path: &str, device: &str) -> std::io::Result<String> {
-    use std::process::Command;
-    let output = Command::new("adb")
-        .arg("-s")
-        .arg(device)
-        .arg("install")
-        .arg(apk_path)
-        .output()?;
+    #[cfg(target_os = "android")]
+    {
+        shell_exec(device, &format!("pm install {}", apk_path))
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        use std::process::Command;
+        let output = Command::new("adb")
+            .arg("-s")
+            .arg(device)
+            .arg("install")
+            .arg(apk_path)
+            .output()?;
 
-    if output.status.success() {
-        let result = String::from_utf8_lossy(&output.stdout).to_string();
-        Ok(result)
-    } else {
-        let err = String::from_utf8_lossy(&output.stderr).to_string();
-        Err(std::io::Error::new(std::io::ErrorKind::Other, err))
+        if output.status.success() {
+            let result = String::from_utf8_lossy(&output.stdout).to_string();
+            Ok(result)
+        } else {
+            let err = String::from_utf8_lossy(&output.stderr).to_string();
+            Err(std::io::Error::new(std::io::ErrorKind::Other, err))
+        }
     }
 }
 
 pub fn uninstall_app(package_name: &str, device: &str) -> std::io::Result<String> {
-    use std::process::Command;
-    let output = Command::new("adb")
-        .arg("-s")
-        .arg(device)
-        .arg("uninstall")
-        .arg(package_name)
-        .output()?;
+    #[cfg(target_os = "android")]
+    {
+        shell_exec(device, &format!("pm uninstall {}", package_name))
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        use std::process::Command;
+        let output = Command::new("adb")
+            .arg("-s")
+            .arg(device)
+            .arg("uninstall")
+            .arg(package_name)
+            .output()?;
 
-    if output.status.success() {
-        let result = String::from_utf8_lossy(&output.stdout).to_string();
-        Ok(result)
-    } else {
-        let err = String::from_utf8_lossy(&output.stderr).to_string();
-        Err(std::io::Error::new(std::io::ErrorKind::Other, err))
+        if output.status.success() {
+            let result = String::from_utf8_lossy(&output.stdout).to_string();
+            Ok(result)
+        } else {
+            let err = String::from_utf8_lossy(&output.stderr).to_string();
+            Err(std::io::Error::new(std::io::ErrorKind::Other, err))
+        }
     }
 }
 
@@ -1282,27 +1228,8 @@ pub fn uninstall_app_user(
     device: &str,
     user_id: Option<&str>,
 ) -> std::io::Result<String> {
-    use std::process::Command;
-
     let user = user_id.unwrap_or("0");
-    let output = Command::new("adb")
-        .arg("-s")
-        .arg(device)
-        .arg("shell")
-        .arg("pm")
-        .arg("uninstall")
-        .arg("--user")
-        .arg(user)
-        .arg(package_name)
-        .output()?;
-
-    if output.status.success() {
-        let result = String::from_utf8_lossy(&output.stdout).to_string();
-        Ok(result)
-    } else {
-        let err = String::from_utf8_lossy(&output.stderr).to_string();
-        Err(std::io::Error::new(std::io::ErrorKind::Other, err))
-    }
+    shell_exec(device, &format!("pm uninstall --user {} {}", user, package_name))
 }
 
 pub fn disable_app_current_user(
@@ -1310,48 +1237,12 @@ pub fn disable_app_current_user(
     device: &str,
     user_id: Option<&str>,
 ) -> std::io::Result<String> {
-    use std::process::Command;
-
     let user = user_id.unwrap_or("0");
-    let output = Command::new("adb")
-        .arg("-s")
-        .arg(device)
-        .arg("shell")
-        .arg("pm")
-        .arg("disable-user")
-        .arg("--user")
-        .arg(user)
-        .arg(package_name)
-        .output()?;
-
-    if output.status.success() {
-        Ok(String::from_utf8_lossy(&output.stdout).to_string())
-    } else {
-        Err(std::io::Error::new(
-            std::io::ErrorKind::Other,
-            String::from_utf8_lossy(&output.stderr).to_string(),
-        ))
-    }
+    shell_exec(device, &format!("pm disable-user --user {} {}", user, package_name))
 }
 
 pub fn enable_app(package_name: &str, device: &str) -> std::io::Result<String> {
-    use std::process::Command;
-    let output = Command::new("adb")
-        .arg("-s")
-        .arg(device)
-        .arg("shell")
-        .arg("pm")
-        .arg("enable")
-        .arg(package_name)
-        .output()?;
-
-    if output.status.success() {
-        let result = String::from_utf8_lossy(&output.stdout).to_string();
-        Ok(result)
-    } else {
-        let err = String::from_utf8_lossy(&output.stderr).to_string();
-        Err(std::io::Error::new(std::io::ErrorKind::Other, err))
-    }
+    shell_exec(device, &format!("pm enable {}", package_name))
 }
 
 pub fn pull_file_to_temp(
@@ -1360,205 +1251,156 @@ pub fn pull_file_to_temp(
     tmp_dir: &str,
     package_id: &str,
 ) -> std::io::Result<String> {
-    use std::process::Command;
-
     // Construct the target filename using package_id
     let filename = format!("{}.apk", package_id.replace('.', "_"));
     let local_path = std::path::PathBuf::from(tmp_dir).join(filename);
-    
-    // Convert to absolute path to ensure adb uses the right location
+
     let absolute_path = local_path;
-    
+
     let absolute_path_str = absolute_path.to_str().ok_or_else(|| {
         std::io::Error::new(std::io::ErrorKind::InvalidInput, "Invalid path encoding")
     })?;
 
-    debug!("Executing: adb -s {} pull {} {}", device_serial, file_path, absolute_path_str);
-    
-    // Verify parent directory exists before pull
+    // Verify parent directory exists
     if let Some(parent) = absolute_path.parent() {
         if !parent.exists() {
             debug!("Creating parent directory: {:?}", parent);
             std::fs::create_dir_all(parent)?;
         }
-        debug!("Parent directory exists: {:?}", parent);
-    }
-    
-    let output = Command::new("adb")
-        .arg("-s")
-        .arg(device_serial)
-        .arg("pull")
-        .arg(file_path)
-        .arg(absolute_path_str)
-        .current_dir(tmp_dir)
-        .output()?;
-
-    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
-    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
-    
-    debug!("adb pull stdout: {}", stdout);
-    if !stderr.is_empty() {
-        debug!("adb pull stderr: {}", stderr);
     }
 
-    if output.status.success() {
-        // Verify the file was pulled to the correct location
+    #[cfg(target_os = "android")]
+    {
+        // On Android, copy the file locally via Shizuku shell
+        debug!("Copying {} to {} via Shizuku", file_path, absolute_path_str);
+        shell_exec(device_serial, &format!("cp \"{}\" \"{}\"", file_path, absolute_path_str))?;
+
         if absolute_path.exists() {
             let file_size = std::fs::metadata(&absolute_path)?.len();
-            debug!("File successfully pulled to: {} ({} bytes)", absolute_path_str, file_size);
+            debug!("File copied to: {} ({} bytes)", absolute_path_str, file_size);
             Ok(absolute_path_str.to_string())
         } else {
-            // Debug: check what files exist in tmp_dir
-            let original_filename = std::path::Path::new(file_path)
-                .file_name()
-                .and_then(|f| f.to_str())
-                .unwrap_or("");
-            let original_in_tmp = std::path::PathBuf::from(tmp_dir).join(original_filename);
-
-            debug!("File not at expected path. Checking tmp_dir contents:");
-            if let Ok(entries) = std::fs::read_dir(tmp_dir) {
-                for entry in entries.flatten() {
-                    debug!("  Found: {:?}", entry.path());
-                }
-            }
-            debug!("Checking if original filename exists at: {:?} -> {}", original_in_tmp, original_in_tmp.exists());
-
-            let err_msg = format!(
-                "adb pull reported success but file does not exist at {}. stdout: {}, stderr: {}",
-                absolute_path_str, stdout, stderr
-            );
+            let err_msg = format!("cp succeeded but file not found at {}", absolute_path_str);
             error!("{}", err_msg);
             Err(std::io::Error::new(std::io::ErrorKind::NotFound, err_msg))
         }
-    } else {
-        let err = format!("adb pull failed: {} {}", stderr, stdout);
-        error!("{}", err);
-        Err(std::io::Error::new(std::io::ErrorKind::Other, err))
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        use std::process::Command;
+        debug!("Executing: adb -s {} pull {} {}", device_serial, file_path, absolute_path_str);
+
+        let output = Command::new("adb")
+            .arg("-s")
+            .arg(device_serial)
+            .arg("pull")
+            .arg(file_path)
+            .arg(absolute_path_str)
+            .current_dir(tmp_dir)
+            .output()?;
+
+        let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+        let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+
+        debug!("adb pull stdout: {}", stdout);
+        if !stderr.is_empty() {
+            debug!("adb pull stderr: {}", stderr);
+        }
+
+        if output.status.success() {
+            if absolute_path.exists() {
+                let file_size = std::fs::metadata(&absolute_path)?.len();
+                debug!("File successfully pulled to: {} ({} bytes)", absolute_path_str, file_size);
+                Ok(absolute_path_str.to_string())
+            } else {
+                let err_msg = format!(
+                    "adb pull reported success but file does not exist at {}. stdout: {}, stderr: {}",
+                    absolute_path_str, stdout, stderr
+                );
+                error!("{}", err_msg);
+                Err(std::io::Error::new(std::io::ErrorKind::NotFound, err_msg))
+            }
+        } else {
+            let err = format!("adb pull failed: {} {}", stderr, stdout);
+            error!("{}", err);
+            Err(std::io::Error::new(std::io::ErrorKind::Other, err))
+        }
     }
 }
 
 #[allow(dead_code)]
 pub fn install_existing_app(package_name: &str, device: &str) -> std::io::Result<String> {
-    use std::process::Command;
-    let output = Command::new("adb")
-        .arg("-s")
-        .arg(device)
-        .arg("shell")
-        .arg("cmd")
-        .arg("package")
-        .arg("install-existing")
-        .arg(package_name)
-        .output()?;
-
-    if output.status.success() {
-        let result = String::from_utf8_lossy(&output.stdout).to_string();
-        Ok(result)
-    } else {
-        let err = String::from_utf8_lossy(&output.stderr).to_string();
-        Err(std::io::Error::new(std::io::ErrorKind::Other, err))
-    }
+    shell_exec(device, &format!("cmd package install-existing {}", package_name))
 }
 
 pub fn usagestats_history(device: &str) -> std::io::Result<String> {
-    use std::process::Command;
-    let output = Command::new("adb")
-        .arg("-s")
-        .arg(device)
-        .arg("shell")
-        .arg("dumpsys")
-        .arg("usagestats")
-        .arg("-history")
-        .output()?;
-
-    if output.status.success() {
-        let result = String::from_utf8_lossy(&output.stdout).to_string();
-        Ok(result)
-    } else {
-        let err = String::from_utf8_lossy(&output.stderr).to_string();
-        Err(std::io::Error::new(std::io::ErrorKind::Other, err))
-    }
+    shell_exec(device, "dumpsys usagestats -history")
 }
 
 #[allow(dead_code)]
 pub fn extract_apk(device: &str, user_id: Option<&str>) -> std::io::Result<String> {
-    use std::process::Command;
     let user = user_id.unwrap_or("0");
-    let output = Command::new("adb")
-        .arg("-s")
-        .arg(device)
-        .arg("shell")
-        .arg("pm")
-        .arg("path")
-        .arg("--user")
-        .arg(user)
-        .output()?;
-
-    if output.status.success() {
-        let result = String::from_utf8_lossy(&output.stdout).to_string();
-        Ok(result)
-    } else {
-        let err = String::from_utf8_lossy(&output.stderr).to_string();
-        Err(std::io::Error::new(std::io::ErrorKind::Other, err))
-    }
+    shell_exec(device, &format!("pm path --user {}", user))
 }
 
 #[allow(dead_code)]
 pub fn kill_server() -> std::io::Result<String> {
-    use std::process::Command;
-    let output = Command::new("adb").arg("kill-server").output()?;
+    #[cfg(target_os = "android")]
+    {
+        // No ADB server on Android — no-op
+        Ok(String::new())
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        use std::process::Command;
+        let output = Command::new("adb").arg("kill-server").output()?;
 
-    if output.status.success() {
-        let result = String::from_utf8_lossy(&output.stdout).to_string();
-        Ok(result)
-    } else {
-        let err = String::from_utf8_lossy(&output.stderr).to_string();
-        Err(std::io::Error::new(std::io::ErrorKind::Other, err))
+        if output.status.success() {
+            let result = String::from_utf8_lossy(&output.stdout).to_string();
+            Ok(result)
+        } else {
+            let err = String::from_utf8_lossy(&output.stderr).to_string();
+            Err(std::io::Error::new(std::io::ErrorKind::Other, err))
+        }
     }
 }
 
 #[allow(dead_code)]
 pub fn root_get_permission() -> std::io::Result<String> {
-    use std::process::Command;
-    let output = Command::new("adb").arg("root").output()?;
+    #[cfg(target_os = "android")]
+    {
+        // Shizuku already provides elevated privileges — no-op
+        Ok(String::new())
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        use std::process::Command;
+        let output = Command::new("adb").arg("root").output()?;
 
-    if output.status.success() {
-        let result = String::from_utf8_lossy(&output.stdout).to_string();
-        Ok(result)
-    } else {
-        let err = String::from_utf8_lossy(&output.stderr).to_string();
-        Err(std::io::Error::new(std::io::ErrorKind::Other, err))
+        if output.status.success() {
+            let result = String::from_utf8_lossy(&output.stdout).to_string();
+            Ok(result)
+        } else {
+            let err = String::from_utf8_lossy(&output.stderr).to_string();
+            Err(std::io::Error::new(std::io::ErrorKind::Other, err))
+        }
     }
 }
 
 /// Get device CPU ABI list (e.g., "arm64-v8a,armeabi-v7a,armeabi")
 /// Returns a vector of supported ABIs in priority order
 pub fn get_cpu_abi_list(device: &str) -> std::io::Result<Vec<String>> {
-    use std::process::Command;
     debug!("Getting CPU ABI list for device: {}", device);
 
-    let output = Command::new("adb")
-        .arg("-s")
-        .arg(device)
-        .arg("shell")
-        .arg("getprop")
-        .arg("ro.product.cpu.abilist")
-        .output()?;
-
-    if output.status.success() {
-        let abi_list = String::from_utf8_lossy(&output.stdout).to_string();
-        let abis: Vec<String> = abi_list
-            .trim()
-            .split(',')
-            .map(|s| s.trim().to_string())
-            .filter(|s| !s.is_empty())
-            .collect();
-        debug!("Device ABIs: {:?}", abis);
-        Ok(abis)
-    } else {
-        let err = String::from_utf8_lossy(&output.stderr).to_string();
-        error!("Failed to get CPU ABI list: {}", err);
-        Err(std::io::Error::new(std::io::ErrorKind::Other, err))
-    }
+    let abi_list = shell_exec(device, "getprop ro.product.cpu.abilist")?;
+    let abis: Vec<String> = abi_list
+        .trim()
+        .split(',')
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .collect();
+    debug!("Device ABIs: {:?}", abis);
+    Ok(abis)
 }
 
 // adb

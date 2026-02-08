@@ -1230,9 +1230,19 @@ impl TabScanControl {
             toggle_ui(ui, &mut self.hide_system_app);
             ui.add_space(10.0);
             ui.label(tr!("filter"));
-            ui.add(egui::TextEdit::singleline(&mut self.text_filter)
+            let response = ui.add(egui::TextEdit::singleline(&mut self.text_filter)
                 .hint_text(tr!("filter-hint"))
                 .desired_width(200.0));
+            #[cfg(target_os = "android")]
+            {
+                if response.gained_focus() {
+                    let _ = crate::android_inputmethod::show_soft_input();
+                }
+                if response.lost_focus() {
+                    let _ = crate::android_inputmethod::hide_soft_input();
+                }
+            }
+            crate::clipboard_popup::show_clipboard_popup(ui, &response, &mut self.text_filter);
             if !self.text_filter.is_empty() && ui.button("✕").clicked() {
                 self.text_filter.clear();
             }

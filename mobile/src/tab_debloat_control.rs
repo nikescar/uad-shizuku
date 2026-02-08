@@ -536,7 +536,7 @@ impl TabDebloatControl {
 
         // Filter Buttons
         if !installed_packages.is_empty() {
-            ui.horizontal_wrapped(|ui| {
+            ui.horizontal_wrapped(|ui| { 
                 let all_total = installed_packages.len();
                 let all_enabled = installed_packages.iter().filter(|p| self.is_package_enabled(p)).count();
                 let all_text = tr!("all", { enabled: all_enabled, total: all_total });
@@ -634,7 +634,7 @@ impl TabDebloatControl {
                         self.active_filter = DebloatFilter::Unknown;
                     }
                 }
-            });
+            }); 
         }
 
         if installed_packages.is_empty() {
@@ -643,7 +643,7 @@ impl TabDebloatControl {
         }
 
         // Batch action buttons
-        ui.horizontal(|ui| {
+        ui.horizontal(|ui| { 
             let selected_count = self.selected_packages.len();
 
             if filter_is_mobile {
@@ -714,11 +714,11 @@ impl TabDebloatControl {
                     }
                 }
             }
-        });
+        }); 
         ui.add_space(10.0);
 
         // Show only enabled toggle
-        ui.horizontal(|ui| {
+        ui.horizontal(|ui| { 
             ui.label(tr!("show-only-enabled"));
             toggle_ui(ui, &mut self.show_only_enabled);
             ui.add_space(10.0);
@@ -726,21 +726,31 @@ impl TabDebloatControl {
             toggle_ui(ui, &mut self.hide_system_app);
             ui.add_space(10.0);
             ui.label(tr!("filter"));
-            ui.add(egui::TextEdit::singleline(&mut self.text_filter)
+            let response = ui.add(egui::TextEdit::singleline(&mut self.text_filter)
                 .hint_text(tr!("filter-hint"))
                 .desired_width(200.0));
+            #[cfg(target_os = "android")]
+            {
+                if response.gained_focus() {
+                    let _ = crate::android_inputmethod::show_soft_input();
+                }
+                if response.lost_focus() {
+                    let _ = crate::android_inputmethod::hide_soft_input();
+                }
+            }
+            crate::clipboard_popup::show_clipboard_popup(ui, &response, &mut self.text_filter);
             if !self.text_filter.is_empty() && ui.button("✕").clicked() {
                 self.text_filter.clear();
             }
-        });
+        }); 
         ui.add_space(10.0);
 
-        ui.horizontal(|ui| {
+        ui.horizontal(|ui| { 
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 ui.add_space(10.0);
                 ui.label(format!("* RP: {}", tr!("col-runtime-permissions")));
             });
-        });
+        }); 
 
         let clicked_package_idx = std::sync::Arc::new(std::sync::Mutex::new(None::<usize>));
 
@@ -866,241 +876,241 @@ impl TabDebloatControl {
                 let gp_cached = cached_google_play_apps.get(&pkg_id);
                 let am_cached = cached_apkmirror_apps.get(&pkg_id);
 
-            // Prepare texture data
-            let (fd_texture, fd_title, fd_developer) = if !is_system && fdroid_enabled {
-                if let Some(fd_app) = fd_cached {
-                    if fd_app.raw_response != "404" {
-                        let tex = fd_app.icon_base64.as_ref().and_then(|icon| {
-                            Self::load_texture_from_base64(ui.ctx(), "fd", &pkg_id, icon)
-                        });
-                        (tex.map(|t| t.id()), Some(fd_app.title.clone()), Some(fd_app.developer.clone()))
+                // Prepare texture data
+                let (fd_texture, fd_title, fd_developer) = if !is_system && fdroid_enabled {
+                    if let Some(fd_app) = fd_cached {
+                        if fd_app.raw_response != "404" {
+                            let tex = fd_app.icon_base64.as_ref().and_then(|icon| {
+                                Self::load_texture_from_base64(ui.ctx(), "fd", &pkg_id, icon)
+                            });
+                            (tex.map(|t| t.id()), Some(fd_app.title.clone()), Some(fd_app.developer.clone()))
+                        } else {
+                            (None, None, None)
+                        }
                     } else {
                         (None, None, None)
                     }
                 } else {
                     (None, None, None)
-                }
-            } else {
-                (None, None, None)
-            };
-
-            let (gp_texture, gp_title, gp_developer) = if !is_system && google_play_enabled && fd_title.is_none() {
-                if let Some(gp_app) = gp_cached {
-                    if gp_app.raw_response != "404" {
-                        let tex = gp_app.icon_base64.as_ref().and_then(|icon| {
-                            Self::load_texture_from_base64(ui.ctx(), "gp", &pkg_id, icon)
-                        });
-                        (tex.map(|t| t.id()), Some(gp_app.title.clone()), Some(gp_app.developer.clone()))
-                    } else {
-                        (None, None, None)
-                    }
-                } else {
-                    (None, None, None)
-                }
-            } else {
-                (None, None, None)
-            };
-
-            let (am_texture, am_title, am_developer) = if is_system && apkmirror_enabled {
-                if let Some(am_app) = am_cached {
-                    if am_app.raw_response != "404" {
-                        let tex = am_app.icon_base64.as_ref().and_then(|icon| {
-                            Self::load_texture_from_base64(ui.ctx(), "am", &pkg_id, icon)
-                        });
-                        (tex.map(|t| t.id()), Some(am_app.title.clone()), Some(am_app.developer.clone()))
-                    } else {
-                        (None, None, None)
-                    }
-                } else {
-                    (None, None, None)
-                }
-            } else {
-                (None, None, None)
-            };
-
-            debloat_table = debloat_table.row(|table_row| {
-                // Package name column - show app info if available, otherwise show plain package name
-                let mut row_builder = if let (Some(title), Some(developer)) = (fd_title.clone(), fd_developer.clone()) {
-                    table_row.widget_cell(move |ui: &mut egui::Ui| {
-                        ui.horizontal(|ui| {
-                            if let Some(tex_id) = fd_texture {
-                                ui.image((tex_id, egui::vec2(38.0, 38.0)));
-                            }
-                            ui.vertical(|ui| {
-                                ui.style_mut().spacing.item_spacing.y = 0.1;
-                                ui.label(egui::RichText::new(&title).strong());
-                                ui.label(egui::RichText::new(&developer).small().color(egui::Color32::GRAY));
-                            });
-                        });
-                    })
-                } else if let (Some(title), Some(developer)) = (gp_title.clone(), gp_developer.clone()) {
-                    table_row.widget_cell(move |ui: &mut egui::Ui| {
-                        ui.horizontal(|ui| {
-                            if let Some(tex_id) = gp_texture {
-                                ui.image((tex_id, egui::vec2(38.0, 38.0)));
-                            }
-                            ui.vertical(|ui| {
-                                ui.style_mut().spacing.item_spacing.y = 0.1;
-                                ui.label(egui::RichText::new(&title).strong());
-                                ui.label(egui::RichText::new(&developer).small().color(egui::Color32::GRAY));
-                            });
-                        });
-                    })
-                } else if let (Some(title), Some(developer)) = (am_title.clone(), am_developer.clone()) {
-                    table_row.widget_cell(move |ui: &mut egui::Ui| {
-                        ui.horizontal(|ui| {
-                            if let Some(tex_id) = am_texture {
-                                ui.image((tex_id, egui::vec2(38.0, 38.0)));
-                            }
-                            ui.vertical(|ui| {
-                                ui.style_mut().spacing.item_spacing.y = 0.1;
-                                ui.label(egui::RichText::new(&title).strong());
-                                ui.label(egui::RichText::new(&developer).small().color(egui::Color32::GRAY));
-                            });
-                        });
-                    })
-                } else {
-                    // No app info available, show plain package name (no spinner)
-                    let pkg_name = package_name_clone.clone();
-                    table_row.widget_cell(move |ui: &mut egui::Ui| {
-                        ui.add(egui::Label::new(&pkg_name).wrap());
-                    })
                 };
 
-                // Debloat category column
-                row_builder = row_builder.widget_cell(move |ui: &mut egui::Ui| {
-                    let bg_color = match debloat_category_clone.as_str() {
-                        "Recommended" => egui::Color32::from_rgb(56, 142, 60),
-                        "Advanced" => egui::Color32::from_rgb(33, 150, 243),
-                        "Expert" => egui::Color32::from_rgb(255, 152, 0),
-                        "Unsafe" => egui::Color32::from_rgb(255, 235, 59),
-                        "Unknown" => egui::Color32::from_rgb(255, 255, 255),
-                        _ => egui::Color32::from_rgb(158, 158, 158),
-                    };
-                    let text_color = match debloat_category_clone.as_str() {
-                        "Unknown" | "Unsafe" => egui::Color32::from_rgb(0, 0, 0),
-                        _ => egui::Color32::WHITE,
-                    };
-                    let label_text = match debloat_category_clone.as_str() {
-                        "Recommended" => tr!("label-recommended"),
-                        "Advanced" => tr!("label-advanced"),
-                        "Expert" => tr!("label-expert"),
-                        "Unsafe" => tr!("label-unsafe"),
-                        "Unknown" => tr!("label-unknown"),
-                        _ => debloat_category_clone.clone(),
-                    };
-                    ui.horizontal(|ui| {
-                        egui::Frame::new()
-                            .fill(bg_color)
-                            .corner_radius(8.0)
-                            .inner_margin(egui::Margin::symmetric(12, 6))
-                            .show(ui, |ui| {
-                                ui.label(egui::RichText::new(&label_text).color(text_color).size(12.0));
+                let (gp_texture, gp_title, gp_developer) = if !is_system && google_play_enabled && fd_title.is_none() {
+                    if let Some(gp_app) = gp_cached {
+                        if gp_app.raw_response != "404" {
+                            let tex = gp_app.icon_base64.as_ref().and_then(|icon| {
+                                Self::load_texture_from_base64(ui.ctx(), "gp", &pkg_id, icon)
                             });
-                    });
-                });
+                            (tex.map(|t| t.id()), Some(gp_app.title.clone()), Some(gp_app.developer.clone()))
+                        } else {
+                            (None, None, None)
+                        }
+                    } else {
+                        (None, None, None)
+                    }
+                } else {
+                    (None, None, None)
+                };
 
-                // Runtime permissions column
-                row_builder = row_builder.cell(&runtime_perms);
-
-                // Enabled column
-                let enabled_text_clone = enabled_text.clone();
-                row_builder = row_builder.widget_cell(move |ui: &mut egui::Ui| {
-                    let bg_color = match enabled_text_clone.as_str() {
-                        "REMOVED_USER" | "DISABLED" | "DISABLED_USER" => egui::Color32::from_rgb(211, 47, 47),
-                        "DEFAULT" | "ENABLED" | "UNKNOWN" => egui::Color32::from_rgb(56, 142, 60),
-                        _ => egui::Color32::from_rgb(158, 158, 158),
-                    };
-                    ui.horizontal(|ui| {
-                        egui::Frame::new()
-                            .fill(bg_color)
-                            .corner_radius(8.0)
-                            .inner_margin(egui::Margin::symmetric(12, 6))
-                            .show(ui, |ui| {
-                                ui.label(egui::RichText::new(&enabled_text_clone).color(egui::Color32::WHITE).size(12.0));
+                let (am_texture, am_title, am_developer) = if is_system && apkmirror_enabled {
+                    if let Some(am_app) = am_cached {
+                        if am_app.raw_response != "404" {
+                            let tex = am_app.icon_base64.as_ref().and_then(|icon| {
+                                Self::load_texture_from_base64(ui.ctx(), "am", &pkg_id, icon)
                             });
+                            (tex.map(|t| t.id()), Some(am_app.title.clone()), Some(am_app.developer.clone()))
+                        } else {
+                            (None, None, None)
+                        }
+                    } else {
+                        (None, None, None)
+                    }
+                } else {
+                    (None, None, None)
+                };
+
+                debloat_table = debloat_table.row(|table_row| {
+                    // Package name column - show app info if available, otherwise show plain package name
+                    let mut row_builder = if let (Some(title), Some(developer)) = (fd_title.clone(), fd_developer.clone()) {
+                        table_row.widget_cell(move |ui: &mut egui::Ui| {
+                            ui.horizontal(|ui| {
+                                if let Some(tex_id) = fd_texture {
+                                    ui.image((tex_id, egui::vec2(38.0, 38.0)));
+                                }
+                                ui.vertical(|ui| {
+                                    ui.style_mut().spacing.item_spacing.y = 0.1;
+                                    ui.label(egui::RichText::new(&title).strong());
+                                    ui.label(egui::RichText::new(&developer).small().color(egui::Color32::GRAY));
+                                });
+                            });
+                        })
+                    } else if let (Some(title), Some(developer)) = (gp_title.clone(), gp_developer.clone()) {
+                        table_row.widget_cell(move |ui: &mut egui::Ui| {
+                            ui.horizontal(|ui| {
+                                if let Some(tex_id) = gp_texture {
+                                    ui.image((tex_id, egui::vec2(38.0, 38.0)));
+                                }
+                                ui.vertical(|ui| {
+                                    ui.style_mut().spacing.item_spacing.y = 0.1;
+                                    ui.label(egui::RichText::new(&title).strong());
+                                    ui.label(egui::RichText::new(&developer).small().color(egui::Color32::GRAY));
+                                });
+                            });
+                        })
+                    } else if let (Some(title), Some(developer)) = (am_title.clone(), am_developer.clone()) {
+                        table_row.widget_cell(move |ui: &mut egui::Ui| {
+                            ui.horizontal(|ui| {
+                                if let Some(tex_id) = am_texture {
+                                    ui.image((tex_id, egui::vec2(38.0, 38.0)));
+                                }
+                                ui.vertical(|ui| {
+                                    ui.style_mut().spacing.item_spacing.y = 0.1;
+                                    ui.label(egui::RichText::new(&title).strong());
+                                    ui.label(egui::RichText::new(&developer).small().color(egui::Color32::GRAY));
+                                });
+                            });
+                        })
+                    } else {
+                        // No app info available, show plain package name (no spinner)
+                        let pkg_name = package_name_clone.clone();
+                        table_row.widget_cell(move |ui: &mut egui::Ui| {
+                            ui.add(egui::Label::new(&pkg_name).wrap());
+                        })
+                    };
+
+                    // Debloat category column
+                    row_builder = row_builder.widget_cell(move |ui: &mut egui::Ui| {
+                        let bg_color = match debloat_category_clone.as_str() {
+                            "Recommended" => egui::Color32::from_rgb(56, 142, 60),
+                            "Advanced" => egui::Color32::from_rgb(33, 150, 243),
+                            "Expert" => egui::Color32::from_rgb(255, 152, 0),
+                            "Unsafe" => egui::Color32::from_rgb(255, 235, 59),
+                            "Unknown" => egui::Color32::from_rgb(255, 255, 255),
+                            _ => egui::Color32::from_rgb(158, 158, 158),
+                        };
+                        let text_color = match debloat_category_clone.as_str() {
+                            "Unknown" | "Unsafe" => egui::Color32::from_rgb(0, 0, 0),
+                            _ => egui::Color32::WHITE,
+                        };
+                        let label_text = match debloat_category_clone.as_str() {
+                            "Recommended" => tr!("label-recommended"),
+                            "Advanced" => tr!("label-advanced"),
+                            "Expert" => tr!("label-expert"),
+                            "Unsafe" => tr!("label-unsafe"),
+                            "Unknown" => tr!("label-unknown"),
+                            _ => debloat_category_clone.clone(),
+                        };
+                        ui.horizontal(|ui| {
+                            egui::Frame::new()
+                                .fill(bg_color)
+                                .corner_radius(8.0)
+                                .inner_margin(egui::Margin::symmetric(12, 6))
+                                .show(ui, |ui| {
+                                    ui.label(egui::RichText::new(&label_text).color(text_color).size(12.0));
+                                });
+                        });
                     });
-                });
 
-                // Install reason column
-                row_builder = row_builder.cell(install_reason);
+                    // Runtime permissions column
+                    row_builder = row_builder.cell(&runtime_perms);
 
-                // Tasks column
-                let pkg_id_for_buttons = pkg_id_clone.clone();
-                row_builder = row_builder.widget_cell(move |ui: &mut egui::Ui| {
-                    ui.horizontal(|ui| {
-                        let chip = assist_chip("").leading_icon_svg(INFO_SVG).elevated(true);
-                        if ui.add(chip.on_click(|| {})).clicked() {
-                            if let Ok(mut clicked) = clicked_idx_clone.lock() {
-                                *clicked = Some(idx);
-                            }
-                        }
-
-                        if enabled_str.contains("DEFAULT") || enabled_str.contains("ENABLED") {
-                            let uninstall_chip = assist_chip("").leading_icon_svg(TRASH_RED_SVG).elevated(true);
-                            if ui.add(uninstall_chip.on_click(|| {})).clicked() {
-                                ui.data_mut(|data| {
-                                    data.insert_temp(egui::Id::new("uninstall_clicked_package"), pkg_id_for_buttons.clone());
-                                    data.insert_temp(egui::Id::new("uninstall_clicked_is_system"), is_system);
+                    // Enabled column
+                    let enabled_text_clone = enabled_text.clone();
+                    row_builder = row_builder.widget_cell(move |ui: &mut egui::Ui| {
+                        let bg_color = match enabled_text_clone.as_str() {
+                            "REMOVED_USER" | "DISABLED" | "DISABLED_USER" => egui::Color32::from_rgb(211, 47, 47),
+                            "DEFAULT" | "ENABLED" | "UNKNOWN" => egui::Color32::from_rgb(56, 142, 60),
+                            _ => egui::Color32::from_rgb(158, 158, 158),
+                        };
+                        ui.horizontal(|ui| {
+                            egui::Frame::new()
+                                .fill(bg_color)
+                                .corner_radius(8.0)
+                                .inner_margin(egui::Margin::symmetric(12, 6))
+                                .show(ui, |ui| {
+                                    ui.label(egui::RichText::new(&enabled_text_clone).color(egui::Color32::WHITE).size(12.0));
                                 });
-                            }
-                        }
-
-                        if enabled_str.contains("REMOVED_USER") || enabled_str.contains("DISABLED_USER") || enabled_str.contains("DISABLED") {
-                            let enable_chip = assist_chip("").leading_icon_svg(ENABLE_GREEN_SVG).elevated(true);
-                            if ui.add(enable_chip.on_click(|| {})).clicked() {
-                                ui.data_mut(|data| {
-                                    data.insert_temp(egui::Id::new("enable_clicked_package"), pkg_id_for_buttons.clone());
-                                });
-                            }
-                        }
-
-                        if enabled_str.contains("DEFAULT") || enabled_str.contains("ENABLED") {
-                            let disable_chip = assist_chip("").leading_icon_svg(DISABLE_RED_SVG).elevated(true);
-                            if ui.add(disable_chip.on_click(|| {})).clicked() {
-                                ui.data_mut(|data| {
-                                    data.insert_temp(egui::Id::new("disable_clicked_package"), pkg_id_for_buttons.clone());
-                                });
-                            }
-                        }
+                        });
                     });
+
+                    // Install reason column
+                    row_builder = row_builder.cell(install_reason);
+
+                    // Tasks column
+                    let pkg_id_for_buttons = pkg_id_clone.clone();
+                    row_builder = row_builder.widget_cell(move |ui: &mut egui::Ui| {
+                        ui.horizontal(|ui| {
+                            let chip = assist_chip("").leading_icon_svg(INFO_SVG).elevated(true);
+                            if ui.add(chip.on_click(|| {})).clicked() {
+                                if let Ok(mut clicked) = clicked_idx_clone.lock() {
+                                    *clicked = Some(idx);
+                                }
+                            }
+
+                            if enabled_str.contains("DEFAULT") || enabled_str.contains("ENABLED") {
+                                let uninstall_chip = assist_chip("").leading_icon_svg(TRASH_RED_SVG).elevated(true);
+                                if ui.add(uninstall_chip.on_click(|| {})).clicked() {
+                                    ui.data_mut(|data| {
+                                        data.insert_temp(egui::Id::new("uninstall_clicked_package"), pkg_id_for_buttons.clone());
+                                        data.insert_temp(egui::Id::new("uninstall_clicked_is_system"), is_system);
+                                    });
+                                }
+                            }
+
+                            if enabled_str.contains("REMOVED_USER") || enabled_str.contains("DISABLED_USER") || enabled_str.contains("DISABLED") {
+                                let enable_chip = assist_chip("").leading_icon_svg(ENABLE_GREEN_SVG).elevated(true);
+                                if ui.add(enable_chip.on_click(|| {})).clicked() {
+                                    ui.data_mut(|data| {
+                                        data.insert_temp(egui::Id::new("enable_clicked_package"), pkg_id_for_buttons.clone());
+                                    });
+                                }
+                            }
+
+                            if enabled_str.contains("DEFAULT") || enabled_str.contains("ENABLED") {
+                                let disable_chip = assist_chip("").leading_icon_svg(DISABLE_RED_SVG).elevated(true);
+                                if ui.add(disable_chip.on_click(|| {})).clicked() {
+                                    ui.data_mut(|data| {
+                                        data.insert_temp(egui::Id::new("disable_clicked_package"), pkg_id_for_buttons.clone());
+                                    });
+                                }
+                            }
+                        });
+                    });
+
+                    row_builder = row_builder.id(format!("debloat_table_row_{}", idx));
+
+                    if is_selected {
+                        row_builder = row_builder.selected(true);
+                    }
+
+                    row_builder
                 });
+            }
 
-                row_builder = row_builder.id(format!("debloat_table_row_{}", idx));
+            let table_response = debloat_table.show(ui);
 
-                if is_selected {
-                    row_builder = row_builder.selected(true);
+            // Sync sort state
+            let (widget_sort_col, widget_sort_dir) = table_response.sort_state;
+            let widget_sort_ascending = matches!(widget_sort_dir, egui_material3::SortDirection::Ascending);
+
+            if widget_sort_col != self.sort_column
+                || (widget_sort_col.is_some() && widget_sort_ascending != self.sort_ascending)
+            {
+                self.sort_column = widget_sort_col;
+                self.sort_ascending = widget_sort_ascending;
+                if self.sort_column.is_some() {
+                    self.sort_packages();
                 }
+            }
 
-                row_builder
-            });
-        }
-
-        let table_response = debloat_table.show(ui);
-
-        // Sync sort state
-        let (widget_sort_col, widget_sort_dir) = table_response.sort_state;
-        let widget_sort_ascending = matches!(widget_sort_dir, egui_material3::SortDirection::Ascending);
-
-        if widget_sort_col != self.sort_column
-            || (widget_sort_col.is_some() && widget_sort_ascending != self.sort_ascending)
-        {
-            self.sort_column = widget_sort_col;
-            self.sort_ascending = widget_sort_ascending;
-            if self.sort_column.is_some() {
+            if let Some(clicked_col) = table_response.column_clicked {
+                if self.sort_column == Some(clicked_col) {
+                    self.sort_ascending = !self.sort_ascending;
+                } else {
+                    self.sort_column = Some(clicked_col);
+                    self.sort_ascending = true;
+                }
                 self.sort_packages();
             }
-        }
-
-        if let Some(clicked_col) = table_response.column_clicked {
-            if self.sort_column == Some(clicked_col) {
-                self.sort_ascending = !self.sort_ascending;
-            } else {
-                self.sort_column = Some(clicked_col);
-                self.sort_ascending = true;
-            }
-            self.sort_packages();
-        }
 
             // Sync selection state
             if table_response.selected_rows.len() == filtered_package_names.len() {
@@ -1150,162 +1160,162 @@ impl TabDebloatControl {
             });
             ui.add_space(4.0);
 
-            egui::ScrollArea::vertical()
-                .id_salt("debloat_cards_scroll")
-                .show(ui, |ui| {
-                    ui.horizontal_wrapped(|ui| {
-                        for (idx, pkg_id, package_name, is_system, debloat_category, runtime_perms, enabled_text, _install_reason, is_selected) in filtered_packages {
-                            let pkg_id_clone = pkg_id.clone();
-                            let enabled_str = enabled_text.clone();
+            // egui::ScrollArea::vertical()
+            //     .id_salt("debloat_cards_scroll")
+            //     .show(ui, |ui| {
+            ui.horizontal_wrapped(|ui| {
+                for (idx, pkg_id, package_name, is_system, debloat_category, runtime_perms, enabled_text, _install_reason, is_selected) in filtered_packages {
+                    let pkg_id_clone = pkg_id.clone();
+                    let enabled_str = enabled_text.clone();
 
-                            // Get cached app info
-                            let fd_cached = cached_fdroid_apps.get(&pkg_id);
-                            let gp_cached = cached_google_play_apps.get(&pkg_id);
-                            let am_cached = cached_apkmirror_apps.get(&pkg_id);
+                    // Get cached app info
+                    let fd_cached = cached_fdroid_apps.get(&pkg_id);
+                    let gp_cached = cached_google_play_apps.get(&pkg_id);
+                    let am_cached = cached_apkmirror_apps.get(&pkg_id);
 
-                            // Get app title and icon
-                            let (texture_id, title, developer) = if !is_system && fdroid_enabled {
-                                if let Some(fd_app) = fd_cached {
-                                    if fd_app.raw_response != "404" {
-                                        let tex = fd_app.icon_base64.as_ref().and_then(|icon| {
-                                            Self::load_texture_from_base64(ui.ctx(), "fd", &pkg_id, icon)
-                                        });
-                                        (tex.map(|t| t.id()), Some(fd_app.title.clone()), Some(fd_app.developer.clone()))
-                                    } else { (None, None, None) }
-                                } else { (None, None, None) }
-                            } else if !is_system && google_play_enabled {
-                                if let Some(gp_app) = gp_cached {
-                                    if gp_app.raw_response != "404" {
-                                        let tex = gp_app.icon_base64.as_ref().and_then(|icon| {
-                                            Self::load_texture_from_base64(ui.ctx(), "gp", &pkg_id, icon)
-                                        });
-                                        (tex.map(|t| t.id()), Some(gp_app.title.clone()), Some(gp_app.developer.clone()))
-                                    } else { (None, None, None) }
-                                } else { (None, None, None) }
-                            } else if is_system && apkmirror_enabled {
-                                if let Some(am_app) = am_cached {
-                                    if am_app.raw_response != "404" {
-                                        let tex = am_app.icon_base64.as_ref().and_then(|icon| {
-                                            Self::load_texture_from_base64(ui.ctx(), "am", &pkg_id, icon)
-                                        });
-                                        (tex.map(|t| t.id()), Some(am_app.title.clone()), Some(am_app.developer.clone()))
-                                    } else { (None, None, None) }
-                                } else { (None, None, None) }
-                            } else {
-                                (None, None, None)
-                            };
-
-                            let display_title = title.unwrap_or_else(|| package_name.clone());
-                            let display_subtitle = developer.unwrap_or_else(|| pkg_id.clone());
-
-                            // Category color
-                            let category_color = match debloat_category.as_str() {
-                                "Recommended" => egui::Color32::from_rgb(56, 142, 60),
-                                "Advanced" => egui::Color32::from_rgb(33, 150, 243),
-                                "Expert" => egui::Color32::from_rgb(255, 152, 0),
-                                "Unsafe" => egui::Color32::from_rgb(255, 235, 59),
-                                _ => egui::Color32::from_rgb(158, 158, 158),
-                            };
-
-                            let card = outlined_card2()
-                                .clickable(true)
-                                .header(&display_title, Some(&display_subtitle))
-                                .content(|ui| {
-                                    ui.horizontal(|ui| {
-                                        if let Some(tex_id) = texture_id {
-                                            ui.image((tex_id, egui::vec2(48.0, 48.0)));
-                                        }
-                                        ui.vertical(|ui| {
-                                            // Runtime permissions badge
-                                            egui::Frame::new()
-                                                .fill(egui::Color32::from_rgb(103, 58, 183))
-                                                .corner_radius(4.0)
-                                                .inner_margin(egui::Margin::symmetric(8, 4))
-                                                .show(ui, |ui| {
-                                                    ui.label(egui::RichText::new(format!("RP: {}", runtime_perms)).color(egui::Color32::WHITE).size(11.0));
-                                                });
-                                            // Category badge
-                                            egui::Frame::new()
-                                                .fill(category_color)
-                                                .corner_radius(4.0)
-                                                .inner_margin(egui::Margin::symmetric(8, 4))
-                                                .show(ui, |ui| {
-                                                    let text_color = if debloat_category == "Unsafe" || debloat_category == "Unknown" {
-                                                        egui::Color32::BLACK
-                                                    } else {
-                                                        egui::Color32::WHITE
-                                                    };
-                                                    ui.label(egui::RichText::new(&debloat_category).color(text_color).size(11.0));
-                                                });
-                                            // Status badge
-                                            let status_color = if enabled_text.contains("DISABLED") || enabled_text.contains("REMOVED") {
-                                                egui::Color32::from_rgb(211, 47, 47)
-                                            } else {
-                                                egui::Color32::from_rgb(56, 142, 60)
-                                            };
-                                            egui::Frame::new()
-                                                .fill(status_color)
-                                                .corner_radius(4.0)
-                                                .inner_margin(egui::Margin::symmetric(8, 4))
-                                                .show(ui, |ui| {
-                                                    ui.label(egui::RichText::new(&enabled_text).color(egui::Color32::WHITE).size(11.0));
-                                                });
-                                        });
-                                    });
-                                })
-                                .actions(|ui| {
-                                    // Selection checkbox
-                                    let mut selected = is_selected;
-                                    if ui.checkbox(&mut selected, "").changed() {
-                                        if selected {
-                                            ui.data_mut(|data| {
-                                                data.insert_temp(egui::Id::new("card_select_package"), pkg_id_clone.clone());
-                                            });
-                                        } else {
-                                            ui.data_mut(|data| {
-                                                data.insert_temp(egui::Id::new("card_deselect_package"), pkg_id_clone.clone());
-                                            });
-                                        }
-                                    }
-
-                                    // Info button
-                                    let info_chip = assist_chip("").leading_icon_svg(INFO_SVG).elevated(true);
-                                    if ui.add(info_chip.on_click(|| {})).clicked() {
-                                        ui.data_mut(|data| {
-                                            data.insert_temp(egui::Id::new("card_info_clicked_idx"), idx);
-                                        });
-                                    }
-
-                                    // Action buttons based on status
-                                    if enabled_str.contains("DEFAULT") || enabled_str.contains("ENABLED") {
-                                        let uninstall_chip = assist_chip("").leading_icon_svg(TRASH_RED_SVG).elevated(true);
-                                        if ui.add(uninstall_chip.on_click(|| {})).clicked() {
-                                            ui.data_mut(|data| {
-                                                data.insert_temp(egui::Id::new("uninstall_clicked_package"), pkg_id_clone.clone());
-                                                data.insert_temp(egui::Id::new("uninstall_clicked_is_system"), is_system);
-                                            });
-                                        }
-                                        let disable_chip = assist_chip("").leading_icon_svg(DISABLE_RED_SVG).elevated(true);
-                                        if ui.add(disable_chip.on_click(|| {})).clicked() {
-                                            ui.data_mut(|data| {
-                                                data.insert_temp(egui::Id::new("disable_clicked_package"), pkg_id_clone.clone());
-                                            });
-                                        }
-                                    }
-
-                                    if enabled_str.contains("REMOVED_USER") || enabled_str.contains("DISABLED_USER") || enabled_str.contains("DISABLED") {
-                                        let enable_chip = assist_chip("").leading_icon_svg(ENABLE_GREEN_SVG).elevated(true);
-                                        if ui.add(enable_chip.on_click(|| {})).clicked() {
-                                            ui.data_mut(|data| {
-                                                data.insert_temp(egui::Id::new("enable_clicked_package"), pkg_id_clone.clone());
-                                            });
-                                        }
-                                    }
+                    // Get app title and icon
+                    let (texture_id, title, developer) = if !is_system && fdroid_enabled {
+                        if let Some(fd_app) = fd_cached {
+                            if fd_app.raw_response != "404" {
+                                let tex = fd_app.icon_base64.as_ref().and_then(|icon| {
+                                    Self::load_texture_from_base64(ui.ctx(), "fd", &pkg_id, icon)
                                 });
-                            ui.add(card);
-                        }
-                    });
-                });
+                                (tex.map(|t| t.id()), Some(fd_app.title.clone()), Some(fd_app.developer.clone()))
+                            } else { (None, None, None) }
+                        } else { (None, None, None) }
+                    } else if !is_system && google_play_enabled {
+                        if let Some(gp_app) = gp_cached {
+                            if gp_app.raw_response != "404" {
+                                let tex = gp_app.icon_base64.as_ref().and_then(|icon| {
+                                    Self::load_texture_from_base64(ui.ctx(), "gp", &pkg_id, icon)
+                                });
+                                (tex.map(|t| t.id()), Some(gp_app.title.clone()), Some(gp_app.developer.clone()))
+                            } else { (None, None, None) }
+                        } else { (None, None, None) }
+                    } else if is_system && apkmirror_enabled {
+                        if let Some(am_app) = am_cached {
+                            if am_app.raw_response != "404" {
+                                let tex = am_app.icon_base64.as_ref().and_then(|icon| {
+                                    Self::load_texture_from_base64(ui.ctx(), "am", &pkg_id, icon)
+                                });
+                                (tex.map(|t| t.id()), Some(am_app.title.clone()), Some(am_app.developer.clone()))
+                            } else { (None, None, None) }
+                        } else { (None, None, None) }
+                    } else {
+                        (None, None, None)
+                    };
+
+                    let display_title = title.unwrap_or_else(|| package_name.clone());
+                    let display_subtitle = developer.unwrap_or_else(|| pkg_id.clone());
+
+                    // Category color
+                    let category_color = match debloat_category.as_str() {
+                        "Recommended" => egui::Color32::from_rgb(56, 142, 60),
+                        "Advanced" => egui::Color32::from_rgb(33, 150, 243),
+                        "Expert" => egui::Color32::from_rgb(255, 152, 0),
+                        "Unsafe" => egui::Color32::from_rgb(255, 235, 59),
+                        _ => egui::Color32::from_rgb(158, 158, 158),
+                    };
+
+                    let card = outlined_card2()
+                        .clickable(true)
+                        .header(&display_title, Some(&display_subtitle))
+                        .content(|ui| {
+                            ui.horizontal(|ui| {
+                                if let Some(tex_id) = texture_id {
+                                    ui.image((tex_id, egui::vec2(48.0, 48.0)));
+                                }
+                                ui.vertical(|ui| {
+                                    // Runtime permissions badge
+                                    egui::Frame::new()
+                                        .fill(egui::Color32::from_rgb(103, 58, 183))
+                                        .corner_radius(4.0)
+                                        .inner_margin(egui::Margin::symmetric(8, 4))
+                                        .show(ui, |ui| {
+                                            ui.label(egui::RichText::new(format!("RP: {}", runtime_perms)).color(egui::Color32::WHITE).size(11.0));
+                                        });
+                                    // Category badge
+                                    egui::Frame::new()
+                                        .fill(category_color)
+                                        .corner_radius(4.0)
+                                        .inner_margin(egui::Margin::symmetric(8, 4))
+                                        .show(ui, |ui| {
+                                            let text_color = if debloat_category == "Unsafe" || debloat_category == "Unknown" {
+                                                egui::Color32::BLACK
+                                            } else {
+                                                egui::Color32::WHITE
+                                            };
+                                            ui.label(egui::RichText::new(&debloat_category).color(text_color).size(11.0));
+                                        });
+                                    // Status badge
+                                    let status_color = if enabled_text.contains("DISABLED") || enabled_text.contains("REMOVED") {
+                                        egui::Color32::from_rgb(211, 47, 47)
+                                    } else {
+                                        egui::Color32::from_rgb(56, 142, 60)
+                                    };
+                                    egui::Frame::new()
+                                        .fill(status_color)
+                                        .corner_radius(4.0)
+                                        .inner_margin(egui::Margin::symmetric(8, 4))
+                                        .show(ui, |ui| {
+                                            ui.label(egui::RichText::new(&enabled_text).color(egui::Color32::WHITE).size(11.0));
+                                        });
+                                });
+                            });
+                        })
+                        .actions(|ui| {
+                            // Selection checkbox
+                            let mut selected = is_selected;
+                            if ui.checkbox(&mut selected, "").changed() {
+                                if selected {
+                                    ui.data_mut(|data| {
+                                        data.insert_temp(egui::Id::new("card_select_package"), pkg_id_clone.clone());
+                                    });
+                                } else {
+                                    ui.data_mut(|data| {
+                                        data.insert_temp(egui::Id::new("card_deselect_package"), pkg_id_clone.clone());
+                                    });
+                                }
+                            }
+
+                            // Info button
+                            let info_chip = assist_chip("").leading_icon_svg(INFO_SVG).elevated(true);
+                            if ui.add(info_chip.on_click(|| {})).clicked() {
+                                ui.data_mut(|data| {
+                                    data.insert_temp(egui::Id::new("card_info_clicked_idx"), idx);
+                                });
+                            }
+
+                            // Action buttons based on status
+                            if enabled_str.contains("DEFAULT") || enabled_str.contains("ENABLED") {
+                                let uninstall_chip = assist_chip("").leading_icon_svg(TRASH_RED_SVG).elevated(true);
+                                if ui.add(uninstall_chip.on_click(|| {})).clicked() {
+                                    ui.data_mut(|data| {
+                                        data.insert_temp(egui::Id::new("uninstall_clicked_package"), pkg_id_clone.clone());
+                                        data.insert_temp(egui::Id::new("uninstall_clicked_is_system"), is_system);
+                                    });
+                                }
+                                let disable_chip = assist_chip("").leading_icon_svg(DISABLE_RED_SVG).elevated(true);
+                                if ui.add(disable_chip.on_click(|| {})).clicked() {
+                                    ui.data_mut(|data| {
+                                        data.insert_temp(egui::Id::new("disable_clicked_package"), pkg_id_clone.clone());
+                                    });
+                                }
+                            }
+
+                            if enabled_str.contains("REMOVED_USER") || enabled_str.contains("DISABLED_USER") || enabled_str.contains("DISABLED") {
+                                let enable_chip = assist_chip("").leading_icon_svg(ENABLE_GREEN_SVG).elevated(true);
+                                if ui.add(enable_chip.on_click(|| {})).clicked() {
+                                    ui.data_mut(|data| {
+                                        data.insert_temp(egui::Id::new("enable_clicked_package"), pkg_id_clone.clone());
+                                    });
+                                }
+                            }
+                        });
+                    ui.add(card);
+                }
+            });
+                // });
 
             // Handle card-specific temp data
             ui.data_mut(|data| {

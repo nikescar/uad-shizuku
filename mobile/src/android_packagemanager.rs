@@ -7,7 +7,7 @@
 // getApplicationIcon
 
 #[cfg(target_os = "android")]
-use jni::objects::{JObject, JValue};
+use jni::objects::JValue;
 
 #[cfg(target_os = "android")]
 use ndk_context;
@@ -122,7 +122,7 @@ pub fn get_installed_packages() -> std::io::Result<Vec<String>> {
 }
 
 #[cfg(target_os = "android")]
-pub fn get_application_icon(package_name: &str) -> std::io::Result<Vec<u8>> {
+pub fn get_application_icon(_package_name: &str) -> std::io::Result<Vec<u8>> {
     // Implementation would go here
     Err(std::io::Error::new(
         std::io::ErrorKind::Other,
