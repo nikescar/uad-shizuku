@@ -55,4 +55,7 @@ pub struct TabDebloatControl {
 
     // Text filter for searching all visible text in the table
     pub text_filter: String,
+
+    // Safety setting: when false, prevent uninstall of Unsafe category apps
+    pub unsafe_app_remove: bool,
 }
