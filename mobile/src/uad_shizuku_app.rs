@@ -22,7 +22,9 @@ use crate::db_package_cache::get_cached_packages_with_apk;
 use crate::models::PackageInfoCache;
 use crate::svg_stt::*;
 
-use crate::adb::{get_devices, get_users, UserInfo};
+#[cfg(not(target_os = "android"))]
+use crate::adb::get_devices;
+use crate::adb::{get_users, UserInfo};
 // use crate::android_packagemanager::get_installed_packages;
 use crate::tab_apps_control::TabAppsControl;
 use crate::tab_debloat_control::TabDebloatControl;
@@ -319,6 +321,15 @@ impl Default for UadShizukuApp {
             package_loading_thread: None,
             package_loading_dialog_open: false,
             package_loading_status: String::new(),
+
+            // First-run initialization flag
+            first_update_done: false,
+
+            // Shizuku state tracking
+            shizuku_init_done: false,
+            shizuku_permission_requested: false,
+            shizuku_bind_requested: false,
+            shizuku_error_message: None,
         };
 
         // Apply persisted theme preferences
@@ -333,7 +344,9 @@ impl Default for UadShizukuApp {
             log_level: Self::string_to_log_level(&app.settings.log_level),
         });
 
-        // refresh adb devices list
+        // Don't call retrieve_adb_devices() here on Android - it will be called
+        // on first update when the Android context is fully ready
+        #[cfg(not(target_os = "android"))]
         app.retrieve_adb_devices();
         
         app
@@ -690,6 +703,12 @@ impl UadShizukuApp {
                     .clicked()
                 {
                     self.retrieve_adb_devices();
+                }
+
+                // Show Shizuku status message (Android only)
+                #[cfg(target_os = "android")]
+                if let Some(ref msg) = self.shizuku_error_message {
+                    ui.colored_label(egui::Color32::from_rgb(200, 100, 50), msg);
                 }
 
                 // Show progress bar if packages are loading
@@ -1497,26 +1516,101 @@ impl UadShizukuApp {
             });
             self.tab_apps_control.update_packages(Vec::new());
 
-            // match kill_server() {
-            //     Ok(output) => {
-            //         tracing::debug!("ADB server killed: {}", output);
-            //     }
-            //     Err(e) => {
-            //         tracing::error!("Failed to kill ADB server: {}", e);
-            //     }
-            // }
+            #[cfg(target_os = "android")]
+            {
+                use crate::android_shizuku;
 
-            // root_get_permission();
-
-            match get_devices() {
-                Ok(devices) => {
-                    self.adb_devices = devices;
-
-                    self.retrieve_adb_users();
+                // Step 0: Initialize ShizukuBridge (register permission listener) - once only
+                if !self.shizuku_init_done {
+                    android_shizuku::shizuku_init();
+                    self.shizuku_init_done = true;
                 }
-                Err(e) => {
-                    tracing::error!("[ERROR] Failed to get ADB devices: {}", e);
+
+                // Step 1: Check if Shizuku is running
+                if !android_shizuku::shizuku_is_available() {
+                    tracing::error!("Shizuku is not running. Please install and activate Shizuku.");
+                    self.shizuku_error_message = Some(
+                        "Shizuku is not running. Please install and activate Shizuku.".to_string(),
+                    );
                     self.adb_devices.clear();
+                    return;
+                }
+
+                // Step 2: Check/request permission
+                if !android_shizuku::shizuku_has_permission() {
+                    let perm_state = android_shizuku::shizuku_get_permission_state();
+                    if perm_state == 0 || perm_state == 3 {
+                        // Not yet requested or previously denied -- request now
+                        tracing::error!("Requesting Shizuku permission...");
+                        android_shizuku::shizuku_request_permission();
+                        self.shizuku_permission_requested = true;
+                    }
+                    self.shizuku_error_message = Some(
+                        "Waiting for Shizuku permission. Please grant access.".to_string(),
+                    );
+                    self.adb_devices.clear();
+                    return;
+                }
+
+                // Step 3: Bind service (non-blocking)
+                let bind_state = android_shizuku::shizuku_get_bind_state();
+                match bind_state {
+                    0 => {
+                        // Not bound, start binding
+                        tracing::error!("Binding Shizuku ShellService...");
+                        android_shizuku::shizuku_bind_service();
+                        self.shizuku_bind_requested = true;
+                        self.shizuku_error_message =
+                            Some("Binding Shizuku service...".to_string());
+                        self.adb_devices.clear();
+                        return;
+                    }
+                    1 => {
+                        // Binding in progress, wait
+                        self.shizuku_error_message =
+                            Some("Binding Shizuku service...".to_string());
+                        self.adb_devices.clear();
+                        return;
+                    }
+                    3 => {
+                        // Bind failed
+                        tracing::error!("Failed to bind Shizuku ShellService");
+                        self.shizuku_error_message = Some(
+                            "Failed to bind Shizuku service. Please retry.".to_string(),
+                        );
+                        self.adb_devices.clear();
+                        return;
+                    }
+                    2 => {
+                        // Bound successfully, fall through
+                    }
+                    _ => {
+                        self.adb_devices.clear();
+                        return;
+                    }
+                }
+
+                // Step 4: Service is bound, set device
+                self.shizuku_error_message = None;
+                self.shizuku_connected = true;
+                self.adb_devices = vec!["local".to_string()];
+                self.selected_device = Some("local".to_string());
+                self.current_device = Some("local".to_string());
+                self.retrieve_adb_users();
+            }
+
+            #[cfg(not(target_os = "android"))]
+            {
+                match get_devices() {
+                    Ok(devices) => {
+                        self.adb_devices = devices;
+
+                        self.retrieve_adb_users();
+                    }
+                    Err(e) => {
+                        tracing::error!("[ERROR] Failed to get ADB devices: {}", e);
+                        self.adb_devices.clear();
+                    }
                 }
             }
         }
@@ -2120,7 +2214,16 @@ impl UadShizukuApp {
 
                     ui.horizontal(|ui| {
                         ui.label(tr!("virustotal-api-key"));
-                        ui.text_edit_singleline(&mut self.settings_virustotal_apikey);
+                        let response = ui.text_edit_singleline(&mut self.settings_virustotal_apikey);
+                        #[cfg(target_os = "android")]
+                        {
+                            if response.gained_focus() {
+                                let _ = crate::android_inputmethod::show_soft_input();
+                            }
+                            if response.lost_focus() {
+                                let _ = crate::android_inputmethod::hide_soft_input();
+                            }
+                        }
                         ui.hyperlink_to(
                             tr!("get-api-key"),
                             "https://www.virustotal.com/gui/my-apikey",
@@ -2142,7 +2245,16 @@ impl UadShizukuApp {
 
                     ui.horizontal(|ui| {
                         ui.label(tr!("hybridanalysis-api-key"));
-                        ui.text_edit_singleline(&mut self.settings_hybridanalysis_apikey);
+                        let response = ui.text_edit_singleline(&mut self.settings_hybridanalysis_apikey);
+                        #[cfg(target_os = "android")]
+                        {
+                            if response.gained_focus() {
+                                let _ = crate::android_inputmethod::show_soft_input();
+                            }
+                            if response.lost_focus() {
+                                let _ = crate::android_inputmethod::hide_soft_input();
+                            }
+                        }
                         ui.hyperlink_to(
                             tr!("get-api-key"),
                             "https://hybrid-analysis.com/my-account",
@@ -2164,7 +2276,16 @@ impl UadShizukuApp {
 
                     ui.horizontal(|ui| {
                         ui.label(tr!("hybridanalysis-tag-blacklist"));
-                        ui.text_edit_singleline(&mut self.settings_hybridanalysis_tag_blacklist);
+                        let response = ui.text_edit_singleline(&mut self.settings_hybridanalysis_tag_blacklist);
+                        #[cfg(target_os = "android")]
+                        {
+                            if response.gained_focus() {
+                                let _ = crate::android_inputmethod::show_soft_input();
+                            }
+                            if response.lost_focus() {
+                                let _ = crate::android_inputmethod::hide_soft_input();
+                            }
+                        }
                     });
 
                     ui.add_space(8.0);
@@ -2211,22 +2332,40 @@ impl UadShizukuApp {
 
                     ui.horizontal(|ui| {
                         ui.label(tr!("apkmirror-email"));
-                        ui.add(
+                        let response = ui.add(
                             egui::TextEdit::singleline(&mut self.settings.apkmirror_email)
                                 .desired_width(200.0)
                                 .hint_text(tr!("email-hint")),
                         );
+                        #[cfg(target_os = "android")]
+                        {
+                            if response.gained_focus() {
+                                let _ = crate::android_inputmethod::show_soft_input();
+                            }
+                            if response.lost_focus() {
+                                let _ = crate::android_inputmethod::hide_soft_input();
+                            }
+                        }
                     });
 
                     ui.add_space(8.0);
 
                     ui.horizontal(|ui| {
                         ui.label(tr!("apkmirror-name"));
-                        ui.add(
+                        let response = ui.add(
                             egui::TextEdit::singleline(&mut self.settings.apkmirror_name)
                                 .desired_width(200.0)
                                 .hint_text(tr!("name-hint")),
                         );
+                        #[cfg(target_os = "android")]
+                        {
+                            if response.gained_focus() {
+                                let _ = crate::android_inputmethod::show_soft_input();
+                            }
+                            if response.lost_focus() {
+                                let _ = crate::android_inputmethod::hide_soft_input();
+                            }
+                        }
                     });                    
 
                     ui.add_space(8.0);
@@ -2743,6 +2882,39 @@ impl View for UadShizukuApp {
 
 impl eframe::App for UadShizukuApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        // On first update, initialize device list (Android only)
+        // This happens after Android context is fully initialized
+        #[cfg(target_os = "android")]
+        if !self.first_update_done {
+            self.first_update_done = true;
+            tracing::info!("First update - initializing Shizuku");
+            self.retrieve_adb_devices();
+        }
+
+        // Poll Shizuku state: auto-retry when permission granted or service bound
+        #[cfg(target_os = "android")]
+        {
+            if self.shizuku_permission_requested && self.adb_devices.is_empty() {
+                let perm_state = crate::android_shizuku::shizuku_get_permission_state();
+                if perm_state == 2 {
+                    // Permission granted, retry device detection
+                    self.shizuku_permission_requested = false;
+                    self.retrieve_adb_devices();
+                }
+            }
+            if self.shizuku_bind_requested && self.adb_devices.is_empty() {
+                let bind_state = crate::android_shizuku::shizuku_get_bind_state();
+                if bind_state == 2 {
+                    // Service bound, retry device detection
+                    self.shizuku_bind_requested = false;
+                    self.retrieve_adb_devices();
+                } else if bind_state == 3 {
+                    // Bind failed, stop polling
+                    self.shizuku_bind_requested = false;
+                }
+            }
+        }
+
         egui::CentralPanel::default().show(ctx, |ui| {
             self.ui(ui);
         });

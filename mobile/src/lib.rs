@@ -6,6 +6,8 @@ use eframe::egui;
 mod adb;
 pub mod adb_stt;
 mod android_packagemanager;
+pub mod android_shizuku;
+mod android_inputmethod;
 mod tab_apps_control;
 pub mod tab_apps_control_stt;
 mod tab_debloat_control;

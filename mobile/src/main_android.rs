@@ -46,6 +46,9 @@ pub fn android_main(app: AndroidApp) {
     // Initialize common app components (database, i18n)
     uad_shizuku_app::init_common();
 
+    // NOTE: ShizukuBridge initialization is done lazily on first use
+    // because the Android context must be fully ready (inside eframe's render loop)
+
     // Initialize Android logger with max level (actual filtering done by tracing)
     android_logger::init_once(
         android_logger::Config::default()

@@ -15,22 +15,45 @@ where
         let level = metadata.level();
         let target = metadata.target();
 
-        // Create a simple visitor to extract the message
+        // Create a visitor to extract all fields
         struct MessageVisitor {
             message: String,
         }
 
         impl tracing::field::Visit for MessageVisitor {
             fn record_debug(&mut self, field: &tracing::field::Field, value: &dyn std::fmt::Debug) {
-                if field.name() == "message" {
-                    self.message = format!("{:?}", value);
+                if !self.message.is_empty() {
+                    self.message.push_str(", ");
                 }
+                self.message.push_str(&format!("{} = {:?}", field.name(), value));
             }
 
             fn record_str(&mut self, field: &tracing::field::Field, value: &str) {
-                if field.name() == "message" {
-                    self.message = value.to_string();
+                if !self.message.is_empty() {
+                    self.message.push_str(", ");
                 }
+                self.message.push_str(&format!("{} = {}", field.name(), value));
+            }
+
+            fn record_i64(&mut self, field: &tracing::field::Field, value: i64) {
+                if !self.message.is_empty() {
+                    self.message.push_str(", ");
+                }
+                self.message.push_str(&format!("{} = {}", field.name(), value));
+            }
+
+            fn record_u64(&mut self, field: &tracing::field::Field, value: u64) {
+                if !self.message.is_empty() {
+                    self.message.push_str(", ");
+                }
+                self.message.push_str(&format!("{} = {}", field.name(), value));
+            }
+
+            fn record_bool(&mut self, field: &tracing::field::Field, value: bool) {
+                if !self.message.is_empty() {
+                    self.message.push_str(", ");
+                }
+                self.message.push_str(&format!("{} = {}", field.name(), value));
             }
         }
 
@@ -39,6 +62,11 @@ where
         };
 
         event.record(&mut visitor);
+
+        // Skip empty messages
+        if visitor.message.is_empty() {
+            return;
+        }
 
         // Format the complete log line
         let log_line = format!("[{}] {}: {}", level, target, visitor.message);

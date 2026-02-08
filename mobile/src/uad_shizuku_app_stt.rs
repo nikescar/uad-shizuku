@@ -164,6 +164,15 @@ pub struct UadShizukuApp {
     pub package_loading_thread: Option<std::thread::JoinHandle<(Vec<crate::adb::PackageFingerprint>, Option<UadNgLists>)>>,
     pub package_loading_dialog_open: bool,
     pub package_loading_status: String,
+
+    // First-run initialization flag
+    pub first_update_done: bool,
+
+    // Shizuku state tracking (Android)
+    pub shizuku_init_done: bool,
+    pub shizuku_permission_requested: bool,
+    pub shizuku_bind_requested: bool,
+    pub shizuku_error_message: Option<String>,
 }
 
 pub enum AppView {

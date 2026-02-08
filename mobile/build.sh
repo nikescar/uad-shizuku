@@ -181,10 +181,10 @@ export APPLICATION_VERSION_CODE=${timestamp:0:-1}
 export APPLICATION_VERSION_NAME=$(grep -m1 "^version = " ../Cargo.toml | cut -d' ' -f3 | tr -d '"')
 
 export RUSTFLAGS="-Zlocation-detail=none -Zfmt-debug=none"
-cargo ndk -t armeabi-v7a -o app/src/main/jniLibs/ build --release --lib
+# cargo ndk -t armeabi-v7a -o app/src/main/jniLibs/ build --release --lib
 cargo ndk -t arm64-v8a -o app/src/main/jniLibs/ build --release --lib
-cargo ndk -t x86 -o app/src/main/jniLibs/ build --release --lib
-cargo ndk -t x86_64 -o app/src/main/jniLibs/ build --release --lib
+# cargo ndk -t x86 -o app/src/main/jniLibs/ build --release --lib
+# cargo ndk -t x86_64 -o app/src/main/jniLibs/ build --release --lib
 ANDROID_SPLIT_BUILD=1 gradle build
 
 # adb commands

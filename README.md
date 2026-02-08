@@ -91,6 +91,7 @@ Get list of FOSS apps, and install directly. github and fdroid auto-install supp
 
 ## Todos
 
+* shizuku start dialog when its not start and button to open shizuku app
 * match datatable color to theme.
 * android version through shizuku
 * android keyboard & clipboard
