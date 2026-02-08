@@ -330,6 +330,9 @@ impl Default for UadShizukuApp {
             shizuku_permission_requested: false,
             shizuku_bind_requested: false,
             shizuku_error_message: None,
+
+            // Pinch-to-zoom state
+            zoom_factor: 0.5,
         };
 
         // Apply persisted theme preferences
@@ -2224,6 +2227,7 @@ impl UadShizukuApp {
                                 let _ = crate::android_inputmethod::hide_soft_input();
                             }
                         }
+                        crate::clipboard_popup::show_clipboard_popup(ui, &response, &mut self.settings_virustotal_apikey);
                         ui.hyperlink_to(
                             tr!("get-api-key"),
                             "https://www.virustotal.com/gui/my-apikey",
@@ -2255,6 +2259,7 @@ impl UadShizukuApp {
                                 let _ = crate::android_inputmethod::hide_soft_input();
                             }
                         }
+                        crate::clipboard_popup::show_clipboard_popup(ui, &response, &mut self.settings_hybridanalysis_apikey);
                         ui.hyperlink_to(
                             tr!("get-api-key"),
                             "https://hybrid-analysis.com/my-account",
@@ -2286,6 +2291,7 @@ impl UadShizukuApp {
                                 let _ = crate::android_inputmethod::hide_soft_input();
                             }
                         }
+                        crate::clipboard_popup::show_clipboard_popup(ui, &response, &mut self.settings_hybridanalysis_tag_blacklist);
                     });
 
                     ui.add_space(8.0);
@@ -2346,6 +2352,7 @@ impl UadShizukuApp {
                                 let _ = crate::android_inputmethod::hide_soft_input();
                             }
                         }
+                        crate::clipboard_popup::show_clipboard_popup(ui, &response, &mut self.settings.apkmirror_email);
                     });
 
                     ui.add_space(8.0);
@@ -2366,6 +2373,7 @@ impl UadShizukuApp {
                                 let _ = crate::android_inputmethod::hide_soft_input();
                             }
                         }
+                        crate::clipboard_popup::show_clipboard_popup(ui, &response, &mut self.settings.apkmirror_name);
                     });                    
 
                     ui.add_space(8.0);
@@ -2916,6 +2924,15 @@ impl eframe::App for UadShizukuApp {
         }
 
         egui::CentralPanel::default().show(ctx, |ui| {
+            #[cfg(target_os = "android")]
+            {
+                if let Some(multi_touch) = ctx.input(|i| i.multi_touch()) {
+                    if multi_touch.num_touches >= 2 {
+                        self.zoom_factor = (self.zoom_factor * multi_touch.zoom_delta).clamp(0.25, 3.0);
+                    }
+                }
+                ctx.set_zoom_factor(self.zoom_factor);
+            }
             self.ui(ui);
         });
     }

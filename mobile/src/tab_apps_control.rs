@@ -1007,6 +1007,7 @@ impl TabAppsControl {
                     let _ = crate::android_inputmethod::hide_soft_input();
                 }
             }
+            crate::clipboard_popup::show_clipboard_popup(ui, &response, &mut self.text_filter);
             if !self.text_filter.is_empty() && ui.button("✕").clicked() {
                 self.text_filter.clear();
             }

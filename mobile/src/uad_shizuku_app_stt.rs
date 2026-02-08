@@ -173,6 +173,9 @@ pub struct UadShizukuApp {
     pub shizuku_permission_requested: bool,
     pub shizuku_bind_requested: bool,
     pub shizuku_error_message: Option<String>,
+
+    // Pinch-to-zoom state (Android)
+    pub zoom_factor: f32,
 }
 
 pub enum AppView {
