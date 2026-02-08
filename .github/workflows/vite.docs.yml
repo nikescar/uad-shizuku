@@ -1,4 +1,4 @@
-name: Deploy static content to Pages
+name: Deploy Documentation
 on:
   push:
     tags:
@@ -21,10 +21,10 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: clone solidbase theme github
+      - name: Clone and Build Documentation Theme
         run: |
           export PATH="/opt/hostedtoolcache/node/22.x.x/x64/bin/:$PATH"
           export theme_upstream=$(grep -m1 'theme_upstream:' _config.yml | awk '{print $2}' | sed "s/'//g")/archive/refs/heads/main.tar.gz

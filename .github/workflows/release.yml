@@ -1,3 +1,5 @@
+name: Build and Release
+
 on:
   push:
     tags:
@@ -94,25 +96,25 @@ jobs:
           #   build-args: "--profile release-with-symbols"
 
     steps:
-      - name: Linux, Build packages. set vars
+      - name: Linux - Install Build Dependencies
         if: contains(matrix.platform.target, 'linux')
         run: | 
           sudo apt install musl-tools libgtk-3-dev libxdo-dev libappindicator3-dev libglib2.0-dev libgdk-pixbuf-2.0-dev libwayland-dev libcairo2-dev libpixman-1-dev libpango1.0-dev libxdo-dev librust-glib-sys-dev librust-gio-sys-dev librust-gobject-sys-dev librust-gdk-sys-dev libwebkit2gtk-4.1-dev librust-gdk-pixbuf-sys-dev librust-cairo-sys-rs-dev librust-pango-sys-dev librust-atk-sys-dev libgdk-pixbuf2.0-dev libatk1.0-dev musl-dev
           export PKG_CONFIG_ALLOW_CROSS=1
           export PKG_CONFIG_PATH="/usr/lib/x86_64-linux-musl/pkgconfig"
           
-      - name: Android, Build packages.
+      - name: Android - Install Build Dependencies
         if: contains(matrix.platform.target, 'android')
         run: |
           sudo apt install android-libunwind android-libunwind-dev libunwind-dev musl-tools llvm-14 clang llvm
 
-      - name: All, Checkout Git repo
+      - name: Checkout Repository
         uses: actions/checkout@v3
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 0
 
-      - name: All, Update version from git tag
+      - name: Update Version from Git Tag
         shell: bash
         run: |
           # Extract version from git tag (remove 'v' prefix if present)
@@ -123,18 +125,18 @@ jobs:
           echo "Updated Cargo.toml with version $VERSION"
           grep "^version = " ./Cargo.toml
       
-      - name: All, Install Rust nightly
+      - name: Install Rust Toolchain
         uses: dtolnay/rust-toolchain@nightly
         with:
           targets: ${{ matrix.platform.target }}
           components: rustfmt, clippy
 
-      - name: Android, Install package for Android
+      - name: Android - Install Cross-Compilation Tool
         if: contains(matrix.platform.target, 'android')
         run: | 
           cargo install cross --git https://github.com/cross-rs/cross
 
-      - name: Android, Build ${{ matrix.platform.name }} binary # android release apk/aab build
+      - name: Android - Build Release APK
         if: (contains(matrix.platform.name, 'Android APK arm64'))
         run: | 
           echo "storePassword=${{ secrets.STORE_PASSWORD }}" > ./mobile/keystore.properties
@@ -170,14 +172,14 @@ jobs:
       #     app-id: ${{ secrets.AMAZON_APPSTORE_APP_ID }}
       #     apk-file: app/build/outputs/apk/release/app-release.apk
 
-      - name: Non Android, Native application Build ${{ matrix.platform.name }} binary
+      - name: Build Binary for ${{ matrix.platform.name }}
         if: (contains(matrix.platform.target, 'x86_64') || contains(matrix.platform.target, 'aarch64') || contains(matrix.platform.target, 'armv7')) && !contains(matrix.platform.name, 'Android APK arm64')
         uses: actions-rs/cargo@v1
         with:
           command: build
           args: ${{ matrix.platform.build-args }} --package uad-shizuku
 
-      - name: All except Android, Store artifact application
+      - name: Upload Binary Artifact
         if: (!contains(matrix.platform.name, 'Android APK arm64'))
         uses: actions/upload-artifact@v4
         with:
@@ -200,7 +202,7 @@ jobs:
       #     snap: ${{ steps.build.outputs.snap }}
       #     release: edge
 
-      - name: Android, Store artifact Android release arm64 apk
+      - name: Android - Upload APK Artifact
         if: (contains(matrix.platform.name, 'Android APK arm64'))
         uses: actions/upload-artifact@v4
         with:
@@ -215,7 +217,7 @@ jobs:
     if: startsWith( github.ref, 'refs/tags/v' )
     runs-on: ubuntu-22.04
     steps:
-      - name: Checkout Git repo
+      - name: Checkout Repository
         uses: actions/checkout@v3
         with:
           fetch-depth: 0
@@ -225,7 +227,7 @@ jobs:
         with:
           path: artifacts
 
-      - name: list artifacts
+      - name: Prepare Release Artifacts
         run: |
           find artifacts/
           mkdir distbin/
@@ -245,7 +247,7 @@ jobs:
           done
           cp artifacts/*.tar.gz distbin/
         
-      - name: Release
+      - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         if: github.ref_type == 'tag'
         with:
