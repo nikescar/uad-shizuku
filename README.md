@@ -86,6 +86,16 @@ Scan apps with virustotal and hybridanalysis
 
 Get list of FOSS apps, and install directly. github and fdroid auto-install supports.
 
+## Star History
+
+<a href="https://www.star-history.com/#nikescar/uad-shizuku&type=date&legend=top-left">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=nikescar/uad-shizuku&type=date&theme=dark&legend=top-left" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=nikescar/uad-shizuku&type=date&legend=top-left" />
+   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=nikescar/uad-shizuku&type=date&legend=top-left" />
+ </picture>
+</a>
+
 <details markdown>
 <summary> Todos </summary>
 
@@ -93,8 +103,6 @@ Get list of FOSS apps, and install directly. github and fdroid auto-install supp
 
 * shizuku start dialog when its not start and button to open shizuku app
 * match datatable color to theme.
-* android version through shizuku
-* android keyboard & clipboard
 * windows app signing & attestation
 * web version through webusb on browser
 * usage history & netstats history
