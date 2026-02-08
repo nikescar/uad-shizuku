@@ -273,6 +273,7 @@ impl Default for UadShizukuApp {
             settings_virustotal_submit: settings.virustotal_submit,
             settings_hybridanalysis_submit: settings.hybridanalysis_submit,
             settings_hybridanalysis_tag_blacklist: settings.hybridanalysis_tag_blacklist.clone(),
+            settings_unsafe_app_remove: settings.unsafe_app_remove,
             settings: settings,
 
             package_load_progress: Arc::new(Mutex::new(None)),
@@ -945,6 +946,7 @@ impl UadShizukuApp {
                 self.settings_apkmirror_renderer = self.settings.apkmirror_renderer;
                 self.settings_virustotal_submit = self.settings.virustotal_submit;
                 self.settings_hybridanalysis_submit = self.settings.hybridanalysis_submit;
+                self.settings_unsafe_app_remove = self.settings.unsafe_app_remove;
                 self.settings_dialog_open = true;
             }
 
@@ -1209,6 +1211,9 @@ impl UadShizukuApp {
         // Load results from workers and populate caches
         self.load_renderer_results_to_debloat_cache();
 
+        // Sync unsafe_app_remove setting
+        self.tab_debloat_control.unsafe_app_remove = self.settings.unsafe_app_remove;
+
         if let Some(result) = self.tab_debloat_control.ui(
             ui,
             google_play_enabled,
@@ -1409,6 +1414,7 @@ impl UadShizukuApp {
         self.tab_scan_control.google_play_renderer_enabled = self.settings.google_play_renderer;
         self.tab_scan_control.fdroid_renderer_enabled = self.settings.fdroid_renderer;
         self.tab_scan_control.apkmirror_renderer_enabled = self.settings.apkmirror_renderer;
+        self.tab_scan_control.unsafe_app_remove = self.settings.unsafe_app_remove;
 
         self.tab_scan_control.ui(ui, &self.settings.hybridanalysis_tag_blacklist);
     }
@@ -2216,6 +2222,15 @@ impl UadShizukuApp {
                     ui.add_space(8.0);
 
                     ui.horizontal(|ui| {
+                        ui.checkbox(
+                            &mut self.settings_unsafe_app_remove,
+                            tr!("allow-unsafe-app-remove"),
+                        );
+                    });
+
+                    ui.add_space(8.0);
+
+                    ui.horizontal(|ui| {
                         ui.label(tr!("virustotal-api-key"));
                         let response = ui.text_edit_singleline(&mut self.settings_virustotal_apikey);
                         #[cfg(target_os = "android")]
@@ -2708,6 +2723,11 @@ impl UadShizukuApp {
         self.settings.google_play_renderer = self.settings_google_play_renderer;
         self.settings.fdroid_renderer = self.settings_fdroid_renderer;
         self.settings.apkmirror_renderer = self.settings_apkmirror_renderer;
+        self.settings.unsafe_app_remove = self.settings_unsafe_app_remove;
+
+        // Sync unsafe_app_remove to tab controls
+        self.tab_debloat_control.unsafe_app_remove = self.settings.unsafe_app_remove;
+        self.tab_scan_control.unsafe_app_remove = self.settings.unsafe_app_remove;
 
         // Sync submit settings to tab_scan_control
         self.tab_scan_control.virustotal_submit_enabled = self.settings.virustotal_submit;

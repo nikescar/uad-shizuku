@@ -114,6 +114,7 @@ pub struct UadShizukuApp {
     pub settings_virustotal_submit: bool,
     pub settings_hybridanalysis_submit: bool,
     pub settings_hybridanalysis_tag_blacklist: String,
+    pub settings_unsafe_app_remove: bool,
 
     // Progress tracking for background tasks
     pub package_load_progress: std::sync::Arc<std::sync::Mutex<Option<f32>>>,

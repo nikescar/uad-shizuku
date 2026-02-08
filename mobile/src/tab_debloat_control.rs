@@ -32,6 +32,7 @@ impl Default for TabDebloatControl {
             hide_system_app: false,
             cached_counts: CachedCategoryCounts::default(),
             text_filter: String::new(),
+            unsafe_app_remove: false,
         }
     }
 }
@@ -1037,6 +1038,7 @@ impl TabDebloatControl {
 
                     // Tasks column
                     let pkg_id_for_buttons = pkg_id_clone.clone();
+                    let is_unsafe_blocked = debloat_category == "Unsafe" && !self.unsafe_app_remove;
                     row_builder = row_builder.widget_cell(move |ui: &mut egui::Ui| {
                         ui.horizontal(|ui| {
                             let chip = assist_chip("").leading_icon_svg(INFO_SVG).elevated(true);
@@ -1046,12 +1048,21 @@ impl TabDebloatControl {
                                 }
                             }
 
-                            if enabled_str.contains("DEFAULT") || enabled_str.contains("ENABLED") {
+                            if (enabled_str.contains("DEFAULT") || enabled_str.contains("ENABLED")) && !is_unsafe_blocked {
                                 let uninstall_chip = assist_chip("").leading_icon_svg(TRASH_RED_SVG).elevated(true);
                                 if ui.add(uninstall_chip.on_click(|| {})).clicked() {
                                     ui.data_mut(|data| {
                                         data.insert_temp(egui::Id::new("uninstall_clicked_package"), pkg_id_for_buttons.clone());
                                         data.insert_temp(egui::Id::new("uninstall_clicked_is_system"), is_system);
+                                    });
+                                }
+                            }
+
+                            if (enabled_str.contains("DEFAULT") || enabled_str.contains("ENABLED")) && !is_unsafe_blocked {
+                                let disable_chip = assist_chip("").leading_icon_svg(DISABLE_RED_SVG).elevated(true);
+                                if ui.add(disable_chip.on_click(|| {})).clicked() {
+                                    ui.data_mut(|data| {
+                                        data.insert_temp(egui::Id::new("disable_clicked_package"), pkg_id_for_buttons.clone());
                                     });
                                 }
                             }
@@ -1065,14 +1076,6 @@ impl TabDebloatControl {
                                 }
                             }
 
-                            if enabled_str.contains("DEFAULT") || enabled_str.contains("ENABLED") {
-                                let disable_chip = assist_chip("").leading_icon_svg(DISABLE_RED_SVG).elevated(true);
-                                if ui.add(disable_chip.on_click(|| {})).clicked() {
-                                    ui.data_mut(|data| {
-                                        data.insert_temp(egui::Id::new("disable_clicked_package"), pkg_id_for_buttons.clone());
-                                    });
-                                }
-                            }
                         });
                     });
 
@@ -1163,10 +1166,12 @@ impl TabDebloatControl {
             // egui::ScrollArea::vertical()
             //     .id_salt("debloat_cards_scroll")
             //     .show(ui, |ui| {
+            let unsafe_app_remove = self.unsafe_app_remove;
             ui.horizontal_wrapped(|ui| {
                 for (idx, pkg_id, package_name, is_system, debloat_category, runtime_perms, enabled_text, _install_reason, is_selected) in filtered_packages {
                     let pkg_id_clone = pkg_id.clone();
                     let enabled_str = enabled_text.clone();
+                    let is_unsafe_blocked = debloat_category == "Unsafe" && !unsafe_app_remove;
 
                     // Get cached app info
                     let fd_cached = cached_fdroid_apps.get(&pkg_id);
@@ -1288,18 +1293,21 @@ impl TabDebloatControl {
 
                             // Action buttons based on status
                             if enabled_str.contains("DEFAULT") || enabled_str.contains("ENABLED") {
-                                let uninstall_chip = assist_chip("").leading_icon_svg(TRASH_RED_SVG).elevated(true);
-                                if ui.add(uninstall_chip.on_click(|| {})).clicked() {
-                                    ui.data_mut(|data| {
-                                        data.insert_temp(egui::Id::new("uninstall_clicked_package"), pkg_id_clone.clone());
-                                        data.insert_temp(egui::Id::new("uninstall_clicked_is_system"), is_system);
-                                    });
-                                }
-                                let disable_chip = assist_chip("").leading_icon_svg(DISABLE_RED_SVG).elevated(true);
-                                if ui.add(disable_chip.on_click(|| {})).clicked() {
-                                    ui.data_mut(|data| {
-                                        data.insert_temp(egui::Id::new("disable_clicked_package"), pkg_id_clone.clone());
-                                    });
+                                if !is_unsafe_blocked {
+                                    let uninstall_chip = assist_chip("").leading_icon_svg(TRASH_RED_SVG).elevated(true);
+                                    if ui.add(uninstall_chip.on_click(|| {})).clicked() {
+                                        ui.data_mut(|data| {
+                                            data.insert_temp(egui::Id::new("uninstall_clicked_package"), pkg_id_clone.clone());
+                                            data.insert_temp(egui::Id::new("uninstall_clicked_is_system"), is_system);
+                                        });
+                                    }
+                                    
+                                    let disable_chip = assist_chip("").leading_icon_svg(DISABLE_RED_SVG).elevated(true);
+                                    if ui.add(disable_chip.on_click(|| {})).clicked() {
+                                        ui.data_mut(|data| {
+                                            data.insert_temp(egui::Id::new("disable_clicked_package"), pkg_id_clone.clone());
+                                        });
+                                    }
                                 }
                             }
 
@@ -1381,7 +1389,14 @@ impl TabDebloatControl {
 
         // Perform uninstall
         if let Some(pkg_name) = uninstall_package {
-            if let Some(ref device) = self.selected_device {
+            // Skip unsafe apps when unsafe_app_remove is disabled
+            let is_unsafe = uad_ng_lists_ref
+                .and_then(|lists| lists.apps.get(&pkg_name))
+                .map(|app| app.removal == "Unsafe")
+                .unwrap_or(false);
+            if is_unsafe && !self.unsafe_app_remove {
+                tracing::warn!("Skipping uninstall of unsafe app: {}", pkg_name);
+            } else if let Some(ref device) = self.selected_device {
                 let uninstall_result = if uninstall_is_system {
                     crate::adb::uninstall_app_user(&pkg_name, device, None)
                 } else {
@@ -1478,6 +1493,15 @@ impl TabDebloatControl {
                 let packages_to_uninstall: Vec<String> = self.selected_packages.iter().cloned().collect();
                 let mut packages = store.get_installed_packages();
                 for pkg_name in packages_to_uninstall {
+                    // Skip unsafe apps when unsafe_app_remove is disabled
+                    let is_unsafe = uad_ng_lists_ref
+                        .and_then(|lists| lists.apps.get(&pkg_name))
+                        .map(|app| app.removal == "Unsafe")
+                        .unwrap_or(false);
+                    if is_unsafe && !self.unsafe_app_remove {
+                        tracing::warn!("Skipping batch uninstall of unsafe app: {}", pkg_name);
+                        continue;
+                    }
                     let is_system = packages.iter().find(|p| p.pkg == pkg_name).map(|p| p.flags.contains("SYSTEM")).unwrap_or(false);
                     let uninstall_result = if is_system {
                         crate::adb::uninstall_app_user(&pkg_name, device, None)

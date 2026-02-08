@@ -65,6 +65,7 @@ impl Default for TabScanControl {
             fdroid_renderer_enabled: false,
             apkmirror_renderer_enabled: false,
             text_filter: String::new(),
+            unsafe_app_remove: false,
         }
     }
 }
@@ -962,6 +963,7 @@ impl TabScanControl {
         let installed_packages = shared_store.get_installed_packages();
         let vt_scanner_state = shared_store.get_vt_scanner_state();
         let ha_scanner_state = shared_store.get_ha_scanner_state();
+        let uad_ng_lists = shared_store.get_uad_ng_lists();
 
         // Pre-fetch cached app data maps for efficient lookups
         let cached_fdroid_apps = shared_store.get_cached_fdroid_apps();
@@ -1361,6 +1363,10 @@ impl TabScanControl {
                 .unwrap_or("DEFAULT");
             let enabled_str = enabled.to_string();
             let package_name_for_buttons = package.pkg.clone();
+            let is_unsafe_blocked = !self.unsafe_app_remove && uad_ng_lists.as_ref()
+                .and_then(|lists| lists.apps.get(&package.pkg))
+                .map(|app| app.removal == "Unsafe")
+                .unwrap_or(false);
 
             let (app_texture_id, app_title, app_developer, _app_version) =
                 if let Some((texture_opt, title, developer, version)) = &app_display_data {
@@ -1730,7 +1736,7 @@ impl TabScanControl {
                         //     }
                         // }
 
-                        if enabled_str.contains("DEFAULT") || enabled_str.contains("ENABLED") {
+                        if (enabled_str.contains("DEFAULT") || enabled_str.contains("ENABLED")) && !is_unsafe_blocked {
                             let uninstall_chip = assist_chip("")
                                 .leading_icon_svg(TRASH_RED_SVG)
                                 .elevated(true);
@@ -1746,6 +1752,21 @@ impl TabScanControl {
                             }
                         }
 
+                        if (enabled_str.contains("DEFAULT") || enabled_str.contains("ENABLED")) && !is_unsafe_blocked  {
+                            let disable_chip = assist_chip("")
+                                .leading_icon_svg(DISABLE_RED_SVG)
+                                .elevated(true);
+
+                            let pkg_name_disable = package_name_for_buttons.clone();
+                            if ui.add(disable_chip.on_click(|| {
+                                tracing::info!("Disable clicked for: {}", pkg_name_disable);
+                            })).clicked() {
+                                ui.data_mut(|data| {
+                                    data.insert_temp(egui::Id::new("disable_clicked_package"), package_name_for_buttons.clone());
+                                });
+                            }
+                        }
+
                         if enabled_str.contains("REMOVED_USER") || enabled_str.contains("DISABLED_USER") || enabled_str.contains("DISABLED") {
                             let enable_chip = assist_chip("")
                                 .leading_icon_svg(ENABLE_GREEN_SVG)
@@ -1757,21 +1778,6 @@ impl TabScanControl {
                             })).clicked() {
                                 ui.data_mut(|data| {
                                     data.insert_temp(egui::Id::new("enable_clicked_package"), package_name_for_buttons.clone());
-                                });
-                            }
-                        }
-
-                        if enabled_str.contains("DEFAULT") || enabled_str.contains("ENABLED") {
-                            let disable_chip = assist_chip("")
-                                .leading_icon_svg(DISABLE_RED_SVG)
-                                .elevated(true);
-
-                            let pkg_name_disable = package_name_for_buttons.clone();
-                            if ui.add(disable_chip.on_click(|| {
-                                tracing::info!("Disable clicked for: {}", pkg_name_disable);
-                            })).clicked() {
-                                ui.data_mut(|data| {
-                                    data.insert_temp(egui::Id::new("disable_clicked_package"), package_name_for_buttons.clone());
                                 });
                             }
                         }
