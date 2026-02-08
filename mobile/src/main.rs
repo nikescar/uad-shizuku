@@ -151,8 +151,13 @@ fn main() -> eframe::Result<()> {
     };
 
     // Create a reloadable filter layer for dynamic log level changes
+    // Suppress noisy/empty logs from third-party crates
+    let filter_string = format!(
+        "{},ureq=warn,rustls=warn,hyper=warn,h2=warn",
+        log_level
+    );
     let env_filter =
-        EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(&log_level));
+        EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(&filter_string));
     let (filter, reload_handle) = reload::Layer::new(env_filter);
 
     // Store the reload handle for later use (type-erased via closure)
@@ -165,7 +170,13 @@ fn main() -> eframe::Result<()> {
 
     tracing_subscriber::registry()
         .with(filter)
-        .with(tracing_subscriber::fmt::layer())
+        .with(
+            tracing_subscriber::fmt::layer()
+                .with_target(true)
+                .with_level(true)
+                .compact()  // Use compact format to avoid empty lines
+                .event_format(uad_shizuku::log_capture::NonEmptyFormatter)
+        )
         .with(uad_shizuku::log_capture::LogCaptureLayer)
         .init();
 
