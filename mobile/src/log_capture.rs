@@ -1,7 +1,10 @@
 use std::sync::{Arc, OnceLock, RwLock};
 use tracing::Subscriber;
+use tracing_subscriber::fmt::format::Writer;
+use tracing_subscriber::fmt::{FmtContext, FormatEvent, FormatFields};
 use tracing_subscriber::layer::Context;
 use tracing_subscriber::Layer;
+use tracing_subscriber::registry::LookupSpan;
 
 pub struct LogCaptureLayer;
 
@@ -111,5 +114,81 @@ pub fn update_tracing_level(level: &str) {
         if let Some(ref reload_fn) = *handle {
             reload_fn(level);
         }
+    }
+}
+
+/// Custom formatter that skips events with empty messages
+pub struct NonEmptyFormatter;
+
+impl<S, N> FormatEvent<S, N> for NonEmptyFormatter
+where
+    S: Subscriber + for<'a> LookupSpan<'a>,
+    N: for<'a> FormatFields<'a> + 'static,
+{
+    fn format_event(
+        &self,
+        ctx: &FmtContext<'_, S, N>,
+        mut writer: Writer<'_>,
+        event: &tracing::Event<'_>,
+    ) -> std::fmt::Result {
+        // Check if event has a non-empty message by visiting fields
+        struct EmptyChecker {
+            has_content: bool,
+        }
+
+        impl tracing::field::Visit for EmptyChecker {
+            fn record_debug(&mut self, field: &tracing::field::Field, _value: &dyn std::fmt::Debug) {
+                // Consider "message" field specially
+                if field.name() == "message" {
+                    // We'll check if it's actually empty in the formatted output
+                    self.has_content = true;
+                } else {
+                    // Other fields count as content
+                    self.has_content = true;
+                }
+            }
+
+            fn record_str(&mut self, field: &tracing::field::Field, value: &str) {
+                if field.name() == "message" && !value.is_empty() {
+                    self.has_content = true;
+                } else if field.name() != "message" {
+                    self.has_content = true;
+                }
+            }
+
+            fn record_i64(&mut self, _field: &tracing::field::Field, _value: i64) {
+                self.has_content = true;
+            }
+
+            fn record_u64(&mut self, _field: &tracing::field::Field, _value: u64) {
+                self.has_content = true;
+            }
+
+            fn record_bool(&mut self, _field: &tracing::field::Field, _value: bool) {
+                self.has_content = true;
+            }
+        }
+
+        let mut checker = EmptyChecker { has_content: false };
+        event.record(&mut checker);
+
+        // Skip events with no content
+        if !checker.has_content {
+            return Ok(());
+        }
+
+        // Use the default compact format
+        let metadata = event.metadata();
+        write!(
+            writer,
+            "{} {}: ",
+            metadata.level(),
+            metadata.target()
+        )?;
+
+        // Write the fields
+        ctx.field_format().format_fields(writer.by_ref(), event)?;
+
+        writeln!(writer)
     }
 }
