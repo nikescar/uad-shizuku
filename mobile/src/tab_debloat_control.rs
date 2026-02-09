@@ -744,14 +744,67 @@ impl TabDebloatControl {
             if !self.text_filter.is_empty() && ui.button("✕").clicked() {
                 self.text_filter.clear();
             }
-        }); 
-        ui.add_space(10.0);
 
-        ui.horizontal(|ui| { 
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                ui.add_space(10.0);
                 ui.label(format!("* RP: {}", tr!("col-runtime-permissions")));
             });
+        }); 
+
+        ui.horizontal(|ui| { 
+            // Sort buttons for hidden columns in mobile view
+            if !filter_is_mobile {
+                return;
+            }
+            
+            ui.label(tr!("sort-by"));
+            
+            // Debloat Category sort button
+            let category_selected = self.sort_column == Some(1);
+            if ui.selectable_label(category_selected, tr!("col-debloat-category")).clicked() {
+                if self.sort_column == Some(1) {
+                    self.sort_ascending = !self.sort_ascending;
+                } else {
+                    self.sort_column = Some(1);
+                    self.sort_ascending = true;
+                }
+                self.sort_packages();
+            }
+            
+            // Runtime Permissions sort button
+            let rp_selected = self.sort_column == Some(2);
+            if ui.selectable_label(rp_selected, "RP").clicked() {
+                if self.sort_column == Some(2) {
+                    self.sort_ascending = !self.sort_ascending;
+                } else {
+                    self.sort_column = Some(2);
+                    self.sort_ascending = false;
+                }
+                self.sort_packages();
+            }
+            
+            // Enabled sort button
+            let enabled_selected = self.sort_column == Some(3);
+            if ui.selectable_label(enabled_selected, tr!("col-enabled")).clicked() {
+                if self.sort_column == Some(3) {
+                    self.sort_ascending = !self.sort_ascending;
+                } else {
+                    self.sort_column = Some(3);
+                    self.sort_ascending = true;
+                }
+                self.sort_packages();
+            }
+            
+            // Install Reason sort button
+            let reason_selected = self.sort_column == Some(4);
+            if ui.selectable_label(reason_selected, tr!("col-install-reason")).clicked() {
+                if self.sort_column == Some(4) {
+                    self.sort_ascending = !self.sort_ascending;
+                } else {
+                    self.sort_column = Some(4);
+                    self.sort_ascending = true;
+                }
+                self.sort_packages();
+            }
         }); 
 
         let clicked_package_idx = std::sync::Arc::new(std::sync::Mutex::new(None::<usize>));

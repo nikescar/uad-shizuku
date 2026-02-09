@@ -1217,13 +1217,10 @@ impl TabScanControl {
             });
         }
 
-        ui.add_space(10.0);
-
         if installed_packages.is_empty() {
             ui.label(tr!("no-packages-loaded"));
             return;
         }
-        ui.add_space(10.0);
 
         ui.horizontal(|ui| {
             ui.label(tr!("show-only-enabled"));
@@ -1250,7 +1247,51 @@ impl TabScanControl {
                 self.text_filter.clear();
             }
         });
-        ui.add_space(10.0);
+
+        ui.horizontal(|ui| { 
+            // Sort buttons for hidden columns in mobile view
+            if !filter_is_mobile {
+                return;
+            }
+            
+            ui.label(tr!("sort-by"));
+            
+            // IzzyRisk sort button
+            let izzy_selected = self.sort_column == Some(1);
+            if ui.selectable_label(izzy_selected, tr!("col-izzy-risk")).clicked() {
+                if self.sort_column == Some(1) {
+                    self.sort_ascending = !self.sort_ascending;
+                } else {
+                    self.sort_column = Some(1);
+                    self.sort_ascending = false;
+                }
+                self.sort_packages();
+            }
+            
+            // VirusTotal sort button
+            let vt_selected = self.sort_column == Some(2);
+            if ui.selectable_label(vt_selected, tr!("col-virustotal")).clicked() {
+                if self.sort_column == Some(2) {
+                    self.sort_ascending = !self.sort_ascending;
+                } else {
+                    self.sort_column = Some(2);
+                    self.sort_ascending = false;
+                }
+                self.sort_packages();
+            }
+            
+            // HybridAnalysis sort button
+            let ha_selected = self.sort_column == Some(3);
+            if ui.selectable_label(ha_selected, tr!("col-hybrid-analysis")).clicked() {
+                if self.sort_column == Some(3) {
+                    self.sort_ascending = !self.sort_ascending;
+                } else {
+                    self.sort_column = Some(3);
+                    self.sort_ascending = false;
+                }
+                self.sort_packages();
+            }
+        }); 
 
         // Apply Material theme styling
         let surface = get_global_color("surface");
