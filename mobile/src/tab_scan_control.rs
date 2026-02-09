@@ -1309,6 +1309,7 @@ impl TabScanControl {
 
         let mut interactive_table = data_table()
             .id(egui::Id::new("scan_data_table"))
+            .default_row_height(if is_desktop { 60.0 } else { 80.0 })
             .sortable_column(tr!("col-package-name"), if is_desktop { 350.0 * width_ratio } else { available_width * 0.55 }, false);
         if is_desktop {
             interactive_table = interactive_table
@@ -1387,10 +1388,16 @@ impl TabScanControl {
 
             interactive_table = interactive_table.row(|table_row| {
                 // Package Name column
+                let vt_result_for_cell = vt_scan_result.clone();
+                let ha_result_for_cell = ha_scan_result.clone();
+                let izzyrisk_for_cell = izzyrisk.clone();
                 let row_builder = if let (Some(title), Some(developer)) =
                     (app_title.clone(), app_developer.clone())
                 {
                     table_row.widget_cell(move |ui: &mut egui::Ui| {
+                        if !is_desktop {
+                            ui.add_space(8.0);
+                        }
                         ui.horizontal(|ui| {
                             if let Some(tex_id) = app_texture_id {
                                 ui.image((tex_id, egui::vec2(38.0, 38.0)));
@@ -1403,12 +1410,167 @@ impl TabScanControl {
                                         .small()
                                         .color(egui::Color32::GRAY),
                                 );
+                                
+                                if !is_desktop {
+                                    ui.add_space(4.0);
+                                    ui.horizontal_wrapped(|ui| {
+                                        ui.spacing_mut().item_spacing.x = 4.0;
+                                        
+                                        // Show IzzyRisk in mobile view
+                                        egui::Frame::new()
+                                            .stroke(egui::Stroke::new(1.0, egui::Color32::from_rgb(158, 158, 158)))
+                                            .corner_radius(6.0)
+                                            .inner_margin(egui::Margin::symmetric(8, 3))
+                                            .show(ui, |ui| {
+                                                ui.label(egui::RichText::new(format!("Risk:{}", &izzyrisk_for_cell)).size(10.0));
+                                            });
+                                        
+                                        // Show VT results in mobile view
+                                        match &vt_result_for_cell {
+                                            Some(calc_virustotal::ScanStatus::Completed(result)) => {
+                                                for file_result in result.file_results.iter() {
+                                                    let (text, bg_color) = if file_result.error.is_some() {
+                                                        ("ERR".to_string(), egui::Color32::from_rgb(211, 47, 47))
+                                                    } else if file_result.skipped {
+                                                        ("SKIP".to_string(), egui::Color32::from_rgb(128, 128, 128))
+                                                    } else if file_result.not_found {
+                                                        ("404".to_string(), egui::Color32::from_rgb(128, 128, 128))
+                                                    } else if file_result.malicious > 0 {
+                                                        (format!("VT:{}/{}", file_result.malicious + file_result.suspicious, file_result.total()), egui::Color32::from_rgb(211, 47, 47))
+                                                    } else if file_result.suspicious > 0 {
+                                                        (format!("VT:{}/{}", file_result.suspicious, file_result.total()), egui::Color32::from_rgb(255, 152, 0))
+                                                    } else {
+                                                        (format!("VT:0/{}", file_result.total()), egui::Color32::from_rgb(56, 142, 60))
+                                                    };
+                                                    
+                                                    egui::Frame::new()
+                                                        .fill(bg_color)
+                                                        .corner_radius(6.0)
+                                                        .inner_margin(egui::Margin::symmetric(8, 3))
+                                                        .show(ui, |ui| {
+                                                            ui.label(egui::RichText::new(&text).color(egui::Color32::WHITE).size(10.0));
+                                                        });
+                                                }
+                                            }
+                                            _ => {}
+                                        }
+                                        
+                                        // Show HA results in mobile view
+                                        match &ha_result_for_cell {
+                                            Some(calc_hybridanalysis::ScanStatus::Completed(result)) => {
+                                                for file_result in result.file_results.iter() {
+                                                    let (text, bg_color) = match file_result.verdict.as_str() {
+                                                        "malicious" => ("HA:MAL".to_string(), egui::Color32::from_rgb(211, 47, 47)),
+                                                        "suspicious" => ("HA:SUS".to_string(), egui::Color32::from_rgb(255, 152, 0)),
+                                                        "whitelisted" => ("HA:WL".to_string(), egui::Color32::from_rgb(56, 142, 60)),
+                                                        "no specific threat" => ("HA:OK".to_string(), egui::Color32::from_rgb(0, 150, 136)),
+                                                        "upload_error" | "analysis_error" => ("HA:ERR".to_string(), egui::Color32::from_rgb(211, 47, 47)),
+                                                        "404 Not Found" => ("HA:404".to_string(), egui::Color32::from_rgb(128, 128, 128)),
+                                                        _ => continue,
+                                                    };
+                                                    
+                                                    egui::Frame::new()
+                                                        .fill(bg_color)
+                                                        .corner_radius(6.0)
+                                                        .inner_margin(egui::Margin::symmetric(8, 3))
+                                                        .show(ui, |ui| {
+                                                            ui.label(egui::RichText::new(&text).color(egui::Color32::WHITE).size(10.0));
+                                                        });
+                                                }
+                                            }
+                                            _ => {}
+                                        }
+                                    });
+                                }
                             });
                         });
+                        if !is_desktop {
+                            ui.add_space(8.0);
+                        }
                     })
                 } else {
                     table_row.widget_cell(move |ui: &mut egui::Ui| {
-                        ui.add(egui::Label::new(&package_name_for_cell).wrap());
+                        if !is_desktop {
+                            ui.add_space(8.0);
+                        }
+                        ui.vertical(|ui| {
+                            ui.add(egui::Label::new(&package_name_for_cell).wrap());
+                            
+                            if !is_desktop {
+                                ui.add_space(4.0);
+                                ui.horizontal_wrapped(|ui| {
+                                    ui.spacing_mut().item_spacing.x = 4.0;
+                                    
+                                    // Show IzzyRisk in mobile view
+                                    egui::Frame::new()
+                                        .stroke(egui::Stroke::new(1.0, egui::Color32::from_rgb(158, 158, 158)))
+                                        .corner_radius(6.0)
+                                        .inner_margin(egui::Margin::symmetric(8, 3))
+                                        .show(ui, |ui| {
+                                            ui.label(egui::RichText::new(format!("Risk:{}", &izzyrisk_for_cell)).size(10.0));
+                                        });
+                                    
+                                    // Show VT results in mobile view
+                                    match &vt_result_for_cell {
+                                        Some(calc_virustotal::ScanStatus::Completed(result)) => {
+                                            for file_result in result.file_results.iter() {
+                                                let (text, bg_color) = if file_result.error.is_some() {
+                                                    ("ERR".to_string(), egui::Color32::from_rgb(211, 47, 47))
+                                                } else if file_result.skipped {
+                                                    ("SKIP".to_string(), egui::Color32::from_rgb(128, 128, 128))
+                                                } else if file_result.not_found {
+                                                    ("404".to_string(), egui::Color32::from_rgb(128, 128, 128))
+                                                } else if file_result.malicious > 0 {
+                                                    (format!("VT:{}/{}", file_result.malicious + file_result.suspicious, file_result.total()), egui::Color32::from_rgb(211, 47, 47))
+                                                } else if file_result.suspicious > 0 {
+                                                    (format!("VT:{}/{}", file_result.suspicious, file_result.total()), egui::Color32::from_rgb(255, 152, 0))
+                                                } else {
+                                                    (format!("VT:0/{}", file_result.total()), egui::Color32::from_rgb(56, 142, 60))
+                                                };
+                                                
+                                                egui::Frame::new()
+                                                    .fill(bg_color)
+                                                    .corner_radius(6.0)
+                                                    .inner_margin(egui::Margin::symmetric(8, 3))
+                                                    .show(ui, |ui| {
+                                                        ui.label(egui::RichText::new(&text).color(egui::Color32::WHITE).size(10.0));
+                                                    });
+                                            }
+                                        }
+                                        _ => {}
+                                    }
+                                    
+                                    // Show HA results in mobile view
+                                    match &ha_result_for_cell {
+                                        Some(calc_hybridanalysis::ScanStatus::Completed(result)) => {
+                                            for file_result in result.file_results.iter() {
+                                                let (text, bg_color) = match file_result.verdict.as_str() {
+                                                    "malicious" => ("HA:MAL".to_string(), egui::Color32::from_rgb(211, 47, 47)),
+                                                    "suspicious" => ("HA:SUS".to_string(), egui::Color32::from_rgb(255, 152, 0)),
+                                                    "whitelisted" => ("HA:WL".to_string(), egui::Color32::from_rgb(56, 142, 60)),
+                                                    "no specific threat" => ("HA:OK".to_string(), egui::Color32::from_rgb(0, 150, 136)),
+                                                    "upload_error" | "analysis_error" => ("HA:ERR".to_string(), egui::Color32::from_rgb(211, 47, 47)),
+                                                    "404 Not Found" => ("HA:404".to_string(), egui::Color32::from_rgb(128, 128, 128)),
+                                                    _ => continue,
+                                                };
+                                                
+                                                egui::Frame::new()
+                                                    .fill(bg_color)
+                                                    .corner_radius(6.0)
+                                                    .inner_margin(egui::Margin::symmetric(8, 3))
+                                                    .show(ui, |ui| {
+                                                        ui.label(egui::RichText::new(&text).color(egui::Color32::WHITE).size(10.0));
+                                                    });
+                                            }
+                                        }
+                                        _ => {}
+                                    }
+                                });
+                            }
+                        });
+                        if !is_desktop {
+                            ui.add_space(8.0);
+                        }
                     })
                 };
 
