@@ -11,7 +11,7 @@ static ADB_RETRY_REQUESTED: AtomicBool = AtomicBool::new(false);
 use eframe::egui;
 use egui_i18n::tr;
 use egui_material3::menu::{Corner, FocusState, Positioning};
-use egui_material3::{assist_chip, dialog, menu, menu_item, tabs_primary, MaterialButton};
+use egui_material3::{assist_chip, dialog, icon_button_standard, menu, menu_item, tabs_primary, MaterialButton};
 use egui_material3::{get_global_theme, ContrastLevel, MaterialThemeContext, ThemeMode};
 
 use crate::db::{
@@ -19,6 +19,7 @@ use crate::db::{
     invalidate_cache,
 };
 use crate::db_package_cache::get_cached_packages_with_apk;
+use crate::material_symbol_icons::ICON_REFRESH;
 use crate::models::PackageInfoCache;
 use crate::svg_stt::*;
 
@@ -71,6 +72,11 @@ pub fn init_common() {
 /// Call this in the eframe app creation callback.
 pub fn init_egui(ctx: &Context) {
     setup_local_theme(Some("resources/material-theme.json"));
+    // material icon fonts https://github.com/google/material-design-icons
+    setup_local_fonts_from_bytes(
+        "MaterialSymbolsOutlined",
+        include_bytes!("../resources/MaterialSymbolsOutlined[FILL,GRAD,opsz,wght].ttf"),
+    );
     setup_local_fonts_from_bytes("NotoSansKr", include_bytes!("../resources/noto-sans-kr.ttf"));
     egui_extras::install_image_loaders(ctx);
     load_fonts(ctx);
@@ -696,16 +702,7 @@ impl UadShizukuApp {
                 }
 
                 // Update device list on button click
-                let refresh_chip = assist_chip("")
-                    .leading_icon_svg(REFRESH_SVG)
-                    .elevated(false);
-
-                if ui
-                    .add(refresh_chip.on_click(|| {
-                        tracing::info!("Refresh devices clicked");
-                    }))
-                    .clicked()
-                {
+                if ui.add(icon_button_standard(ICON_REFRESH.to_string())).on_hover_text(tr!("refresh-list")).clicked() {
                     self.retrieve_adb_devices();
                 }
 
@@ -2243,10 +2240,11 @@ impl UadShizukuApp {
                             }
                         }
                         crate::clipboard_popup::show_clipboard_popup(ui, &response, &mut self.settings_virustotal_apikey);
-                        ui.hyperlink_to(
-                            tr!("get-api-key"),
-                            "https://www.virustotal.com/gui/my-apikey",
-                        );
+                        if ui.button(tr!("get-api-key")).clicked() {
+                            if let Err(e) = webbrowser::open("https://www.virustotal.com/gui/my-apikey") {
+                                tracing::error!("Failed to open VirusTotal API key URL: {}", e);
+                            }
+                        }
                     });
 
                     ui.add_space(8.0);
@@ -2275,10 +2273,11 @@ impl UadShizukuApp {
                             }
                         }
                         crate::clipboard_popup::show_clipboard_popup(ui, &response, &mut self.settings_hybridanalysis_apikey);
-                        ui.hyperlink_to(
-                            tr!("get-api-key"),
-                            "https://hybrid-analysis.com/my-account",
-                        );
+                        if ui.button(tr!("get-api-key")).clicked() {
+                            if let Err(e) = webbrowser::open("https://hybrid-analysis.com/my-account") {
+                                tracing::error!("Failed to open HybridAnalysis API key URL: {}", e);
+                            }
+                        }
                     });
 
                     ui.add_space(8.0);
@@ -2520,17 +2519,19 @@ impl UadShizukuApp {
                     ui.add_space(8.0);
 
                     ui.horizontal(|ui| {
-                        ui.hyperlink_to(
-                            "Installation Guide (English)",
-                            "https://uad-shizuku.pages.dev/docs/installation",
-                        );
+                        if ui.button("Installation Guide (English)").clicked() {
+                            if let Err(e) = webbrowser::open("https://uad-shizuku.pages.dev/docs/installation") {
+                                tracing::error!("Failed to open installation guide URL: {}", e);
+                            }
+                        }
                     });
 
                     ui.horizontal(|ui| {
-                        ui.hyperlink_to(
-                            "설치 가이드 (한국어)",
-                            "https://uad-shizuku.pages.dev/docs/kr/docs/installation",
-                        );
+                        if ui.button("설치 가이드 (한국어)").clicked() {
+                            if let Err(e) = webbrowser::open("https://uad-shizuku.pages.dev/docs/kr/docs/installation") {
+                                tracing::error!("Failed to open Korean installation guide URL: {}", e);
+                            }
+                        }
                     });
 
                     ui.add_space(16.0);
@@ -2647,7 +2648,11 @@ impl UadShizukuApp {
                         // Website
                         ui.horizontal(|ui| {
                             ui.label(format!("{}: ", website_label));
-                            ui.hyperlink("https://uad-shizuku.pages.dev");
+                            if ui.button("https://uad-shizuku.pages.dev").clicked() {
+                                if let Err(e) = webbrowser::open("https://uad-shizuku.pages.dev") {
+                                    tracing::error!("Failed to open website URL: {}", e);
+                                }
+                            }
                         });
 
                         ui.add_space(12.0);

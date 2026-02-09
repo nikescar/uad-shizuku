@@ -54,6 +54,7 @@ md5 = "0.7"
 crossbeam-queue = "0.3"
 # html2md = "0.2"
 xee-xpath = "0.1.5"
+webbrowser = "1.0"
 # diesel related dependencies
 diesel = { version = "2.3.0", features = ["sqlite", "returning_clauses_for_sqlite_3_35"] }
 diesel_migrations = "2.3.0"
@@ -95,7 +96,6 @@ winsafe = { version = "0.0.26", features = ["gui"] }
 # Non-Android specific dependencies
 [target.'cfg(not(target_os = "android"))'.dependencies]
 directories = { workspace = true }
-open = "5.0"
 
 # Wasm specific dependencies
 [target.'cfg(all(target_family = "wasm", target_os = "unknown"))'.dependencies]

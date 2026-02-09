@@ -2,10 +2,11 @@ use crate::adb::PackageFingerprint;
 pub use crate::tab_apps_control_stt::*;
 use eframe::egui;
 use egui_i18n::tr;
-use egui_material3::{assist_chip, data_table, outlined_card2, theme::get_global_color};
+use egui_material3::{data_table, icon_button_standard, theme::get_global_color};
 
 // SVG icons as constants (moved to svg_stt.rs)
 use crate::svg_stt::*;
+use crate::material_symbol_icons::{ICON_CANCEL, ICON_CHECK_CIRCLE, ICON_DELETE, ICON_DOWNLOAD, ICON_INFO, ICON_CHECK_BOX, ICON_REFRESH};
 
 /// Minimum viewport width for desktop table view
 const DESKTOP_MIN_WIDTH: f32 = 1008.0;
@@ -948,13 +949,7 @@ impl TabAppsControl {
                     }
                 }
             });
-            let info_chip = assist_chip("").leading_icon_svg(INFO_SVG).elevated(true);
-            if ui
-                .add(info_chip.on_click(|| {
-                    tracing::info!("Info clicked");
-                }))
-                .clicked()
-            {
+            if ui.add(icon_button_standard(ICON_INFO.to_string())).on_hover_text(tr!("app-list-info")).clicked() {
                 // open selected app list info URL
                 if let Some(idx) = self.selected_app_list {
                     if idx < self.app_lists.len() {
@@ -962,17 +957,15 @@ impl TabAppsControl {
                         let info_url = &app_list.info_url;
                         tracing::info!("Opening info URL: {}", info_url);
                         #[cfg(not(target_os = "android"))]
-                        let _ = open::that(info_url);
+                        {
+                            if let Err(e) = webbrowser::open(info_url) {
+                                tracing::error!("Failed to open info URL: {}", e);
+                            }
+                        }
                     }
                 }
             }
-            let refresh_chip = assist_chip("").leading_icon_svg(REFRESH_SVG).elevated(true);
-            if ui
-                .add(refresh_chip.on_click(|| {
-                    tracing::info!("Refresh clicked");
-                }))
-                .clicked()
-            {
+            if ui.add(icon_button_standard(ICON_REFRESH.to_string())).on_hover_text(tr!("refresh-list")).clicked() {
                 self.reload_applist_and_parse_apps();
             }
 
@@ -1055,20 +1048,25 @@ impl TabAppsControl {
 
         // Use the data_table widget with proportional column widths
         let mut interactive_table = data_table()
-            .id(egui::Id::new("apps_control_data_table"))
-            .column(tr!("category"), 200.0 * width_ratio, false)
-            .column(tr!("app-name"), 200.0 * width_ratio, false)
-            .column(tr!("links"), 298.0 * width_ratio, false)
-            .column(tr!("install"), 300.0 * width_ratio, false)
-            .allow_selection(false);
+            .id(egui::Id::new("apps_control_data_table"));
+        if is_desktop {
+            interactive_table = interactive_table
+                .column(tr!("category"), 200.0 * width_ratio, false)
+                .column(tr!("app-name"), 200.0 * width_ratio, false)
+                .column(tr!("links"), 298.0 * width_ratio, false)
+                .column(tr!("install"), 300.0 * width_ratio, false);
+        } else {
+            interactive_table = interactive_table
+                .column(tr!("app-name"), available_width * 0.45, false)
+                .column(tr!("install"), available_width * 0.55, false);
+        }
+        interactive_table = interactive_table.allow_selection(false);
 
         // Track which app's install button was clicked
         let mut install_clicked_app: Option<AppEntry> = None;
 
-        if is_desktop {
-            // === DESKTOP TABLE VIEW ===
-            // Add rows to the table
-            for (idx, app) in self.app_entries.clone().iter().enumerate() {
+        // Add rows to the table
+        for (idx, app) in self.app_entries.clone().iter().enumerate() {
             // Filter based on show_only_installable setting
             let downloadable_link = self.get_downloadable_link(&app);
             if self.show_only_installable && downloadable_link.is_none() {
@@ -1084,7 +1082,6 @@ impl TabAppsControl {
             let app_for_install = app.clone();
             let app_name = app.name.clone();
             let is_installed = self.is_app_installed(&app);
-            // downloadable_link already checked above for filtering
 
             // Get installed package info for action buttons
             let installed_pkg_info = self.get_installed_package_info(&app);
@@ -1093,17 +1090,22 @@ impl TabAppsControl {
             let install_status = self.installing_apps.get(&app_name).cloned();
 
             interactive_table = interactive_table.row(|row| {
-                row.cell(&app.category)
-                    .cell(&app.name)
-                    .widget_cell(move |ui: &mut egui::Ui| {
+                // Category and App Name columns (desktop: both, mobile: name only)
+                let row_builder = if is_desktop {
+                    row.cell(&app.category).cell(&app.name)
+                } else {
+                    row.cell(&app.name)
+                };
+
+                // Links column (desktop only)
+                let row_builder = if is_desktop {
+                    row_builder.widget_cell(move |ui: &mut egui::Ui| {
                         egui::ScrollArea::horizontal()
                             .id_salt(format!("links_scroll_{}_{}", idx, app_for_links.category))
                             .auto_shrink([false, false])
                             .show(ui, |ui| {
                                 ui.horizontal(|ui| {
                                     ui.spacing_mut().item_spacing.x = 4.0;
-                                    // Allocate enough space for all chips
-                                    // Estimate: ~40px per chip + 4px spacing
                                     let num_links = app_for_links.links.len();
                                     let estimated_width = (num_links as f32) * 44.0;
                                     ui.set_min_width(estimated_width);
@@ -1128,257 +1130,93 @@ impl TabAppsControl {
                                             _ => HOME_SVG,
                                         };
 
-                                        let chip =
-                                            assist_chip("").leading_icon_svg(svg).elevated(false);
-
-                                        let url_clone = url.clone();
                                         let response = ui
-                                            .add(chip.on_click(move || {
-                                                tracing::info!("Opening URL: {}", url_clone);
-                                            }));
-
-                                        // Show URL on hover
-                                        let response = response.on_hover_text(url.as_str());
+                                            .add(icon_button_standard("")
+                                                .svg_data(svg))
+                                            .on_hover_text(url.as_str());
 
                                         if response.clicked()
                                         {
-                                            // Open URL in browser
                                             #[cfg(not(target_os = "android"))]
-                                            let _ = open::that(url);
+                                            {
+                                                if let Err(e) = webbrowser::open(url) {
+                                                    tracing::error!("Failed to open URL: {}", e);
+                                                }
+                                            }
                                         }
                                     }
                                 });
                             });
                     })
-                    .widget_cell(move |ui: &mut egui::Ui| {
-                        ui.horizontal(|ui| {
-                            if let Some(ref status) = install_status {
-                                ui.label(status);
-                            } else if is_installed {
-                                ui.add(assist_chip(tr!("installed")).enabled(false));
+                } else {
+                    row_builder
+                };
 
-                                // Show action buttons if we have package info
-                                if let Some((ref pkg_name, is_system, ref enabled_state)) = installed_pkg_info {
-                                    // Uninstall button
-                                    if enabled_state == "DEFAULT" || enabled_state == "ENABLED" {
-                                        let uninstall_chip = assist_chip("")
-                                            .leading_icon_svg(TRASH_RED_SVG)
-                                            .elevated(true);
+                // Install/Actions column (always)
+                row_builder.widget_cell(move |ui: &mut egui::Ui| {
+                    ui.horizontal(|ui| {
+                        if let Some(ref status) = install_status {
+                            ui.label(status);
+                        } else if is_installed {
+                            ui.add(icon_button_standard(ICON_CHECK_BOX.to_string())).on_hover_text(tr!("installed"));
 
-                                        let pkg_for_uninstall = pkg_name.clone();
-                                        if ui
-                                            .add(uninstall_chip.on_click(|| {
-                                                tracing::info!("Uninstall clicked for: {}", pkg_for_uninstall);
-                                            }))
-                                            .clicked()
-                                        {
-                                            ui.data_mut(|data| {
-                                                data.insert_temp(
-                                                    egui::Id::new("apps_uninstall_clicked_package"),
-                                                    pkg_name.clone(),
-                                                );
-                                                data.insert_temp(
-                                                    egui::Id::new("apps_uninstall_clicked_is_system"),
-                                                    is_system,
-                                                );
-                                                data.insert_temp(
-                                                    egui::Id::new("apps_uninstall_clicked_app_name"),
-                                                    app_for_install.name.clone(),
-                                                );
-                                            });
-                                        }
-                                    }
-
-                                    // Enable button (for disabled apps)
-                                    if enabled_state == "DISABLED" || enabled_state == "DISABLED_USER" {
-                                        let enable_chip = assist_chip("")
-                                            .leading_icon_svg(ENABLE_GREEN_SVG)
-                                            .elevated(true);
-
-                                        let pkg_for_enable = pkg_name.clone();
-                                        if ui
-                                            .add(enable_chip.on_click(|| {
-                                                tracing::info!("Enable clicked for: {}", pkg_for_enable);
-                                            }))
-                                            .clicked()
-                                        {
-                                            ui.data_mut(|data| {
-                                                data.insert_temp(
-                                                    egui::Id::new("apps_enable_clicked_package"),
-                                                    pkg_name.clone(),
-                                                );
-                                            });
-                                        }
-                                    }
-
-                                    // Disable button (for enabled apps)
-                                    if enabled_state == "DEFAULT" || enabled_state == "ENABLED" {
-                                        let disable_chip = assist_chip("")
-                                            .leading_icon_svg(DISABLE_RED_SVG)
-                                            .elevated(true);
-
-                                        let pkg_for_disable = pkg_name.clone();
-                                        if ui
-                                            .add(disable_chip.on_click(|| {
-                                                tracing::info!("Disable clicked for: {}", pkg_for_disable);
-                                            }))
-                                            .clicked()
-                                        {
-                                            ui.data_mut(|data| {
-                                                data.insert_temp(
-                                                    egui::Id::new("apps_disable_clicked_package"),
-                                                    pkg_name.clone(),
-                                                );
-                                            });
-                                        }
+                            if let Some((ref pkg_name, is_system, ref enabled_state)) = installed_pkg_info {
+                                if enabled_state == "DEFAULT" || enabled_state == "ENABLED" {
+                                    if ui.add(icon_button_standard(ICON_DELETE.to_string())).on_hover_text(tr!("uninstall")).clicked() {
+                                        ui.data_mut(|data| {
+                                            data.insert_temp(
+                                                egui::Id::new("apps_uninstall_clicked_package"),
+                                                pkg_name.clone(),
+                                            );
+                                            data.insert_temp(
+                                                egui::Id::new("apps_uninstall_clicked_is_system"),
+                                                is_system,
+                                            );
+                                            data.insert_temp(
+                                                egui::Id::new("apps_uninstall_clicked_app_name"),
+                                                app_for_install.name.clone(),
+                                            );
+                                        });
                                     }
                                 }
-                            } else if let Some((ref url, ref link_type)) = downloadable_link {
-                                // Only show install chip for apps with downloadable links
-                                // (github-downloadable or fdroid-downloadable)
-                                let install_chip = assist_chip(tr!("install"))
-                                    .leading_icon_svg(INSTALL_SVG)
-                                    .elevated(true);
 
-                                // Create hover text showing link type and URL
-                                let hover_text = format!("[{}]\n{}", link_type, url);
+                                if enabled_state == "DISABLED" || enabled_state == "DISABLED_USER" {
+                                    if ui.add(icon_button_standard(ICON_CHECK_CIRCLE.to_string())).on_hover_text(tr!("enable")).clicked() {
+                                        ui.data_mut(|data| {
+                                            data.insert_temp(
+                                                egui::Id::new("apps_enable_clicked_package"),
+                                                pkg_name.clone(),
+                                            );
+                                        });
+                                    }
+                                }
 
-                                let response = ui
-                                    .add(install_chip.on_click(|| {
-                                        tracing::info!("Install clicked for: {}", app_for_install.name);
-                                    }))
-                                    .on_hover_text(&hover_text);
-
-                                if response.clicked() {
-                                    // Signal that install was clicked
-                                    ui.data_mut(|data| {
-                                        data.insert_temp(egui::Id::new("install_clicked_app"), app_for_install.clone());
-                                    });
+                                if enabled_state == "DEFAULT" || enabled_state == "ENABLED" {
+                                    if ui.add(icon_button_standard(ICON_CANCEL.to_string())).on_hover_text(tr!("disable")).clicked() {
+                                        ui.data_mut(|data| {
+                                            data.insert_temp(
+                                                egui::Id::new("apps_disable_clicked_package"),
+                                                pkg_name.clone(),
+                                            );
+                                        });
+                                    }
                                 }
                             }
-                        });
-                    })
-            });
-            }
+                        } else if let Some((ref url, ref link_type)) = downloadable_link {
+                            let hover_text = format!("[{}]\n{}", link_type, url);
 
-            // Show the table
-            interactive_table.show(ui);
-        } else {
-            // === MOBILE CARD VIEW ===
-            // Sort buttons for mobile view
-            ui.horizontal_wrapped(|ui| {
-                ui.label(tr!("sort-by"));
-                let sort_options = [
-                    (0, tr!("category")),
-                    (1, tr!("app-name")),
-                    (2, tr!("links")),
-                ];
-                for (col_idx, label) in sort_options {
-                    let is_selected = self.sort_column == Some(col_idx);
-                    let arrow = if is_selected {
-                        if self.sort_ascending { " ▲" } else { " ▼" }
-                    } else { "" };
-                    let text = format!("{}{}", label, arrow);
-                    let chip = if is_selected {
-                        assist_chip(&text).elevated(true)
-                    } else {
-                        assist_chip(&text)
-                    };
-                    if ui.add(chip.on_click(|| {})).clicked() {
-                        if self.sort_column == Some(col_idx) {
-                            self.sort_ascending = !self.sort_ascending;
-                        } else {
-                            self.sort_column = Some(col_idx);
-                            self.sort_ascending = true;
-                        }
-                        self.sort_apps();
-                    }
-                }
-            });
-            ui.add_space(4.0);
-
-            egui::ScrollArea::vertical()
-                .id_salt("apps_cards_scroll")
-                .show(ui, |ui| {
-                    ui.horizontal_wrapped(|ui| {
-                        for app in self.app_entries.clone().iter() {
-                            // Filter based on show_only_installable setting
-                            let downloadable_link = self.get_downloadable_link(&app);
-                            if self.show_only_installable && downloadable_link.is_none() {
-                                continue;
-                            }
-
-                            // Filter based on text filter
-                            if !self.matches_text_filter(&app) {
-                                continue;
-                            }
-
-                            let app_for_install = app.clone();
-                            let is_installed = self.is_app_installed(&app);
-                            let installed_pkg_info = self.get_installed_package_info(&app);
-                            let install_status = self.installing_apps.get(&app.name).cloned();
-
-                            // Collect link icons for display
-                            let link_types: Vec<&str> = app.links.iter()
-                                .map(|(_, lt)| lt.as_str())
-                                .take(4)
-                                .collect();
-
-                            let card = outlined_card2()
-                                .clickable(true)
-                                .header(&app.name, Some(&app.category))
-                                .content(|ui| {
-                                    // Show link type badges
-                                    ui.horizontal(|ui| {
-                                        for lt in &link_types {
-                                            let color = match *lt {
-                                                "fdroid-downloadable" | "fdroid" => egui::Color32::from_rgb(56, 142, 60),
-                                                "github-downloadable" | "github" => egui::Color32::from_rgb(33, 33, 33),
-                                                "googleplay" => egui::Color32::from_rgb(66, 133, 244),
-                                                _ => egui::Color32::GRAY,
-                                            };
-                                            egui::Frame::new()
-                                                .fill(color)
-                                                .corner_radius(4.0)
-                                                .inner_margin(egui::Margin::symmetric(6, 3))
-                                                .show(ui, |ui| {
-                                                    ui.label(egui::RichText::new(*lt).color(egui::Color32::WHITE).size(9.0));
-                                                });
-                                        }
-                                    });
-                                })
-                                .actions(|ui| {
-                                    if let Some(ref status) = install_status {
-                                        ui.label(status);
-                                    } else if is_installed {
-                                        ui.label(egui::RichText::new(tr!("installed")).color(egui::Color32::GREEN).small());
-
-                                        if let Some((ref pkg_name, is_system, ref enabled_state)) = installed_pkg_info {
-                                            if enabled_state == "DEFAULT" || enabled_state == "ENABLED" {
-                                                let uninstall_chip = assist_chip("").leading_icon_svg(TRASH_RED_SVG).elevated(true);
-                                                if ui.add(uninstall_chip.on_click(|| {})).clicked() {
-                                                    ui.data_mut(|data| {
-                                                        data.insert_temp(egui::Id::new("apps_uninstall_clicked_package"), pkg_name.clone());
-                                                        data.insert_temp(egui::Id::new("apps_uninstall_clicked_is_system"), is_system);
-                                                        data.insert_temp(egui::Id::new("apps_uninstall_clicked_app_name"), app_for_install.name.clone());
-                                                    });
-                                                }
-                                            }
-                                        }
-                                    } else if downloadable_link.is_some() {
-                                        let install_chip = assist_chip(tr!("install")).leading_icon_svg(INSTALL_SVG).elevated(true);
-                                        if ui.add(install_chip.on_click(|| {})).clicked() {
-                                            ui.data_mut(|data| {
-                                                data.insert_temp(egui::Id::new("install_clicked_app"), app_for_install.clone());
-                                            });
-                                        }
-                                    }
+                            if ui.add(icon_button_standard(ICON_DOWNLOAD.to_string())).on_hover_text(&hover_text).clicked() {
+                                ui.data_mut(|data| {
+                                    data.insert_temp(egui::Id::new("install_clicked_app"), app_for_install.clone());
                                 });
-                            ui.add(card);
+                            }
                         }
                     });
-                });
+                })
+            });
         }
+
+        interactive_table.show(ui);
 
         // Track action button clicks
         let mut uninstall_package: Option<String> = None;
