@@ -951,6 +951,7 @@ impl TabDebloatControl {
                 let debloat_category_clone2 = debloat_category.clone();
                 let enabled_text_clone2 = enabled_text.clone();
                 let install_reason_clone = install_reason.clone();
+                let runtime_perms_clone = runtime_perms.clone();
                 
                 let mut row_builder = if let (Some(title), Some(developer)) = (fd_title.clone(), fd_developer.clone()) {
                     table_row.widget_cell(move |ui: &mut egui::Ui| {
@@ -966,6 +967,15 @@ impl TabDebloatControl {
                                 if !is_desktop {
                                     ui.add_space(4.0);
                                     ui.horizontal(|ui| {
+                                        // Runtime permissions badge
+                                        egui::Frame::new()
+                                            .stroke(egui::Stroke::new(1.0, egui::Color32::from_rgb(158, 158, 158)))
+                                            .corner_radius(6.0)
+                                            .inner_margin(egui::Margin::symmetric(8, 3))
+                                            .show(ui, |ui| {
+                                                ui.label(egui::RichText::new(format!("RP:{}", &runtime_perms_clone)).size(10.0));
+                                            });
+                                        
                                         // Debloat category badge
                                         let bg_color = match debloat_category_clone2.as_str() {
                                             "Recommended" => egui::Color32::from_rgb(56, 142, 60),
@@ -1030,6 +1040,15 @@ impl TabDebloatControl {
                                 if !is_desktop {
                                     ui.add_space(4.0);
                                     ui.horizontal(|ui| {
+                                        // Runtime permissions badge
+                                        egui::Frame::new()
+                                            .stroke(egui::Stroke::new(1.0, egui::Color32::from_rgb(158, 158, 158)))
+                                            .corner_radius(6.0)
+                                            .inner_margin(egui::Margin::symmetric(8, 3))
+                                            .show(ui, |ui| {
+                                                ui.label(egui::RichText::new(format!("RP:{}", &runtime_perms_clone)).size(10.0));
+                                            });
+                                        
                                         // Debloat category badge
                                         let bg_color = match debloat_category_clone2.as_str() {
                                             "Recommended" => egui::Color32::from_rgb(56, 142, 60),
@@ -1094,6 +1113,15 @@ impl TabDebloatControl {
                                 if !is_desktop {
                                     ui.add_space(4.0);
                                     ui.horizontal(|ui| {
+                                        // Runtime permissions badge
+                                        egui::Frame::new()
+                                            .stroke(egui::Stroke::new(1.0, egui::Color32::from_rgb(158, 158, 158)))
+                                            .corner_radius(6.0)
+                                            .inner_margin(egui::Margin::symmetric(8, 3))
+                                            .show(ui, |ui| {
+                                                ui.label(egui::RichText::new(format!("RP:{}", &runtime_perms_clone)).size(10.0));
+                                            });
+                                        
                                         // Debloat category badge
                                         let bg_color = match debloat_category_clone2.as_str() {
                                             "Recommended" => egui::Color32::from_rgb(56, 142, 60),
@@ -1154,6 +1182,15 @@ impl TabDebloatControl {
                             if !is_desktop {
                                 ui.add_space(4.0);
                                 ui.horizontal(|ui| {
+                                    // Runtime permissions badge
+                                    egui::Frame::new()
+                                        .stroke(egui::Stroke::new(1.0, egui::Color32::from_rgb(158, 158, 158)))
+                                        .corner_radius(6.0)
+                                        .inner_margin(egui::Margin::symmetric(8, 3))
+                                        .show(ui, |ui| {
+                                            ui.label(egui::RichText::new(format!("RP:{}", &runtime_perms_clone)).size(10.0));
+                                        });
+                                    
                                     // Debloat category badge
                                     let bg_color = match debloat_category_clone2.as_str() {
                                         "Recommended" => egui::Color32::from_rgb(56, 142, 60),
