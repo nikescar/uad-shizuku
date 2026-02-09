@@ -957,7 +957,11 @@ impl TabAppsControl {
                         let info_url = &app_list.info_url;
                         tracing::info!("Opening info URL: {}", info_url);
                         #[cfg(not(target_os = "android"))]
-                        let _ = open::that(info_url);
+                        {
+                            if let Err(e) = webbrowser::open(info_url) {
+                                tracing::error!("Failed to open info URL: {}", e);
+                            }
+                        }
                     }
                 }
             }
@@ -1134,7 +1138,11 @@ impl TabAppsControl {
                                         if response.clicked()
                                         {
                                             #[cfg(not(target_os = "android"))]
-                                            let _ = open::that(url);
+                                            {
+                                                if let Err(e) = webbrowser::open(url) {
+                                                    tracing::error!("Failed to open URL: {}", e);
+                                                }
+                                            }
                                         }
                                     }
                                 });

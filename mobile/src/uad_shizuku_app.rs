@@ -2248,10 +2248,11 @@ impl UadShizukuApp {
                             }
                         }
                         crate::clipboard_popup::show_clipboard_popup(ui, &response, &mut self.settings_virustotal_apikey);
-                        ui.hyperlink_to(
-                            tr!("get-api-key"),
-                            "https://www.virustotal.com/gui/my-apikey",
-                        );
+                        if ui.button(tr!("get-api-key")).clicked() {
+                            if let Err(e) = webbrowser::open("https://www.virustotal.com/gui/my-apikey") {
+                                tracing::error!("Failed to open VirusTotal API key URL: {}", e);
+                            }
+                        }
                     });
 
                     ui.add_space(8.0);
@@ -2280,10 +2281,11 @@ impl UadShizukuApp {
                             }
                         }
                         crate::clipboard_popup::show_clipboard_popup(ui, &response, &mut self.settings_hybridanalysis_apikey);
-                        ui.hyperlink_to(
-                            tr!("get-api-key"),
-                            "https://hybrid-analysis.com/my-account",
-                        );
+                        if ui.button(tr!("get-api-key")).clicked() {
+                            if let Err(e) = webbrowser::open("https://hybrid-analysis.com/my-account") {
+                                tracing::error!("Failed to open HybridAnalysis API key URL: {}", e);
+                            }
+                        }
                     });
 
                     ui.add_space(8.0);
@@ -2525,17 +2527,19 @@ impl UadShizukuApp {
                     ui.add_space(8.0);
 
                     ui.horizontal(|ui| {
-                        ui.hyperlink_to(
-                            "Installation Guide (English)",
-                            "https://uad-shizuku.pages.dev/docs/installation",
-                        );
+                        if ui.button("Installation Guide (English)").clicked() {
+                            if let Err(e) = webbrowser::open("https://uad-shizuku.pages.dev/docs/installation") {
+                                tracing::error!("Failed to open installation guide URL: {}", e);
+                            }
+                        }
                     });
 
                     ui.horizontal(|ui| {
-                        ui.hyperlink_to(
-                            "설치 가이드 (한국어)",
-                            "https://uad-shizuku.pages.dev/docs/kr/docs/installation",
-                        );
+                        if ui.button("설치 가이드 (한국어)").clicked() {
+                            if let Err(e) = webbrowser::open("https://uad-shizuku.pages.dev/docs/kr/docs/installation") {
+                                tracing::error!("Failed to open Korean installation guide URL: {}", e);
+                            }
+                        }
                     });
 
                     ui.add_space(16.0);
@@ -2652,7 +2656,11 @@ impl UadShizukuApp {
                         // Website
                         ui.horizontal(|ui| {
                             ui.label(format!("{}: ", website_label));
-                            ui.hyperlink("https://uad-shizuku.pages.dev");
+                            if ui.button("https://uad-shizuku.pages.dev").clicked() {
+                                if let Err(e) = webbrowser::open("https://uad-shizuku.pages.dev") {
+                                    tracing::error!("Failed to open website URL: {}", e);
+                                }
+                            }
                         });
 
                         ui.add_space(12.0);

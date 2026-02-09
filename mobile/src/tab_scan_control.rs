@@ -1476,7 +1476,7 @@ impl TabScanControl {
                                                 if response.clicked() {
                                                     #[cfg(not(target_os = "android"))]
                                                     {
-                                                        if let Err(err) = open::that(&file_result.vt_link) {
+                                                        if let Err(err) = webbrowser::open(&file_result.vt_link) {
                                                             tracing::error!("Failed to open VirusTotal link: {}", err);
                                                         }
                                                     }
@@ -1697,7 +1697,7 @@ impl TabScanControl {
                                             if response.clicked() {
                                                 #[cfg(not(target_os = "android"))]
                                                 {
-                                                    if let Err(err) = open::that(&file_result.ha_link) {
+                                                    if let Err(err) = webbrowser::open(&file_result.ha_link) {
                                                         tracing::error!("Failed to open Hybrid Analysis link: {}", err);
                                                     }
                                                 }
