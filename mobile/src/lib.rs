@@ -63,6 +63,7 @@ pub mod uad_shizuku_app_stt;
 pub mod shared_store_stt;
 mod shared_store;
 pub mod svg_stt;
+pub mod material_symbol_icons;
 
 // Installation management for desktop platforms
 #[cfg(not(target_os = "android"))]

@@ -1315,17 +1315,16 @@ impl TabScanControl {
             .sortable_column(tr!("col-tasks"), 170.0 * width_ratio, false)
             .allow_selection(false);
 
-        if is_desktop {
-            // === DESKTOP TABLE VIEW ===
-            for (idx, package) in installed_packages.iter().enumerate() {
-                if !self.should_show_package_with_state(package, &vt_scanner_state, &ha_scanner_state)
-                    || !self.matches_text_filter_with_cache(package, &cached_fdroid_apps, &cached_google_play_apps, &cached_apkmirror_apps)
-                {
-                    continue;
-                }
+        // === DESKTOP TABLE VIEW ===
+        for (idx, package) in installed_packages.iter().enumerate() {
+            if !self.should_show_package_with_state(package, &vt_scanner_state, &ha_scanner_state)
+                || !self.matches_text_filter_with_cache(package, &cached_fdroid_apps, &cached_google_play_apps, &cached_apkmirror_apps)
+            {
+                continue;
+            }
 
-                let package_name = format!("{} ({})", package.pkg, package.versionName);
-                let app_display_data = app_data_map.get(&package.pkg).cloned();
+            let package_name = format!("{} ({})", package.pkg, package.versionName);
+            let app_display_data = app_data_map.get(&package.pkg).cloned();
             let risk_score = self.get_risk_score(&package.pkg);
             let izzyrisk = risk_score.to_string();
 
@@ -1635,14 +1634,14 @@ impl TabScanControl {
                                                     }
                                                 }
                                             };
-                                            
+                                        
                                             // Check if all tags are blacklisted
                                             let blacklist_tags: Vec<String> = ha_tag_blacklist
                                                 .split(',')
                                                 .map(|s| s.trim().to_lowercase())
                                                 .filter(|s| !s.is_empty())
                                                 .collect();
-                                            
+                                        
                                             let all_tags_blacklisted = if file_result.classification_tags.is_empty() {
                                                 // No tags means we should treat it as blacklisted
                                                 true
@@ -1652,7 +1651,7 @@ impl TabScanControl {
                                                     blacklist_tags.contains(&tag.to_lowercase())
                                                 })
                                             };
-                                            
+                                        
                                             let bg_color = match file_result.verdict.as_str() {
                                                 "malicious" => {
                                                     if all_tags_blacklisted {
@@ -1800,7 +1799,7 @@ impl TabScanControl {
             interactive_table = interactive_table.sort_by(sort_col, direction);
         }
 
-        let table_response = interactive_table.show(ui);
+        et table_response = interactive_table.show(ui);
 
         // Sync sort state
         let (widget_sort_col, widget_sort_dir) = table_response.sort_state;
@@ -1827,165 +1826,10 @@ impl TabScanControl {
             self.sort_packages();
         }
 
-            if table_response.selected_rows.len() == self.selected_packages.len() {
-                self.selected_packages = table_response.selected_rows;
-            }
-        } else {
-            // === MOBILE CARD VIEW ===
-            // Sort buttons for mobile view
-            ui.horizontal_wrapped(|ui| {
-                ui.label(tr!("sort-by"));
-                let sort_options = [
-                    (0, tr!("col-package-name")),
-                    (1, tr!("col-izzy-risk")),
-                    (2, tr!("col-virustotal")),
-                    (3, tr!("col-hybrid-analysis")),
-                ];
-                for (col_idx, label) in sort_options {
-                    let is_selected = self.sort_column == Some(col_idx);
-                    let arrow = if is_selected {
-                        if self.sort_ascending { " ▲" } else { " ▼" }
-                    } else { "" };
-                    let text = format!("{}{}", label, arrow);
-                    let chip = if is_selected {
-                        assist_chip(&text).elevated(true)
-                    } else {
-                        assist_chip(&text)
-                    };
-                    if ui.add(chip.on_click(|| {})).clicked() {
-                        if self.sort_column == Some(col_idx) {
-                            self.sort_ascending = !self.sort_ascending;
-                        } else {
-                            self.sort_column = Some(col_idx);
-                            self.sort_ascending = true;
-                        }
-                        self.sort_packages();
-                    }
-                }
-            });
-            ui.add_space(4.0);
-
-            egui::ScrollArea::vertical()
-                .id_salt("scan_cards_scroll")
-                .show(ui, |ui| {
-                    ui.horizontal_wrapped(|ui| {
-                        for (idx, package) in installed_packages.iter().enumerate() {
-                            if !self.should_show_package_with_state(package, &vt_scanner_state, &ha_scanner_state)
-                                || !self.matches_text_filter_with_cache(package, &cached_fdroid_apps, &cached_google_play_apps, &cached_apkmirror_apps)
-                            {
-                                continue;
-                            }
-
-                            let package_name = format!("{} ({})", package.pkg, package.versionName);
-                            let app_display_data = app_data_map.get(&package.pkg).cloned();
-                            let risk_score = self.get_risk_score(&package.pkg);
-                            let is_system = package.flags.contains("SYSTEM");
-                            let pkg_id = package.pkg.clone();
-
-                            // Get scan results
-                            let vt_result = if let Some(ref scanner_state) = vt_scanner_state {
-                                scanner_state.lock().unwrap().get(&package.pkg).cloned()
-                            } else {
-                                None
-                            };
-                            let ha_result = if let Some(ref scanner_state) = ha_scanner_state {
-                                scanner_state.lock().unwrap().get(&package.pkg).cloned()
-                            } else {
-                                None
-                            };
-
-                            // Get app title and texture
-                            let (texture_id, title, developer) = if let Some((tex_opt, t, d, _)) = &app_display_data {
-                                (tex_opt.as_ref().map(|t| t.id()), Some(t.clone()), Some(d.clone()))
-                            } else {
-                                (None, None, None)
-                            };
-
-                            let display_title = title.unwrap_or_else(|| package_name.clone());
-                            let display_subtitle = developer.unwrap_or_else(|| pkg_id.clone());
-
-                            // VT status
-                            let vt_status = match &vt_result {
-                                Some(calc_virustotal::ScanStatus::Completed(result)) => {
-                                    let mal: i32 = result.file_results.iter().map(|fr| fr.malicious).sum();
-                                    let sus: i32 = result.file_results.iter().map(|fr| fr.suspicious).sum();
-                                    if mal > 0 { ("Malicious", egui::Color32::from_rgb(211, 47, 47)) }
-                                    else if sus > 0 { ("Suspicious", egui::Color32::from_rgb(255, 152, 0)) }
-                                    else { ("Safe", egui::Color32::from_rgb(56, 142, 60)) }
-                                }
-                                Some(calc_virustotal::ScanStatus::Scanning { .. }) |
-                                Some(calc_virustotal::ScanStatus::Pending) => ("Scanning...", egui::Color32::GRAY),
-                                _ => ("Not scanned", egui::Color32::GRAY),
-                            };
-
-                            // HA status
-                            let ha_status = match &ha_result {
-                                Some(calc_hybridanalysis::ScanStatus::Completed(result)) => {
-                                    let max_sev = result.file_results.iter()
-                                        .map(|fr| match fr.verdict.as_str() { "malicious" => 2, "suspicious" => 1, _ => 0 })
-                                        .max().unwrap_or(0);
-                                    match max_sev {
-                                        2 => ("Malicious", egui::Color32::from_rgb(211, 47, 47)),
-                                        1 => ("Suspicious", egui::Color32::from_rgb(255, 152, 0)),
-                                        _ => ("Safe", egui::Color32::from_rgb(56, 142, 60)),
-                                    }
-                                }
-                                Some(calc_hybridanalysis::ScanStatus::Scanning { .. }) |
-                                Some(calc_hybridanalysis::ScanStatus::Pending) => ("Scanning...", egui::Color32::GRAY),
-                                _ => ("Not scanned", egui::Color32::GRAY),
-                            };
-
-                            let card = outlined_card2()
-                                .clickable(true)
-                                .header(&display_title, Some(&display_subtitle))
-                                .content(|ui| {
-                                    ui.horizontal(|ui| {
-                                        if let Some(tex_id) = texture_id {
-                                            ui.image((tex_id, egui::vec2(48.0, 48.0)));
-                                        }
-                                        ui.vertical(|ui| {
-                                            // Risk score
-                                            ui.label(format!("Risk: {}", risk_score));
-                                            // VT badge
-                                            egui::Frame::new()
-                                                .fill(vt_status.1)
-                                                .corner_radius(4.0)
-                                                .inner_margin(egui::Margin::symmetric(6, 3))
-                                                .show(ui, |ui| {
-                                                    ui.label(egui::RichText::new(format!("VT: {}", vt_status.0)).color(egui::Color32::WHITE).size(10.0));
-                                                });
-                                            // HA badge
-                                            egui::Frame::new()
-                                                .fill(ha_status.1)
-                                                .corner_radius(4.0)
-                                                .inner_margin(egui::Margin::symmetric(6, 3))
-                                                .show(ui, |ui| {
-                                                    ui.label(egui::RichText::new(format!("HA: {}", ha_status.0)).color(egui::Color32::WHITE).size(10.0));
-                                                });
-                                        });
-                                    });
-                                })
-                                .actions(|ui| {
-                                    let info_chip = assist_chip("").leading_icon_svg(INFO_SVG).elevated(true);
-                                    if ui.add(info_chip.on_click(|| {})).clicked() {
-                                        ui.data_mut(|data| {
-                                            data.insert_temp(egui::Id::new("card_info_clicked_idx"), idx);
-                                        });
-                                    }
-                                });
-                            ui.add(card);
-                        }
-                    });
-                });
-
-            // Handle card-specific temp data
-            ui.data_mut(|data| {
-                if let Some(idx) = data.get_temp::<usize>(egui::Id::new("card_info_clicked_idx")) {
-                    self.package_details_dialog.open(idx);
-                    data.remove::<usize>(egui::Id::new("card_info_clicked_idx"));
-                }
-            });
+        if table_response.selected_rows.len() == self.selected_packages.len() {
+            self.selected_packages = table_response.selected_rows;
         }
+    
 
         // Handle package info button click
         if let Ok(clicked) = clicked_package_idx.lock() {

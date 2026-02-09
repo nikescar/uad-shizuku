@@ -71,6 +71,11 @@ pub fn init_common() {
 /// Call this in the eframe app creation callback.
 pub fn init_egui(ctx: &Context) {
     setup_local_theme(Some("resources/material-theme.json"));
+    // material icon fonts https://github.com/google/material-design-icons
+    setup_local_fonts_from_bytes(
+        "MaterialSymbolsOutlined",
+        include_bytes!("../resources/MaterialSymbolsOutlined[FILL,GRAD,opsz,wght].ttf"),
+    );
     setup_local_fonts_from_bytes("NotoSansKr", include_bytes!("../resources/noto-sans-kr.ttf"));
     egui_extras::install_image_loaders(ctx);
     load_fonts(ctx);
