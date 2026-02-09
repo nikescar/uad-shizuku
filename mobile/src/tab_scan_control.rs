@@ -1718,8 +1718,7 @@ impl TabScanControl {
                 // Tasks column
                 let row_builder = row_builder.widget_cell(move |ui: &mut egui::Ui| {
                     ui.horizontal(|ui| {
-                        // Refresh chip - delete scan results and re-queue
-                        let pkg_name_refresh = package_name_for_buttons.clone();
+                        // Refresh button - delete scan results and re-queue
                         if ui.add(icon_button_standard(ICON_REFRESH.to_string())).on_hover_text(tr!("refresh-list")).clicked() {
                             ui.data_mut(|data| {
                                 data.insert_temp(egui::Id::new("refresh_clicked_package"), package_name_for_buttons.clone());
