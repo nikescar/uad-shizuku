@@ -11,13 +11,14 @@ use crate::dlg_package_details::DlgPackageDetails;
 use eframe::egui;
 use egui_async::Bind;
 use egui_i18n::tr;
-use egui_material3::{assist_chip, data_table, outlined_card2, theme::get_global_color, MaterialButton};
+use egui_material3::{data_table, icon_button_standard, outlined_card2, theme::get_global_color, MaterialButton};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::thread;
 
 // SVG icons as constants (moved to svg_stt.rs)
 use crate::svg_stt::*;
+use crate::material_symbol_icons::{ICON_REFRESH, ICON_DELETE, ICON_TOGGLE_OFF, ICON_TOGGLE_ON};
 
 /// Minimum viewport width for desktop table view
 const DESKTOP_MIN_WIDTH: f32 = 1008.0;
@@ -1308,11 +1309,15 @@ impl TabScanControl {
 
         let mut interactive_table = data_table()
             .id(egui::Id::new("scan_data_table"))
-            .sortable_column(tr!("col-package-name"), 350.0 * width_ratio, false)
-            .sortable_column(tr!("col-izzy-risk"), 80.0 * width_ratio, true)
-            .sortable_column(tr!("col-virustotal"), 200.0 * width_ratio, false)
-            .sortable_column(tr!("col-hybrid-analysis"), 200.0 * width_ratio, false)
-            .sortable_column(tr!("col-tasks"), 170.0 * width_ratio, false)
+            .sortable_column(tr!("col-package-name"), if is_desktop { 350.0 * width_ratio } else { available_width * 0.55 }, false);
+        if is_desktop {
+            interactive_table = interactive_table
+                .sortable_column(tr!("col-izzy-risk"), 80.0 * width_ratio, true)
+                .sortable_column(tr!("col-virustotal"), 200.0 * width_ratio, false)
+                .sortable_column(tr!("col-hybrid-analysis"), 200.0 * width_ratio, false);
+        }
+        interactive_table = interactive_table
+            .sortable_column(tr!("col-tasks"), if is_desktop { 170.0 * width_ratio } else { available_width * 0.45 }, false)
             .allow_selection(false);
 
         // === DESKTOP TABLE VIEW ===
@@ -1407,14 +1412,16 @@ impl TabScanControl {
                     })
                 };
 
-                // IzzyRisk column
-                let row_builder = row_builder.widget_cell(move |ui: &mut egui::Ui| {
+                // IzzyRisk column (desktop only)
+                let row_builder = if is_desktop {
+                row_builder.widget_cell(move |ui: &mut egui::Ui| {
                     ui.label(&izzyrisk);
-                });
+                })
+                } else { row_builder };
 
-                // VirusTotal column with state machine rendering
+                // VirusTotal column (desktop only)
                 let vt_result = vt_scan_result.clone();
-                let row_builder = row_builder.widget_cell(move |ui: &mut egui::Ui| {
+                let row_builder = if is_desktop { row_builder.widget_cell(move |ui: &mut egui::Ui| {
                     egui::ScrollArea::horizontal()
                         .id_salt(format!("vt_scroll_{}", idx))
                         .auto_shrink([false, false])
@@ -1484,12 +1491,13 @@ impl TabScanControl {
                                 }
                             });
                         });
-                });
+                })
+                } else { row_builder };
 
-                // HybridAnalysis column with state machine rendering
+                // HybridAnalysis column (desktop only)
                 let ha_result = ha_scan_result.clone();
                 let ha_tag_blacklist = hybridanalysis_tag_blacklist.clone();
-                let row_builder = row_builder.widget_cell(move |ui: &mut egui::Ui| {
+                let row_builder = if is_desktop { row_builder.widget_cell(move |ui: &mut egui::Ui| {
                     egui::ScrollArea::horizontal()
                         .id_salt(format!("ha_scroll_{}", idx))
                         .auto_shrink([false, false])
@@ -1704,26 +1712,19 @@ impl TabScanControl {
                                 }
                             });
                         });
-                });
+                })
+                } else { row_builder };
 
                 // Tasks column
                 let row_builder = row_builder.widget_cell(move |ui: &mut egui::Ui| {
                     ui.horizontal(|ui| {
                         // Refresh chip - delete scan results and re-queue
-                        let refresh_chip = assist_chip("")
-                            .leading_icon_svg(REFRESH_SVG)
-                            .elevated(true);
                         let pkg_name_refresh = package_name_for_buttons.clone();
-                        let refresh_response = ui.add(refresh_chip.on_click(|| {
-                            tracing::info!("Refresh clicked for: {}", pkg_name_refresh);
-                        }));
-                        if refresh_response.clicked() {
+                        if ui.add(icon_button_standard(ICON_REFRESH.to_string())).on_hover_text(tr!("refresh-list")).clicked() {
                             ui.data_mut(|data| {
                                 data.insert_temp(egui::Id::new("refresh_clicked_package"), package_name_for_buttons.clone());
                             });
                         }
-                        refresh_response.on_hover_text(tr!("refresh-scan"));
-
                         // let chip = assist_chip("")
                         //     .leading_icon_svg(INFO_SVG)
                         //     .elevated(true);
@@ -1736,14 +1737,7 @@ impl TabScanControl {
                         // }
 
                         if (enabled_str.contains("DEFAULT") || enabled_str.contains("ENABLED")) && !is_unsafe_blocked {
-                            let uninstall_chip = assist_chip("")
-                                .leading_icon_svg(TRASH_RED_SVG)
-                                .elevated(true);
-
-                            let pkg_name_uninstall = package_name_for_buttons.clone();
-                            if ui.add(uninstall_chip.on_click(|| {
-                                tracing::info!("Uninstall clicked for: {}", pkg_name_uninstall);
-                            })).clicked() {
+                            if ui.add(icon_button_standard(ICON_DELETE.to_string())).on_hover_text(tr!("uninstall")).clicked() {
                                 ui.data_mut(|data| {
                                     data.insert_temp(egui::Id::new("uninstall_clicked_package"), package_name_for_buttons.clone());
                                     data.insert_temp(egui::Id::new("uninstall_clicked_is_system"), is_system);
@@ -1752,14 +1746,7 @@ impl TabScanControl {
                         }
 
                         if (enabled_str.contains("DEFAULT") || enabled_str.contains("ENABLED")) && !is_unsafe_blocked  {
-                            let disable_chip = assist_chip("")
-                                .leading_icon_svg(DISABLE_RED_SVG)
-                                .elevated(true);
-
-                            let pkg_name_disable = package_name_for_buttons.clone();
-                            if ui.add(disable_chip.on_click(|| {
-                                tracing::info!("Disable clicked for: {}", pkg_name_disable);
-                            })).clicked() {
+                            if ui.add(icon_button_standard(ICON_TOGGLE_ON.to_string())).on_hover_text(tr!("disable")).clicked() {
                                 ui.data_mut(|data| {
                                     data.insert_temp(egui::Id::new("disable_clicked_package"), package_name_for_buttons.clone());
                                 });
@@ -1767,14 +1754,7 @@ impl TabScanControl {
                         }
 
                         if enabled_str.contains("REMOVED_USER") || enabled_str.contains("DISABLED_USER") || enabled_str.contains("DISABLED") {
-                            let enable_chip = assist_chip("")
-                                .leading_icon_svg(ENABLE_GREEN_SVG)
-                                .elevated(true);
-
-                            let pkg_name_enable = package_name_for_buttons.clone();
-                            if ui.add(enable_chip.on_click(|| {
-                                tracing::info!("Enable clicked for: {}", pkg_name_enable);
-                            })).clicked() {
+                            if ui.add(icon_button_standard(ICON_TOGGLE_OFF.to_string())).on_hover_text(tr!("enable")).clicked() {
                                 ui.data_mut(|data| {
                                     data.insert_temp(egui::Id::new("enable_clicked_package"), package_name_for_buttons.clone());
                                 });
@@ -1788,6 +1768,16 @@ impl TabScanControl {
             });
         }
 
+        // Sort column index mapping: self.sort_column uses logical (desktop) indices
+        // Desktop: [0=PackageName, 1=IzzyRisk, 2=VT, 3=HA, 4=Tasks]
+        // Mobile:  [0=PackageName, 1=Tasks]
+        let to_physical = |logical: usize| -> usize {
+            if is_desktop { logical } else { match logical { 0 => 0, _ => 1 } }
+        };
+        let to_logical = |physical: usize| -> usize {
+            if is_desktop { physical } else { match physical { 0 => 0, _ => 4 } }
+        };
+
         // Set sort state
         if let Some(sort_col) = self.sort_column {
             use egui_material3::SortDirection;
@@ -1796,20 +1786,23 @@ impl TabScanControl {
             } else {
                 SortDirection::Descending
             };
-            interactive_table = interactive_table.sort_by(sort_col, direction);
+            if is_desktop || sort_col == 0 || sort_col == 4 {
+                interactive_table = interactive_table.sort_by(to_physical(sort_col), direction);
+            }
         }
 
-        et table_response = interactive_table.show(ui);
+        let table_response = interactive_table.show(ui);
 
         // Sync sort state
         let (widget_sort_col, widget_sort_dir) = table_response.sort_state;
+        let logical_sort_col = widget_sort_col.map(|c| to_logical(c));
         let widget_sort_ascending =
             matches!(widget_sort_dir, egui_material3::SortDirection::Ascending);
 
-        if widget_sort_col != self.sort_column
-            || (widget_sort_col.is_some() && widget_sort_ascending != self.sort_ascending)
+        if logical_sort_col != self.sort_column
+            || (logical_sort_col.is_some() && widget_sort_ascending != self.sort_ascending)
         {
-            self.sort_column = widget_sort_col;
+            self.sort_column = logical_sort_col;
             self.sort_ascending = widget_sort_ascending;
             if self.sort_column.is_some() {
                 self.sort_packages();
@@ -1817,10 +1810,11 @@ impl TabScanControl {
         }
 
         if let Some(clicked_col) = table_response.column_clicked {
-            if self.sort_column == Some(clicked_col) {
+            let logical_clicked = to_logical(clicked_col);
+            if self.sort_column == Some(logical_clicked) {
                 self.sort_ascending = !self.sort_ascending;
             } else {
-                self.sort_column = Some(clicked_col);
+                self.sort_column = Some(logical_clicked);
                 self.sort_ascending = true;
             }
             self.sort_packages();

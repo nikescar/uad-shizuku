@@ -6,8 +6,9 @@ pub use crate::tab_debloat_control_stt::*;
 use crate::dlg_package_details::DlgPackageDetails;
 use eframe::egui;
 use egui_i18n::tr;
-use egui_material3::{assist_chip, data_table, outlined_card2, theme::get_global_color, MaterialButton};
+use egui_material3::{data_table, icon_button_standard, outlined_card2, theme::get_global_color, MaterialButton};
 
+use crate::material_symbol_icons::{ICON_INFO, ICON_DELETE, ICON_TOGGLE_OFF, ICON_TOGGLE_ON};
 use crate::svg_stt::*;
 
 /// Minimum viewport width for desktop table view
@@ -792,13 +793,27 @@ impl TabDebloatControl {
                 "debloat_data_table_v{}",
                 self.table_version
             )))
-            .sortable_column(tr!("col-package-name"), 350.0 * width_ratio, false)
-            .sortable_column(tr!("col-debloat-category"), 130.0 * width_ratio, false)
-            .sortable_column("RP", 80.0 * width_ratio, true)
-            .sortable_column(tr!("col-enabled"), 120.0 * width_ratio, false)
-            .sortable_column(tr!("col-install-reason"), 110.0 * width_ratio, false)
-            .sortable_column(tr!("col-tasks"), 160.0 * width_ratio, false)
+            .sortable_column(tr!("col-package-name"), if is_desktop { 350.0 * width_ratio } else { available_width * 0.55 }, false);
+        if is_desktop {
+            debloat_table = debloat_table
+                .sortable_column(tr!("col-debloat-category"), 130.0 * width_ratio, false)
+                .sortable_column("RP", 80.0 * width_ratio, true)
+                .sortable_column(tr!("col-enabled"), 120.0 * width_ratio, false)
+                .sortable_column(tr!("col-install-reason"), 110.0 * width_ratio, false);
+        }
+        debloat_table = debloat_table
+            .sortable_column(tr!("col-tasks"), if is_desktop { 160.0 * width_ratio } else { available_width * 0.45 }, false)
             .allow_selection(true);
+
+        // Sort column index mapping: self.sort_column uses logical (desktop) indices
+        // Desktop: [0=PackageName, 1=DebloatCategory, 2=RP, 3=Enabled, 4=InstallReason, 5=Tasks]
+        // Mobile:  [0=PackageName, 1=Tasks]
+        let to_physical = |logical: usize| -> usize {
+            if is_desktop { logical } else { match logical { 0 => 0, _ => 1 } }
+        };
+        let to_logical = |physical: usize| -> usize {
+            if is_desktop { physical } else { match physical { 0 => 0, _ => 5 } }
+        };
 
         if let Some(sort_col) = self.sort_column {
             use egui_material3::SortDirection;
@@ -807,7 +822,9 @@ impl TabDebloatControl {
             } else {
                 SortDirection::Descending
             };
-            debloat_table = debloat_table.sort_by(sort_col, direction);
+            if is_desktop || sort_col == 0 || sort_col == 5 {
+                debloat_table = debloat_table.sort_by(to_physical(sort_col), direction);
+            }
         }
 
         let mut filtered_package_names = Vec::new();
@@ -977,79 +994,80 @@ impl TabDebloatControl {
                     })
                 };
 
-                // Debloat category column
-                row_builder = row_builder.widget_cell(move |ui: &mut egui::Ui| {
-                    let bg_color = match debloat_category_clone.as_str() {
-                        "Recommended" => egui::Color32::from_rgb(56, 142, 60),
-                        "Advanced" => egui::Color32::from_rgb(33, 150, 243),
-                        "Expert" => egui::Color32::from_rgb(255, 152, 0),
-                        "Unsafe" => egui::Color32::from_rgb(255, 235, 59),
-                        "Unknown" => egui::Color32::from_rgb(255, 255, 255),
-                        _ => egui::Color32::from_rgb(158, 158, 158),
-                    };
-                    let text_color = match debloat_category_clone.as_str() {
-                        "Unknown" | "Unsafe" => egui::Color32::from_rgb(0, 0, 0),
-                        _ => egui::Color32::WHITE,
-                    };
-                    let label_text = match debloat_category_clone.as_str() {
-                        "Recommended" => tr!("label-recommended"),
-                        "Advanced" => tr!("label-advanced"),
-                        "Expert" => tr!("label-expert"),
-                        "Unsafe" => tr!("label-unsafe"),
-                        "Unknown" => tr!("label-unknown"),
-                        _ => debloat_category_clone.clone(),
-                    };
-                    ui.horizontal(|ui| {
-                        egui::Frame::new()
-                            .fill(bg_color)
-                            .corner_radius(8.0)
-                            .inner_margin(egui::Margin::symmetric(12, 6))
-                            .show(ui, |ui| {
-                                ui.label(egui::RichText::new(&label_text).color(text_color).size(12.0));
-                            });
+                // Desktop-only columns
+                if is_desktop {
+                    // Debloat category column
+                    row_builder = row_builder.widget_cell(move |ui: &mut egui::Ui| {
+                        let bg_color = match debloat_category_clone.as_str() {
+                            "Recommended" => egui::Color32::from_rgb(56, 142, 60),
+                            "Advanced" => egui::Color32::from_rgb(33, 150, 243),
+                            "Expert" => egui::Color32::from_rgb(255, 152, 0),
+                            "Unsafe" => egui::Color32::from_rgb(255, 235, 59),
+                            "Unknown" => egui::Color32::from_rgb(255, 255, 255),
+                            _ => egui::Color32::from_rgb(158, 158, 158),
+                        };
+                        let text_color = match debloat_category_clone.as_str() {
+                            "Unknown" | "Unsafe" => egui::Color32::from_rgb(0, 0, 0),
+                            _ => egui::Color32::WHITE,
+                        };
+                        let label_text = match debloat_category_clone.as_str() {
+                            "Recommended" => tr!("label-recommended"),
+                            "Advanced" => tr!("label-advanced"),
+                            "Expert" => tr!("label-expert"),
+                            "Unsafe" => tr!("label-unsafe"),
+                            "Unknown" => tr!("label-unknown"),
+                            _ => debloat_category_clone.clone(),
+                        };
+                        ui.horizontal(|ui| {
+                            egui::Frame::new()
+                                .fill(bg_color)
+                                .corner_radius(8.0)
+                                .inner_margin(egui::Margin::symmetric(12, 6))
+                                .show(ui, |ui| {
+                                    ui.label(egui::RichText::new(&label_text).color(text_color).size(12.0));
+                                });
+                        });
                     });
-                });
 
-                // Runtime permissions column
-                row_builder = row_builder.cell(&runtime_perms);
+                    // Runtime permissions column
+                    row_builder = row_builder.cell(&runtime_perms);
 
-                // Enabled column
-                let enabled_text_clone = enabled_text.clone();
-                row_builder = row_builder.widget_cell(move |ui: &mut egui::Ui| {
-                    let bg_color = match enabled_text_clone.as_str() {
-                        "REMOVED_USER" | "DISABLED" | "DISABLED_USER" => egui::Color32::from_rgb(211, 47, 47),
-                        "DEFAULT" | "ENABLED" | "UNKNOWN" => egui::Color32::from_rgb(56, 142, 60),
-                        _ => egui::Color32::from_rgb(158, 158, 158),
-                    };
-                    ui.horizontal(|ui| {
-                        egui::Frame::new()
-                            .fill(bg_color)
-                            .corner_radius(8.0)
-                            .inner_margin(egui::Margin::symmetric(12, 6))
-                            .show(ui, |ui| {
-                                ui.label(egui::RichText::new(&enabled_text_clone).color(egui::Color32::WHITE).size(12.0));
-                            });
+                    // Enabled column
+                    let enabled_text_clone = enabled_text.clone();
+                    row_builder = row_builder.widget_cell(move |ui: &mut egui::Ui| {
+                        let bg_color = match enabled_text_clone.as_str() {
+                            "REMOVED_USER" | "DISABLED" | "DISABLED_USER" => egui::Color32::from_rgb(211, 47, 47),
+                            "DEFAULT" | "ENABLED" | "UNKNOWN" => egui::Color32::from_rgb(56, 142, 60),
+                            _ => egui::Color32::from_rgb(158, 158, 158),
+                        };
+                        ui.horizontal(|ui| {
+                            egui::Frame::new()
+                                .fill(bg_color)
+                                .corner_radius(8.0)
+                                .inner_margin(egui::Margin::symmetric(12, 6))
+                                .show(ui, |ui| {
+                                    ui.label(egui::RichText::new(&enabled_text_clone).color(egui::Color32::WHITE).size(12.0));
+                                });
+                        });
                     });
-                });
 
-                // Install reason column
-                row_builder = row_builder.cell(install_reason);
+                    // Install reason column
+                    row_builder = row_builder.cell(install_reason);
+                }
 
                 // Tasks column
                 let pkg_id_for_buttons = pkg_id_clone.clone();
                 let is_unsafe_blocked = debloat_category == "Unsafe" && !self.unsafe_app_remove;
                 row_builder = row_builder.widget_cell(move |ui: &mut egui::Ui| {
                     ui.horizontal(|ui| {
-                        let chip = assist_chip("").leading_icon_svg(INFO_SVG).elevated(true);
-                        if ui.add(chip.on_click(|| {})).clicked() {
+                        if ui.add(icon_button_standard(ICON_INFO.to_string())).on_hover_text(tr!("package-info")).clicked() {
                             if let Ok(mut clicked) = clicked_idx_clone.lock() {
                                 *clicked = Some(idx);
                             }
                         }
 
                         if (enabled_str.contains("DEFAULT") || enabled_str.contains("ENABLED")) && !is_unsafe_blocked {
-                            let uninstall_chip = assist_chip("").leading_icon_svg(TRASH_RED_SVG).elevated(true);
-                            if ui.add(uninstall_chip.on_click(|| {})).clicked() {
+                            if ui.add(icon_button_standard(ICON_DELETE.to_string())).on_hover_text(tr!("uninstall")).clicked() {
                                 ui.data_mut(|data| {
                                     data.insert_temp(egui::Id::new("uninstall_clicked_package"), pkg_id_for_buttons.clone());
                                     data.insert_temp(egui::Id::new("uninstall_clicked_is_system"), is_system);
@@ -1058,8 +1076,7 @@ impl TabDebloatControl {
                         }
 
                         if (enabled_str.contains("DEFAULT") || enabled_str.contains("ENABLED")) && !is_unsafe_blocked {
-                            let disable_chip = assist_chip("").leading_icon_svg(DISABLE_RED_SVG).elevated(true);
-                            if ui.add(disable_chip.on_click(|| {})).clicked() {
+                            if ui.add(icon_button_standard(ICON_TOGGLE_ON.to_string())).on_hover_text(tr!("disable")).clicked() {
                                 ui.data_mut(|data| {
                                     data.insert_temp(egui::Id::new("disable_clicked_package"), pkg_id_for_buttons.clone());
                                 });
@@ -1067,8 +1084,7 @@ impl TabDebloatControl {
                         }
 
                         if enabled_str.contains("REMOVED_USER") || enabled_str.contains("DISABLED_USER") || enabled_str.contains("DISABLED") {
-                            let enable_chip = assist_chip("").leading_icon_svg(ENABLE_GREEN_SVG).elevated(true);
-                            if ui.add(enable_chip.on_click(|| {})).clicked() {
+                            if ui.add(icon_button_standard(ICON_TOGGLE_OFF.to_string())).on_hover_text(tr!("enable")).clicked() {
                                 ui.data_mut(|data| {
                                     data.insert_temp(egui::Id::new("enable_clicked_package"), pkg_id_for_buttons.clone());
                                 });
@@ -1092,12 +1108,13 @@ impl TabDebloatControl {
 
         // Sync sort state
         let (widget_sort_col, widget_sort_dir) = table_response.sort_state;
+        let logical_sort_col = widget_sort_col.map(|c| to_logical(c));
         let widget_sort_ascending = matches!(widget_sort_dir, egui_material3::SortDirection::Ascending);
 
-        if widget_sort_col != self.sort_column
-            || (widget_sort_col.is_some() && widget_sort_ascending != self.sort_ascending)
+        if logical_sort_col != self.sort_column
+            || (logical_sort_col.is_some() && widget_sort_ascending != self.sort_ascending)
         {
-            self.sort_column = widget_sort_col;
+            self.sort_column = logical_sort_col;
             self.sort_ascending = widget_sort_ascending;
             if self.sort_column.is_some() {
                 self.sort_packages();
@@ -1105,10 +1122,11 @@ impl TabDebloatControl {
         }
 
         if let Some(clicked_col) = table_response.column_clicked {
-            if self.sort_column == Some(clicked_col) {
+            let logical_clicked = to_logical(clicked_col);
+            if self.sort_column == Some(logical_clicked) {
                 self.sort_ascending = !self.sort_ascending;
             } else {
-                self.sort_column = Some(clicked_col);
+                self.sort_column = Some(logical_clicked);
                 self.sort_ascending = true;
             }
             self.sort_packages();
