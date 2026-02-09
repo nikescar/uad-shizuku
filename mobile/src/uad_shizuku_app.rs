@@ -11,7 +11,7 @@ static ADB_RETRY_REQUESTED: AtomicBool = AtomicBool::new(false);
 use eframe::egui;
 use egui_i18n::tr;
 use egui_material3::menu::{Corner, FocusState, Positioning};
-use egui_material3::{assist_chip, dialog, menu, menu_item, tabs_primary, MaterialButton};
+use egui_material3::{assist_chip, dialog, icon_button_standard, menu, menu_item, tabs_primary, MaterialButton};
 use egui_material3::{get_global_theme, ContrastLevel, MaterialThemeContext, ThemeMode};
 
 use crate::db::{
@@ -19,6 +19,7 @@ use crate::db::{
     invalidate_cache,
 };
 use crate::db_package_cache::get_cached_packages_with_apk;
+use crate::material_symbol_icons::ICON_REFRESH;
 use crate::models::PackageInfoCache;
 use crate::svg_stt::*;
 
@@ -701,16 +702,7 @@ impl UadShizukuApp {
                 }
 
                 // Update device list on button click
-                let refresh_chip = assist_chip("")
-                    .leading_icon_svg(REFRESH_SVG)
-                    .elevated(false);
-
-                if ui
-                    .add(refresh_chip.on_click(|| {
-                        tracing::info!("Refresh devices clicked");
-                    }))
-                    .clicked()
-                {
+                if ui.add(icon_button_standard(ICON_REFRESH.to_string())).on_hover_text(tr!("refresh-list")).clicked() {
                     self.retrieve_adb_devices();
                 }
 
