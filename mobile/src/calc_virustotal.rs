@@ -137,9 +137,9 @@ impl RateLimiter {
         // Only update if this extends the existing rate limit
         if self.rate_limit_until.is_none() || self.rate_limit_until.unwrap() < until {
             log::warn!(
-                "Setting global rate limit for {:?} (until {:?})",
-                duration,
-                until
+                "Setting global rate limit for {:.2}s (until {:.2}s from now)",
+                duration.as_secs_f64(),
+                duration.as_secs_f64()
             );
             self.rate_limit_until = Some(until);
             // Clear request times since we're resetting
