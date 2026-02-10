@@ -181,7 +181,7 @@ impl RateLimiter {
             let since_last = now.duration_since(last);
             if since_last < self.min_interval {
                 let wait_duration = self.min_interval - since_last;
-                log::debug!("Need to wait {:?} for minimum interval", wait_duration);
+                log::debug!("Need to wait {:.2}s for minimum interval", wait_duration.as_secs_f64());
                 return Some(wait_duration);
             }
         }
@@ -205,7 +205,7 @@ impl RateLimiter {
         // Loop until no wait is needed
         loop {
             if let Some(duration) = self.check_wait_needed() {
-                log::debug!("Sleeping for {:?}", duration);
+                log::debug!("Sleeping for {:.2}s", duration.as_secs_f64());
                 thread::sleep(duration);
             } else {
                 break;
@@ -248,9 +248,9 @@ impl RateLimiter {
         // Only update if this extends the existing rate limit
         if self.rate_limit_until.is_none() || self.rate_limit_until.unwrap() < until {
             log::warn!(
-                "Setting global rate limit for {:?} (until {:?})",
-                duration,
-                until
+                "Setting global rate limit for {:.2}s (until {:.2}s from now)",
+                duration.as_secs_f64(),
+                duration.as_secs_f64()
             );
             self.rate_limit_until = Some(until);
         }
@@ -263,7 +263,7 @@ impl RateLimiter {
 
         // Only update if this extends the existing rate limit
         if self.upload_rate_limit_until.is_none() || self.upload_rate_limit_until.unwrap() < until {
-            log::warn!("Setting upload rate limit for 1 day (until {:?})", until);
+            log::warn!("Setting upload rate limit for 1 day (86400s from now)");
             self.upload_rate_limit_until = Some(until);
         }
     }
@@ -487,7 +487,7 @@ pub fn analyze_package(
                     break;
                 }
 
-                log::debug!("Waiting {:?} before API request", duration);
+                log::debug!("Waiting {:.2}s before API request", duration.as_secs_f64());
                 if let Err(e) = sleep_with_updates(
                     duration,
                     package_name,
@@ -617,7 +617,7 @@ pub fn analyze_package(
                             break;
                         }
 
-                        log::debug!("Waiting {:?} before fetching report", duration);
+                        log::debug!("Waiting {:.2}s before fetching report", duration.as_secs_f64());
                         if let Err(e) = sleep_with_updates(
                             duration,
                             package_name,
@@ -897,15 +897,11 @@ fn handle_file_upload(
         file_path,
         local_path.display()
     );
-    #[cfg(not(target_os = "android"))]
+    
+    // pull_file_to_temp handles both Android (xxd method) and non-Android (adb pull) platforms
     if let Err(e) = adb::pull_file_to_temp(device_serial, file_path, tmp_dir_str, package_name) {
         log::error!("Failed to pull file {} from device: {}", file_path, e);
         return Err(Box::new(e));
-    }
-    #[cfg(target_os = "android")]
-    {
-        log::error!("File pulling is not supported on Android platform");
-        return Err("File pulling not supported on Android".into());
     }
     
     // Verify the file was actually pulled
@@ -959,7 +955,7 @@ fn handle_file_upload(
                 return Err("Waited too long for upload rate limit".into());
             }
 
-            log::info!("Waiting {:?} before upload", duration);
+            log::info!("Waiting {:.2}s before upload", duration.as_secs_f64());
             if let Err(e) = sleep_with_updates(
                 duration,
                 package_name,

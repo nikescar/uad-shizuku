@@ -12,7 +12,7 @@ use log::{debug, error};
 /// Execute a shell command on the device.
 /// On Android, uses Shizuku to run the command locally.
 /// On desktop, uses `adb -s <device> shell <command>`.
-fn shell_exec(device: &str, command: &str) -> std::io::Result<String> {
+pub fn shell_exec(device: &str, command: &str) -> std::io::Result<String> {
     #[cfg(target_os = "android")]
     {
         let _ = device; // device is implicit on Android (local)
@@ -1271,16 +1271,78 @@ pub fn pull_file_to_temp(
 
     #[cfg(target_os = "android")]
     {
-        // On Android, copy the file locally via Shizuku shell
-        debug!("Copying {} to {} via Shizuku", file_path, absolute_path_str);
-        shell_exec(device_serial, &format!("cp \"{}\" \"{}\"", file_path, absolute_path_str))?;
-
+        // On Android, use xxd to dump file to hex in shell-accessible location, then convert back
+        // This is necessary because shell can't write to app's private directory
+        let hex_dump_path = format!("/data/local/tmp/uad_dump_{}.hex", package_id.replace(".", "_"));
+        
+        debug!("Dumping file to hex on Android: {} -> {}", file_path, hex_dump_path);
+        
+        // Step 1: Use xxd to create hex dump in /data/local/tmp (shell-accessible)
+        let dump_cmd = format!("xxd \"{}\" > \"{}\"", file_path, hex_dump_path);
+        shell_exec(device_serial, &dump_cmd)?;
+        
+        // Step 2: Read the hex dump file (Rust can read from /data/local/tmp)
+        let hex_content = match std::fs::read_to_string(&hex_dump_path) {
+            Ok(content) => content,
+            Err(e) => {
+                error!("Failed to read hex dump file {}: {}", hex_dump_path, e);
+                // Clean up
+                let _ = shell_exec(device_serial, &format!("rm \"{}\"", hex_dump_path));
+                return Err(e);
+            }
+        };
+        
+        // Step 3: Convert hex dump back to binary
+        debug!("Converting hex dump back to binary: {} bytes of hex data", hex_content.len());
+        let mut binary_data = Vec::new();
+        
+        for line in hex_content.lines() {
+            // xxd format: "00000000: 504b 0304 1400 0808 0800 .... PK.........."
+            // We need to parse the hex bytes part (between : and ASCII part)
+            if let Some(colon_pos) = line.find(':') {
+                let hex_part = &line[colon_pos + 1..];
+                // Find where the ASCII representation starts (usually after two spaces)
+                let hex_bytes = if let Some(ascii_start) = hex_part.rfind("  ") {
+                    &hex_part[..ascii_start]
+                } else {
+                    hex_part
+                };
+                
+                // Parse hex bytes (format: "504b 0304 1400")
+                for hex_pair in hex_bytes.split_whitespace() {
+                    // Each pair is 4 chars representing 2 bytes: "504b" -> 0x50, 0x4b
+                    for i in (0..hex_pair.len()).step_by(2) {
+                        if i + 1 < hex_pair.len() {
+                            if let Ok(byte) = u8::from_str_radix(&hex_pair[i..i+2], 16) {
+                                binary_data.push(byte);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        debug!("Converted hex dump to {} bytes of binary data", binary_data.len());
+        
+        // Step 4: Write binary data to app's private directory (Rust has app permissions)
+        if let Err(e) = std::fs::write(&absolute_path, &binary_data) {
+            error!("Failed to write binary file to {}: {}", absolute_path_str, e);
+            // Clean up hex dump
+            let _ = shell_exec(device_serial, &format!("rm \"{}\"", hex_dump_path));
+            return Err(e);
+        }
+        
+        debug!("Successfully wrote binary file to {}", absolute_path_str);
+        
+        // Clean up hex dump file
+        let _ = shell_exec(device_serial, &format!("rm \"{}\"", hex_dump_path));
+        
         if absolute_path.exists() {
             let file_size = std::fs::metadata(&absolute_path)?.len();
-            debug!("File copied to: {} ({} bytes)", absolute_path_str, file_size);
+            debug!("File pulled successfully: {} ({} bytes)", absolute_path_str, file_size);
             Ok(absolute_path_str.to_string())
         } else {
-            let err_msg = format!("cp succeeded but file not found at {}", absolute_path_str);
+            let err_msg = format!("File conversion succeeded but file not found at {}", absolute_path_str);
             error!("{}", err_msg);
             Err(std::io::Error::new(std::io::ErrorKind::NotFound, err_msg))
         }

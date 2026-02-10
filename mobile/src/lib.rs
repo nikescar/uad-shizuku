@@ -222,7 +222,7 @@ impl Config {
             let db_dir = PathBuf::from("/data/data/pe.nikescar.uad_shizuku/dbs");
             let tmp_dir = PathBuf::from("/data/data/pe.nikescar.uad_shizuku/tmp");
 
-            log::info!("Android config paths - config_dir: {:?}, cache_dir: {:?} download_dir: {:?}, db_dir: {:?}, tmp_dir: {:?}", config_dir, cache_dir, download_dir, db_dir, tmp_dir);
+            log::info!("Android config paths - config_dir: {:?}, cache_dir: {:?}, download_dir: {:?}, db_dir: {:?}, tmp_dir: {:?}", config_dir, cache_dir, download_dir, db_dir, tmp_dir);
 
             // Create directories if they don't exist
             match fs::create_dir_all(&config_dir) {
