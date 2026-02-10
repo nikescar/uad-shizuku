@@ -249,6 +249,92 @@ adb version
 
 ---
 
+## Android (Shizuku)
+
+When running UAD-Shizuku on an Android device, you need **Shizuku** to provide ADB-like functionality locally.
+
+### Prerequisites
+
+| Component | Purpose | Required |
+|-----------|---------|----------|
+| Shizuku App | Provides ADB functionality on device | Yes |
+| Developer Options | Enables USB/Wireless debugging | Yes |
+
+### Step 1: Install Shizuku App
+
+Install Shizuku from Google Play Store:
+
+**Download:** https://play.google.com/store/apps/details?id=moe.shizuku.privileged.api
+
+Or install from F-Droid or GitHub releases if you prefer alternative sources.
+
+### Step 2: Enable Developer Mode
+
+1. Open **Settings** on your Android device
+2. Navigate to **About phone** (or **About tablet**)
+3. Find **Build number** (may be under "Software information")
+4. Tap **Build number** 7 times
+5. You should see a message "You are now a developer!"
+
+### Step 3: Enable Wireless Debugging
+
+1. Go to **Settings** > **Developer options**
+2. Enable **Wireless debugging**
+3. Tap **Wireless debugging** to open the settings
+4. Tap **Pair device with pairing code**
+5. Note the IP address, port, and pairing code
+
+**Important:** Your device should stay on this screen. Don't close it yet.
+
+### Step 4: Start Shizuku Service
+
+1. Open the **Shizuku** app
+2. Tap **Pair** or **Start** button
+3. When prompted, use the pairing code from Step 3
+4. Wait for Shizuku to connect (status should show "Running")
+5. Grant any permission requests from Shizuku
+
+**Note:** If Shizuku fails to start:
+- Make sure Wireless debugging is still enabled
+- Try rebooting your device and repeating from Step 3
+- Ensure your device is not in battery saver mode
+
+### Step 5: Return to UAD-Shizuku
+
+1. Open **UAD-Shizuku** app
+2. Tap the **refresh button** (☰) menu
+3. Select **Refresh** to detect the device
+4. Grant permission when UAD-Shizuku requests Shizuku access
+
+Your device should now appear as "local" in the device list.
+
+### Verification
+
+- Shizuku status should show "Running" in the Shizuku app
+- UAD-Shizuku should show "local" in the device dropdown
+- You should be able to select users and view installed packages
+
+### Troubleshooting Shizuku
+
+**Shizuku won't start:**
+- Ensure Wireless debugging is enabled
+- Restart your device
+- Try uninstalling and reinstalling Shizuku
+- Check that no other apps are using port 5555 (ADB port)
+
+**UAD-Shizuku doesn't detect device:**
+- Make sure Shizuku shows "Running" status
+- Grant Shizuku permission when UAD-Shizuku requests it
+- Click the refresh button in UAD-Shizuku
+- Restart both Shizuku and UAD-Shizuku apps
+
+**Permission denied errors:**
+- Open Shizuku app and grant all permissions
+- Check Developer options is still enabled
+- Verify Wireless debugging is active
+
+---
+
 ## Troubleshooting
 
 ### ADB not found after installation

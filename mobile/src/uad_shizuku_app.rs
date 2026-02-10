@@ -705,12 +705,6 @@ impl UadShizukuApp {
                     self.retrieve_adb_devices();
                 }
 
-                // Show Shizuku status message (Android only)
-                #[cfg(target_os = "android")]
-                if let Some(ref msg) = self.shizuku_error_message {
-                    ui.colored_label(egui::Color32::from_rgb(200, 100, 50), msg);
-                }
-
                 // Show progress bar if packages are loading
                 let debloat_progress_value =
                     if let Ok(debloat_progress) = self.package_load_progress.lock() {
@@ -819,16 +813,7 @@ impl UadShizukuApp {
         self.show_settings_dialog(ui.ctx());
         // === settings dialog end
 
-        // === ADB installation dialog
-        #[cfg(any(
-            target_os = "linux",
-            target_os = "macos",
-            target_os = "freebsd",
-            target_os = "dragonfly",
-            target_os = "netbsd",
-            target_os = "openbsd",
-            target_os = "windows"
-        ))]
+        // === ADB installation dialog (all platforms including Android)
         self.show_adb_install_dialog(ui.ctx());
         // === ADB installation dialog end
 
@@ -1534,9 +1519,7 @@ impl UadShizukuApp {
                 // Step 1: Check if Shizuku is running
                 if !android_shizuku::shizuku_is_available() {
                     log::error!("Shizuku is not running. Please install and activate Shizuku.");
-                    self.shizuku_error_message = Some(
-                        "Shizuku is not running. Please install and activate Shizuku.".to_string(),
-                    );
+                    self.adb_install_dialog_open = true;
                     self.adb_devices.clear();
                     return;
                 }
@@ -1550,9 +1533,7 @@ impl UadShizukuApp {
                         android_shizuku::shizuku_request_permission();
                         self.shizuku_permission_requested = true;
                     }
-                    self.shizuku_error_message = Some(
-                        "Waiting for Shizuku permission. Please grant access.".to_string(),
-                    );
+                    self.adb_install_dialog_open = true;
                     self.adb_devices.clear();
                     return;
                 }
@@ -1565,24 +1546,20 @@ impl UadShizukuApp {
                         log::error!("Binding Shizuku ShellService...");
                         android_shizuku::shizuku_bind_service();
                         self.shizuku_bind_requested = true;
-                        self.shizuku_error_message =
-                            Some("Binding Shizuku service...".to_string());
+                        self.adb_install_dialog_open = true;
                         self.adb_devices.clear();
                         return;
                     }
                     1 => {
                         // Binding in progress, wait
-                        self.shizuku_error_message =
-                            Some("Binding Shizuku service...".to_string());
+                        self.adb_install_dialog_open = true;
                         self.adb_devices.clear();
                         return;
                     }
                     3 => {
                         // Bind failed
                         log::error!("Failed to bind Shizuku ShellService");
-                        self.shizuku_error_message = Some(
-                            "Failed to bind Shizuku service. Please retry.".to_string(),
-                        );
+                        self.adb_install_dialog_open = true;
                         self.adb_devices.clear();
                         return;
                     }
@@ -1596,7 +1573,6 @@ impl UadShizukuApp {
                 }
 
                 // Step 4: Service is bound, set device
-                self.shizuku_error_message = None;
                 self.shizuku_connected = true;
                 self.adb_devices = vec!["local".to_string()];
                 self.selected_device = Some("local".to_string());
@@ -2481,22 +2457,47 @@ impl UadShizukuApp {
     fn show_adb_install_dialog(&mut self, ctx: &egui::Context) {
         // Handle retry request from previous frame
         if ADB_RETRY_REQUESTED.swap(false, Ordering::SeqCst) {
-            if which::which("adb").is_err() {
-                // ADB still not found, reopen dialog
-                self.adb_install_dialog_open = true;
-            } else {
-                // ADB found after retry
-                log::info!("ADB detected after retry");
-                self.retrieve_adb_devices();
-                self.retrieve_adb_users();
-                self.retrieve_installed_packages();
+            #[cfg(target_os = "android")]
+            {
+                use crate::android_shizuku;
+                if android_shizuku::shizuku_is_available() {
+                    // Shizuku now available after retry
+                    log::info!("Shizuku detected after retry");
+                    self.retrieve_adb_devices();
+                } else {
+                    // Shizuku still not available, reopen dialog
+                    self.adb_install_dialog_open = true;
+                }
+            }
+            
+            #[cfg(not(target_os = "android"))]
+            {
+                if which::which("adb").is_err() {
+                    // ADB still not found, reopen dialog
+                    self.adb_install_dialog_open = true;
+                } else {
+                    // ADB found after retry
+                    log::info!("ADB detected after retry");
+                    self.retrieve_adb_devices();
+                    self.retrieve_adb_users();
+                    self.retrieve_installed_packages();
+                }
             }
         }
 
         if self.adb_install_dialog_open {
+            // Platform detection
+            let os = std::env::consts::OS;
+            
+            #[cfg(target_os = "android")]
+            let title = "Shizuku Not Found - Installation Instructions";
+            
+            #[cfg(not(target_os = "android"))]
+            let title = "ADB Not Found - Installation Instructions";
+            
             dialog(
                 "adb_install_dialog",
-                "ADB Not Found - Installation Instructions",
+                title,
                 &mut self.adb_install_dialog_open,
             )
             .content(|ui| {
@@ -2505,38 +2506,90 @@ impl UadShizukuApp {
 
                     ui.add_space(8.0);
 
-                    // Platform detection
-                    let os = std::env::consts::OS;
-                    let platform_name = match os {
-                        "windows" => "Windows",
-                        "macos" => "macOS",
-                        "linux" => "Linux",
-                        _ => os,
-                    };
+                    #[cfg(target_os = "android")]
+                    {
+                        ui.label("Detected platform: Android");
+                        ui.add_space(8.0);
+                        ui.label("Shizuku is required to provide ADB functionality on Android devices.");
+                        ui.add_space(16.0);
 
-                    ui.label(format!("Detected platform: {}", platform_name));
-                    ui.add_space(8.0);
-                    ui.label("ADB (Android Debug Bridge) is required but not found in your system PATH.");
-                    ui.add_space(16.0);
-
-                    ui.label("Please follow the installation guide to install ADB:");
-                    ui.add_space(8.0);
-
-                    ui.horizontal(|ui| {
-                        if ui.button("Installation Guide (English)").clicked() {
-                            if let Err(e) = webbrowser::open("https://uad-shizuku.pages.dev/docs/installation") {
-                                log::error!("Failed to open installation guide URL: {}", e);
+                        ui.label("Please follow these steps:");
+                        ui.add_space(8.0);
+                        
+                        ui.label("1. Install Shizuku app from Google Play:");
+                        ui.add_space(4.0);
+                        
+                        ui.horizontal(|ui| {
+                            if ui.button("Open Google Play Store").clicked() {
+                                if let Err(e) = webbrowser::open("https://play.google.com/store/apps/details?id=moe.shizuku.privileged.api") {
+                                    log::error!("Failed to open Google Play Store URL: {}", e);
+                                }
                             }
-                        }
-                    });
+                        });
+                        
+                        ui.add_space(8.0);
+                        ui.label("2. Enable Developer Mode (Settings > About > tap Build number 7 times)");
+                        ui.add_space(4.0);
+                        ui.label("3. Enable Wireless Debugging (Settings > Developer options)");
+                        ui.add_space(4.0);
+                        ui.label("4. Open Shizuku app and start the service");
+                        ui.add_space(4.0);
+                        ui.label("5. Return to UAD-Shizuku and tap 'Retry Detection'");
+                        ui.add_space(16.0);
 
-                    ui.horizontal(|ui| {
-                        if ui.button("설치 가이드 (한국어)").clicked() {
-                            if let Err(e) = webbrowser::open("https://uad-shizuku.pages.dev/docs/kr/docs/installation") {
-                                log::error!("Failed to open Korean installation guide URL: {}", e);
+                        ui.label("For detailed instructions:");
+                        ui.add_space(8.0);
+                        
+                        ui.horizontal(|ui| {
+                            if ui.button("Installation Guide (English)").clicked() {
+                                if let Err(e) = webbrowser::open("https://uad-shizuku.pages.dev/docs/installation") {
+                                    log::error!("Failed to open installation guide URL: {}", e);
+                                }
                             }
-                        }
-                    });
+                        });
+
+                        ui.horizontal(|ui| {
+                            if ui.button("설치 가이드 (한국어)").clicked() {
+                                if let Err(e) = webbrowser::open("https://uad-shizuku.pages.dev/docs/kr/docs/installation") {
+                                    log::error!("Failed to open Korean installation guide URL: {}", e);
+                                }
+                            }
+                        });
+                    }
+
+                    #[cfg(not(target_os = "android"))]
+                    {
+                        let platform_name = match os {
+                            "windows" => "Windows",
+                            "macos" => "macOS",
+                            "linux" => "Linux",
+                            _ => os,
+                        };
+
+                        ui.label(format!("Detected platform: {}", platform_name));
+                        ui.add_space(8.0);
+                        ui.label("ADB (Android Debug Bridge) is required but not found in your system PATH.");
+                        ui.add_space(16.0);
+
+                        ui.label("Please follow the installation guide to install ADB:");
+                        ui.add_space(8.0);
+
+                        ui.horizontal(|ui| {
+                            if ui.button("Installation Guide (English)").clicked() {
+                                if let Err(e) = webbrowser::open("https://uad-shizuku.pages.dev/docs/installation") {
+                                    log::error!("Failed to open installation guide URL: {}", e);
+                                }
+                            }
+                        });
+
+                        ui.horizontal(|ui| {
+                            if ui.button("설치 가이드 (한국어)").clicked() {
+                                if let Err(e) = webbrowser::open("https://uad-shizuku.pages.dev/docs/kr/docs/installation") {
+                                    log::error!("Failed to open Korean installation guide URL: {}", e);
+                                }
+                            }
+                        });
+                    }
 
                     ui.add_space(16.0);
                 });
@@ -2547,13 +2600,26 @@ impl UadShizukuApp {
             })
             .show(ctx);
 
-            // Check if ADB became available (user may have installed it)
-            if which::which("adb").is_ok() {
-                self.adb_install_dialog_open = false;
-                log::info!("ADB detected, closing installation dialog");
-                self.retrieve_adb_devices();
-                self.retrieve_adb_users();
-                self.retrieve_installed_packages();
+            // Check if requirements became available (user may have installed them)
+            #[cfg(target_os = "android")]
+            {
+                use crate::android_shizuku;
+                if android_shizuku::shizuku_is_available() {
+                    self.adb_install_dialog_open = false;
+                    log::info!("Shizuku detected, closing installation dialog");
+                    self.retrieve_adb_devices();
+                }
+            }
+            
+            #[cfg(not(target_os = "android"))]
+            {
+                if which::which("adb").is_ok() {
+                    self.adb_install_dialog_open = false;
+                    log::info!("ADB detected, closing installation dialog");
+                    self.retrieve_adb_devices();
+                    self.retrieve_adb_users();
+                    self.retrieve_installed_packages();
+                }
             }
         }
     }
@@ -2576,11 +2642,11 @@ impl UadShizukuApp {
 
                     ui.add_space(8.0);
 
-                    ui.label(&disclaimer_no_user_data);
+                    ui.label(&disclaimer_uninstall_warning);
 
                     ui.add_space(8.0);
 
-                    ui.label(&disclaimer_uninstall_warning);
+                    ui.label(&disclaimer_no_user_data);
 
                     ui.add_space(16.0);
                 });
