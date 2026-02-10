@@ -11,7 +11,7 @@ static ADB_RETRY_REQUESTED: AtomicBool = AtomicBool::new(false);
 use eframe::egui;
 use egui_i18n::tr;
 use egui_material3::menu::{Corner, FocusState, Positioning};
-use egui_material3::{assist_chip, dialog, icon_button_standard, menu, menu_item, tabs_primary, MaterialButton};
+use egui_material3::{dialog, icon_button_standard, menu, menu_item, tabs_primary, MaterialButton};
 use egui_material3::{get_global_theme, ContrastLevel, MaterialThemeContext, ThemeMode};
 
 use crate::db::{
@@ -21,7 +21,6 @@ use crate::db::{
 use crate::db_package_cache::get_cached_packages_with_apk;
 use crate::material_symbol_icons::ICON_REFRESH;
 use crate::models::PackageInfoCache;
-use crate::svg_stt::*;
 
 #[cfg(not(target_os = "android"))]
 use crate::adb::get_devices;

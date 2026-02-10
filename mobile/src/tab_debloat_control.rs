@@ -6,10 +6,9 @@ pub use crate::tab_debloat_control_stt::*;
 use crate::dlg_package_details::DlgPackageDetails;
 use eframe::egui;
 use egui_i18n::tr;
-use egui_material3::{data_table, icon_button_standard, outlined_card2, theme::get_global_color, MaterialButton};
+use egui_material3::{data_table, icon_button_standard, theme::get_global_color, MaterialButton};
 
 use crate::material_symbol_icons::{ICON_INFO, ICON_DELETE, ICON_TOGGLE_OFF, ICON_TOGGLE_ON};
-use crate::svg_stt::*;
 
 /// Minimum viewport width for desktop table view
 const DESKTOP_MIN_WIDTH: f32 = 1008.0;
@@ -760,7 +759,12 @@ impl TabDebloatControl {
             
             // Debloat Category sort button
             let category_selected = self.sort_column == Some(1);
-            if ui.selectable_label(category_selected, tr!("col-debloat-category")).clicked() {
+            let category_label = if category_selected {
+                format!("{} {}", tr!("col-debloat-category"), if self.sort_ascending { "▲" } else { "▼" })
+            } else {
+                format!("{} {}", tr!("col-debloat-category"), "▲") // Default ascending
+            };
+            if ui.selectable_label(category_selected, category_label).clicked() {
                 if self.sort_column == Some(1) {
                     self.sort_ascending = !self.sort_ascending;
                 } else {
@@ -772,7 +776,12 @@ impl TabDebloatControl {
             
             // Runtime Permissions sort button
             let rp_selected = self.sort_column == Some(2);
-            if ui.selectable_label(rp_selected, "RP").clicked() {
+            let rp_label = if rp_selected {
+                format!("RP {}", if self.sort_ascending { "▲" } else { "▼" })
+            } else {
+                "RP ▼".to_string() // Default descending
+            };
+            if ui.selectable_label(rp_selected, rp_label).clicked() {
                 if self.sort_column == Some(2) {
                     self.sort_ascending = !self.sort_ascending;
                 } else {
@@ -784,7 +793,12 @@ impl TabDebloatControl {
             
             // Enabled sort button
             let enabled_selected = self.sort_column == Some(3);
-            if ui.selectable_label(enabled_selected, tr!("col-enabled")).clicked() {
+            let enabled_label = if enabled_selected {
+                format!("{} {}", tr!("col-enabled"), if self.sort_ascending { "▲" } else { "▼" })
+            } else {
+                format!("{} {}", tr!("col-enabled"), "▲") // Default ascending
+            };
+            if ui.selectable_label(enabled_selected, enabled_label).clicked() {
                 if self.sort_column == Some(3) {
                     self.sort_ascending = !self.sort_ascending;
                 } else {
@@ -796,7 +810,12 @@ impl TabDebloatControl {
             
             // Install Reason sort button
             let reason_selected = self.sort_column == Some(4);
-            if ui.selectable_label(reason_selected, tr!("col-install-reason")).clicked() {
+            let reason_label = if reason_selected {
+                format!("{} {}", tr!("col-install-reason"), if self.sort_ascending { "▲" } else { "▼" })
+            } else {
+                format!("{} {}", tr!("col-install-reason"), "▲") // Default ascending
+            };
+            if ui.selectable_label(reason_selected, reason_label).clicked() {
                 if self.sort_column == Some(4) {
                     self.sort_ascending = !self.sort_ascending;
                 } else {
@@ -1407,18 +1426,22 @@ impl TabDebloatControl {
 
         let table_response = debloat_table.show(ui);
 
-        // Sync sort state
-        let (widget_sort_col, widget_sort_dir) = table_response.sort_state;
-        let logical_sort_col = widget_sort_col.map(|c| to_logical(c));
-        let widget_sort_ascending = matches!(widget_sort_dir, egui_material3::SortDirection::Ascending);
+        // Sync sort state from widget, but only when sorting by a column the widget knows about.
+        // On mobile, hidden columns (1-4) are managed by the mobile sort buttons, not the table widget.
+        let mobile_hidden_sort = !is_desktop && matches!(self.sort_column, Some(1..=4));
+        if !mobile_hidden_sort {
+            let (widget_sort_col, widget_sort_dir) = table_response.sort_state;
+            let logical_sort_col = widget_sort_col.map(|c| to_logical(c));
+            let widget_sort_ascending = matches!(widget_sort_dir, egui_material3::SortDirection::Ascending);
 
-        if logical_sort_col != self.sort_column
-            || (logical_sort_col.is_some() && widget_sort_ascending != self.sort_ascending)
-        {
-            self.sort_column = logical_sort_col;
-            self.sort_ascending = widget_sort_ascending;
-            if self.sort_column.is_some() {
-                self.sort_packages();
+            if logical_sort_col != self.sort_column
+                || (logical_sort_col.is_some() && widget_sort_ascending != self.sort_ascending)
+            {
+                self.sort_column = logical_sort_col;
+                self.sort_ascending = widget_sort_ascending;
+                if self.sort_column.is_some() {
+                    self.sort_packages();
+                }
             }
         }
 
