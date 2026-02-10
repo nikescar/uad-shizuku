@@ -474,7 +474,7 @@ impl TabDebloatControl {
         let bytes = match general_purpose::STANDARD.decode(base64_str) {
             Ok(b) => b,
             Err(e) => {
-                tracing::warn!("Failed to decode base64 image for {}: {}", package_id, e);
+                log::warn!("Failed to decode base64 image for {}: {}", package_id, e);
                 return None;
             }
         };
@@ -482,7 +482,7 @@ impl TabDebloatControl {
         let image = match image::load_from_memory(&bytes) {
             Ok(img) => img,
             Err(e) => {
-                tracing::warn!("Failed to load image for {}: {}", package_id, e);
+                log::warn!("Failed to load image for {}: {}", package_id, e);
                 return None;
             }
         };
@@ -1499,7 +1499,7 @@ impl TabDebloatControl {
                 .map(|app| app.removal == "Unsafe")
                 .unwrap_or(false);
             if is_unsafe && !self.unsafe_app_remove {
-                tracing::warn!("Skipping uninstall of unsafe app: {}", pkg_name);
+                log::warn!("Skipping uninstall of unsafe app: {}", pkg_name);
             } else if let Some(ref device) = self.selected_device {
                 let uninstall_result = if uninstall_is_system {
                     crate::adb::uninstall_app_user(&pkg_name, device, None)
@@ -1509,7 +1509,7 @@ impl TabDebloatControl {
 
                 match uninstall_result {
                     Ok(output) => {
-                        tracing::info!("App uninstalled successfully: {}", output);
+                        log::info!("App uninstalled successfully: {}", output);
                         let mut packages = store.get_installed_packages();
                         let is_system = packages.iter().find(|p| p.pkg == pkg_name).map(|p| p.flags.contains("SYSTEM")).unwrap_or(false);
 
@@ -1528,12 +1528,12 @@ impl TabDebloatControl {
                         result = Some(AdbResult::Success(pkg_name.clone()));
                     }
                     Err(e) => {
-                        tracing::error!("Failed to uninstall app({}): {}", pkg_name, e);
+                        log::error!("Failed to uninstall app({}): {}", pkg_name, e);
                         result = Some(AdbResult::Failure);
                     }
                 }
             } else {
-                tracing::error!("No device selected for uninstall");
+                log::error!("No device selected for uninstall");
                 result = Some(AdbResult::Failure);
             }
         }
@@ -1543,7 +1543,7 @@ impl TabDebloatControl {
             if let Some(ref device) = self.selected_device {
                 match crate::adb::enable_app(&pkg_name, device) {
                     Ok(output) => {
-                        tracing::info!("App enabled successfully: {}", output);
+                        log::info!("App enabled successfully: {}", output);
                         let mut packages = store.get_installed_packages();
                         if let Some(pkg) = packages.iter_mut().find(|p| p.pkg == pkg_name) {
                             for user in pkg.users.iter_mut() {
@@ -1555,12 +1555,12 @@ impl TabDebloatControl {
                         result = Some(AdbResult::Success(pkg_name.clone()));
                     }
                     Err(e) => {
-                        tracing::error!("Failed to enable app: {}", e);
+                        log::error!("Failed to enable app: {}", e);
                         result = Some(AdbResult::Failure);
                     }
                 }
             } else {
-                tracing::error!("No device selected for enable");
+                log::error!("No device selected for enable");
                 result = Some(AdbResult::Failure);
             }
         }
@@ -1570,7 +1570,7 @@ impl TabDebloatControl {
             if let Some(ref device) = self.selected_device {
                 match crate::adb::disable_app_current_user(&pkg_name, device, None) {
                     Ok(output) => {
-                        tracing::info!("App disabled successfully: {}", output);
+                        log::info!("App disabled successfully: {}", output);
                         let mut packages = store.get_installed_packages();
                         if let Some(pkg) = packages.iter_mut().find(|p| p.pkg == pkg_name) {
                             for user in pkg.users.iter_mut() {
@@ -1581,12 +1581,12 @@ impl TabDebloatControl {
                         result = Some(AdbResult::Success(pkg_name.clone()));
                     }
                     Err(e) => {
-                        tracing::error!("Failed to disable app: {}", e);
+                        log::error!("Failed to disable app: {}", e);
                         result = Some(AdbResult::Failure);
                     }
                 }
             } else {
-                tracing::error!("No device selected for disable");
+                log::error!("No device selected for disable");
                 result = Some(AdbResult::Failure);
             }
         }
@@ -1603,7 +1603,7 @@ impl TabDebloatControl {
                         .map(|app| app.removal == "Unsafe")
                         .unwrap_or(false);
                     if is_unsafe && !self.unsafe_app_remove {
-                        tracing::warn!("Skipping batch uninstall of unsafe app: {}", pkg_name);
+                        log::warn!("Skipping batch uninstall of unsafe app: {}", pkg_name);
                         continue;
                     }
                     let is_system = packages.iter().find(|p| p.pkg == pkg_name).map(|p| p.flags.contains("SYSTEM")).unwrap_or(false);
@@ -1615,7 +1615,7 @@ impl TabDebloatControl {
 
                     match uninstall_result {
                         Ok(output) => {
-                            tracing::info!("App uninstalled successfully: {}", output);
+                            log::info!("App uninstalled successfully: {}", output);
                             if is_system {
                                 if let Some(pkg) = packages.iter_mut().find(|p| p.pkg == pkg_name) {
                                     for user in pkg.users.iter_mut() {
@@ -1630,14 +1630,14 @@ impl TabDebloatControl {
                             result = Some(AdbResult::Success(pkg_name.clone()));
                         }
                         Err(e) => {
-                            tracing::error!("Failed to uninstall app {}: {}", pkg_name, e);
+                            log::error!("Failed to uninstall app {}: {}", pkg_name, e);
                             result = Some(AdbResult::Failure);
                         }
                     }
                 }
                 store.set_installed_packages(packages);
             } else {
-                tracing::error!("No device selected for batch uninstall");
+                log::error!("No device selected for batch uninstall");
                 result = Some(AdbResult::Failure);
             }
         }
@@ -1650,7 +1650,7 @@ impl TabDebloatControl {
                 for pkg_name in packages_to_disable {
                     match crate::adb::disable_app_current_user(&pkg_name, device, None) {
                         Ok(output) => {
-                            tracing::info!("App disabled successfully: {}", output);
+                            log::info!("App disabled successfully: {}", output);
                             if let Some(pkg) = packages.iter_mut().find(|p| p.pkg == pkg_name) {
                                 for user in pkg.users.iter_mut() {
                                     user.enabled = 3;
@@ -1659,14 +1659,14 @@ impl TabDebloatControl {
                             result = Some(AdbResult::Success(pkg_name.clone()));
                         }
                         Err(e) => {
-                            tracing::error!("Failed to disable app {}: {}", pkg_name, e);
+                            log::error!("Failed to disable app {}: {}", pkg_name, e);
                             result = Some(AdbResult::Failure);
                         }
                     }
                 }
                 store.set_installed_packages(packages);
             } else {
-                tracing::error!("No device selected for batch disable");
+                log::error!("No device selected for batch disable");
                 result = Some(AdbResult::Failure);
             }
         }
@@ -1679,7 +1679,7 @@ impl TabDebloatControl {
                 for pkg_name in packages_to_enable {
                     match crate::adb::enable_app(&pkg_name, device) {
                         Ok(output) => {
-                            tracing::info!("App enabled successfully: {}", output);
+                            log::info!("App enabled successfully: {}", output);
                             if let Some(pkg) = packages.iter_mut().find(|p| p.pkg == pkg_name) {
                                 for user in pkg.users.iter_mut() {
                                     user.enabled = 1;
@@ -1689,14 +1689,14 @@ impl TabDebloatControl {
                             result = Some(AdbResult::Success(pkg_name.clone()));
                         }
                         Err(e) => {
-                            tracing::error!("Failed to enable app {}: {}", pkg_name, e);
+                            log::error!("Failed to enable app {}: {}", pkg_name, e);
                             result = Some(AdbResult::Failure);
                         }
                     }
                 }
                 store.set_installed_packages(packages);
             } else {
-                tracing::error!("No device selected for batch enable");
+                log::error!("No device selected for batch enable");
                 result = Some(AdbResult::Failure);
             }
         }

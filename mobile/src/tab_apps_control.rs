@@ -123,7 +123,7 @@ impl TabAppsControl {
         let mut current_category = String::from("Uncategorized");
         // let content = html2md::parse_html(content);
 
-        tracing::debug!(
+        log::debug!(
             "Parsing markdown content, {} lines total",
             content.lines().count()
         );
@@ -134,7 +134,7 @@ impl TabAppsControl {
                 let header_text = line.trim_start_matches('#').trim();
                 if !header_text.is_empty() {
                     current_category = self.sanitize_string(header_text);
-                    tracing::debug!("Found category: {}", current_category);
+                    log::debug!("Found category: {}", current_category);
                 }
             } else if line.contains("f-droid.org")
                 || line.contains("izzysoft.de")
@@ -143,7 +143,7 @@ impl TabAppsControl {
             {
                 // Skip if current category contains "iOS"
                 if current_category.contains("iOS") {
-                    tracing::debug!(
+                    log::debug!(
                         "Skipping line in iOS category: {}",
                         line.chars().take(100).collect::<String>()
                     );
@@ -156,7 +156,7 @@ impl TabAppsControl {
                 let links = self.extract_links(line);
 
                 if !name.is_empty() && !links.is_empty() {
-                    tracing::debug!(
+                    log::debug!(
                         "Found app: {} with {} links in category {}",
                         name,
                         links.len(),
@@ -169,7 +169,7 @@ impl TabAppsControl {
                         package_name: None,
                     });
                 } else {
-                    tracing::debug!(
+                    log::debug!(
                         "Skipped line (empty name or no links): {}",
                         line.chars().take(100).collect::<String>()
                     );
@@ -177,20 +177,20 @@ impl TabAppsControl {
             }
         }
 
-        tracing::info!("Parsing complete: {} apps found", self.app_entries.len());
+        log::info!("Parsing complete: {} apps found", self.app_entries.len());
     }
 
     fn get_fdroid_download_url(&self, package_name: &str) -> Option<String> {
         // Access F-Droid package page
         let url = format!("https://f-droid.org/packages/{}/", package_name);
 
-        tracing::info!("Fetching F-Droid page: {}", url);
+        log::info!("Fetching F-Droid page: {}", url);
 
         // Fetch HTML content
         let html = match self.fetch_url(&url) {
             Ok(content) => content,
             Err(e) => {
-                tracing::error!("Failed to fetch F-Droid page: {}", e);
+                log::error!("Failed to fetch F-Droid page: {}", e);
                 return None;
             }
         };
@@ -228,25 +228,25 @@ impl TabAppsControl {
                     format!("https://f-droid.org/{}", href)
                 };
 
-                tracing::info!("Found F-Droid APK download URL: {}", download_url);
+                log::info!("Found F-Droid APK download URL: {}", download_url);
 
                 return Some(download_url);
 
                 // // Download APK to tmp_dir
                 // match self.download_apk_to_tmp(&download_url, package_name) {
                 //     Ok(path) => {
-                //         tracing::info!("APK downloaded to tmp_dir: {:?}", path);
+                //         log::info!("APK downloaded to tmp_dir: {:?}", path);
                 //         return Some(download_url);
                 //     }
                 //     Err(e) => {
-                //         tracing::error!("Failed to download APK to tmp_dir: {}", e);
+                //         log::error!("Failed to download APK to tmp_dir: {}", e);
                 //         return None;
                 //     }
                 // }
             }
         }
 
-        tracing::warn!(
+        log::warn!(
             "No matching APK download link found for package: {}",
             package_name
         );
@@ -258,7 +258,7 @@ impl TabAppsControl {
         url: &str,
         package_name: &str,
     ) -> Result<std::path::PathBuf, Box<dyn std::error::Error>> {
-        tracing::info!("Downloading APK to tmp_dir from: {}", url);
+        log::info!("Downloading APK to tmp_dir from: {}", url);
 
         let response = ureq::get(url).call()?;
 
@@ -270,7 +270,7 @@ impl TabAppsControl {
         let mut file = std::fs::File::create(&apk_path)?;
         std::io::copy(&mut response.into_reader(), &mut file)?;
 
-        tracing::info!("APK downloaded to tmp_dir: {:?}", apk_path);
+        log::info!("APK downloaded to tmp_dir: {:?}", apk_path);
         Ok(apk_path)
     }
 
@@ -290,7 +290,7 @@ impl TabAppsControl {
 
         let parts: Vec<&str> = repo_path.split('/').collect();
         if parts.len() < 2 {
-            tracing::error!("Invalid GitHub URL format: {}", repo_url);
+            log::error!("Invalid GitHub URL format: {}", repo_url);
             return None;
         }
 
@@ -301,13 +301,13 @@ impl TabAppsControl {
             owner, repo
         );
 
-        tracing::info!("Fetching GitHub releases from: {}", api_url);
+        log::info!("Fetching GitHub releases from: {}", api_url);
 
         // Fetch the releases JSON
         let json_str = match self.fetch_url(&api_url) {
             Ok(content) => content,
             Err(e) => {
-                tracing::error!("Failed to fetch GitHub releases: {}", e);
+                log::error!("Failed to fetch GitHub releases: {}", e);
                 return None;
             }
         };
@@ -316,7 +316,7 @@ impl TabAppsControl {
         let json: serde_json::Value = match serde_json::from_str(&json_str) {
             Ok(v) => v,
             Err(e) => {
-                tracing::error!("Failed to parse GitHub releases JSON: {}", e);
+                log::error!("Failed to parse GitHub releases JSON: {}", e);
                 return None;
             }
         };
@@ -325,7 +325,7 @@ impl TabAppsControl {
         let assets = match json.get("assets").and_then(|a| a.as_array()) {
             Some(a) => a,
             None => {
-                tracing::warn!("No assets found in GitHub release");
+                log::warn!("No assets found in GitHub release");
                 return None;
             }
         };
@@ -349,11 +349,11 @@ impl TabAppsControl {
         }
 
         if apk_urls.is_empty() {
-            tracing::warn!("No APK files found in GitHub release for {}/{}", owner, repo);
+            log::warn!("No APK files found in GitHub release for {}/{}", owner, repo);
             return None;
         }
 
-        tracing::debug!("Found {} APK files in release", apk_urls.len());
+        log::debug!("Found {} APK files in release", apk_urls.len());
 
         // Get device CPU ABI list for architecture-specific matching
         let device_abis: Vec<String> = if let Some(ref device) = self.selected_device {
@@ -369,7 +369,7 @@ impl TabAppsControl {
             Vec::new()
         };
 
-        tracing::debug!("Device ABIs: {:?}", device_abis);
+        log::debug!("Device ABIs: {:?}", device_abis);
 
         // Priority order for APK selection:
         // 1. Universal APK (always preferred)
@@ -380,7 +380,7 @@ impl TabAppsControl {
         // Type 1: Look for universal APK
         for (name, url) in &apk_urls {
             if name.contains("universal") {
-                tracing::info!("Found universal APK: {}", url);
+                log::info!("Found universal APK: {}", url);
                 return Some(url.clone());
             }
         }
@@ -393,7 +393,7 @@ impl TabAppsControl {
 
             for (name, url) in &apk_urls {
                 if name.contains(&abi_lower) || name.contains(&abi_underscore) {
-                    tracing::info!("Found APK matching device ABI '{}': {}", abi, url);
+                    log::info!("Found APK matching device ABI '{}': {}", abi, url);
                     return Some(url.clone());
                 }
             }
@@ -407,18 +407,18 @@ impl TabAppsControl {
                 || name.contains("x86")
                 || name.contains("mips");
             if !has_arch {
-                tracing::info!("Found APK without architecture suffix (likely universal): {}", url);
+                log::info!("Found APK without architecture suffix (likely universal): {}", url);
                 return Some(url.clone());
             }
         }
 
         // Type 4: Fallback - return the first APK if nothing else matched
         if let Some((name, url)) = apk_urls.first() {
-            tracing::info!("Falling back to first APK: {} -> {}", name, url);
+            log::info!("Falling back to first APK: {} -> {}", name, url);
             return Some(url.clone());
         }
 
-        tracing::warn!("No suitable APK found for {}/{}", owner, repo);
+        log::warn!("No suitable APK found for {}/{}", owner, repo);
         None
     }
 
@@ -437,7 +437,7 @@ impl TabAppsControl {
             None => return Err("No downloadable link found".to_string()),
         };
 
-        tracing::info!(
+        log::info!(
             "Installing app '{}' from {} ({})",
             app.name,
             url,
@@ -475,7 +475,7 @@ impl TabAppsControl {
             _ => return Err(format!("Unsupported link type: {}", link_type)),
         };
 
-        tracing::info!("Download URL: {}", download_url);
+        log::info!("Download URL: {}", download_url);
 
         // Update status
         self.installing_apps
@@ -502,7 +502,7 @@ impl TabAppsControl {
             }
         };
 
-        tracing::info!("APK downloaded to: {:?}", apk_path);
+        log::info!("APK downloaded to: {:?}", apk_path);
 
         // Update status
         self.installing_apps
@@ -512,12 +512,12 @@ impl TabAppsControl {
         let apk_path_str = apk_path.to_string_lossy().to_string();
         match crate::adb::install_apk(&apk_path_str, &device) {
             Ok(result) => {
-                tracing::info!("APK installed successfully: {}", result);
+                log::info!("APK installed successfully: {}", result);
                 self.installing_apps.remove(&app.name);
 
                 // Clean up the downloaded APK
                 if let Err(e) = std::fs::remove_file(&apk_path) {
-                    tracing::warn!("Failed to clean up APK file: {}", e);
+                    log::warn!("Failed to clean up APK file: {}", e);
                 }
 
                 // Track this app as recently installed (for GitHub apps where package name isn't in URL)
@@ -533,7 +533,7 @@ impl TabAppsControl {
 
                 // Clean up the downloaded APK even on failure
                 if let Err(e2) = std::fs::remove_file(&apk_path) {
-                    tracing::warn!("Failed to clean up APK file: {}", e2);
+                    log::warn!("Failed to clean up APK file: {}", e2);
                 }
 
                 Err(format!("Failed to install APK: {}", e))
@@ -566,12 +566,12 @@ impl TabAppsControl {
             Ok(content) => {
                 // Save to cache
                 if let Err(e) = std::fs::write(&cache_file, &content) {
-                    tracing::error!("Failed to save cache file: {}", e);
+                    log::error!("Failed to save cache file: {}", e);
                 }
                 self.parse_markdown_content(&content);
             }
             Err(e) => {
-                tracing::error!("Failed to download app list: {}", e);
+                log::error!("Failed to download app list: {}", e);
                 // Try to load from cache
                 if let Ok(content) = std::fs::read_to_string(&cache_file) {
                     self.parse_markdown_content(&content);
@@ -883,7 +883,7 @@ impl TabAppsControl {
                 let selection_changed = self.selected_app_list != self.previous_app_list;
 
                 if selection_changed {
-                    tracing::info!(
+                    log::info!(
                         "App list selection changed from {:?} to {:?}",
                         self.previous_app_list,
                         self.selected_app_list
@@ -897,7 +897,7 @@ impl TabAppsControl {
                                 .cache_dir
                                 .join(format!("{}.md", app_list.name.replace(" ", "_")));
 
-                            tracing::info!(
+                            log::info!(
                                 "Loading app list '{}' from index {}",
                                 app_list.name,
                                 idx
@@ -905,43 +905,43 @@ impl TabAppsControl {
 
                             // Check if cache file exists
                             if cache_file.exists() {
-                                tracing::info!("Cache file exists at {:?}, loading...", cache_file);
+                                log::info!("Cache file exists at {:?}, loading...", cache_file);
                                 // Load from cache
                                 if let Ok(content) = std::fs::read_to_string(&cache_file) {
-                                    tracing::info!(
+                                    log::info!(
                                         "Successfully read cache file, {} bytes",
                                         content.len()
                                     );
                                     self.parse_markdown_content(&content);
                                 } else {
-                                    tracing::error!(
+                                    log::error!(
                                         "Failed to read cache file at {:?}",
                                         cache_file
                                     );
                                 }
                             } else {
                                 // Download if cache doesn't exist
-                                tracing::info!(
+                                log::info!(
                                     "Cache file not found at {:?}, downloading from: {}",
                                     cache_file,
                                     app_list.contents_url
                                 );
                                 match self.fetch_url(&app_list.contents_url) {
                                     Ok(content) => {
-                                        tracing::info!(
+                                        log::info!(
                                             "Successfully downloaded {} bytes",
                                             content.len()
                                         );
                                         // Save to cache
                                         if let Err(e) = std::fs::write(&cache_file, &content) {
-                                            tracing::error!("Failed to save cache file: {}", e);
+                                            log::error!("Failed to save cache file: {}", e);
                                         } else {
-                                            tracing::info!("Successfully saved to cache");
+                                            log::info!("Successfully saved to cache");
                                         }
                                         self.parse_markdown_content(&content);
                                     }
                                     Err(e) => {
-                                        tracing::error!("Failed to download app list: {}", e);
+                                        log::error!("Failed to download app list: {}", e);
                                     }
                                 }
                             }
@@ -955,11 +955,11 @@ impl TabAppsControl {
                     if idx < self.app_lists.len() {
                         let app_list = &self.app_lists[idx];
                         let info_url = &app_list.info_url;
-                        tracing::info!("Opening info URL: {}", info_url);
+                        log::info!("Opening info URL: {}", info_url);
                         #[cfg(not(target_os = "android"))]
                         {
                             if let Err(e) = webbrowser::open(info_url) {
-                                tracing::error!("Failed to open info URL: {}", e);
+                                log::error!("Failed to open info URL: {}", e);
                             }
                         }
                     }
@@ -1039,7 +1039,7 @@ impl TabAppsControl {
         let available_width = ui.available_width();
         let is_desktop = available_width >= DESKTOP_MIN_WIDTH;
         let width_ratio = if is_desktop { available_width / BASE_TABLE_WIDTH } else { 1.0 };
-        // tracing::debug!(
+        // log::debug!(
         //     "Viewport width: {}, is_desktop: {}, width_ratio: {}",
         //     available_width,
         //     is_desktop,
@@ -1140,7 +1140,7 @@ impl TabAppsControl {
                                             #[cfg(not(target_os = "android"))]
                                             {
                                                 if let Err(e) = webbrowser::open(url) {
-                                                    tracing::error!("Failed to open URL: {}", e);
+                                                    log::error!("Failed to open URL: {}", e);
                                                 }
                                             }
                                         }
@@ -1258,10 +1258,10 @@ impl TabAppsControl {
             {
                 match self.install_app(&app) {
                     Ok(()) => {
-                        tracing::info!("Successfully installed: {}", app.name);
+                        log::info!("Successfully installed: {}", app.name);
                     }
                     Err(e) => {
-                        tracing::error!("Failed to install {}: {}", app.name, e);
+                        log::error!("Failed to install {}: {}", app.name, e);
                         has_error = true;
                     }
                 }
@@ -1280,7 +1280,7 @@ impl TabAppsControl {
 
                     match uninstall_result {
                         Ok(output) => {
-                            tracing::info!("App uninstalled successfully: {}", output);
+                            log::info!("App uninstalled successfully: {}", output);
                             // Remove from recently_installed_apps if present
                             if let Some(app_name) = uninstall_app_name {
                                 self.recently_installed_apps.remove(&app_name);
@@ -1289,13 +1289,13 @@ impl TabAppsControl {
                             self.refresh_pending = true;
                         }
                         Err(e) => {
-                            tracing::error!("Failed to uninstall app({}): {}", pkg_name, e);
+                            log::error!("Failed to uninstall app({}): {}", pkg_name, e);
                             has_error = true;
                         }
                     }
                 }
             } else {
-                tracing::error!("No device selected for uninstall");
+                log::error!("No device selected for uninstall");
                 has_error = true;
             }
         }
@@ -1306,18 +1306,18 @@ impl TabAppsControl {
                 {
                     match crate::adb::enable_app(&pkg_name, device) {
                         Ok(output) => {
-                            tracing::info!("App enabled successfully: {}", output);
+                            log::info!("App enabled successfully: {}", output);
                             // Trigger refresh to update UI
                             self.refresh_pending = true;
                         }
                         Err(e) => {
-                            tracing::error!("Failed to enable app: {}", e);
+                            log::error!("Failed to enable app: {}", e);
                             has_error = true;
                         }
                     }
                 }
             } else {
-                tracing::error!("No device selected for enable");
+                log::error!("No device selected for enable");
                 has_error = true;
             }
         }
@@ -1328,18 +1328,18 @@ impl TabAppsControl {
                 {
                     match crate::adb::disable_app_current_user(&pkg_name, device, None) {
                         Ok(output) => {
-                            tracing::info!("App disabled successfully: {}", output);
+                            log::info!("App disabled successfully: {}", output);
                             // Trigger refresh to update UI
                             self.refresh_pending = true;
                         }
                         Err(e) => {
-                            tracing::error!("Failed to disable app: {}", e);
+                            log::error!("Failed to disable app: {}", e);
                             has_error = true;
                         }
                     }
                 }
             } else {
-                tracing::error!("No device selected for disable");
+                log::error!("No device selected for disable");
                 has_error = true;
             }
         }

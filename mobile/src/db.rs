@@ -116,13 +116,13 @@ pub fn invalidate_cache() {
         match diesel::sql_query(query).execute(connection) {
             Ok(count) => {
                 #[cfg(not(target_family = "wasm"))]
-                tracing::info!("Executed query: '{}'. Deleted {} rows.", query, count);
+                log::info!("Executed query: '{}'. Deleted {} rows.", query, count);
                 #[cfg(target_family = "wasm")]
                 console_log!("Executed query: '{}'. Deleted {} rows.", query, count);
             }
             Err(e) => {
                 #[cfg(not(target_family = "wasm"))]
-                tracing::error!("Failed to execute query: '{}'. Error: {}", query, e);
+                log::error!("Failed to execute query: '{}'. Error: {}", query, e);
                 #[cfg(target_family = "wasm")]
                 console_log!("Failed to execute query: '{}'. Error: {}", query, e);
             }
@@ -136,13 +136,13 @@ pub fn flush_virustotal() {
     match diesel::sql_query("DELETE FROM virustotal_results").execute(connection) {
         Ok(count) => {
             #[cfg(not(target_family = "wasm"))]
-            tracing::info!("Flushed virustotal_results table. Deleted {} rows.", count);
+            log::info!("Flushed virustotal_results table. Deleted {} rows.", count);
             #[cfg(target_family = "wasm")]
             console_log!("Flushed virustotal_results table. Deleted {} rows.", count);
         }
         Err(e) => {
             #[cfg(not(target_family = "wasm"))]
-            tracing::error!("Failed to flush virustotal_results table: {}", e);
+            log::error!("Failed to flush virustotal_results table: {}", e);
             #[cfg(target_family = "wasm")]
             console_log!("Failed to flush virustotal_results table: {}", e);
         }
@@ -155,13 +155,13 @@ pub fn flush_hybridanalysis() {
     match diesel::sql_query("DELETE FROM hybridanalysis_results").execute(connection) {
         Ok(count) => {
             #[cfg(not(target_family = "wasm"))]
-            tracing::info!("Flushed hybridanalysis_results table. Deleted {} rows.", count);
+            log::info!("Flushed hybridanalysis_results table. Deleted {} rows.", count);
             #[cfg(target_family = "wasm")]
             console_log!("Flushed hybridanalysis_results table. Deleted {} rows.", count);
         }
         Err(e) => {
             #[cfg(not(target_family = "wasm"))]
-            tracing::error!("Failed to flush hybridanalysis_results table: {}", e);
+            log::error!("Failed to flush hybridanalysis_results table: {}", e);
             #[cfg(target_family = "wasm")]
             console_log!("Failed to flush hybridanalysis_results table: {}", e);
         }
@@ -174,13 +174,13 @@ pub fn flush_googleplay() {
     match diesel::sql_query("DELETE FROM google_play_apps").execute(connection) {
         Ok(count) => {
             #[cfg(not(target_family = "wasm"))]
-            tracing::info!("Flushed google_play_apps table. Deleted {} rows.", count);
+            log::info!("Flushed google_play_apps table. Deleted {} rows.", count);
             #[cfg(target_family = "wasm")]
             console_log!("Flushed google_play_apps table. Deleted {} rows.", count);
         }
         Err(e) => {
             #[cfg(not(target_family = "wasm"))]
-            tracing::error!("Failed to flush google_play_apps table: {}", e);
+            log::error!("Failed to flush google_play_apps table: {}", e);
             #[cfg(target_family = "wasm")]
             console_log!("Failed to flush google_play_apps table: {}", e);
         }
@@ -193,13 +193,13 @@ pub fn flush_fdroid() {
     match diesel::sql_query("DELETE FROM fdroid_apps").execute(connection) {
         Ok(count) => {
             #[cfg(not(target_family = "wasm"))]
-            tracing::info!("Flushed fdroid_apps table. Deleted {} rows.", count);
+            log::info!("Flushed fdroid_apps table. Deleted {} rows.", count);
             #[cfg(target_family = "wasm")]
             console_log!("Flushed fdroid_apps table. Deleted {} rows.", count);
         }
         Err(e) => {
             #[cfg(not(target_family = "wasm"))]
-            tracing::error!("Failed to flush fdroid_apps table: {}", e);
+            log::error!("Failed to flush fdroid_apps table: {}", e);
             #[cfg(target_family = "wasm")]
             console_log!("Failed to flush fdroid_apps table: {}", e);
         }
@@ -212,13 +212,13 @@ pub fn flush_apkmirror() {
     match diesel::sql_query("DELETE FROM apkmirror_apps").execute(connection) {
         Ok(count) => {
             #[cfg(not(target_family = "wasm"))]
-            tracing::info!("Flushed apkmirror_apps table. Deleted {} rows.", count);
+            log::info!("Flushed apkmirror_apps table. Deleted {} rows.", count);
             #[cfg(target_family = "wasm")]
             console_log!("Flushed apkmirror_apps table. Deleted {} rows.", count);
         }
         Err(e) => {
             #[cfg(not(target_family = "wasm"))]
-            tracing::error!("Failed to flush apkmirror_apps table: {}", e);
+            log::error!("Failed to flush apkmirror_apps table: {}", e);
             #[cfg(target_family = "wasm")]
             console_log!("Failed to flush apkmirror_apps table: {}", e);
         }

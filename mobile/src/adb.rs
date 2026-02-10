@@ -7,7 +7,7 @@
 // get_installed_packages : get installed packages on connected device
 
 pub use crate::adb_stt::{AdbPackageInfoUser, PackageFingerprint, UserInfo};
-use tracing::{debug, error};
+use log::{debug, error};
 
 /// Execute a shell command on the device.
 /// On Android, uses Shizuku to run the command locally.

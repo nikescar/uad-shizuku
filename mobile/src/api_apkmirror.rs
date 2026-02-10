@@ -13,7 +13,7 @@ pub fn fetch_app_details(package_id: &str, email: &str) -> Result<ApkMirrorAppIn
         package_id
     );
 
-    tracing::info!("Fetching APKMirror data for package: {}", package_id);
+    log::info!("Fetching APKMirror data for package: {}", package_id);
 
     let response = ureq::get(&url)
         .set("User-Agent", USER_AGENT)
@@ -38,11 +38,11 @@ pub fn fetch_app_details(package_id: &str, email: &str) -> Result<ApkMirrorAppIn
 
 /// Parse HTML to extract first search result app information
 pub fn parse_app_details(package_id: &str, html: &str) -> Result<ApkMirrorAppInfo> {
-    tracing::debug!("Parsing APKMirror data for package: {}", package_id);
+    log::debug!("Parsing APKMirror data for package: {}", package_id);
 
     // Check for "no results" message - treat as 404
     if html.contains("No results found matching your query") {
-        tracing::info!(
+        log::info!(
             "APKMirror returned 'No results found' for package: {}",
             package_id
         );
@@ -153,7 +153,7 @@ pub fn check_apk_uploadable(md5_hash: &str, email: &str) -> Result<bool> {
         md5_hash
     );
 
-    tracing::info!("Checking if APK is uploadable: {}", md5_hash);
+    log::info!("Checking if APK is uploadable: {}", md5_hash);
 
     let response = ureq::get(&url)
         .set("User-Agent", USER_AGENT)
@@ -181,7 +181,7 @@ pub fn upload_apk(apk_path: &str, name: &str, email: &str) -> Result<ApkMirrorUp
 
     let url = "https://www.apkmirror.com/wp-json/apkm/v1/upload/";
 
-    tracing::info!("Uploading APK to APKMirror: {}", apk_path);
+    log::info!("Uploading APK to APKMirror: {}", apk_path);
 
     // Read APK file
     let mut file = File::open(apk_path).context("Failed to open APK file")?;
@@ -257,7 +257,7 @@ pub fn upload_apk(apk_path: &str, name: &str, email: &str) -> Result<ApkMirrorUp
         Ok(response) => {
             let status = response.status();
             let response_text = response.into_string().unwrap_or_default();
-            tracing::info!("Upload response ({}): {}", status, response_text);
+            log::info!("Upload response ({}): {}", status, response_text);
 
             if status == 200 {
                 // Parse JSON response to check actual success status
@@ -281,7 +281,7 @@ pub fn upload_apk(apk_path: &str, name: &str, email: &str) -> Result<ApkMirrorUp
         }
         Err(ureq::Error::Status(status, response)) => {
             let response_text = response.into_string().unwrap_or_default();
-            tracing::error!("Upload failed with status {}: {}", status, response_text);
+            log::error!("Upload failed with status {}: {}", status, response_text);
 
             Ok(ApkMirrorUploadResult {
                 success: false,
@@ -335,7 +335,7 @@ fn parse_upload_response(response_text: &str) -> ParsedUploadResponse {
 
 /// Download image and convert to base64
 fn download_image_as_base64(url: &str) -> Result<String> {
-    tracing::debug!("Downloading image from: {}", url);
+    log::debug!("Downloading image from: {}", url);
 
     let response = ureq::get(url)
         .set("User-Agent", USER_AGENT)

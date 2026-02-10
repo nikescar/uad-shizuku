@@ -55,7 +55,7 @@ pub fn upsert_apkmirror_app(
             .execute(conn)
             .context("Failed to update APKMirror app")?;
 
-        tracing::info!("Updated APKMirror app: {}", pkg_id);
+        log::info!("Updated APKMirror app: {}", pkg_id);
     } else {
         // Insert new record
         let new_app = NewApkMirrorApp {
@@ -75,7 +75,7 @@ pub fn upsert_apkmirror_app(
             .execute(conn)
             .context("Failed to insert APKMirror app")?;
 
-        tracing::info!("Inserted APKMirror app: {}", pkg_id);
+        log::info!("Inserted APKMirror app: {}", pkg_id);
     }
 
     // Fetch and return the updated/inserted record

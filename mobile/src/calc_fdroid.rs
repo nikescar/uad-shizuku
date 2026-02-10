@@ -26,7 +26,7 @@ impl FDroidQueue {
             // Mark as error so it won't be re-queued repeatedly
             let mut results = self.results.lock().unwrap();
             if !results.contains_key(&package_id) {
-                tracing::debug!(
+                log::debug!(
                     "Skipping F-Droid fetch for invalid package ID: {}",
                     package_id
                 );
@@ -76,7 +76,7 @@ impl FDroidQueue {
         let mut is_running = self.is_running.lock().unwrap();
 
         if *is_running {
-            tracing::warn!("F-Droid worker already running");
+            log::warn!("F-Droid worker already running");
             return;
         }
 
@@ -91,7 +91,7 @@ impl FDroidQueue {
             // Small delay to let the main thread's initial pre-fetch complete
             thread::sleep(Duration::from_millis(500));
 
-            tracing::info!("F-Droid worker thread started");
+            log::info!("F-Droid worker thread started");
 
             while *is_running_clone.lock().unwrap() {
                 // Check if there's work to do
@@ -107,7 +107,7 @@ impl FDroidQueue {
                         results.insert(pkg_id.clone(), FDroidFetchStatus::Fetching);
                     }
 
-                    tracing::info!("Processing F-Droid fetch for: {}", pkg_id);
+                    log::info!("Processing F-Droid fetch for: {}", pkg_id);
 
                     // Establish database connection
                     let mut conn = match crate::db::establish_connection() {
@@ -118,7 +118,7 @@ impl FDroidQueue {
                     match get_fdroid_app(&mut conn, &pkg_id) {
                         Ok(Some(cached_app)) if !is_cache_stale(&cached_app) => {
                             if cached_app.raw_response == "404" {
-                                tracing::info!("Using cached F-Droid 404 for: {}", pkg_id);
+                                log::info!("Using cached F-Droid 404 for: {}", pkg_id);
                                 let mut results = results.lock().unwrap();
                                 results.insert(
                                     pkg_id,
@@ -126,7 +126,7 @@ impl FDroidQueue {
                                 );
                                 continue;
                             }
-                            tracing::info!("Using cached F-Droid data for: {}", pkg_id);
+                            log::info!("Using cached F-Droid data for: {}", pkg_id);
                             let mut results = results.lock().unwrap();
                             results.insert(pkg_id, FDroidFetchStatus::Success(cached_app));
                             continue;
@@ -140,7 +140,7 @@ impl FDroidQueue {
                             // Save to database
                             match save_to_db(&mut conn, &app_info) {
                                 Ok(saved_app) => {
-                                    tracing::info!(
+                                    log::info!(
                                         "Successfully fetched and saved F-Droid app: {}",
                                         pkg_id
                                     );
@@ -149,7 +149,7 @@ impl FDroidQueue {
                                 }
                                 Err(e) => {
                                     let error_msg = format!("Database save error: {}", e);
-                                    tracing::error!("{}", error_msg);
+                                    log::error!("{}", error_msg);
                                     let mut results = results.lock().unwrap();
                                     results.insert(pkg_id, FDroidFetchStatus::Error(error_msg));
                                 }
@@ -164,7 +164,7 @@ impl FDroidQueue {
                             };
 
                             if is_404 {
-                                tracing::info!(
+                                log::info!(
                                     "F-Droid returned 404 for {}, caching as not found",
                                     pkg_id
                                 );
@@ -182,7 +182,7 @@ impl FDroidQueue {
                                 };
 
                                 if let Ok(_) = save_to_db(&mut conn, &not_found_app) {
-                                    tracing::info!("Cached 404 for {}", pkg_id);
+                                    log::info!("Cached 404 for {}", pkg_id);
                                 }
 
                                 let mut results = results.lock().unwrap();
@@ -192,7 +192,7 @@ impl FDroidQueue {
                                 );
                             } else {
                                 let error_msg = format!("Fetch error: {}", e);
-                                tracing::warn!("{}", error_msg);
+                                log::warn!("{}", error_msg);
                                 let mut results = results.lock().unwrap();
                                 results.insert(pkg_id, FDroidFetchStatus::Error(error_msg));
                             }
@@ -207,7 +207,7 @@ impl FDroidQueue {
                 }
             }
 
-            tracing::info!("F-Droid worker thread stopped");
+            log::info!("F-Droid worker thread stopped");
         });
     }
 
@@ -215,14 +215,14 @@ impl FDroidQueue {
     pub fn stop_worker(&self) {
         let mut is_running = self.is_running.lock().unwrap();
         *is_running = false;
-        tracing::info!("F-Droid worker stopping...");
+        log::info!("F-Droid worker stopping...");
     }
 
     /// Clear all pending items from queue
     pub fn clear_queue(&self) {
         let mut queue = self.queue.lock().unwrap();
         queue.clear();
-        tracing::info!("F-Droid queue cleared");
+        log::info!("F-Droid queue cleared");
     }
 
     /// Get queue size

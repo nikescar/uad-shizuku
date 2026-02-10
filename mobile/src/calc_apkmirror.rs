@@ -40,7 +40,7 @@ impl ApkMirrorQueue {
             // Mark as error so it won't be re-queued repeatedly
             let mut results = self.results.lock().unwrap();
             if !results.contains_key(&package_id) {
-                tracing::debug!(
+                log::debug!(
                     "Skipping APKMirror fetch for invalid package ID: {}",
                     package_id
                 );
@@ -90,7 +90,7 @@ impl ApkMirrorQueue {
         let mut is_running = self.is_running.lock().unwrap();
 
         if *is_running {
-            tracing::warn!("APKMirror worker already running");
+            log::warn!("APKMirror worker already running");
             return;
         }
 
@@ -106,7 +106,7 @@ impl ApkMirrorQueue {
             // Small delay to let the main thread's initial pre-fetch complete
             thread::sleep(Duration::from_millis(500));
 
-            tracing::info!("APKMirror worker thread started");
+            log::info!("APKMirror worker thread started");
 
             while *is_running_clone.lock().unwrap() {
                 // Prioritize cached items: find a cached item first, otherwise take from front
@@ -155,7 +155,7 @@ impl ApkMirrorQueue {
                         };
 
                         // if email.is_empty() {
-                        //     tracing::warn!(
+                        //     log::warn!(
                         //         "APKMirror email not set, skipping fetch for: {}",
                         //         pkg_id_clone
                         //     );
@@ -173,7 +173,7 @@ impl ApkMirrorQueue {
                             results.insert(pkg_id_clone.clone(), ApkMirrorFetchStatus::Fetching);
                         }
 
-                        tracing::info!("Processing APKMirror fetch for: {}", pkg_id_clone);
+                        log::info!("Processing APKMirror fetch for: {}", pkg_id_clone);
 
                         // Establish database connection
                         let mut conn = match crate::db::establish_connection() {
@@ -184,7 +184,7 @@ impl ApkMirrorQueue {
                         match get_apkmirror_app(&mut conn, &pkg_id_clone) {
                             Ok(Some(cached_app)) if !is_cache_stale(&cached_app) => {
                                 if cached_app.raw_response == "404" {
-                                    tracing::info!(
+                                    log::info!(
                                         "Using cached APKMirror 404 for: {}",
                                         pkg_id_clone
                                     );
@@ -199,7 +199,7 @@ impl ApkMirrorQueue {
                                     // No need to rate limit when using cache
                                     return Duration::from_millis(50);
                                 }
-                                tracing::info!("Using cached APKMirror data for: {}", pkg_id_clone);
+                                log::info!("Using cached APKMirror data for: {}", pkg_id_clone);
                                 let mut results = results_clone.lock().unwrap();
                                 results.insert(
                                     pkg_id_clone,
@@ -216,7 +216,7 @@ impl ApkMirrorQueue {
                             Ok(app_info) => {
                                 // Check if we actually found a result (not just empty/default)
                                 if app_info.title == "Unknown" && app_info.developer == "Unknown" {
-                                    tracing::info!(
+                                    log::info!(
                                         "APKMirror returned no results for {}, caching as not found",
                                         pkg_id_clone
                                     );
@@ -232,7 +232,7 @@ impl ApkMirrorQueue {
                                     };
 
                                     if let Ok(_) = save_to_db(&mut conn, &not_found_app) {
-                                        tracing::info!("Cached 404 for {}", pkg_id_clone);
+                                        log::info!("Cached 404 for {}", pkg_id_clone);
                                     }
 
                                     let mut results = results_clone.lock().unwrap();
@@ -244,7 +244,7 @@ impl ApkMirrorQueue {
                                     // Save to database
                                     match save_to_db(&mut conn, &app_info) {
                                         Ok(saved_app) => {
-                                            tracing::info!(
+                                            log::info!(
                                                 "Successfully fetched and saved APKMirror app: {}",
                                                 pkg_id_clone
                                             );
@@ -256,7 +256,7 @@ impl ApkMirrorQueue {
                                         }
                                         Err(e) => {
                                             let error_msg = format!("Database save error: {}", e);
-                                            tracing::error!("{}", error_msg);
+                                            log::error!("{}", error_msg);
                                             let mut results = results_clone.lock().unwrap();
                                             results.insert(
                                                 pkg_id_clone,
@@ -282,7 +282,7 @@ impl ApkMirrorQueue {
                                 if is_429 {
                                     // APKMirror 429 backoff: wait 120 seconds before retry
                                     // (60s was still triggering repeated 429s)
-                                    tracing::warn!(
+                                    log::warn!(
                                         "APKMirror rate limit reached (429) for {}. Waiting 120 seconds.",
                                         pkg_id_clone
                                     );
@@ -296,7 +296,7 @@ impl ApkMirrorQueue {
                                         )),
                                     );
                                 } else if is_404 {
-                                    tracing::info!(
+                                    log::info!(
                                         "APKMirror returned 404 for {}, caching as not found",
                                         pkg_id_clone
                                     );
@@ -312,7 +312,7 @@ impl ApkMirrorQueue {
                                     };
 
                                     if let Ok(_) = save_to_db(&mut conn, &not_found_app) {
-                                        tracing::info!("Cached 404 for {}", pkg_id_clone);
+                                        log::info!("Cached 404 for {}", pkg_id_clone);
                                     }
 
                                     let mut results = results_clone.lock().unwrap();
@@ -322,7 +322,7 @@ impl ApkMirrorQueue {
                                     );
                                 } else {
                                     let error_msg = format!("Fetch error: {}", e);
-                                    tracing::warn!("{}", error_msg);
+                                    log::warn!("{}", error_msg);
                                     let mut results = results_clone.lock().unwrap();
                                     results.insert(
                                         pkg_id_clone,
@@ -345,7 +345,7 @@ impl ApkMirrorQueue {
                             } else {
                                 "APKMirror worker panicked with unknown error".to_string()
                             };
-                            tracing::error!("{}", error_msg);
+                            log::error!("{}", error_msg);
 
                             // Mark as error so it doesn't get stuck in Fetching
                             let mut results = results.lock().unwrap();
@@ -363,7 +363,7 @@ impl ApkMirrorQueue {
                 }
             }
 
-            tracing::info!("APKMirror worker thread stopped");
+            log::info!("APKMirror worker thread stopped");
         });
     }
 
@@ -371,14 +371,14 @@ impl ApkMirrorQueue {
     pub fn stop_worker(&self) {
         let mut is_running = self.is_running.lock().unwrap();
         *is_running = false;
-        tracing::info!("APKMirror worker stopping...");
+        log::info!("APKMirror worker stopping...");
     }
 
     /// Clear all pending items from queue
     pub fn clear_queue(&self) {
         let mut queue = self.queue.lock().unwrap();
         queue.clear();
-        tracing::info!("APKMirror queue cleared");
+        log::info!("APKMirror queue cleared");
     }
 
     /// Get queue size
@@ -501,7 +501,7 @@ impl ApkMirrorUploadQueue {
                 item.package_id.clone(),
                 ApkMirrorUploadStatus::VersionNotNewer,
             );
-            tracing::info!(
+            log::info!(
                 "Skipping upload for {}: device version {} is not newer than APKMirror version {:?}",
                 item.package_id,
                 item.device_version_name,
@@ -531,7 +531,7 @@ impl ApkMirrorUploadQueue {
         let mut is_running = self.is_running.lock().unwrap();
 
         if *is_running {
-            tracing::warn!("APKMirror upload worker already running");
+            log::warn!("APKMirror upload worker already running");
             return;
         }
 
@@ -547,7 +547,7 @@ impl ApkMirrorUploadQueue {
         let rate_limit_until_clone = self.rate_limit_until.clone();
 
         thread::spawn(move || {
-            tracing::info!("APKMirror upload worker thread started");
+            log::info!("APKMirror upload worker thread started");
 
             while *is_running_clone.lock().unwrap() {
                 // Check if we're rate limited
@@ -558,7 +558,7 @@ impl ApkMirrorUploadQueue {
                             let remaining = (until - std::time::Instant::now()).as_secs();
                             if remaining % 300 == 0 {
                                 // Log every 5 minutes
-                                tracing::info!(
+                                log::info!(
                                     "APKMirror upload rate limited. {} seconds remaining.",
                                     remaining
                                 );
@@ -593,7 +593,7 @@ impl ApkMirrorUploadQueue {
                     };
 
                     if email.is_empty() {
-                        tracing::warn!(
+                        log::warn!(
                             "APKMirror upload email not set, skipping upload for: {}",
                             upload_item.package_id
                         );
@@ -642,7 +642,7 @@ impl ApkMirrorUploadQueue {
                 }
             }
 
-            tracing::info!("APKMirror upload worker thread stopped");
+            log::info!("APKMirror upload worker thread stopped");
         });
     }
 
@@ -650,7 +650,7 @@ impl ApkMirrorUploadQueue {
     pub fn stop_worker(&self) {
         let mut is_running = self.is_running.lock().unwrap();
         *is_running = false;
-        tracing::info!("APKMirror upload worker stopping...");
+        log::info!("APKMirror upload worker stopping...");
     }
 
     /// Get queue size
@@ -724,7 +724,7 @@ fn process_upload_item(
 ) -> bool {
     let pkg_id = &item.package_id;
 
-    tracing::info!("Processing APKMirror upload for: {}", pkg_id);
+    log::info!("Processing APKMirror upload for: {}", pkg_id);
 
     // Step 1: Determine the actual APK file path
     // The apk_path from PackageFingerprint.codePath is typically a directory path like
@@ -735,7 +735,7 @@ fn process_upload_item(
         let apk_files = find_apk_files_in_directory(&item.device_serial, &item.apk_path);
         if apk_files.is_empty() {
             let error_msg = format!("No APK files found in directory: {}", item.apk_path);
-            tracing::error!("{}", error_msg);
+            log::error!("{}", error_msg);
             let mut results = results.lock().unwrap();
             results.insert(pkg_id.clone(), ApkMirrorUploadStatus::Error(error_msg));
             return false;
@@ -748,7 +748,7 @@ fn process_upload_item(
             .unwrap_or_else(|| apk_files[0].clone())
     };
 
-    tracing::info!("Using APK path for {}: {}", pkg_id, device_apk_path);
+    log::info!("Using APK path for {}: {}", pkg_id, device_apk_path);
 
     // Step 2: Pull APK from device
     {
@@ -774,7 +774,7 @@ fn process_upload_item(
         Ok(path) => path,
         Err(e) => {
             let error_msg = format!("Failed to pull APK: {}", e);
-            tracing::error!("{}", error_msg);
+            log::error!("{}", error_msg);
             let mut results = results.lock().unwrap();
             results.insert(pkg_id.clone(), ApkMirrorUploadStatus::Error(error_msg));
             return false;
@@ -801,14 +801,14 @@ fn process_upload_item(
                         .map(|e| e.path().to_string_lossy().to_string())
                 });
             if let Some(inner_path) = apk_found {
-                tracing::info!("Found APK inside pulled directory: {}", inner_path);
+                log::info!("Found APK inside pulled directory: {}", inner_path);
                 inner_path
             } else {
                 let error_msg = format!(
                     "Pulled path is a directory but no APK found inside: {}",
                     local_path
                 );
-                tracing::error!("{}", error_msg);
+                log::error!("{}", error_msg);
                 let mut results = results.lock().unwrap();
                 results.insert(pkg_id.clone(), ApkMirrorUploadStatus::Error(error_msg));
                 let _ = std::fs::remove_dir_all(&local_path);
@@ -820,7 +820,7 @@ fn process_upload_item(
                 "Pulled file does not exist or is inaccessible: {}",
                 local_path
             );
-            tracing::error!("{}", error_msg);
+            log::error!("{}", error_msg);
             let mut results = results.lock().unwrap();
             results.insert(pkg_id.clone(), ApkMirrorUploadStatus::Error(error_msg));
             return false;
@@ -837,7 +837,7 @@ fn process_upload_item(
         Ok(hash) => hash,
         Err(e) => {
             let error_msg = format!("Failed to compute MD5 hash: {}", e);
-            tracing::error!("{}", error_msg);
+            log::error!("{}", error_msg);
             let mut results = results.lock().unwrap();
             results.insert(pkg_id.clone(), ApkMirrorUploadStatus::Error(error_msg));
             // Clean up temp file/directory
@@ -847,7 +847,7 @@ fn process_upload_item(
         }
     };
 
-    tracing::info!("Computed MD5 hash for {}: {}", pkg_id, md5_hash);
+    log::info!("Computed MD5 hash for {}: {}", pkg_id, md5_hash);
 
     // Step 4: Check if APK is uploadable
     {
@@ -859,7 +859,7 @@ fn process_upload_item(
         Ok(uploadable) => uploadable,
         Err(e) => {
             let error_msg = format!("Failed to check uploadability: {}", e);
-            tracing::error!("{}", error_msg);
+            log::error!("{}", error_msg);
             let mut results = results.lock().unwrap();
             results.insert(pkg_id.clone(), ApkMirrorUploadStatus::Error(error_msg));
             // Clean up temp file/directory
@@ -870,7 +870,7 @@ fn process_upload_item(
     };
 
     if !is_uploadable {
-        tracing::info!(
+        log::info!(
             "APK {} already exists on APKMirror (MD5: {})",
             pkg_id,
             md5_hash
@@ -894,7 +894,7 @@ fn process_upload_item(
     let is_rate_limited = match upload_apk(&final_local_path, upload_name, email) {
         Ok(result) => {
             if result.success {
-                tracing::info!("Successfully uploaded {} to APKMirror", pkg_id);
+                log::info!("Successfully uploaded {} to APKMirror", pkg_id);
                 let mut results = results.lock().unwrap();
                 results.insert(
                     pkg_id.clone(),
@@ -902,7 +902,7 @@ fn process_upload_item(
                 );
                 false
             } else if result.rate_limited {
-                tracing::warn!(
+                log::warn!(
                     "APKMirror rate limit reached for {}. Pausing uploads for 24 hours.",
                     pkg_id
                 );
@@ -916,13 +916,13 @@ fn process_upload_item(
                 results.insert(pkg_id.clone(), ApkMirrorUploadStatus::RateLimited);
                 true
             } else if result.already_exists {
-                tracing::info!("APK {} already exists on APKMirror", pkg_id);
+                log::info!("APK {} already exists on APKMirror", pkg_id);
                 let mut results = results.lock().unwrap();
                 results.insert(pkg_id.clone(), ApkMirrorUploadStatus::AlreadyExists);
                 false
             } else {
                 let error_msg = format!("Upload failed: {}", result.message);
-                tracing::error!("{}", error_msg);
+                log::error!("{}", error_msg);
                 let mut results = results.lock().unwrap();
                 results.insert(pkg_id.clone(), ApkMirrorUploadStatus::Error(error_msg));
                 false
@@ -930,7 +930,7 @@ fn process_upload_item(
         }
         Err(e) => {
             let error_msg = format!("Upload error: {}", e);
-            tracing::error!("{}", error_msg);
+            log::error!("{}", error_msg);
             let mut results = results.lock().unwrap();
             results.insert(pkg_id.clone(), ApkMirrorUploadStatus::Error(error_msg));
             false

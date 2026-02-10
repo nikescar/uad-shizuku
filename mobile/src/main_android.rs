@@ -8,65 +8,35 @@ use crate::Config;
 // Android entry point
 #[no_mangle]
 pub fn android_main(app: AndroidApp) {
-    // Initialize tracing subscriber for Android with log capture and reload support
-    use tracing_subscriber::layer::SubscriberExt;
-    use tracing_subscriber::reload;
-    use tracing_subscriber::util::SubscriberInitExt;
-    use tracing_subscriber::EnvFilter;
-
     // Try to load user's log level from settings, default to ERROR if not found
     let log_level = if let Ok(config) = Config::new() {
         if let Ok(settings) = config.load_settings() {
-            settings.log_level.to_lowercase()
+            settings.log_level.to_uppercase()
         } else {
-            "error".to_string()
+            "ERROR".to_string()
         }
     } else {
-        "error".to_string()
+        "ERROR".to_string()
     };
 
-    // Create a reloadable filter layer for dynamic log level changes
-    // Suppress noisy/empty logs from third-party crates
-    let filter_string = format!(
-        "{},ureq=warn,rustls=warn,hyper=warn,h2=warn",
-        log_level
-    );
-    let env_filter = EnvFilter::try_new(&filter_string).unwrap_or_else(|_| EnvFilter::new("error"));
-    let (filter, reload_handle) = reload::Layer::new(env_filter);
+    // Convert log level string to LevelFilter
+    let level_filter = match log_level.as_str() {
+        "TRACE" => log::LevelFilter::Trace,
+        "DEBUG" => log::LevelFilter::Debug,
+        "INFO" => log::LevelFilter::Info,
+        "WARN" => log::LevelFilter::Warn,
+        "ERROR" => log::LevelFilter::Error,
+        _ => log::LevelFilter::Error,
+    };
 
-    // Store the reload handle for later use (type-erased via closure)
-    log_capture::set_reload_fn(move |level: &str| {
-        let new_filter = EnvFilter::try_new(level).unwrap_or_else(|_| EnvFilter::new("error"));
-        if let Err(e) = reload_handle.reload(new_filter) {
-            eprintln!("Failed to reload log filter: {}", e);
-        }
-    });
-
-    tracing_subscriber::registry()
-        .with(filter)
-        .with(
-            tracing_subscriber::fmt::layer()
-                .with_target(true)
-                .with_level(true)
-                .without_time()  // Android logcat already adds timestamps
-                .compact()  // Use compact format to avoid empty lines
-                .event_format(log_capture::NonEmptyFormatter)
-        )
-        .with(log_capture::LogCaptureLayer)
-        .init();
+    // Initialize combined logger that writes to both logcat and in-app log capture
+    log_capture::init_combined_logger(level_filter);
 
     // Initialize common app components (database, i18n)
     uad_shizuku_app::init_common();
 
     // NOTE: ShizukuBridge initialization is done lazily on first use
     // because the Android context must be fully ready (inside eframe's render loop)
-
-    // Initialize Android logger with max level (actual filtering done by tracing)
-    android_logger::init_once(
-        android_logger::Config::default()
-            .with_max_level(log::LevelFilter::Trace)
-            .with_tag("UAD-Shizuku"),
-    );
 
     // Log initialization message to confirm logging is working
     log::info!("Android logger initialized successfully");

@@ -26,7 +26,7 @@ impl GooglePlayQueue {
             // Mark as error so it won't be re-queued repeatedly
             let mut results = self.results.lock().unwrap();
             if !results.contains_key(&package_id) {
-                tracing::debug!(
+                log::debug!(
                     "Skipping Google Play fetch for invalid package ID: {}",
                     package_id
                 );
@@ -76,7 +76,7 @@ impl GooglePlayQueue {
         let mut is_running = self.is_running.lock().unwrap();
 
         if *is_running {
-            tracing::warn!("Google Play worker already running");
+            log::warn!("Google Play worker already running");
             return;
         }
 
@@ -91,7 +91,7 @@ impl GooglePlayQueue {
             // Small delay to let the main thread's initial pre-fetch complete
             thread::sleep(Duration::from_millis(500));
 
-            tracing::info!("Google Play worker thread started");
+            log::info!("Google Play worker thread started");
 
             while *is_running_clone.lock().unwrap() {
                 // Check if there's work to do
@@ -107,7 +107,7 @@ impl GooglePlayQueue {
                         results.insert(pkg_id.clone(), FetchStatus::Fetching);
                     }
 
-                    tracing::info!("Processing Google Play fetch for: {}", pkg_id);
+                    log::info!("Processing Google Play fetch for: {}", pkg_id);
 
                     // Establish database connection
                     let mut conn = match crate::db::establish_connection() {
@@ -118,7 +118,7 @@ impl GooglePlayQueue {
                     match get_google_play_app(&mut conn, &pkg_id) {
                         Ok(Some(cached_app)) if !is_cache_stale(&cached_app) => {
                             if cached_app.raw_response == "404" {
-                                tracing::info!("Using cached Google Play 404 for: {}", pkg_id);
+                                log::info!("Using cached Google Play 404 for: {}", pkg_id);
                                 let mut results = results.lock().unwrap();
                                 results.insert(
                                     pkg_id,
@@ -126,7 +126,7 @@ impl GooglePlayQueue {
                                 );
                                 continue;
                             }
-                            tracing::info!("Using cached Google Play data for: {}", pkg_id);
+                            log::info!("Using cached Google Play data for: {}", pkg_id);
                             let mut results = results.lock().unwrap();
                             results.insert(pkg_id, FetchStatus::Success(cached_app));
                             continue;
@@ -140,13 +140,13 @@ impl GooglePlayQueue {
                             // Save to database
                             match save_to_db(&mut conn, &app_info) {
                                 Ok(saved_app) => {
-                                    tracing::info!("Successfully fetched and saved: {}", pkg_id);
+                                    log::info!("Successfully fetched and saved: {}", pkg_id);
                                     let mut results = results.lock().unwrap();
                                     results.insert(pkg_id, FetchStatus::Success(saved_app));
                                 }
                                 Err(e) => {
                                     let error_msg = format!("Database save error: {}", e);
-                                    tracing::error!("{}", error_msg);
+                                    log::error!("{}", error_msg);
                                     let mut results = results.lock().unwrap();
                                     results.insert(pkg_id, FetchStatus::Error(error_msg));
                                 }
@@ -161,7 +161,7 @@ impl GooglePlayQueue {
                             };
 
                             if is_404 {
-                                tracing::info!(
+                                log::info!(
                                     "Google Play returned 404 for {}, caching as not found",
                                     pkg_id
                                 );
@@ -179,7 +179,7 @@ impl GooglePlayQueue {
                                 };
 
                                 if let Ok(_) = save_to_db(&mut conn, &not_found_app) {
-                                    tracing::info!("Cached 404 for {}", pkg_id);
+                                    log::info!("Cached 404 for {}", pkg_id);
                                 }
 
                                 let mut results = results.lock().unwrap();
@@ -189,7 +189,7 @@ impl GooglePlayQueue {
                                 );
                             } else {
                                 let error_msg = format!("Fetch error: {:?}", e);
-                                tracing::warn!("{}", error_msg);
+                                log::warn!("{}", error_msg);
                                 let mut results = results.lock().unwrap();
                                 results.insert(pkg_id, FetchStatus::Error(error_msg));
                             }
@@ -204,7 +204,7 @@ impl GooglePlayQueue {
                 }
             }
 
-            tracing::info!("Google Play worker thread stopped");
+            log::info!("Google Play worker thread stopped");
         });
     }
 
@@ -212,14 +212,14 @@ impl GooglePlayQueue {
     pub fn stop_worker(&self) {
         let mut is_running = self.is_running.lock().unwrap();
         *is_running = false;
-        tracing::info!("Google Play worker stopping...");
+        log::info!("Google Play worker stopping...");
     }
 
     /// Clear all pending items from queue
     pub fn clear_queue(&self) {
         let mut queue = self.queue.lock().unwrap();
         queue.clear();
-        tracing::info!("Google Play queue cleared");
+        log::info!("Google Play queue cleared");
     }
 
     /// Get queue size

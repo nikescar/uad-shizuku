@@ -133,52 +133,29 @@ fn main() -> eframe::Result<()> {
     #[cfg(target_os = "windows")]
     hide_console();
 
-    // Initialize tracing subscriber for structured logging with log capture and reload support
-    use tracing_subscriber::layer::SubscriberExt;
-    use tracing_subscriber::reload;
-    use tracing_subscriber::util::SubscriberInitExt;
-    use tracing_subscriber::EnvFilter;
-
-    // Try to load user's log level from settings, default to "error" if not found
+    // Try to load user's log level from settings, default to ERROR if not found
     let log_level = if let Ok(config) = uad_shizuku::Config::new() {
         if let Ok(settings) = config.load_settings() {
-            settings.log_level.to_lowercase()
+            settings.log_level.to_uppercase()
         } else {
-            "error".to_string()
+            "ERROR".to_string()
         }
     } else {
-        "error".to_string()
+        "ERROR".to_string()
     };
 
-    // Create a reloadable filter layer for dynamic log level changes
-    // Suppress noisy/empty logs from third-party crates
-    let filter_string = format!(
-        "{},ureq=warn,rustls=warn,hyper=warn,h2=warn",
-        log_level
-    );
-    let env_filter =
-        EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(&filter_string));
-    let (filter, reload_handle) = reload::Layer::new(env_filter);
+    // Convert log level string to LevelFilter
+    let level_filter = match log_level.as_str() {
+        "TRACE" => log::LevelFilter::Trace,
+        "DEBUG" => log::LevelFilter::Debug,
+        "INFO" => log::LevelFilter::Info,
+        "WARN" => log::LevelFilter::Warn,
+        "ERROR" => log::LevelFilter::Error,
+        _ => log::LevelFilter::Error,
+    };
 
-    // Store the reload handle for later use (type-erased via closure)
-    uad_shizuku::log_capture::set_reload_fn(move |level: &str| {
-        let new_filter = EnvFilter::try_new(level).unwrap_or_else(|_| EnvFilter::new("error"));
-        if let Err(e) = reload_handle.reload(new_filter) {
-            eprintln!("Failed to reload log filter: {}", e);
-        }
-    });
-
-    tracing_subscriber::registry()
-        .with(filter)
-        .with(
-            tracing_subscriber::fmt::layer()
-                .with_target(true)
-                .with_level(true)
-                .compact()  // Use compact format to avoid empty lines
-                .event_format(uad_shizuku::log_capture::NonEmptyFormatter)
-        )
-        .with(uad_shizuku::log_capture::LogCaptureLayer)
-        .init();
+    // Initialize combined logger that writes to both stdout and in-app log capture
+    uad_shizuku::log_capture::init_combined_logger(level_filter);
 
     // Initialize common app components (database, i18n)
     uad_shizuku_app::init_common();

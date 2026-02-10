@@ -59,7 +59,7 @@ pub fn upsert_google_play_app(
             .execute(conn)
             .context("Failed to update Google Play app")?;
 
-        tracing::info!("Updated Google Play app: {}", pkg_id);
+        log::info!("Updated Google Play app: {}", pkg_id);
     } else {
         // Insert new record
         let new_app = NewGooglePlayApp {
@@ -81,7 +81,7 @@ pub fn upsert_google_play_app(
             .execute(conn)
             .context("Failed to insert Google Play app")?;
 
-        tracing::info!("Inserted Google Play app: {}", pkg_id);
+        log::info!("Inserted Google Play app: {}", pkg_id);
     }
 
     // Fetch and return the updated/inserted record

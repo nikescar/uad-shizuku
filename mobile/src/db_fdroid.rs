@@ -56,7 +56,7 @@ pub fn upsert_fdroid_app(
             .execute(conn)
             .context("Failed to update F-Droid app")?;
 
-        tracing::info!("Updated F-Droid app: {}", pkg_id);
+        log::info!("Updated F-Droid app: {}", pkg_id);
     } else {
         // Insert new record
         let new_app = NewFDroidApp {
@@ -78,7 +78,7 @@ pub fn upsert_fdroid_app(
             .execute(conn)
             .context("Failed to insert F-Droid app")?;
 
-        tracing::info!("Inserted F-Droid app: {}", pkg_id);
+        log::info!("Inserted F-Droid app: {}", pkg_id);
     }
 
     // Fetch and return the updated/inserted record
