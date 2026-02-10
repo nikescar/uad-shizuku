@@ -9,6 +9,7 @@
 | [chatGPTBox](https://github.com/ChatGPTBox-dev/chatGPTBox) | ChatGPT browser extension | MIT |
 | [android-activity](https://github.com/rust-mobile/android-activity) | Android activity glue crate | MIT/Apache-2.0 |
 | [ai-rules](https://github.com/block/ai-rules) | AI rules configuration | Apache-2.0 |
+| [aShell](https://gitlab.com/sunilpaulmathew/ashell) | A local ADB shell for Shizuku powered Android devices | GPL-3.0 |
 
 ## Rust Libraries
 

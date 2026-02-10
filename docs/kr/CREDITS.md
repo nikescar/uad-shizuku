@@ -4,11 +4,12 @@
 
 | 프로젝트 | 설명 | 라이선스 |
 |---------|---------|---------|
-| [Universal Android Debloater Next Generation](https://github.com/Universal-Debloater-Alliance/universal-android-debloater-next-generation) | Cross-platform GUI written in Rust using ADB to debloat non-rooted Android devices. Improve your privacy, the security and battery life of your device. | GPL-3.0 |
+| [Universal Android Debloater Next Generation](https://github.com/Universal-Debloater-Alliance/universal-android-debloater-next-generation) | Rust로 작성된 크로스 플랫폼 GUI로, ADB를 사용하여 루팅되지 않은 안드로이드 기기의 불필요한 앱들을 제거 | GPL-3.0 |
 | [bevy_game_template](https://github.com/NiklasEi/bevy_game_template) | Bevy 게임 프로젝트 템플릿 | MIT/Apache-2.0 |
 | [chatGPTBox](https://github.com/ChatGPTBox-dev/chatGPTBox) | ChatGPT 브라우저 확장 프로그램 | MIT |
 | [android-activity](https://github.com/rust-mobile/android-activity) | Android activity 글루 크레이트 | MIT/Apache-2.0 |
 | [ai-rules](https://github.com/block/ai-rules) | AI 규칙 설정 | Apache-2.0 |
+| [aShell](https://gitlab.com/sunilpaulmathew/ashell) | Shizuku 기반 Android 기기용 로컬 ADB 셸 | GPL-3.0 |
 
 ## Rust 라이브러리
 
