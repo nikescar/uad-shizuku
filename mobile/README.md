@@ -29,17 +29,29 @@ $ adb logcat -v time -s *:V > fullcat.log
 $ adb logcat -s UAD-Shizuku > uadcat.log
 ```
 
+### Create Upload Keystore
+
+generate keystore
+```
+~/.local/jdk-24.0.1/bin/keytool -genkey -v -keystore release.keystore -keyalg RSA -keysize 2048 -validity 10000 -alias upload
+```
+
+check key password
+```
+~/.local/jdk-24.0.1/bin/keytool -list -v -keystore release.keystore -storepass <STOREPASSWORD> -alias upload -keypass <STOREPASSWORD>
+```
+
 ### Android keystore for github workflow 
 
-Set github secrets on Settings > Security > Secrets and Variables > Actions > Environments > New Secret.
+Set github secrets on -Repository *Settings > -Security > -Secrets and variables > *Actions > -Repository secrets.
 
 Export keystore to github vars.
 ```bash
-$ base64 release.keystore > release-key-keystore_base64_encoded.txt
+$ base64 release.keystore > release.keystore.base64
 # KEYSTORE_BASE64=<ENCODED_KEY>
-# STORE_PASSWORD=Test123
-# KEY_PASSWORD=Test123
-# KEY_ALIAS={crate_name}-release-key
+# STORE_PASSWORD=<STOREPASSWORD>
+# KEY_PASSWORD=<STOREPASSWORD>
+# KEY_ALIAS=upload
 ```
 
 ### Upload signing key on google play
