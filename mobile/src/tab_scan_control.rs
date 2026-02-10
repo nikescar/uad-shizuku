@@ -1257,7 +1257,12 @@ impl TabScanControl {
             
             // IzzyRisk sort button
             let izzy_selected = self.sort_column == Some(1);
-            if ui.selectable_label(izzy_selected, tr!("col-izzy-risk")).clicked() {
+            let izzy_label = if izzy_selected {
+                format!("{} {}", tr!("col-izzy-risk"), if self.sort_ascending { "▲" } else { "▼" })
+            } else {
+                format!("{} {}", tr!("col-izzy-risk"), "▼") // Default descending
+            };
+            if ui.selectable_label(izzy_selected, izzy_label).clicked() {
                 if self.sort_column == Some(1) {
                     self.sort_ascending = !self.sort_ascending;
                 } else {
@@ -1269,7 +1274,12 @@ impl TabScanControl {
             
             // VirusTotal sort button
             let vt_selected = self.sort_column == Some(2);
-            if ui.selectable_label(vt_selected, tr!("col-virustotal")).clicked() {
+            let vt_label = if vt_selected {
+                format!("{} {}", tr!("col-virustotal"), if self.sort_ascending { "▲" } else { "▼" })
+            } else {
+                format!("{} {}", tr!("col-virustotal"), "▼") // Default descending
+            };
+            if ui.selectable_label(vt_selected, vt_label).clicked() {
                 if self.sort_column == Some(2) {
                     self.sort_ascending = !self.sort_ascending;
                 } else {
@@ -1281,7 +1291,12 @@ impl TabScanControl {
             
             // HybridAnalysis sort button
             let ha_selected = self.sort_column == Some(3);
-            if ui.selectable_label(ha_selected, tr!("col-hybrid-analysis")).clicked() {
+            let ha_label = if ha_selected {
+                format!("{} {}", tr!("col-hybrid-analysis"), if self.sort_ascending { "▲" } else { "▼" })
+            } else {
+                format!("{} {}", tr!("col-hybrid-analysis"), "▼") // Default descending
+            };
+            if ui.selectable_label(ha_selected, ha_label).clicked() {
                 if self.sort_column == Some(3) {
                     self.sort_ascending = !self.sort_ascending;
                 } else {
@@ -1994,19 +2009,23 @@ impl TabScanControl {
 
         let table_response = interactive_table.show(ui);
 
-        // Sync sort state
-        let (widget_sort_col, widget_sort_dir) = table_response.sort_state;
-        let logical_sort_col = widget_sort_col.map(|c| to_logical(c));
-        let widget_sort_ascending =
-            matches!(widget_sort_dir, egui_material3::SortDirection::Ascending);
+        // Sync sort state from widget, but only when sorting by a column the widget knows about.
+        // On mobile, hidden columns (1-3) are managed by the mobile sort buttons, not the table widget.
+        let mobile_hidden_sort = !is_desktop && matches!(self.sort_column, Some(1..=3));
+        if !mobile_hidden_sort {
+            let (widget_sort_col, widget_sort_dir) = table_response.sort_state;
+            let logical_sort_col = widget_sort_col.map(|c| to_logical(c));
+            let widget_sort_ascending =
+                matches!(widget_sort_dir, egui_material3::SortDirection::Ascending);
 
-        if logical_sort_col != self.sort_column
-            || (logical_sort_col.is_some() && widget_sort_ascending != self.sort_ascending)
-        {
-            self.sort_column = logical_sort_col;
-            self.sort_ascending = widget_sort_ascending;
-            if self.sort_column.is_some() {
-                self.sort_packages();
+            if logical_sort_col != self.sort_column
+                || (logical_sort_col.is_some() && widget_sort_ascending != self.sort_ascending)
+            {
+                self.sort_column = logical_sort_col;
+                self.sort_ascending = widget_sort_ascending;
+                if self.sort_column.is_some() {
+                    self.sort_packages();
+                }
             }
         }
 
