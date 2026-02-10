@@ -166,7 +166,7 @@ pub fn calculate_izzyrisk(package: &PackageFingerprint) -> i32 {
             // Look up the risk score in the IZZY_RISK_POINTS table
             if let Some(&risk_score) = IZZY_RISK_POINTS.get(permission_name) {
                 total_risk += risk_score;
-                tracing::trace!(
+                log::trace!(
                     "Package {}: permission {} has risk score {}",
                     package.pkg,
                     permission_name,
@@ -176,7 +176,7 @@ pub fn calculate_izzyrisk(package: &PackageFingerprint) -> i32 {
         }
     }
 
-    tracing::debug!(
+    log::debug!(
         "Package {} has total IzzyRisk score: {}",
         package.pkg,
         total_risk
@@ -194,7 +194,7 @@ pub fn calculate_and_cache_izzyrisk(
     // Check if cached score exists
     if let Some(cached) = cached_pkg {
         if let Some(score) = cached.izzyscore {
-            tracing::debug!(
+            log::debug!(
                 "Package {} izzyrisk cache hit: {}",
                 package.pkg,
                 score
@@ -210,7 +210,7 @@ pub fn calculate_and_cache_izzyrisk(
     if let Some(cached) = cached_pkg {
         // Update existing cache entry
         if let Err(e) = crate::db_package_cache::update_package_izzyscore(cached.id, score) {
-            tracing::error!(
+            log::error!(
                 "Failed to persist izzyrisk score for {}: {}",
                 package.pkg,
                 e
@@ -232,7 +232,7 @@ pub fn calculate_and_cache_izzyrisk(
             Some(score),
             device_serial,
         ) {
-            tracing::error!(
+            log::error!(
                 "Failed to create cache entry for {}: {}",
                 package.pkg,
                 e
@@ -253,7 +253,7 @@ pub fn calculate_all_risk_scores(packages: &[PackageFingerprint]) -> HashMap<Str
         package_risk_scores.insert(package.pkg.clone(), risk_score);
     }
 
-    tracing::info!(
+    log::info!(
         "Calculated risk scores for {} packages",
         package_risk_scores.len()
     );
@@ -292,7 +292,7 @@ pub fn calculate_all_risk_scores_async(
             // Check for cancellation
             if let Ok(cancelled) = cancelled_clone.lock() {
                 if *cancelled {
-                    tracing::info!("IzzyRisk calculation cancelled by user");
+                    log::info!("IzzyRisk calculation cancelled by user");
                     break;
                 }
             }
@@ -326,7 +326,7 @@ pub fn calculate_all_risk_scores_async(
             }
         }
 
-        tracing::info!(
+        log::info!(
             "IzzyRisk calculation complete: {} packages ({} cached, {} computed)",
             total,
             cache_hits,

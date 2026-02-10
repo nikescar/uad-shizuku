@@ -14,7 +14,7 @@ pub fn fetch_app_details(package_id: &str) -> Result<GooglePlayAppInfo> {
         package_id
     );
 
-    tracing::info!("Fetching Google Play data for package: {}", package_id);
+    log::info!("Fetching Google Play data for package: {}", package_id);
 
     let response = ureq::get(&url)
         .set("User-Agent", USER_AGENT)
@@ -30,7 +30,7 @@ pub fn fetch_app_details(package_id: &str) -> Result<GooglePlayAppInfo> {
 
 /// Parse HTML to extract app information
 pub fn parse_app_details(package_id: &str, html: &str) -> Result<GooglePlayAppInfo> {
-    tracing::debug!("Parsing Google Play data for package: {}", package_id);
+    log::debug!("Parsing Google Play data for package: {}", package_id);
 
     // Extract JSON data from the script tag
     let json_data = extract_json_from_html(html)?;
@@ -79,7 +79,7 @@ fn extract_json_from_html(html: &str) -> Result<Value> {
     if let Some(captures) = re.captures(html) {
         if let Some(json_str) = captures.get(1) {
             let json_str = json_str.as_str();
-            tracing::debug!("Found ds:5 JSON data, length: {}", json_str.len());
+            log::debug!("Found ds:5 JSON data, length: {}", json_str.len());
 
             let json: Value =
                 serde_json::from_str(json_str).context("Failed to parse JSON from HTML")?;
@@ -145,13 +145,13 @@ fn extract_icon(json: &Value) -> Result<Option<String>> {
 
     if let Some(icon_value) = result.first() {
         if let Some(icon_url) = icon_value.as_str() {
-            tracing::debug!("Found icon URL: {}", icon_url);
+            log::debug!("Found icon URL: {}", icon_url);
 
             // Download the icon and convert to base64
             match download_image_as_base64(icon_url) {
                 Ok(base64_str) => return Ok(Some(base64_str)),
                 Err(e) => {
-                    tracing::warn!("Failed to download icon: {}", e);
+                    log::warn!("Failed to download icon: {}", e);
                     return Ok(None);
                 }
             }
@@ -163,7 +163,7 @@ fn extract_icon(json: &Value) -> Result<Option<String>> {
 
 /// Download image and convert to base64
 fn download_image_as_base64(url: &str) -> Result<String> {
-    tracing::debug!("Downloading image from: {}", url);
+    log::debug!("Downloading image from: {}", url);
 
     let response = ureq::get(url)
         .set("User-Agent", USER_AGENT)
@@ -248,7 +248,7 @@ fn extract_updated(json: &Value) -> Option<i32> {
 pub fn parse_html_file(package_id: &str, file_path: &str) -> Result<GooglePlayAppInfo> {
     use std::fs;
 
-    tracing::info!("Parsing HTML file: {}", file_path);
+    log::info!("Parsing HTML file: {}", file_path);
     let html = fs::read_to_string(file_path).context("Failed to read HTML file")?;
 
     parse_app_details(package_id, &html)

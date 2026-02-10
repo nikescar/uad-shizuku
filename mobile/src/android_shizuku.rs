@@ -26,7 +26,7 @@ pub fn init_shizuku_bridge() {
     }
 
     let Ok((_vm, mut env)) = get_jni_env() else {
-        tracing::error!("Failed to get JNI env for ShizukuBridge initialization");
+        log::error!("Failed to get JNI env for ShizukuBridge initialization");
         return;
     };
 
@@ -36,7 +36,7 @@ pub fn init_shizuku_bridge() {
 
     // Get the activity's class
     let Ok(_activity_class) = env.get_object_class(&activity) else {
-        tracing::error!("Failed to get activity class");
+        log::error!("Failed to get activity class");
         return;
     };
 
@@ -45,13 +45,13 @@ pub fn init_shizuku_bridge() {
         .call_method(&activity, "getClassLoader", "()Ljava/lang/ClassLoader;", &[])
         .and_then(|v| v.l())
     else {
-        tracing::error!("Failed to get class loader");
+        log::error!("Failed to get class loader");
         return;
     };
 
     // Get the class name as a Java string
     let Ok(class_name) = env.new_string("pe.nikescar.uad_shizuku.ShizukuBridge") else {
-        tracing::error!("Failed to create class name string");
+        log::error!("Failed to create class name string");
         return;
     };
 
@@ -65,12 +65,12 @@ pub fn init_shizuku_bridge() {
         Ok(class) => match class.l() {
             Ok(c) => c,
             Err(e) => {
-                tracing::error!("Failed to extract class object: {}", e);
+                log::error!("Failed to extract class object: {}", e);
                 return;
             }
         },
         Err(e) => {
-            tracing::error!("Failed to load ShizukuBridge class: {}", e);
+            log::error!("Failed to load ShizukuBridge class: {}", e);
             return;
         }
     };
@@ -79,10 +79,10 @@ pub fn init_shizuku_bridge() {
     match env.new_global_ref(bridge_class) {
         Ok(global_ref) => {
             let _ = SHIZUKU_BRIDGE_CLASS.set(global_ref);
-            tracing::info!("ShizukuBridge class initialized successfully");
+            log::info!("ShizukuBridge class initialized successfully");
         }
         Err(e) => {
-            tracing::error!("Failed to create global ref: {}", e);
+            log::error!("Failed to create global ref: {}", e);
         }
     }
 }
@@ -139,16 +139,16 @@ fn get_bridge_class() -> Result<&'static GlobalRef, std::io::Error> {
 #[cfg(target_os = "android")]
 pub fn shizuku_init() {
     let Ok((_vm, mut env)) = get_jni_env() else {
-        tracing::error!("shizuku_init: failed to get JNI env");
+        log::error!("shizuku_init: failed to get JNI env");
         return;
     };
     let Ok(class) = get_bridge_class() else {
-        tracing::error!("shizuku_init: ShizukuBridge class not initialized");
+        log::error!("shizuku_init: ShizukuBridge class not initialized");
         return;
     };
     let jclass: &jni::objects::JClass = class.as_obj().into();
     if let Err(e) = env.call_static_method(jclass, "init", "()V", &[]) {
-        tracing::error!("ShizukuBridge.init() failed: {}", e);
+        log::error!("ShizukuBridge.init() failed: {}", e);
     }
 }
 
@@ -156,11 +156,11 @@ pub fn shizuku_init() {
 #[cfg(target_os = "android")]
 pub fn shizuku_is_available() -> bool {
     let Ok((_vm, mut env)) = get_jni_env() else {
-        tracing::error!("shizuku_is_available: failed to get JNI env");
+        log::error!("shizuku_is_available: failed to get JNI env");
         return false;
     };
     let Ok(class) = get_bridge_class() else {
-        tracing::error!("shizuku_is_available: ShizukuBridge class not initialized");
+        log::error!("shizuku_is_available: ShizukuBridge class not initialized");
         return false;
     };
     let jclass: &jni::objects::JClass = class.as_obj().into();
@@ -169,7 +169,7 @@ pub fn shizuku_is_available() -> bool {
     {
         Ok(result) => result,
         Err(e) => {
-            tracing::error!("shizuku_is_available JNI call failed: {}", e);
+            log::error!("shizuku_is_available JNI call failed: {}", e);
             false
         }
     }
@@ -179,11 +179,11 @@ pub fn shizuku_is_available() -> bool {
 #[cfg(target_os = "android")]
 pub fn shizuku_has_permission() -> bool {
     let Ok((_vm, mut env)) = get_jni_env() else {
-        tracing::error!("shizuku_has_permission: failed to get JNI env");
+        log::error!("shizuku_has_permission: failed to get JNI env");
         return false;
     };
     let Ok(class) = get_bridge_class() else {
-        tracing::error!("shizuku_has_permission: ShizukuBridge class not initialized");
+        log::error!("shizuku_has_permission: ShizukuBridge class not initialized");
         return false;
     };
     let jclass: &jni::objects::JClass = class.as_obj().into();
@@ -192,7 +192,7 @@ pub fn shizuku_has_permission() -> bool {
     {
         Ok(result) => result,
         Err(e) => {
-            tracing::error!("shizuku_has_permission JNI call failed: {}", e);
+            log::error!("shizuku_has_permission JNI call failed: {}", e);
             false
         }
     }
@@ -202,16 +202,16 @@ pub fn shizuku_has_permission() -> bool {
 #[cfg(target_os = "android")]
 pub fn shizuku_request_permission() {
     let Ok((_vm, mut env)) = get_jni_env() else {
-        tracing::error!("shizuku_request_permission: failed to get JNI env");
+        log::error!("shizuku_request_permission: failed to get JNI env");
         return;
     };
     let Ok(class) = get_bridge_class() else {
-        tracing::error!("shizuku_request_permission: ShizukuBridge class not initialized");
+        log::error!("shizuku_request_permission: ShizukuBridge class not initialized");
         return;
     };
     let jclass: &jni::objects::JClass = class.as_obj().into();
     if let Err(e) = env.call_static_method(jclass, "requestPermission", "()V", &[]) {
-        tracing::error!("shizuku_request_permission JNI call failed: {}", e);
+        log::error!("shizuku_request_permission JNI call failed: {}", e);
     }
 }
 
@@ -252,11 +252,11 @@ pub fn shizuku_get_bind_state() -> i32 {
 #[cfg(target_os = "android")]
 pub fn shizuku_bind_service() -> bool {
     let Ok((_vm, mut env)) = get_jni_env() else {
-        tracing::error!("shizuku_bind_service: failed to get JNI env");
+        log::error!("shizuku_bind_service: failed to get JNI env");
         return false;
     };
     let Ok(class) = get_bridge_class() else {
-        tracing::error!("shizuku_bind_service: ShizukuBridge class not initialized");
+        log::error!("shizuku_bind_service: ShizukuBridge class not initialized");
         return false;
     };
     let jclass: &jni::objects::JClass = class.as_obj().into();
@@ -265,7 +265,7 @@ pub fn shizuku_bind_service() -> bool {
     {
         Ok(result) => result,
         Err(e) => {
-            tracing::error!("shizuku_bind_service JNI call failed: {}", e);
+            log::error!("shizuku_bind_service JNI call failed: {}", e);
             false
         }
     }

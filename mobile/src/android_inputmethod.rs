@@ -148,9 +148,9 @@ pub fn show_soft_input() -> std::io::Result<()> {
     })?;
 
     if success {
-        tracing::debug!("Soft keyboard shown successfully");
+        log::debug!("Soft keyboard shown successfully");
     } else {
-        tracing::warn!("showSoftInput returned false");
+        log::warn!("showSoftInput returned false");
     }
 
     Ok(())
@@ -316,9 +316,9 @@ pub fn hide_soft_input() -> std::io::Result<()> {
     })?;
 
     if success {
-        tracing::debug!("Soft keyboard hidden successfully");
+        log::debug!("Soft keyboard hidden successfully");
     } else {
-        tracing::debug!("hideSoftInputFromWindow returned false (keyboard may not be showing)");
+        log::debug!("hideSoftInputFromWindow returned false (keyboard may not be showing)");
     }
 
     Ok(())
@@ -419,7 +419,7 @@ pub fn toggle_soft_input() -> std::io::Result<()> {
         )
     })?;
 
-    tracing::debug!("Toggled soft keyboard");
+    log::debug!("Toggled soft keyboard");
     Ok(())
 }
 

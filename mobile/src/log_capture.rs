@@ -1,194 +1,111 @@
 use std::sync::{Arc, OnceLock, RwLock};
-use tracing::Subscriber;
-use tracing_subscriber::fmt::format::Writer;
-use tracing_subscriber::fmt::{FmtContext, FormatEvent, FormatFields};
-use tracing_subscriber::layer::Context;
-use tracing_subscriber::Layer;
-use tracing_subscriber::registry::LookupSpan;
 
-pub struct LogCaptureLayer;
+/// Combined logger that sends logs to both logcat (on Android) and in-app UI capture
+struct CombinedLogger {
+    level_filter: Arc<RwLock<log::LevelFilter>>,
+}
 
-impl<S> Layer<S> for LogCaptureLayer
-where
-    S: Subscriber,
-{
-    fn on_event(&self, event: &tracing::Event<'_>, _ctx: Context<'_, S>) {
+impl log::Log for CombinedLogger {
+    fn enabled(&self, metadata: &log::Metadata) -> bool {
+        if let Ok(filter) = self.level_filter.read() {
+            metadata.level() <= *filter
+        } else {
+            false
+        }
+    }
+
+    fn log(&self, record: &log::Record) {
+        if !self.enabled(record.metadata()) {
+            return;
+        }
+
         // Format the log message
-        let metadata = event.metadata();
-        let level = metadata.level();
-        let target = metadata.target();
-
-        // Create a visitor to extract all fields
-        struct MessageVisitor {
-            message: String,
-        }
-
-        impl tracing::field::Visit for MessageVisitor {
-            fn record_debug(&mut self, field: &tracing::field::Field, value: &dyn std::fmt::Debug) {
-                if !self.message.is_empty() {
-                    self.message.push_str(", ");
-                }
-                self.message.push_str(&format!("{} = {:?}", field.name(), value));
-            }
-
-            fn record_str(&mut self, field: &tracing::field::Field, value: &str) {
-                if !self.message.is_empty() {
-                    self.message.push_str(", ");
-                }
-                self.message.push_str(&format!("{} = {}", field.name(), value));
-            }
-
-            fn record_i64(&mut self, field: &tracing::field::Field, value: i64) {
-                if !self.message.is_empty() {
-                    self.message.push_str(", ");
-                }
-                self.message.push_str(&format!("{} = {}", field.name(), value));
-            }
-
-            fn record_u64(&mut self, field: &tracing::field::Field, value: u64) {
-                if !self.message.is_empty() {
-                    self.message.push_str(", ");
-                }
-                self.message.push_str(&format!("{} = {}", field.name(), value));
-            }
-
-            fn record_bool(&mut self, field: &tracing::field::Field, value: bool) {
-                if !self.message.is_empty() {
-                    self.message.push_str(", ");
-                }
-                self.message.push_str(&format!("{} = {}", field.name(), value));
-            }
-        }
-
-        let mut visitor = MessageVisitor {
-            message: String::new(),
-        };
-
-        event.record(&mut visitor);
+        let level = record.level();
+        let target = record.target();
+        let message = format!("{}", record.args());
 
         // Skip empty messages
-        if visitor.message.is_empty() {
+        if message.trim().is_empty() {
             return;
         }
 
         // Format the complete log line
-        let log_line = format!("[{}] {}: {}", level, target, visitor.message);
+        let log_line = format!("[{}] {}: {}", level, target, message);
 
-        // Convert level to string for filtering
-        let level_str = match *level {
-            tracing::Level::ERROR => "ERROR",
-            tracing::Level::WARN => "WARN",
-            tracing::Level::INFO => "INFO",
-            tracing::Level::DEBUG => "DEBUG",
-            tracing::Level::TRACE => "TRACE",
+        // Convert level to string
+        let level_str = match level {
+            log::Level::Error => "ERROR",
+            log::Level::Warn => "WARN",
+            log::Level::Info => "INFO",
+            log::Level::Debug => "DEBUG",
+            log::Level::Trace => "TRACE",
         };
 
         // Append to global log buffer with level filtering
-        crate::uad_shizuku_app::append_log(level_str, log_line);
+        crate::uad_shizuku_app::append_log(level_str, log_line.clone());
+
+        // On Android, also send to logcat via android_logger
+        #[cfg(target_os = "android")]
+        {
+            // Use println/eprintln as backup - android_logger redirects these to logcat
+            match level {
+                log::Level::Error => eprintln!("[{}] {}", target, message),
+                _ => println!("[{}] {}", target, message),
+            }
+        }
+
+        // On non-Android, just print to stdout/stderr
+        #[cfg(not(target_os = "android"))]
+        {
+            match level {
+                log::Level::Error => eprintln!("{}", log_line),
+                _ => println!("{}", log_line),
+            }
+        }
+    }
+
+    fn flush(&self) {}
+}
+
+static LOGGER: OnceLock<CombinedLogger> = OnceLock::new();
+
+/// Initialize the combined logger that writes to both logcat and in-app log capture
+pub fn init_combined_logger(level_filter: log::LevelFilter) {
+    let logger = LOGGER.get_or_init(|| CombinedLogger {
+        level_filter: Arc::new(RwLock::new(level_filter)),
+    });
+
+    // Set as the global logger
+    if log::set_logger(logger).is_ok() {
+        log::set_max_level(level_filter);
+    }
+
+    // On Android, also initialize android_logger as a backup
+    #[cfg(target_os = "android")]
+    {
+        let _ = android_logger::init_once(
+            android_logger::Config::default()
+                .with_max_level(level_filter)
+                .with_tag("UAD-Shizuku"),
+        );
     }
 }
 
-// Type-erased reload handle using a closure
-type ReloadFn = Box<dyn Fn(&str) + Send + Sync>;
+/// Update the log level at runtime
+pub fn update_log_level(level: &str) {
+    let level_filter = match level.to_uppercase().as_str() {
+        "TRACE" => log::LevelFilter::Trace,
+        "DEBUG" => log::LevelFilter::Debug,
+        "INFO" => log::LevelFilter::Info,
+        "WARN" => log::LevelFilter::Warn,
+        "ERROR" => log::LevelFilter::Error,
+        _ => log::LevelFilter::Error,
+    };
 
-// Global reload handle for dynamic log level changes
-static RELOAD_HANDLE: OnceLock<Arc<RwLock<Option<ReloadFn>>>> = OnceLock::new();
-
-fn get_reload_handle() -> &'static Arc<RwLock<Option<ReloadFn>>> {
-    RELOAD_HANDLE.get_or_init(|| Arc::new(RwLock::new(None)))
-}
-
-/// Store the reload handle for later use (type-erased)
-pub fn set_reload_fn<F>(reload_fn: F)
-where
-    F: Fn(&str) + Send + Sync + 'static,
-{
-    if let Ok(mut handle) = get_reload_handle().write() {
-        *handle = Some(Box::new(reload_fn));
-    }
-}
-
-/// Update the tracing log level at runtime
-pub fn update_tracing_level(level: &str) {
-    if let Ok(handle) = get_reload_handle().read() {
-        if let Some(ref reload_fn) = *handle {
-            reload_fn(level);
+    if let Some(logger) = LOGGER.get() {
+        if let Ok(mut filter) = logger.level_filter.write() {
+            *filter = level_filter;
+            log::set_max_level(level_filter);
         }
-    }
-}
-
-/// Custom formatter that skips events with empty messages
-pub struct NonEmptyFormatter;
-
-impl<S, N> FormatEvent<S, N> for NonEmptyFormatter
-where
-    S: Subscriber + for<'a> LookupSpan<'a>,
-    N: for<'a> FormatFields<'a> + 'static,
-{
-    fn format_event(
-        &self,
-        ctx: &FmtContext<'_, S, N>,
-        mut writer: Writer<'_>,
-        event: &tracing::Event<'_>,
-    ) -> std::fmt::Result {
-        // Check if event has a non-empty message by visiting fields
-        struct EmptyChecker {
-            has_content: bool,
-        }
-
-        impl tracing::field::Visit for EmptyChecker {
-            fn record_debug(&mut self, field: &tracing::field::Field, _value: &dyn std::fmt::Debug) {
-                // Consider "message" field specially
-                if field.name() == "message" {
-                    // We'll check if it's actually empty in the formatted output
-                    self.has_content = true;
-                } else {
-                    // Other fields count as content
-                    self.has_content = true;
-                }
-            }
-
-            fn record_str(&mut self, field: &tracing::field::Field, value: &str) {
-                if field.name() == "message" && !value.is_empty() {
-                    self.has_content = true;
-                } else if field.name() != "message" {
-                    self.has_content = true;
-                }
-            }
-
-            fn record_i64(&mut self, _field: &tracing::field::Field, _value: i64) {
-                self.has_content = true;
-            }
-
-            fn record_u64(&mut self, _field: &tracing::field::Field, _value: u64) {
-                self.has_content = true;
-            }
-
-            fn record_bool(&mut self, _field: &tracing::field::Field, _value: bool) {
-                self.has_content = true;
-            }
-        }
-
-        let mut checker = EmptyChecker { has_content: false };
-        event.record(&mut checker);
-
-        // Skip events with no content
-        if !checker.has_content {
-            return Ok(());
-        }
-
-        // Use the default compact format
-        let metadata = event.metadata();
-        write!(
-            writer,
-            "{} {}: ",
-            metadata.level(),
-            metadata.target()
-        )?;
-
-        // Write the fields
-        ctx.field_format().format_fields(writer.by_ref(), event)?;
-
-        writeln!(writer)
     }
 }

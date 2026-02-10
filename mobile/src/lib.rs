@@ -315,7 +315,7 @@ impl Config {
 
         fs::write(&settings_path, json).context("Failed to write settings file")?;
 
-        tracing::info!("Settings saved to {:?}", settings_path);
+        log::info!("Settings saved to {:?}", settings_path);
         Ok(())
     }
 }

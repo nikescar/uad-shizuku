@@ -70,7 +70,7 @@ impl RateLimiter {
         if let Some(until) = self.rate_limit_until {
             if now < until {
                 wait_duration = until.duration_since(now);
-                tracing::info!("Global rate limit active, waiting {:?}", wait_duration);
+                log::info!("Global rate limit active, waiting {:?}", wait_duration);
                 return Some(wait_duration);
             } else {
                 // Rate limit period has passed, clear it
@@ -122,7 +122,7 @@ impl RateLimiter {
     #[allow(dead_code)]
     fn wait_if_needed(&mut self) {
         if let Some(duration) = self.check_wait_needed() {
-            tracing::debug!("Sleeping for {:?}", duration);
+            log::debug!("Sleeping for {:?}", duration);
             thread::sleep(duration);
         }
 
@@ -136,7 +136,7 @@ impl RateLimiter {
 
         // Only update if this extends the existing rate limit
         if self.rate_limit_until.is_none() || self.rate_limit_until.unwrap() < until {
-            tracing::warn!(
+            log::warn!(
                 "Setting global rate limit for {:?} (until {:?})",
                 duration,
                 until
@@ -192,7 +192,7 @@ pub fn init_scanner_state(package_names: &[String]) -> ScannerState {
                     .insert(pkg_name.clone(), ScanStatus::Pending);
             }
             Err(e) => {
-                tracing::error!("Error checking cache for {}: {}", pkg_name, e);
+                log::error!("Error checking cache for {}: {}", pkg_name, e);
                 state
                     .lock()
                     .unwrap()
@@ -217,7 +217,7 @@ pub fn analyze_package(
 ) -> Result<(), Box<dyn std::error::Error>> {
     // Skip package IDs with less than 2 domain levels (e.g., com.android)
     if !is_valid_package_id(package_name) {
-        tracing::debug!(
+        log::debug!(
             "Skipping VirusTotal scan for invalid package ID: {}",
             package_name
         );
@@ -244,7 +244,7 @@ pub fn analyze_package(
     for (idx, (file_path, sha256)) in hashes.iter().enumerate() {
         // Validate SHA256 hash length (must be 64 hex characters)
         if sha256.len() != 64 {
-            tracing::warn!(
+            log::warn!(
                 "Skipping invalid SHA256 hash for {}: {} (length: {}, expected 64)",
                 file_path,
                 sha256,
@@ -259,11 +259,11 @@ pub fn analyze_package(
 
         // Check database cache first
         if let Ok(Some(cached)) = db_virustotal::get_result_by_sha256(&mut conn, sha256) {
-            tracing::debug!("Found cached result for {}", sha256);
+            log::debug!("Found cached result for {}", sha256);
 
             // Check if it's a cached 404
             if cached.raw_response.contains("404 Not Found") {
-                tracing::info!("Found cached 404 for {}", sha256);
+                log::info!("Found cached 404 for {}", sha256);
                 file_results.push(FileScanResult {
                     file_path: file_path.clone(),
                     sha256: cached.sha256.clone(),
@@ -357,7 +357,7 @@ pub fn analyze_package(
             }
         }
         if last_error.is_some() {
-            tracing::warn!("Skipping {} due to timeout", file_path);
+            log::warn!("Skipping {} due to timeout", file_path);
             continue;
         }
 
@@ -369,11 +369,11 @@ pub fn analyze_package(
             limiter.record_request();
         }
 
-        tracing::info!("Querying VirusTotal API for SHA256: {}", sha256);
+        log::info!("Querying VirusTotal API for SHA256: {}", sha256);
         match api_virustotal::get_file_report(sha256, api_key) {
             Ok(response) => {
                 let available_after = rate_limiter.lock().unwrap().available_requests();
-                tracing::info!(
+                log::info!(
                     "Got VirusTotal report for {}",
                     sha256
                 );
@@ -427,7 +427,7 @@ pub fn analyze_package(
                 });
             }
             Err(VtError::NotFound) if allow_upload => {
-                tracing::info!(
+                log::info!(
                     "File {} sha256 {} not found in VirusTotal, uploading",
                     file_path,
                     sha256
@@ -459,7 +459,7 @@ pub fn analyze_package(
 
                 // Skip if the path appears to be a directory (doesn't have a file extension or ends with /)
                 if file_path.ends_with('/') || !file_path.contains('.') {
-                    tracing::warn!("Skipping directory or invalid path: {}", file_path);
+                    log::warn!("Skipping directory or invalid path: {}", file_path);
                     let err_msg = format!("Path is a directory, not a file: {}", file_path);
                     file_results.push(FileScanResult {
                         file_path: file_path.clone(),
@@ -481,7 +481,7 @@ pub fn analyze_package(
 
                 // Only upload APK and SO files to VirusTotal (skip .prof, .dm, .art, etc.)
                 if !file_path.ends_with(".apk") && !file_path.ends_with(".so") {
-                    tracing::info!(
+                    log::info!(
                         "Skipping file for upload: {} (only .apk and .so files are uploaded)",
                         file_path
                     );
@@ -551,7 +551,7 @@ pub fn analyze_package(
                         }
                         if last_error.is_some() {
                             let _ = std::fs::remove_file(&tmp_file);
-                            tracing::warn!("Skipping upload {} due to timeout", tmp_file);
+                            log::warn!("Skipping upload {} due to timeout", tmp_file);
                             continue;
                         }
 
@@ -560,15 +560,15 @@ pub fn analyze_package(
                             limiter.record_request();
                         }
 
-                        tracing::info!("Uploading file to VirusTotal: {}", tmp_file);
+                        log::info!("Uploading file to VirusTotal: {}", tmp_file);
                         match api_virustotal::upload_file_smart(Path::new(&tmp_file), api_key) {
                             Ok(upload_response) => {
                                 let available_after =
                                     rate_limiter.lock().unwrap().available_requests();
-                                tracing::info!("Uploaded file {}, analysis ID: {}", sha256, upload_response.data.id);
+                                log::info!("Uploaded file {}, analysis ID: {}", sha256, upload_response.data.id);
 
                                 // Poll for results until timeout
-                                tracing::info!("Waiting for analysis to complete...");
+                                log::info!("Waiting for analysis to complete...");
 
                                 let mut analysis_result = None;
                                 while Instant::now() < max_wait_time {
@@ -586,7 +586,7 @@ pub fn analyze_package(
                                     }
 
                                     if can_poll {
-                                        tracing::info!(
+                                        log::info!(
                                             "Retrieving analysis results for: {}",
                                             upload_response.data.id
                                         );
@@ -606,7 +606,7 @@ pub fn analyze_package(
                                                     analysis_result = Some(response);
                                                     break;
                                                 } else {
-                                                    tracing::debug!("Analysis status: {}", status);
+                                                    log::debug!("Analysis status: {}", status);
                                                 }
                                             }
                                             Err(VtError::RateLimit { retry_after }) => {
@@ -615,7 +615,7 @@ pub fn analyze_package(
                                                 );
                                             }
                                             Err(e) => {
-                                                tracing::warn!("Error polling analysis: {}", e);
+                                                log::warn!("Error polling analysis: {}", e);
                                             }
                                         }
                                     }
@@ -624,7 +624,7 @@ pub fn analyze_package(
                                 if let Some(response) = analysis_result {
                                     let available_after =
                                         rate_limiter.lock().unwrap().available_requests();
-                                    tracing::info!(
+                                    log::info!(
                                         "Got analysis result for {}",
                                         sha256
                                     );
@@ -684,7 +684,7 @@ pub fn analyze_package(
                                         "Timeout waiting for VirusTotal analysis to complete for package '{}' (sha256: {}, file: {})",
                                         package_name, sha256, file_path
                                     );
-                                    tracing::error!("{}", err_msg);
+                                    log::error!("{}", err_msg);
                                     last_error = Some(err_msg);
                                 }
                             }
@@ -696,7 +696,7 @@ pub fn analyze_package(
                             }
                             Err(e) => {
                                 let err_msg = format!("Failed to upload file: {}", e);
-                                tracing::error!("Failed to upload file: {}", e);
+                                log::error!("Failed to upload file: {}", e);
                                 file_results.push(FileScanResult {
                                     file_path: file_path.clone(),
                                     sha256: sha256.clone(),
@@ -723,7 +723,7 @@ pub fn analyze_package(
                     }
                     Err(e) => {
                         let err_msg = format!("Failed to pull file: {}", e);
-                        tracing::error!("Failed to pull file: {}", e);
+                        log::error!("Failed to pull file: {}", e);
                         file_results.push(FileScanResult {
                             file_path: file_path.clone(),
                             sha256: sha256.clone(),
@@ -743,7 +743,7 @@ pub fn analyze_package(
                 }
             }
             Err(VtError::NotFound) => {
-                tracing::warn!(
+                log::warn!(
                     "Sha256 {} for file {} not found in VirusTotal and upload is disabled",
                     sha256,
                     file_path
@@ -779,7 +779,7 @@ pub fn analyze_package(
                     sha256.clone(),
                     not_found_response,
                 ) {
-                    tracing::error!("Failed to cache 404 for {}: {}", sha256, e);
+                    log::error!("Failed to cache 404 for {}: {}", sha256, e);
                 }
 
                 file_results.push(FileScanResult {
@@ -807,7 +807,7 @@ pub fn analyze_package(
             }
             Err(e) => {
                 let err_msg = e.to_string();
-                tracing::error!("Error getting VirusTotal report for {}: {}", sha256, e);
+                log::error!("Error getting VirusTotal report for {}: {}", sha256, e);
                 file_results.push(FileScanResult {
                     file_path: file_path.clone(),
                     sha256: sha256.clone(),
@@ -897,7 +897,7 @@ pub fn run_virustotal(
         *cancelled = false;
     }
 
-    tracing::info!(
+    log::info!(
         "Starting VirusTotal scan for {} packages",
         installed_packages.len()
     );
@@ -930,7 +930,7 @@ pub fn run_virustotal(
         for (i, package) in packages.iter().enumerate() {
             if let Ok(cancelled) = vt_scan_cancelled_clone.lock() {
                 if *cancelled {
-                    tracing::info!("VirusTotal scan cancelled by user");
+                    log::info!("VirusTotal scan cancelled by user");
                     break;
                 }
             }
@@ -986,14 +986,14 @@ pub fn run_virustotal(
                             }
                             Err(e) => {
                                 if !has_invalid_hashes {
-                                    tracing::warn!(
+                                    log::warn!(
                                         "Failed to get sha256sums for {}: {}, using cached values",
                                         pkg_name,
                                         e
                                     );
                                     (paths_str.clone(), sha256sums_str.clone())
                                 } else {
-                                    tracing::warn!(
+                                    log::warn!(
                                         "Failed to get sha256sums for {}: {}, skipping",
                                         pkg_name,
                                         e
@@ -1016,7 +1016,7 @@ pub fn run_virustotal(
                     .map(|(p, s)| (p.to_string(), s.to_string()))
                     .collect();
 
-                tracing::info!(
+                log::info!(
                     "Analyzing package {} with {} files (Risk: {})",
                     pkg_name,
                     hashes.len(),
@@ -1033,12 +1033,12 @@ pub fn run_virustotal(
                     virustotal_submit_enabled,
                     &None,
                 ) {
-                    tracing::error!("Error analyzing package {}: {}", pkg_name, e);
+                    log::error!("Error analyzing package {}: {}", pkg_name, e);
                 }
             }
         }
 
-        tracing::info!(
+        log::info!(
             "VirusTotal scan complete: {} cached, {} processed",
             skipped_cached,
             total - skipped_cached

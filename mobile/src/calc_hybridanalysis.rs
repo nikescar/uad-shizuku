@@ -130,14 +130,14 @@ impl RateLimiter {
 
     /// Check if we need to wait and return the duration, or None if no wait needed
     fn check_wait_needed(&mut self) -> Option<Duration> {
-        tracing::debug!("check_wait_needed: Starting rate limit checks");
+        log::debug!("check_wait_needed: Starting rate limit checks");
         let now = Instant::now();
 
         // First check if we're in a global rate limit period (from 429 error)
         if let Some(until) = self.rate_limit_until {
             if now < until {
                 let wait_duration = until.duration_since(now);
-                tracing::info!("Global rate limit active, need to wait {:?}", wait_duration);
+                log::info!("Global rate limit active, need to wait {:?}", wait_duration);
                 return Some(wait_duration);
             } else {
                 // Rate limit period has passed, clear it
@@ -152,7 +152,7 @@ impl RateLimiter {
             let oldest = self.requests_last_minute[0];
             let wait_duration = Duration::from_secs(60).saturating_sub(now.duration_since(oldest));
             if wait_duration > Duration::ZERO {
-                tracing::info!(
+                log::info!(
                     "Rate limit: 100/minute reached, need to wait {:?}",
                     wait_duration
                 );
@@ -168,7 +168,7 @@ impl RateLimiter {
             let wait_duration =
                 Duration::from_secs(3600).saturating_sub(now.duration_since(oldest));
             if wait_duration > Duration::ZERO {
-                tracing::info!(
+                log::info!(
                     "Rate limit: 1500/hour reached, need to wait {:?}",
                     wait_duration
                 );
@@ -181,7 +181,7 @@ impl RateLimiter {
             let since_last = now.duration_since(last);
             if since_last < self.min_interval {
                 let wait_duration = self.min_interval - since_last;
-                tracing::debug!("Need to wait {:?} for minimum interval", wait_duration);
+                log::debug!("Need to wait {:?} for minimum interval", wait_duration);
                 return Some(wait_duration);
             }
         }
@@ -200,12 +200,12 @@ impl RateLimiter {
     /// Wait if necessary to respect rate limits, then record the request
     #[allow(dead_code)]
     fn wait_if_needed(&mut self) {
-        tracing::debug!("wait_if_needed: Starting rate limit checks");
+        log::debug!("wait_if_needed: Starting rate limit checks");
 
         // Loop until no wait is needed
         loop {
             if let Some(duration) = self.check_wait_needed() {
-                tracing::debug!("Sleeping for {:?}", duration);
+                log::debug!("Sleeping for {:?}", duration);
                 thread::sleep(duration);
             } else {
                 break;
@@ -218,21 +218,21 @@ impl RateLimiter {
 
     /// Check if upload needs to wait and return duration
     fn check_upload_wait_needed(&mut self) -> Option<Duration> {
-        tracing::debug!("check_upload_wait_needed: Checking upload rate limits");
+        log::debug!("check_upload_wait_needed: Checking upload rate limits");
         let now = Instant::now();
 
         // Check if we're in an upload rate limit period (1 hour for 429 on uploads)
         if let Some(until) = self.upload_rate_limit_until {
             if now < until {
                 let wait_duration = until.duration_since(now);
-                tracing::warn!(
+                log::warn!(
                     "Upload rate limit active (429 from previous upload), need to wait {:?}",
                     wait_duration
                 );
                 return Some(wait_duration);
             } else {
                 // Rate limit period has passed, clear it
-                tracing::debug!("Upload rate limit period has passed, clearing");
+                log::debug!("Upload rate limit period has passed, clearing");
                 self.upload_rate_limit_until = None;
             }
         }
@@ -247,7 +247,7 @@ impl RateLimiter {
 
         // Only update if this extends the existing rate limit
         if self.rate_limit_until.is_none() || self.rate_limit_until.unwrap() < until {
-            tracing::warn!(
+            log::warn!(
                 "Setting global rate limit for {:?} (until {:?})",
                 duration,
                 until
@@ -263,7 +263,7 @@ impl RateLimiter {
 
         // Only update if this extends the existing rate limit
         if self.upload_rate_limit_until.is_none() || self.upload_rate_limit_until.unwrap() < until {
-            tracing::warn!("Setting upload rate limit for 1 day (until {:?})", until);
+            log::warn!("Setting upload rate limit for 1 day (until {:?})", until);
             self.upload_rate_limit_until = Some(until);
         }
     }
@@ -292,7 +292,7 @@ pub fn init_scanner_state(package_names: &[String]) -> ScannerState {
                     .insert(pkg_name.clone(), ScanStatus::Pending);
             }
             Err(e) => {
-                tracing::error!("Error checking cache for {}: {}", pkg_name, e);
+                log::error!("Error checking cache for {}: {}", pkg_name, e);
                 state
                     .lock()
                     .unwrap()
@@ -369,7 +369,7 @@ pub fn analyze_package(
 ) -> Result<(), Box<dyn std::error::Error>> {
     // Skip package IDs with less than 2 domain levels (e.g., com.android)
     if !is_valid_package_id(package_name) {
-        tracing::debug!(
+        log::debug!(
             "Skipping Hybrid Analysis scan for invalid package ID: {}",
             package_name
         );
@@ -397,7 +397,7 @@ pub fn analyze_package(
     for (idx, (file_path, sha256)) in hashes.iter().enumerate() {
         // Validate SHA256 hash length (must be 64 hex characters)
         if sha256.len() != 64 {
-            tracing::warn!(
+            log::warn!(
                 "Skipping invalid SHA256 hash for {}: {} (length: {}, expected 64)",
                 file_path,
                 sha256,
@@ -411,7 +411,7 @@ pub fn analyze_package(
 
         // Check database cache first
         if let Ok(Some(cached)) = db_hybridanalysis::get_result_by_sha256(&mut conn, sha256) {
-            tracing::debug!("Found cached Hybrid Analysis result for {}", sha256);
+            log::debug!("Found cached Hybrid Analysis result for {}", sha256);
 
             // Update status - using cached result
             {
@@ -487,7 +487,7 @@ pub fn analyze_package(
                     break;
                 }
 
-                tracing::debug!("Waiting {:?} before API request", duration);
+                log::debug!("Waiting {:?} before API request", duration);
                 if let Err(e) = sleep_with_updates(
                     duration,
                     package_name,
@@ -523,12 +523,12 @@ pub fn analyze_package(
         }
 
         if let Some(e) = loop_err {
-            tracing::warn!("Skipping file {} due to timeout: {}", file_path, e);
+            log::warn!("Skipping file {} due to timeout: {}", file_path, e);
             last_error = Some(e);
             continue;
         }
 
-        tracing::info!("Querying Hybrid Analysis API for SHA256: {}", sha256);
+        log::info!("Querying Hybrid Analysis API for SHA256: {}", sha256);
 
         // Final timeout check before request
         if Instant::now() > max_wait_time {
@@ -548,11 +548,11 @@ pub fn analyze_package(
         // We'll update search_hash to use ureq timeout in api_hybridanalysis.rs later.
         match api_hybridanalysis::search_hash(sha256, api_key) {
             Ok(response) => {
-                tracing::info!("Got Hybrid Analysis hash search result for {}", sha256);
+                log::info!("Got Hybrid Analysis hash search result for {}", sha256);
 
                 // Check if there are any reports
                 if response.reports.is_empty() {
-                    tracing::warn!("No reports found for SHA256: {}", sha256);
+                    log::warn!("No reports found for SHA256: {}", sha256);
 
                     // If upload is allowed, upload the file
                     if allow_upload {
@@ -578,7 +578,7 @@ pub fn analyze_package(
                             max_wait_time,
                         ) {
                             let err_msg = format!("Upload failed: {}", e);
-                            tracing::warn!("Upload failed for {}: {}", file_path, e);
+                            log::warn!("Upload failed for {}: {}", file_path, e);
                             last_error = Some(err_msg);
                         }
                     }
@@ -617,7 +617,7 @@ pub fn analyze_package(
                             break;
                         }
 
-                        tracing::debug!("Waiting {:?} before fetching report", duration);
+                        log::debug!("Waiting {:?} before fetching report", duration);
                         if let Err(e) = sleep_with_updates(
                             duration,
                             package_name,
@@ -637,12 +637,12 @@ pub fn analyze_package(
                 }
 
                 if let Some(e) = loop_err {
-                    tracing::warn!("Skipping report for {} due to timeout: {}", file_path, e);
+                    log::warn!("Skipping report for {} due to timeout: {}", file_path, e);
                     last_error = Some(e);
                     continue;
                 }
 
-                tracing::info!("Fetching report summary for report ID: {}", report_info.id);
+                log::info!("Fetching report summary for report ID: {}", report_info.id);
 
                 // Record the request BEFORE making the API call to reserve the slot
                 {
@@ -652,7 +652,7 @@ pub fn analyze_package(
 
                 match api_hybridanalysis::get_report_summary(&report_info.id, api_key) {
                     Ok(report) => {
-                        tracing::info!("Got Hybrid Analysis report for {}", sha256);
+                        log::info!("Got Hybrid Analysis report for {}", sha256);
 
                         // Save to database via queue
                         db_hybridanalysis::queue_upsert(
@@ -684,7 +684,7 @@ pub fn analyze_package(
                     }
                     Err(e) => {
                         let err_msg = format!("Error getting report: {}", e);
-                        tracing::error!(
+                        log::error!(
                             "Error getting Hybrid Analysis report for {} (pkg: {}, file: {}): {}",
                             sha256,
                             package_name,
@@ -696,7 +696,7 @@ pub fn analyze_package(
                 }
             }
             Err(HaError::NotFound) if allow_upload => {
-                tracing::info!(
+                log::info!(
                     "File {} sha256 {} not found in Hybrid Analysis, uploading",
                     file_path,
                     sha256
@@ -724,12 +724,12 @@ pub fn analyze_package(
                     max_wait_time,
                 ) {
                     let err_msg = format!("Upload failed: {}", e);
-                    tracing::warn!("Upload failed for {}: {}", file_path, e);
+                    log::warn!("Upload failed for {}: {}", file_path, e);
                     last_error = Some(err_msg);
                 }
             }
             Err(HaError::NotFound) => {
-                tracing::warn!(
+                log::warn!(
                     "Sha256 {} for file {} not found in Hybrid Analysis and upload is disabled or api limit reached.",
                     sha256,
                     file_path
@@ -767,7 +767,7 @@ pub fn analyze_package(
                     sha256.clone(),
                     not_found_response,
                 ) {
-                    tracing::error!("Failed to cache 404 for {}: {}", sha256, e);
+                    log::error!("Failed to cache 404 for {}: {}", sha256, e);
                 }
 
                 // Add to results so it shows up in UI
@@ -793,7 +793,7 @@ pub fn analyze_package(
             }
             Err(e) => {
                 let err_msg = e.to_string();
-                tracing::error!(
+                log::error!(
                     "Error searching Hybrid Analysis for {} (pkg: {}, file: {}): {}",
                     sha256,
                     package_name,
@@ -843,7 +843,7 @@ fn handle_file_upload(
     total_files: usize,
     max_wait_time: Instant,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    tracing::info!(
+    log::info!(
         "Starting file upload process for {} (sha256: {})",
         file_path,
         sha256
@@ -869,13 +869,13 @@ fn handle_file_upload(
 
     // Skip if the path appears to be a directory (doesn't have a file extension or ends with /)
     if file_path.ends_with('/') || !file_path.contains('.') {
-        tracing::warn!("Skipping directory or invalid path: {}", file_path);
+        log::warn!("Skipping directory or invalid path: {}", file_path);
         return Err(format!("Path is a directory, not a file: {}", file_path).into());
     }
 
     // Only upload APK and SO files to Hybrid Analysis (skip .prof, .dm, .art, etc.)
     if !file_path.ends_with(".apk") && !file_path.ends_with(".so") {
-        tracing::info!(
+        log::info!(
             "Skipping file for upload: {} (only .apk and .so files are uploaded)",
             file_path
         );
@@ -884,7 +884,7 @@ fn handle_file_upload(
 
     // Ensure tmp directory exists
     if let Err(e) = std::fs::create_dir_all(&config.tmp_dir) {
-        tracing::error!("Failed to create tmp directory {:?}: {}", config.tmp_dir, e);
+        log::error!("Failed to create tmp directory {:?}: {}", config.tmp_dir, e);
         return Err(format!("Failed to create tmp directory: {}", e).into());
     }
 
@@ -892,26 +892,26 @@ fn handle_file_upload(
     let expected_filename = format!("{}.apk", package_name.replace('.', "_"));
     let local_path = config.tmp_dir.join(&expected_filename);
 
-    tracing::info!(
+    log::info!(
         "Pulling file from device: {} -> {}",
         file_path,
         local_path.display()
     );
     #[cfg(not(target_os = "android"))]
     if let Err(e) = adb::pull_file_to_temp(device_serial, file_path, tmp_dir_str, package_name) {
-        tracing::error!("Failed to pull file {} from device: {}", file_path, e);
+        log::error!("Failed to pull file {} from device: {}", file_path, e);
         return Err(Box::new(e));
     }
     #[cfg(target_os = "android")]
     {
-        tracing::error!("File pulling is not supported on Android platform");
+        log::error!("File pulling is not supported on Android platform");
         return Err("File pulling not supported on Android".into());
     }
     
     // Verify the file was actually pulled
     if !local_path.exists() {
         let error_msg = format!("File was not pulled successfully: {} does not exist after pull", local_path.display());
-        tracing::error!("{}", error_msg);
+        log::error!("{}", error_msg);
         return Err(error_msg.into());
     }
     
@@ -920,7 +920,7 @@ fn handle_file_upload(
         .map(|m| m.len())
         .unwrap_or(0);
     
-    tracing::info!("File pulled successfully: {} ({} bytes)", local_path.display(), file_size);
+    log::info!("File pulled successfully: {} ({} bytes)", local_path.display(), file_size);
 
     // Update status - uploading
     {
@@ -939,7 +939,7 @@ fn handle_file_upload(
     }
 
     // Wait for upload rate limits before uploading
-    tracing::debug!("About to check upload rate limits");
+    log::debug!("About to check upload rate limits");
     loop {
         if Instant::now() > max_wait_time {
             let _ = std::fs::remove_file(&local_path);
@@ -948,10 +948,10 @@ fn handle_file_upload(
 
         let wait_duration = {
             let mut limiter = rate_limiter.lock().unwrap();
-            tracing::debug!("Rate limiter lock acquired, checking upload limits");
+            log::debug!("Rate limiter lock acquired, checking upload limits");
             limiter.check_upload_wait_needed()
         };
-        tracing::debug!("Rate limiter lock released");
+        log::debug!("Rate limiter lock released");
 
         if let Some(duration) = wait_duration {
             if Instant::now() + duration > max_wait_time {
@@ -959,7 +959,7 @@ fn handle_file_upload(
                 return Err("Waited too long for upload rate limit".into());
             }
 
-            tracing::info!("Waiting {:?} before upload", duration);
+            log::info!("Waiting {:?} before upload", duration);
             if let Err(e) = sleep_with_updates(
                 duration,
                 package_name,
@@ -978,8 +978,8 @@ fn handle_file_upload(
         }
     }
 
-    tracing::debug!("Upload rate limit check complete");
-    tracing::info!("Uploading file to Hybrid Analysis: {}", file_path);
+    log::debug!("Upload rate limit check complete");
+    log::info!("Uploading file to Hybrid Analysis: {}", file_path);
 
     // Record the upload request BEFORE making the API call to reserve the slot
     {
@@ -989,7 +989,7 @@ fn handle_file_upload(
 
     match api_hybridanalysis::ha_submit_file(&local_path, api_key) {
         Ok(scan_response) => {
-            tracing::info!(
+            log::info!(
                 "Uploaded file {}, job_id: {}, submission_id: {}",
                 sha256,
                 scan_response.job_id,
@@ -1017,14 +1017,14 @@ fn handle_file_upload(
                 limiter.record_request();
             }
 
-            tracing::info!("Checking job state for job_id: {}", job_id);
+            log::info!("Checking job state for job_id: {}", job_id);
             match api_hybridanalysis::get_job_state(&job_id, api_key) {
                 Ok(state_response) => {
-                    tracing::info!("Job {} state: {}", job_id, state_response.state);
+                    log::info!("Job {} state: {}", job_id, state_response.state);
 
                     if state_response.state == "SUCCESS" {
                         // Job completed immediately, fetch report
-                        tracing::info!("Job completed, fetching report for sha256: {}", sha256);
+                        log::info!("Job completed, fetching report for sha256: {}", sha256);
 
                         // Wait for rate limit
                         {
@@ -1071,7 +1071,7 @@ fn handle_file_upload(
                                     api_key,
                                 ) {
                                     Ok(report) => {
-                                        tracing::info!(
+                                        log::info!(
                                             "Got report for uploaded file {}",
                                             sha256
                                         );
@@ -1105,7 +1105,7 @@ fn handle_file_upload(
                                         return Ok(());
                                     }
                                     Err(e) => {
-                                        tracing::error!(
+                                        log::error!(
                                             "Failed to get report after upload: {}",
                                             e
                                         );
@@ -1117,7 +1117,7 @@ fn handle_file_upload(
                                     "No report after job completion (job_id: {}). File may exceed HA upload size limit.",
                                     &job_id[..job_id.len().min(8)]
                                 );
-                                tracing::warn!(
+                                log::warn!(
                                     "No reports found after job completion for sha256: {} (pkg: {}, file: {}, job_id: {}). File may exceed HA size limit.",
                                     sha256, package_name, file_path, job_id
                                 );
@@ -1133,7 +1133,7 @@ fn handle_file_upload(
                                         "upload_error",
                                         &error_msg,
                                     ) {
-                                        tracing::error!("Failed to save error to database: {}", db_err);
+                                        log::error!("Failed to save error to database: {}", db_err);
                                     }
                                 }
 
@@ -1157,7 +1157,7 @@ fn handle_file_upload(
                                     "Hash not found after job completion (job_id: {}): {}. File may exceed HA upload size limit.",
                                     &job_id[..job_id.len().min(8)], e
                                 );
-                                tracing::error!(
+                                log::error!(
                                     "Failed to search hash after job completion for sha256: {} (pkg: {}, file: {}, job_id: {}): {}",
                                     sha256, package_name, file_path, job_id, e
                                 );
@@ -1173,7 +1173,7 @@ fn handle_file_upload(
                                         "upload_error",
                                         &error_msg,
                                     ) {
-                                        tracing::error!("Failed to save error to database: {}", db_err);
+                                        log::error!("Failed to save error to database: {}", db_err);
                                     }
                                 }
 
@@ -1199,7 +1199,7 @@ fn handle_file_upload(
                             state_response.error_type.as_deref().unwrap_or("Unknown error"),
                             state_response.error_origin.as_deref().unwrap_or("Unknown origin")
                         );
-                        tracing::error!(
+                        log::error!(
                             "Job {} failed with error: {}",
                             job_id,
                             error_msg
@@ -1216,7 +1216,7 @@ fn handle_file_upload(
                                 "analysis_error",
                                 &error_msg,
                             ) {
-                                tracing::error!("Failed to save error to database: {}", db_err);
+                                log::error!("Failed to save error to database: {}", db_err);
                             }
                         }
 
@@ -1242,18 +1242,18 @@ fn handle_file_upload(
                         .lock()
                         .unwrap()
                         .set_rate_limit(Duration::from_secs(retry_after));
-                    tracing::warn!("Rate limited while checking job state");
+                    log::warn!("Rate limited while checking job state");
                     // Fall through to pending_analysis
                 }
                 Err(e) => {
-                    tracing::error!("Error checking job state: {}", e);
+                    log::error!("Error checking job state: {}", e);
                     // Fall through to pending_analysis
                 }
             }
 
             // Job is still pending (IN_QUEUE or IN_PROGRESS) - add as pending_analysis
             // and move on to the next file/package. Will check back later.
-            tracing::info!(
+            log::info!(
                 "Job {} is pending (IN_QUEUE/IN_PROGRESS), will check back later",
                 job_id
             );
@@ -1275,7 +1275,7 @@ fn handle_file_upload(
         Err(HaError::RateLimit { retry_after: _ }) => {
             // For upload 429 errors, set 24 hour wait and show in UI
             rate_limiter.lock().unwrap().set_upload_rate_limit();
-            tracing::error!("Upload rate limited (429), will wait 24 hours before next upload");
+            log::error!("Upload rate limited (429), will wait 24 hours before next upload");
 
             use std::time::{SystemTime, UNIX_EPOCH};
             let wait_until_ts = SystemTime::now()
@@ -1303,7 +1303,7 @@ fn handle_file_upload(
         }
         Err(e) => {
             let error_msg = format!("{}", e);
-            tracing::error!("Failed to upload file: {}", error_msg);
+            log::error!("Failed to upload file: {}", error_msg);
 
             // Save error to database for persistence
             {
@@ -1316,7 +1316,7 @@ fn handle_file_upload(
                     "upload_error",
                     &error_msg,
                 ) {
-                    tracing::error!("Failed to save error to database: {}", db_err);
+                    log::error!("Failed to save error to database: {}", db_err);
                 }
             }
 
@@ -1378,7 +1378,7 @@ pub fn check_pending_jobs(
         jobs
     };
 
-    tracing::info!("Checking {} pending jobs", pending_jobs.len());
+    log::info!("Checking {} pending jobs", pending_jobs.len());
 
     for (package_name, file_path, sha256, job_id) in pending_jobs {
         // Check rate limits before polling
@@ -1396,15 +1396,15 @@ pub fn check_pending_jobs(
             limiter.record_request();
         }
 
-        tracing::info!("Checking job state for job_id: {} (sha256: {})", job_id, sha256);
+        log::info!("Checking job state for job_id: {} (sha256: {})", job_id, sha256);
 
         match api_hybridanalysis::get_job_state(&job_id, api_key) {
             Ok(state_response) => {
-                tracing::info!("Job {} state: {}", job_id, state_response.state);
+                log::info!("Job {} state: {}", job_id, state_response.state);
 
                 if state_response.state == "SUCCESS" {
                     // Job completed, fetch report
-                    tracing::info!("Job {} completed, fetching report for sha256: {}", job_id, sha256);
+                    log::info!("Job {} completed, fetching report for sha256: {}", job_id, sha256);
 
                     // Wait for rate limit
                     {
@@ -1448,7 +1448,7 @@ pub fn check_pending_jobs(
                             // Get full report
                             match api_hybridanalysis::get_report_summary(&report_info.id, api_key) {
                                 Ok(report) => {
-                                    tracing::info!("Got report for job {}", job_id);
+                                    log::info!("Got report for job {}", job_id);
 
                                     // Cache result
                                     let _ = db_hybridanalysis::queue_upsert(
@@ -1486,13 +1486,13 @@ pub fn check_pending_jobs(
                                     }
                                 }
                                 Err(e) => {
-                                    tracing::error!("Failed to get report for job {}: {}", job_id, e);
+                                    log::error!("Failed to get report for job {}: {}", job_id, e);
                                     pending_count += 1;
                                 }
                             }
                         }
                         Ok(_) => {
-                            tracing::warn!(
+                            log::warn!(
                                 "No reports found after job completion for sha256: {} (pkg: {}, file: {}, job_id: {}). File may exceed HA size limit.",
                                 sha256, package_name, file_path, job_id
                             );
@@ -1523,7 +1523,7 @@ pub fn check_pending_jobs(
                             }
                         }
                         Err(e) => {
-                            tracing::error!(
+                            log::error!(
                                 "Failed to search hash after job completion for sha256: {} (pkg: {}, file: {}, job_id: {}): {}",
                                 sha256, package_name, file_path, job_id, e
                             );
@@ -1555,7 +1555,7 @@ pub fn check_pending_jobs(
                         }
                     }
                 } else if state_response.state == "ERROR" {
-                    tracing::error!(
+                    log::error!(
                         "Job {} failed with error: {:?} ({:?})",
                         job_id,
                         state_response.error_type,
@@ -1587,7 +1587,7 @@ pub fn check_pending_jobs(
                     }
                 } else {
                     // Still IN_QUEUE or IN_PROGRESS
-                    tracing::info!("Job {} still pending ({})", job_id, state_response.state);
+                    log::info!("Job {} still pending ({})", job_id, state_response.state);
                     pending_count += 1;
                 }
             }
@@ -1596,11 +1596,11 @@ pub fn check_pending_jobs(
                     .lock()
                     .unwrap()
                     .set_rate_limit(Duration::from_secs(retry_after));
-                tracing::warn!("Rate limited while checking job state for {}", job_id);
+                log::warn!("Rate limited while checking job state for {}", job_id);
                 pending_count += 1;
             }
             Err(e) => {
-                tracing::error!("Error checking job state for {}: {}", job_id, e);
+                log::error!("Error checking job state for {}: {}", job_id, e);
                 pending_count += 1;
             }
         }
@@ -1666,7 +1666,7 @@ pub fn run_hybridanalysis(
         *cancelled = false;
     }
 
-    tracing::info!(
+    log::info!(
         "Starting HybridAnalysis scan for {} packages",
         installed_packages.len()
     );
@@ -1678,24 +1678,24 @@ pub fn run_hybridanalysis(
 
     std::thread::spawn(move || {
         let mut effective_submit_enabled = hybridanalysis_submit_enabled;
-        tracing::info!("Checking Hybrid Analysis API quota...");
+        log::info!("Checking Hybrid Analysis API quota...");
         match crate::api_hybridanalysis::check_quota(&api_key) {
             Ok(quota) => {
                 if let Some(detonation) = quota.detonation {
                     if detonation.quota_reached {
-                        tracing::warn!("Hybrid Analysis detonation quota reached!");
+                        log::warn!("Hybrid Analysis detonation quota reached!");
                         effective_submit_enabled = false;
                     }
                     if let Some(apikey_info) = detonation.apikey {
                         if apikey_info.quota_reached {
-                            tracing::warn!("Hybrid Analysis API key quota reached!");
+                            log::warn!("Hybrid Analysis API key quota reached!");
                             effective_submit_enabled = false;
                         }
                     }
                 }
             }
             Err(e) => {
-                tracing::error!("Failed to check Hybrid Analysis quota: {}", e);
+                log::error!("Failed to check Hybrid Analysis quota: {}", e);
             }
         }
 
@@ -1721,7 +1721,7 @@ pub fn run_hybridanalysis(
         for (i, package) in packages.iter().enumerate() {
             if let Ok(cancelled) = ha_scan_cancelled_clone.lock() {
                 if *cancelled {
-                    tracing::info!("Hybrid Analysis scan cancelled by user");
+                    log::info!("Hybrid Analysis scan cancelled by user");
                     break;
                 }
             }
@@ -1777,14 +1777,14 @@ pub fn run_hybridanalysis(
                             }
                             Err(e) => {
                                 if !has_invalid_hashes {
-                                    tracing::warn!(
+                                    log::warn!(
                                         "Failed to get sha256sums for {}: {}, using cached",
                                         pkg_name,
                                         e
                                     );
                                     (paths_str.clone(), sha256sums_str.clone())
                                 } else {
-                                    tracing::warn!(
+                                    log::warn!(
                                         "Failed to get sha256sums for {}: {}, skipping",
                                         pkg_name,
                                         e
@@ -1807,7 +1807,7 @@ pub fn run_hybridanalysis(
                     .map(|(p, s)| (p.to_string(), s.to_string()))
                     .collect();
 
-                tracing::info!(
+                log::info!(
                     "Analyzing package {} with {} files (Risk: {})",
                     pkg_name,
                     hashes.len(),
@@ -1824,25 +1824,25 @@ pub fn run_hybridanalysis(
                     effective_submit_enabled,
                     &None,
                 ) {
-                    tracing::error!("Error analyzing package {}: {}", pkg_name, e);
+                    log::error!("Error analyzing package {}: {}", pkg_name, e);
                 }
             } else {
-                tracing::error!("Failed to get path and sha256 for package {}", pkg_name);
+                log::error!("Failed to get path and sha256 for package {}", pkg_name);
             }
         }
 
-        tracing::info!(
+        log::info!(
             "Hybrid Analysis scan complete: {} cached, {} processed",
             skipped_cached,
             total - skipped_cached
         );
 
         // Second pass: poll pending jobs
-        tracing::info!("Checking for pending jobs...");
+        log::info!("Checking for pending jobs...");
         loop {
             if let Ok(cancelled) = ha_scan_cancelled_clone.lock() {
                 if *cancelled {
-                    tracing::info!("Hybrid Analysis scan cancelled during pending check");
+                    log::info!("Hybrid Analysis scan cancelled during pending check");
                     break;
                 }
             }
@@ -1855,16 +1855,16 @@ pub fn run_hybridanalysis(
             );
 
             if pending_count == 0 {
-                tracing::info!("All pending jobs completed");
+                log::info!("All pending jobs completed");
                 break;
             }
 
-            tracing::info!("{} jobs still pending, waiting 30 seconds", pending_count);
+            log::info!("{} jobs still pending, waiting 30 seconds", pending_count);
 
             for _ in 0..30 {
                 if let Ok(cancelled) = ha_scan_cancelled_clone.lock() {
                     if *cancelled {
-                        tracing::info!("Hybrid Analysis scan cancelled during wait");
+                        log::info!("Hybrid Analysis scan cancelled during wait");
                         break;
                     }
                 }

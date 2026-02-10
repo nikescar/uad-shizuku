@@ -12,7 +12,7 @@ pub fn fetch_app_details(package_id: &str) -> Result<FDroidAppInfo> {
     // Default to English for consistent parsing
     let url = format!("https://f-droid.org/en/packages/{}/", package_id);
 
-    tracing::info!("Fetching F-Droid data for package: {}", package_id);
+    log::info!("Fetching F-Droid data for package: {}", package_id);
 
     let response = ureq::get(&url)
         .set("User-Agent", USER_AGENT)
@@ -28,7 +28,7 @@ pub fn fetch_app_details(package_id: &str) -> Result<FDroidAppInfo> {
 
 /// Parse HTML to extract app information
 pub fn parse_app_details(package_id: &str, html: &str) -> Result<FDroidAppInfo> {
-    tracing::debug!("Parsing F-Droid data for package: {}", package_id);
+    log::debug!("Parsing F-Droid data for package: {}", package_id);
 
     // Title
     let title_re = Regex::new(r#"<h3 class="package-name">\s*(.*?)\s*</h3>"#).unwrap();
@@ -121,7 +121,7 @@ pub fn parse_app_details(package_id: &str, html: &str) -> Result<FDroidAppInfo> 
 
 /// Download image and convert to base64
 fn download_image_as_base64(url: &str) -> Result<String> {
-    tracing::debug!("Downloading image from: {}", url);
+    log::debug!("Downloading image from: {}", url);
 
     let response = ureq::get(url)
         .set("User-Agent", USER_AGENT)

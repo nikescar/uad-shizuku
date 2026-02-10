@@ -157,11 +157,11 @@ impl TabScanControl {
                     return Some(texture);
                 }
                 Err(e) => {
-                    tracing::debug!("Failed to load image for {}: {}", pkg_id, e);
+                    log::debug!("Failed to load image for {}: {}", pkg_id, e);
                 }
             },
             Err(e) => {
-                tracing::debug!("Failed to decode base64 for {}: {}", pkg_id, e);
+                log::debug!("Failed to decode base64 for {}: {}", pkg_id, e);
             }
         }
         None
@@ -336,7 +336,7 @@ impl TabScanControl {
             *cancelled = false;
         }
 
-        tracing::info!(
+        log::info!(
             "Starting IzzyRisk calculation for {} packages",
             installed_packages.len()
         );
@@ -994,7 +994,7 @@ impl TabScanControl {
                             ui.add(progress_bar).on_hover_text(tr!("scanning-packages"));
 
                             if ui.button(tr!("stop")).clicked() {
-                                tracing::info!("Stop Virustotal scan clicked");
+                                log::info!("Stop Virustotal scan clicked");
                                 self.vt_scan_state.cancel();
                                 if let Ok(mut cancelled) = self.vt_scan_cancelled.lock() {
                                     *cancelled = true;
@@ -1099,7 +1099,7 @@ impl TabScanControl {
                             ui.add(progress_bar).on_hover_text(tr!("scanning-packages"));
 
                             if ui.button(tr!("stop")).clicked() {
-                                tracing::info!("Stop Hybrid Analysis scan clicked");
+                                log::info!("Stop Hybrid Analysis scan clicked");
                                 self.ha_scan_state.cancel();
                                 if let Ok(mut cancelled) = self.ha_scan_cancelled.lock() {
                                     *cancelled = true;
@@ -1202,7 +1202,7 @@ impl TabScanControl {
                             ui.add(progress_bar).on_hover_text(tr!("calculating-risk-scores"));
 
                             if ui.button(tr!("stop")).clicked() {
-                                tracing::info!("Stop IzzyRisk calculation clicked");
+                                log::info!("Stop IzzyRisk calculation clicked");
                                 self.izzyrisk_scan_state.cancel();
                                 if let Ok(mut cancelled) = self.izzyrisk_scan_cancelled.lock() {
                                     *cancelled = true;
@@ -1680,7 +1680,7 @@ impl TabScanControl {
                                                     #[cfg(not(target_os = "android"))]
                                                     {
                                                         if let Err(err) = webbrowser::open(&file_result.vt_link) {
-                                                            tracing::error!("Failed to open VirusTotal link: {}", err);
+                                                            log::error!("Failed to open VirusTotal link: {}", err);
                                                         }
                                                     }
                                                 }
@@ -1901,7 +1901,7 @@ impl TabScanControl {
                                                 #[cfg(not(target_os = "android"))]
                                                 {
                                                     if let Err(err) = webbrowser::open(&file_result.ha_link) {
-                                                        tracing::error!("Failed to open Hybrid Analysis link: {}", err);
+                                                        log::error!("Failed to open Hybrid Analysis link: {}", err);
                                                     }
                                                 }
                                             }
@@ -1931,7 +1931,7 @@ impl TabScanControl {
                         //     .leading_icon_svg(INFO_SVG)
                         //     .elevated(true);
                         // if ui.add(chip.on_click(|| {
-                        //     tracing::info!("Opening package info dialog");
+                        //     log::info!("Opening package info dialog");
                         // })).clicked() {
                         //     if let Ok(mut clicked) = clicked_idx_clone.lock() {
                         //         *clicked = Some(idx);
@@ -2075,7 +2075,7 @@ impl TabScanControl {
 
                 match uninstall_result {
                     Ok(output) => {
-                        tracing::info!("App uninstalled successfully: {}", output);
+                        log::info!("App uninstalled successfully: {}", output);
 
                         let shared_store = crate::shared_store_stt::get_shared_store();
                         let mut installed_packages = shared_store.installed_packages.lock().unwrap();
@@ -2108,11 +2108,11 @@ impl TabScanControl {
                         }
                     }
                     Err(e) => {
-                        tracing::error!("Failed to uninstall app({}): {}", pkg_name, e);
+                        log::error!("Failed to uninstall app({}): {}", pkg_name, e);
                     }
                 }
             } else {
-                tracing::error!("No device selected for uninstall");
+                log::error!("No device selected for uninstall");
             }
         }
 
@@ -2121,7 +2121,7 @@ impl TabScanControl {
             if let Some(ref device) = self.device_serial {
                 match crate::adb::enable_app(&pkg_name, device) {
                     Ok(output) => {
-                        tracing::info!("App enabled successfully: {}", output);
+                        log::info!("App enabled successfully: {}", output);
 
                         let shared_store = crate::shared_store_stt::get_shared_store();
                         let mut installed_packages = shared_store.installed_packages.lock().unwrap();
@@ -2136,11 +2136,11 @@ impl TabScanControl {
                         }
                     }
                     Err(e) => {
-                        tracing::error!("Failed to enable app: {}", e);
+                        log::error!("Failed to enable app: {}", e);
                     }
                 }
             } else {
-                tracing::error!("No device selected for enable");
+                log::error!("No device selected for enable");
             }
         }
 
@@ -2149,7 +2149,7 @@ impl TabScanControl {
             if let Some(ref device) = self.device_serial {
                 match crate::adb::disable_app_current_user(&pkg_name, device, None) {
                     Ok(output) => {
-                        tracing::info!("App disabled successfully: {}", output);
+                        log::info!("App disabled successfully: {}", output);
 
                         let shared_store = crate::shared_store_stt::get_shared_store();
                         let mut installed_packages = shared_store.installed_packages.lock().unwrap();
@@ -2163,30 +2163,30 @@ impl TabScanControl {
                         }
                     }
                     Err(e) => {
-                        tracing::error!("Failed to disable app: {}", e);
+                        log::error!("Failed to disable app: {}", e);
                     }
                 }
             } else {
-                tracing::error!("No device selected for disable");
+                log::error!("No device selected for disable");
             }
         }
 
         // Perform refresh (delete scan results and re-scan)
         if let Some(pkg_name) = refresh_package {
-            tracing::info!("Refreshing scan results for: {}", pkg_name);
+            log::info!("Refreshing scan results for: {}", pkg_name);
 
             // Delete from database
             let mut conn = db::establish_connection();
             if let Err(e) = db_virustotal::delete_results_by_package(&mut conn, &pkg_name) {
-                tracing::error!("Failed to delete VirusTotal results for {}: {}", pkg_name, e);
+                log::error!("Failed to delete VirusTotal results for {}: {}", pkg_name, e);
             } else {
-                tracing::info!("Deleted VirusTotal results for: {}", pkg_name);
+                log::info!("Deleted VirusTotal results for: {}", pkg_name);
             }
 
             if let Err(e) = db_hybridanalysis::delete_results_by_package(&mut conn, &pkg_name) {
-                tracing::error!("Failed to delete HybridAnalysis results for {}: {}", pkg_name, e);
+                log::error!("Failed to delete HybridAnalysis results for {}: {}", pkg_name, e);
             } else {
-                tracing::info!("Deleted HybridAnalysis results for: {}", pkg_name);
+                log::info!("Deleted HybridAnalysis results for: {}", pkg_name);
             }
 
             // Get package info for scanning
@@ -2268,7 +2268,7 @@ impl TabScanControl {
                     }
 
                     thread::spawn(move || {
-                        tracing::info!("Starting VT re-scan for: {}", pkg_name_clone);
+                        log::info!("Starting VT re-scan for: {}", pkg_name_clone);
                         if let Err(e) = calc_virustotal::analyze_package(
                             &pkg_name_clone,
                             hashes_clone,
@@ -2279,7 +2279,7 @@ impl TabScanControl {
                             vt_submit,
                             &None,
                         ) {
-                            tracing::error!("Error re-scanning VT for {}: {}", pkg_name_clone, e);
+                            log::error!("Error re-scanning VT for {}: {}", pkg_name_clone, e);
                         }
                     });
                 }
@@ -2307,7 +2307,7 @@ impl TabScanControl {
                     }
 
                     thread::spawn(move || {
-                        tracing::info!("Starting HA re-scan for: {}", pkg_name_clone);
+                        log::info!("Starting HA re-scan for: {}", pkg_name_clone);
                         if let Err(e) = calc_hybridanalysis::analyze_package(
                             &pkg_name_clone,
                             hashes_clone,
@@ -2318,7 +2318,7 @@ impl TabScanControl {
                             ha_submit,
                             &None,
                         ) {
-                            tracing::error!("Error re-scanning HA for {}: {}", pkg_name_clone, e);
+                            log::error!("Error re-scanning HA for {}: {}", pkg_name_clone, e);
                         }
                     });
                 }

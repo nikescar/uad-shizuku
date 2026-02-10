@@ -174,10 +174,10 @@ impl Default for UadShizukuApp {
         //
 
         // Log basic system info at app start
-        tracing::info!("=== System Information ===");
-        tracing::info!("OS: {}", std::env::consts::OS);
-        tracing::info!("Architecture: {}", std::env::consts::ARCH);
-        tracing::info!("Family: {}", std::env::consts::FAMILY);
+        log::info!("=== System Information ===");
+        log::info!("OS: {}", std::env::consts::OS);
+        log::info!("Architecture: {}", std::env::consts::ARCH);
+        log::info!("Family: {}", std::env::consts::FAMILY);
 
         let adb_devices = Vec::<String>::new();
         // #[cfg(not(target_os = "android"))]
@@ -185,7 +185,7 @@ impl Default for UadShizukuApp {
         //     let _adb_available = which::which("adb").is_ok();
         //     if !_adb_available {
         //         // Dialog will be shown automatically via adb_install_dialog_open field
-        //         tracing::warn!("ADB is not available. Installation dialog will be shown.");
+        //         log::warn!("ADB is not available. Installation dialog will be shown.");
         //     } else {
         //         let _adb_devices = get_devices().unwrap_or_default();
         //     }
@@ -539,7 +539,7 @@ impl UadShizukuApp {
     }
 
     pub fn update(&mut self, _ctx: &egui::Context, _frame: &eframe::Frame) {
-        tracing::debug!("update function is called.");
+        log::debug!("update function is called.");
     }
 
     fn get_theme(&self) -> MaterialThemeContext {
@@ -660,7 +660,7 @@ impl UadShizukuApp {
 
                 // Update users list when device selection changes
                 if self.selected_device != self.current_device {
-                    tracing::debug!("device selection changed to {:?}", self.selected_device);
+                    log::debug!("device selection changed to {:?}", self.selected_device);
                     self.current_device = self.selected_device.clone();
                     self.retrieve_adb_users();
                     // Reset user selection when device changes
@@ -696,7 +696,7 @@ impl UadShizukuApp {
 
                 // Retrieve installed packages when user selection changes
                 if self.selected_user != self.current_user {
-                    tracing::debug!("user selection changed to {:?}", self.selected_user);
+                    log::debug!("user selection changed to {:?}", self.selected_user);
                     self.current_user = self.selected_user;
                     self.retrieve_installed_packages();
                 }
@@ -750,7 +750,7 @@ impl UadShizukuApp {
                         ui.add(progress_bar)
                             .on_hover_text(tr!("google-play-renderer"));
                         if ui.button(tr!("stop")).clicked() {
-                            tracing::info!("Stop Google Play renderer clicked");
+                            log::info!("Stop Google Play renderer clicked");
                             queue.clear_queue();
                         }
                     }
@@ -773,7 +773,7 @@ impl UadShizukuApp {
                         ui.add(progress_bar)
                             .on_hover_text(tr!("fdroid-renderer"));
                         if ui.button(tr!("stop")).clicked() {
-                            tracing::info!("Stop F-Droid renderer clicked");
+                            log::info!("Stop F-Droid renderer clicked");
                             queue.clear_queue();
                         }
                     }
@@ -796,7 +796,7 @@ impl UadShizukuApp {
                         ui.add(progress_bar)
                             .on_hover_text(tr!("apkmirror-renderer"));
                         if ui.button(tr!("stop")).clicked() {
-                            tracing::info!("Stop APKMirror renderer clicked");
+                            log::info!("Stop APKMirror renderer clicked");
                             queue.clear_queue();
                         }
                     }
@@ -1443,16 +1443,16 @@ impl UadShizukuApp {
             use crate::shared_store_stt::get_shared_store;
 
             if let Some(ref device) = self.selected_device {
-                tracing::debug!("Refreshing packages for apps tab only...");
+                log::debug!("Refreshing packages for apps tab only...");
                 match get_all_packages_fingerprints(device) {
                     Ok(packages) => {
                         let store = get_shared_store();
                         store.set_installed_packages(packages.clone());
                         self.tab_apps_control.update_packages(packages);
-                        tracing::debug!("Apps tab packages refreshed");
+                        log::debug!("Apps tab packages refreshed");
                     }
                     Err(e) => {
-                        tracing::error!("Failed to refresh packages for apps tab: {}", e);
+                        log::error!("Failed to refresh packages for apps tab: {}", e);
                     }
                 }
             }
@@ -1534,7 +1534,7 @@ impl UadShizukuApp {
 
                 // Step 1: Check if Shizuku is running
                 if !android_shizuku::shizuku_is_available() {
-                    tracing::error!("Shizuku is not running. Please install and activate Shizuku.");
+                    log::error!("Shizuku is not running. Please install and activate Shizuku.");
                     self.shizuku_error_message = Some(
                         "Shizuku is not running. Please install and activate Shizuku.".to_string(),
                     );
@@ -1547,7 +1547,7 @@ impl UadShizukuApp {
                     let perm_state = android_shizuku::shizuku_get_permission_state();
                     if perm_state == 0 || perm_state == 3 {
                         // Not yet requested or previously denied -- request now
-                        tracing::error!("Requesting Shizuku permission...");
+                        log::error!("Requesting Shizuku permission...");
                         android_shizuku::shizuku_request_permission();
                         self.shizuku_permission_requested = true;
                     }
@@ -1563,7 +1563,7 @@ impl UadShizukuApp {
                 match bind_state {
                     0 => {
                         // Not bound, start binding
-                        tracing::error!("Binding Shizuku ShellService...");
+                        log::error!("Binding Shizuku ShellService...");
                         android_shizuku::shizuku_bind_service();
                         self.shizuku_bind_requested = true;
                         self.shizuku_error_message =
@@ -1580,7 +1580,7 @@ impl UadShizukuApp {
                     }
                     3 => {
                         // Bind failed
-                        tracing::error!("Failed to bind Shizuku ShellService");
+                        log::error!("Failed to bind Shizuku ShellService");
                         self.shizuku_error_message = Some(
                             "Failed to bind Shizuku service. Please retry.".to_string(),
                         );
@@ -1614,7 +1614,7 @@ impl UadShizukuApp {
                         self.retrieve_adb_users();
                     }
                     Err(e) => {
-                        tracing::error!("[ERROR] Failed to get ADB devices: {}", e);
+                        log::error!("[ERROR] Failed to get ADB devices: {}", e);
                         self.adb_devices.clear();
                     }
                 }
@@ -1624,21 +1624,21 @@ impl UadShizukuApp {
 
     fn retrieve_adb_users(&mut self) {
         if let Some(ref device) = self.selected_device {
-            tracing::debug!("Retrieving users for device: {}", device);
+            log::debug!("Retrieving users for device: {}", device);
             match get_users(device) {
                 Ok(users) => {
-                    tracing::debug!("Successfully retrieved {} users", users.len());
+                    log::debug!("Successfully retrieved {} users", users.len());
                     self.adb_users = users;
 
                     self.retrieve_installed_packages();
                 }
                 Err(e) => {
-                    tracing::error!("Failed to get users: {}", e);
+                    log::error!("Failed to get users: {}", e);
                     self.adb_users.clear();
                 }
             }
         } else {
-            tracing::debug!("No device selected, skipping user retrieval");
+            log::debug!("No device selected, skipping user retrieval");
             self.adb_users.clear();
         }
     }
@@ -1648,7 +1648,7 @@ impl UadShizukuApp {
         self.retrieve_uad_ng_lists();
 
         let Some(device) = self.selected_device.clone() else {
-            tracing::debug!("No device selected, skipping package retrieval");
+            log::debug!("No device selected, skipping package retrieval");
             return;
         };
 
@@ -1667,21 +1667,21 @@ impl UadShizukuApp {
             use crate::adb::get_all_packages_fingerprints;
             use crate::db_package_cache::upsert_package_info_cache;
 
-            tracing::debug!("Retrieving installed packages for device: {}", device);
+            log::debug!("Retrieving installed packages for device: {}", device);
 
             // Step 1: Get package fingerprints (lightweight)
             let parsed_packages = match get_all_packages_fingerprints(&device) {
                 Ok(fp) => fp,
                 Err(e) => {
-                    tracing::error!("Failed to get package fingerprints: {}", e);
+                    log::error!("Failed to get package fingerprints: {}", e);
                     return (Vec::new(), None);
                 }
             };
-            tracing::debug!("Retrieved {} package fingerprints", parsed_packages.len());
+            log::debug!("Retrieved {} package fingerprints", parsed_packages.len());
 
             // Step 2: load all contents from get_cached_packages_with_apk, db_package_cache
             let cached_packages: Vec<PackageInfoCache> = get_cached_packages_with_apk(&device);
-            tracing::debug!(
+            log::debug!(
                 "Loaded {} cached packages from database",
                 cached_packages.len()
             );
@@ -1697,11 +1697,11 @@ impl UadShizukuApp {
             }
 
             std::thread::spawn(move || {
-                tracing::info!("fill apk path and sha256sum from all packages -f");
+                log::info!("fill apk path and sha256sum from all packages -f");
                 if cached_packages.len() < parsed_packages_for_thread.len() / 2 {
                     match crate::adb::get_all_packages_sha256sum(&device_for_thread) {
                         Ok(package_data) => {
-                            tracing::info!(
+                            log::info!(
                                 "Retrieved sha256 sums for {} packages",
                                 package_data.len()
                             );
@@ -1738,7 +1738,7 @@ impl UadShizukuApp {
                                         &device_for_thread,
                                     ) {
                                         Ok(_) => {
-                                            tracing::debug!(
+                                            log::debug!(
                                                 "Cached package info for {}: {} ({})",
                                                 pkg.pkg,
                                                 sha256,
@@ -1746,7 +1746,7 @@ impl UadShizukuApp {
                                             );
                                         }
                                         Err(e) => {
-                                            tracing::error!(
+                                            log::error!(
                                                 "Failed to cache package info for {}: {}",
                                                 pkg.pkg,
                                                 e
@@ -1757,7 +1757,7 @@ impl UadShizukuApp {
                             }
                         }
                         Err(e) => {
-                            tracing::error!("Failed to get package sha256 sums: {}", e);
+                            log::error!("Failed to get package sha256 sums: {}", e);
                         }
                     }
                 }
@@ -1772,19 +1772,19 @@ impl UadShizukuApp {
 
             // Filter packages by selected user if a specific user is selected
             if let Some(user_id) = selected_user {
-                tracing::debug!("Filtering packages for user: {}", user_id);
+                log::debug!("Filtering packages for user: {}", user_id);
                 packages
                     .retain(|pkg| pkg.users.iter().any(|u| u.userId == user_id && u.installed));
-                tracing::debug!(
+                log::debug!(
                     "Filtered to {} packages for user {}",
                     packages.len(),
                     user_id
                 );
             } else {
-                tracing::debug!("Showing all users' packages");
+                log::debug!("Showing all users' packages");
             }
 
-            tracing::debug!("Package retrieval complete");
+            log::debug!("Package retrieval complete");
             (packages, uad_ng_lists)
         });
 
@@ -1805,7 +1805,7 @@ impl UadShizukuApp {
                 match handle.join() {
                     Ok((packages, uad_lists)) => {
                         // Loading complete, update UI
-                        tracing::debug!("Applying loaded packages to UI");
+                        log::debug!("Applying loaded packages to UI");
                         
                         let shared_store = crate::shared_store_stt::get_shared_store();
                         {
@@ -1830,7 +1830,7 @@ impl UadShizukuApp {
                         self.tab_scan_control.virustotal_submit_enabled = self.settings.virustotal_submit;
                         self.tab_scan_control.hybridanalysis_submit_enabled =
                             self.settings.hybridanalysis_submit;
-                        tracing::info!(
+                        log::info!(
                             "Synced hybridanalysis_submit_enabled={} to tab_scan_control",
                             self.settings.hybridanalysis_submit
                         );
@@ -1843,13 +1843,13 @@ impl UadShizukuApp {
                             .update_packages(installed_packages.clone());
                         self.tab_apps_control
                             .set_selected_device(self.selected_device.clone());
-                        tracing::debug!("Updated tab controls with packages");
+                        log::debug!("Updated tab controls with packages");
 
                         // Close dialog
                         self.package_loading_dialog_open = false;
                     }
                     Err(e) => {
-                        tracing::error!("Package loading thread panicked: {:?}", e);
+                        log::error!("Package loading thread panicked: {:?}", e);
                         self.package_loading_dialog_open = false;
                     }
                 }
@@ -1869,7 +1869,7 @@ impl UadShizukuApp {
         let cache_dir = match &self.config {
             Some(config) => config.cache_dir.clone(),
             None => {
-                tracing::error!("Config not available, cannot retrieve UAD lists");
+                log::error!("Config not available, cannot retrieve UAD lists");
                 return;
             }
         };
@@ -1891,7 +1891,7 @@ impl UadShizukuApp {
         };
 
         if should_download {
-            tracing::info!(
+            log::info!(
                 "UAD lists not found in cache or older than 7 days, downloading from {}",
                 UAD_LISTS_URL
             );
@@ -1911,39 +1911,39 @@ impl UadShizukuApp {
                         // Save to cache
                         match std::fs::write(&cache_file_path, &response.bytes) {
                             Ok(_) => {
-                                tracing::info!(
+                                log::info!(
                                     "Successfully downloaded and cached UAD lists to {:?}",
                                     cache_file_path
                                 );
                             }
                             Err(e) => {
-                                tracing::error!("Failed to write UAD lists to cache: {}", e);
+                                log::error!("Failed to write UAD lists to cache: {}", e);
                                 return;
                             }
                         }
                     } else {
-                        tracing::error!("Failed to download UAD lists: HTTP {}", response.status);
+                        log::error!("Failed to download UAD lists: HTTP {}", response.status);
                         return;
                     }
                 }
                 Ok(Err(e)) => {
-                    tracing::error!("Failed to download UAD lists: {}", e);
+                    log::error!("Failed to download UAD lists: {}", e);
                     return;
                 }
                 Err(e) => {
-                    tracing::error!("Failed to receive download response: {}", e);
+                    log::error!("Failed to receive download response: {}", e);
                     return;
                 }
             }
         } else {
-            tracing::info!("UAD lists found in cache at {:?}", cache_file_path);
+            log::info!("UAD lists found in cache at {:?}", cache_file_path);
         }
 
         // Load and parse the JSON file
         match std::fs::read_to_string(&cache_file_path) {
             Ok(json_content) => match serde_json::from_str::<UadNgLists>(&json_content) {
                 Ok(uad_lists) => {
-                    tracing::info!(
+                    log::info!(
                         "Successfully parsed UAD lists with {} apps",
                         uad_lists.apps.len()
                     );
@@ -1954,11 +1954,11 @@ impl UadShizukuApp {
                     }
                 }
                 Err(e) => {
-                    tracing::error!("Failed to parse UAD lists JSON: {}", e);
+                    log::error!("Failed to parse UAD lists JSON: {}", e);
                 }
             },
             Err(e) => {
-                tracing::error!("Failed to read UAD lists from cache: {}", e);
+                log::error!("Failed to read UAD lists from cache: {}", e);
             }
         }
     }
@@ -2142,7 +2142,7 @@ impl UadShizukuApp {
                                 ui.ctx().send_viewport_cmd(egui::ViewportCommand::InnerSize(
                                     egui::vec2(size.0, size.1),
                                 ));
-                                tracing::info!("Window resized to {}x{}", size.0, size.1);
+                                log::info!("Window resized to {}x{}", size.0, size.1);
                             }
                         }
                         ui.add_space(8.0);
@@ -2242,7 +2242,7 @@ impl UadShizukuApp {
                         crate::clipboard_popup::show_clipboard_popup(ui, &response, &mut self.settings_virustotal_apikey);
                         if ui.button(tr!("get-api-key")).clicked() {
                             if let Err(e) = webbrowser::open("https://www.virustotal.com/gui/my-apikey") {
-                                tracing::error!("Failed to open VirusTotal API key URL: {}", e);
+                                log::error!("Failed to open VirusTotal API key URL: {}", e);
                             }
                         }
                     });
@@ -2275,7 +2275,7 @@ impl UadShizukuApp {
                         crate::clipboard_popup::show_clipboard_popup(ui, &response, &mut self.settings_hybridanalysis_apikey);
                         if ui.button(tr!("get-api-key")).clicked() {
                             if let Err(e) = webbrowser::open("https://hybrid-analysis.com/my-account") {
-                                tracing::error!("Failed to open HybridAnalysis API key URL: {}", e);
+                                log::error!("Failed to open HybridAnalysis API key URL: {}", e);
                             }
                         }
                     });
@@ -2409,30 +2409,35 @@ impl UadShizukuApp {
                         let error_button = ui.selectable_label(error_selected, "ERROR");
                         if error_button.clicked() {
                             self.settings.log_level = Self::log_level_to_string(LogLevel::Error);
+                            crate::log_capture::update_log_level(&self.settings.log_level);
                         }
 
                         let warn_selected = current_level == LogLevel::Warn;
                         let warn_button = ui.selectable_label(warn_selected, "WARN");
                         if warn_button.clicked() {
                             self.settings.log_level = Self::log_level_to_string(LogLevel::Warn);
+                            crate::log_capture::update_log_level(&self.settings.log_level);
                         }
 
                         let info_selected = current_level == LogLevel::Info;
                         let info_button = ui.selectable_label(info_selected, "INFO");
                         if info_button.clicked() {
                             self.settings.log_level = Self::log_level_to_string(LogLevel::Info);
+                            crate::log_capture::update_log_level(&self.settings.log_level);
                         }
 
                         let debug_selected = current_level == LogLevel::Debug;
                         let debug_button = ui.selectable_label(debug_selected, "DEBUG");
                         if debug_button.clicked() {
                             self.settings.log_level = Self::log_level_to_string(LogLevel::Debug);
+                            crate::log_capture::update_log_level(&self.settings.log_level);
                         }
 
                         let trace_selected = current_level == LogLevel::Trace;
                         let trace_button = ui.selectable_label(trace_selected, "TRACE");
                         if trace_button.clicked() {
                             self.settings.log_level = Self::log_level_to_string(LogLevel::Trace);
+                            crate::log_capture::update_log_level(&self.settings.log_level);
                         }
                     });
 
@@ -2440,10 +2445,10 @@ impl UadShizukuApp {
                 });
             })
             .action(tr!("cancel"), || {
-                tracing::info!("Settings dialog Cancel clicked!");
+                log::info!("Settings dialog Cancel clicked!");
             })
             .primary_action(tr!("save"), || {
-                tracing::info!("Settings dialog Save clicked!");
+                log::info!("Settings dialog Save clicked!");
                 save_clicked.set(true);
             })
             .show(ctx);
@@ -2482,7 +2487,7 @@ impl UadShizukuApp {
                 self.adb_install_dialog_open = true;
             } else {
                 // ADB found after retry
-                tracing::info!("ADB detected after retry");
+                log::info!("ADB detected after retry");
                 self.retrieve_adb_devices();
                 self.retrieve_adb_users();
                 self.retrieve_installed_packages();
@@ -2521,7 +2526,7 @@ impl UadShizukuApp {
                     ui.horizontal(|ui| {
                         if ui.button("Installation Guide (English)").clicked() {
                             if let Err(e) = webbrowser::open("https://uad-shizuku.pages.dev/docs/installation") {
-                                tracing::error!("Failed to open installation guide URL: {}", e);
+                                log::error!("Failed to open installation guide URL: {}", e);
                             }
                         }
                     });
@@ -2529,7 +2534,7 @@ impl UadShizukuApp {
                     ui.horizontal(|ui| {
                         if ui.button("설치 가이드 (한국어)").clicked() {
                             if let Err(e) = webbrowser::open("https://uad-shizuku.pages.dev/docs/kr/docs/installation") {
-                                tracing::error!("Failed to open Korean installation guide URL: {}", e);
+                                log::error!("Failed to open Korean installation guide URL: {}", e);
                             }
                         }
                     });
@@ -2546,7 +2551,7 @@ impl UadShizukuApp {
             // Check if ADB became available (user may have installed it)
             if which::which("adb").is_ok() {
                 self.adb_install_dialog_open = false;
-                tracing::info!("ADB detected, closing installation dialog");
+                log::info!("ADB detected, closing installation dialog");
                 self.retrieve_adb_devices();
                 self.retrieve_adb_users();
                 self.retrieve_installed_packages();
@@ -2650,7 +2655,7 @@ impl UadShizukuApp {
                             ui.label(format!("{}: ", website_label));
                             if ui.button("https://uad-shizuku.pages.dev").clicked() {
                                 if let Err(e) = webbrowser::open("https://uad-shizuku.pages.dev") {
-                                    tracing::error!("Failed to open website URL: {}", e);
+                                    log::error!("Failed to open website URL: {}", e);
                                 }
                             }
                         });
@@ -2740,7 +2745,7 @@ impl UadShizukuApp {
 
         // Check if VirusTotal API key was removed -> stop running scans
         if !old_vt_apikey.is_empty() && self.settings.virustotal_apikey.is_empty() {
-            tracing::info!("VirusTotal API key removed, cancelling running scans");
+            log::info!("VirusTotal API key removed, cancelling running scans");
             if let Ok(mut cancelled) = self.tab_scan_control.vt_scan_cancelled.lock() {
                 *cancelled = true;
             }
@@ -2748,7 +2753,7 @@ impl UadShizukuApp {
 
         // Check if HybridAnalysis API key was removed -> stop running scans
         if !old_ha_apikey.is_empty() && self.settings.hybridanalysis_apikey.is_empty() {
-            tracing::info!("HybridAnalysis API key removed, cancelling running scans");
+            log::info!("HybridAnalysis API key removed, cancelling running scans");
             if let Ok(mut cancelled) = self.tab_scan_control.ha_scan_cancelled.lock() {
                 *cancelled = true;
             }
@@ -2756,7 +2761,7 @@ impl UadShizukuApp {
 
         // Check if VirusTotal upload was disabled -> stop uploading
         if old_vt_submit && !self.settings.virustotal_submit {
-            tracing::info!("VirusTotal upload disabled, cancelling uploads");
+            log::info!("VirusTotal upload disabled, cancelling uploads");
             if let Ok(mut cancelled) = self.tab_scan_control.vt_scan_cancelled.lock() {
                 *cancelled = true;
             }
@@ -2764,7 +2769,7 @@ impl UadShizukuApp {
 
         // Check if HybridAnalysis upload was disabled -> stop uploading
         if old_ha_submit && !self.settings.hybridanalysis_submit {
-            tracing::info!("HybridAnalysis upload disabled, cancelling uploads");
+            log::info!("HybridAnalysis upload disabled, cancelling uploads");
             if let Ok(mut cancelled) = self.tab_scan_control.ha_scan_cancelled.lock() {
                 *cancelled = true;
             }
@@ -2772,7 +2777,7 @@ impl UadShizukuApp {
 
         // Check if Google Play renderer was disabled -> clear caches
         if old_google_play_renderer && !self.settings.google_play_renderer {
-            tracing::info!("Google Play renderer disabled, clearing caches");
+            log::info!("Google Play renderer disabled, clearing caches");
             self.google_play_renderer.is_enabled = false;
             let shared_store = crate::shared_store_stt::get_shared_store();
             shared_store.google_play_textures.lock().unwrap().clear();
@@ -2781,7 +2786,7 @@ impl UadShizukuApp {
 
         // Check if F-Droid renderer was disabled -> clear caches
         if old_fdroid_renderer && !self.settings.fdroid_renderer {
-            tracing::info!("F-Droid renderer disabled, clearing caches");
+            log::info!("F-Droid renderer disabled, clearing caches");
             self.fdroid_renderer.is_enabled = false;
             let shared_store = crate::shared_store_stt::get_shared_store();
             shared_store.fdroid_textures.lock().unwrap().clear();
@@ -2790,7 +2795,7 @@ impl UadShizukuApp {
 
         // Check if APKMirror renderer was disabled -> clear caches
         if old_apkmirror_renderer && !self.settings.apkmirror_renderer {
-            tracing::info!("APKMirror renderer disabled, clearing caches");
+            log::info!("APKMirror renderer disabled, clearing caches");
             self.apkmirror_renderer.is_enabled = false;
             let shared_store = crate::shared_store_stt::get_shared_store();
             shared_store.apkmirror_textures.lock().unwrap().clear();
@@ -2799,33 +2804,33 @@ impl UadShizukuApp {
 
         // Check if APKMirror auto upload was disabled
         if old_apkmirror_auto_upload && !self.settings.apkmirror_auto_upload {
-            tracing::info!("APKMirror auto upload disabled");
+            log::info!("APKMirror auto upload disabled");
         }
 
         // Check if Google Play renderer was enabled -> enable renderer
         if !old_google_play_renderer && self.settings.google_play_renderer {
-            tracing::info!("Google Play renderer enabled");
+            log::info!("Google Play renderer enabled");
             self.google_play_renderer.is_enabled = true;
             self.tab_scan_control.google_play_renderer_enabled = true;
         }
 
         // Check if F-Droid renderer was enabled -> enable renderer
         if !old_fdroid_renderer && self.settings.fdroid_renderer {
-            tracing::info!("F-Droid renderer enabled");
+            log::info!("F-Droid renderer enabled");
             self.fdroid_renderer.is_enabled = true;
             self.tab_scan_control.fdroid_renderer_enabled = true;
         }
 
         // Check if APKMirror renderer was enabled -> enable renderer
         if !old_apkmirror_renderer && self.settings.apkmirror_renderer {
-            tracing::info!("APKMirror renderer enabled");
+            log::info!("APKMirror renderer enabled");
             self.apkmirror_renderer.is_enabled = true;
             self.tab_scan_control.apkmirror_renderer_enabled = true;
         }
 
         // Check if VirusTotal API key was added -> start scan
         if old_vt_apikey.is_empty() && !self.settings.virustotal_apikey.is_empty() {
-            tracing::info!("VirusTotal API key added, starting scan");
+            log::info!("VirusTotal API key added, starting scan");
             self.tab_scan_control.vt_api_key = Some(self.settings.virustotal_apikey.clone());
             // Reset cancelled flag and trigger scan start via update_packages
             if let Ok(mut cancelled) = self.tab_scan_control.vt_scan_cancelled.lock() {
@@ -2841,7 +2846,7 @@ impl UadShizukuApp {
 
         // Check if HybridAnalysis API key was added -> start scan
         if old_ha_apikey.is_empty() && !self.settings.hybridanalysis_apikey.is_empty() {
-            tracing::info!("HybridAnalysis API key added, starting scan");
+            log::info!("HybridAnalysis API key added, starting scan");
             self.tab_scan_control.ha_api_key = Some(self.settings.hybridanalysis_apikey.clone());
             // Reset cancelled flag and trigger scan start via update_packages
             if let Ok(mut cancelled) = self.tab_scan_control.ha_scan_cancelled.lock() {
@@ -2888,21 +2893,21 @@ impl UadShizukuApp {
             log_level: Self::string_to_log_level(&self.settings.log_level),
         });
 
-        // Update tracing log level in real-time
-        crate::log_capture::update_tracing_level(&self.settings.log_level.to_lowercase());
+        // Update log level in real-time
+        crate::log_capture::update_log_level(&self.settings.log_level);
 
         // Save to file
         if let Some(ref config) = self.config {
             match config.save_settings(&self.settings) {
                 Ok(_) => {
-                    tracing::info!("Settings saved successfully");
+                    log::info!("Settings saved successfully");
                 }
                 Err(e) => {
-                    tracing::error!("Failed to save settings: {}", e);
+                    log::error!("Failed to save settings: {}", e);
                 }
             }
         } else {
-            tracing::error!("Config not available, cannot save settings");
+            log::error!("Config not available, cannot save settings");
         }
     }
 }
@@ -2920,7 +2925,7 @@ impl eframe::App for UadShizukuApp {
         #[cfg(target_os = "android")]
         if !self.first_update_done {
             self.first_update_done = true;
-            tracing::info!("First update - initializing Shizuku");
+            log::info!("First update - initializing Shizuku");
             self.retrieve_adb_devices();
         }
 

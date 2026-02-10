@@ -31,7 +31,7 @@ pub fn init_upsert_queue() {
 
     // Spawn worker thread
     thread::spawn(move || {
-        tracing::info!("VirusTotal upsert queue worker started");
+        log::info!("VirusTotal upsert queue worker started");
         let mut conn = crate::db::establish_connection();
 
         for task in rx {
@@ -43,14 +43,14 @@ pub fn init_upsert_queue() {
                 &task.vt_response,
             ) {
                 Ok(_) => {
-                    tracing::debug!(
+                    log::debug!(
                         "Successfully upserted VT result for {} ({})",
                         task.package_name,
                         task.file_path
                     );
                 }
                 Err(e) => {
-                    tracing::error!(
+                    log::error!(
                         "Failed to upsert VT result for {} ({}): {}",
                         task.package_name,
                         task.file_path,
@@ -60,7 +60,7 @@ pub fn init_upsert_queue() {
             }
         }
 
-        tracing::info!("VirusTotal upsert queue worker stopped");
+        log::info!("VirusTotal upsert queue worker stopped");
     });
 }
 

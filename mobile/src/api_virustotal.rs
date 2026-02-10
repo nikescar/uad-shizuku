@@ -50,14 +50,14 @@ pub fn get_file_report(sha256: &str, api_key: &str) -> Result<VirusTotalResponse
 
     match response {
         Ok(resp) => {
-            tracing::trace!(
+            log::trace!(
                 "VirusTotal file report HTTP response status: {}",
                 resp.status()
             );
             let response_text = resp
                 .into_string()
                 .map_err(|e| VtError::HttpError(Box::new(e)))?;
-            tracing::trace!(
+            log::trace!(
                 "VirusTotal file report HTTP response body: {}",
                 response_text
             );
@@ -66,7 +66,7 @@ pub fn get_file_report(sha256: &str, api_key: &str) -> Result<VirusTotalResponse
             Ok(vt_response)
         }
         Err(ureq::Error::Status(code, resp)) => {
-            tracing::trace!("VirusTotal file report HTTP error status: {}", code);
+            log::trace!("VirusTotal file report HTTP error status: {}", code);
             if code == 404 {
                 Err(VtError::NotFound)
             } else if code == 429 {
@@ -127,17 +127,17 @@ pub fn upload_file(file_path: &Path, api_key: &str) -> Result<VirusTotalUploadRe
 
     match response {
         Ok(resp) => {
-            tracing::trace!("VirusTotal upload HTTP response status: {}", resp.status());
+            log::trace!("VirusTotal upload HTTP response status: {}", resp.status());
             let response_text = resp
                 .into_string()
                 .map_err(|e| VtError::HttpError(Box::new(e)))?;
-            tracing::trace!("VirusTotal upload HTTP response body: {}", response_text);
+            log::trace!("VirusTotal upload HTTP response body: {}", response_text);
             let vt_response: VirusTotalUploadResponse = serde_json::from_str(&response_text)
                 .map_err(|e| VtError::ParseError(Box::new(e)))?;
             Ok(vt_response)
         }
         Err(ureq::Error::Status(code, resp)) => {
-            tracing::trace!("VirusTotal upload HTTP error status: {}", code);
+            log::trace!("VirusTotal upload HTTP error status: {}", code);
             if code == 429 {
                 let retry_after = if let Some(header) = resp.header("Retry-After") {
                     header.parse::<u64>().unwrap_or(60)
@@ -172,14 +172,14 @@ pub fn get_upload_url(api_key: &str) -> Result<String, VtError> {
 
     match response {
         Ok(resp) => {
-            tracing::trace!(
+            log::trace!(
                 "VirusTotal upload URL HTTP response status: {}",
                 resp.status()
             );
             let response_text = resp
                 .into_string()
                 .map_err(|e| VtError::HttpError(Box::new(e)))?;
-            tracing::trace!(
+            log::trace!(
                 "VirusTotal upload URL HTTP response body: {}",
                 response_text
             );
@@ -188,7 +188,7 @@ pub fn get_upload_url(api_key: &str) -> Result<String, VtError> {
             Ok(url_response.data)
         }
         Err(ureq::Error::Status(code, resp)) => {
-            tracing::trace!("VirusTotal upload URL HTTP error status: {}", code);
+            log::trace!("VirusTotal upload URL HTTP error status: {}", code);
             if code == 429 {
                 let retry_after = if let Some(header) = resp.header("Retry-After") {
                     header.parse::<u64>().unwrap_or(60)
@@ -234,14 +234,14 @@ fn upload_file_to_url(
 
     match response {
         Ok(resp) => {
-            tracing::trace!(
+            log::trace!(
                 "VirusTotal large upload HTTP response status: {}",
                 resp.status()
             );
             let response_text = resp
                 .into_string()
                 .map_err(|e| VtError::HttpError(Box::new(e)))?;
-            tracing::trace!(
+            log::trace!(
                 "VirusTotal large upload HTTP response body: {}",
                 response_text
             );
@@ -250,7 +250,7 @@ fn upload_file_to_url(
             Ok(vt_response)
         }
         Err(ureq::Error::Status(code, resp)) => {
-            tracing::trace!("VirusTotal large upload HTTP error status: {}", code);
+            log::trace!("VirusTotal large upload HTTP error status: {}", code);
             if code == 429 {
                 let retry_after = if let Some(header) = resp.header("Retry-After") {
                     header.parse::<u64>().unwrap_or(60)
@@ -276,9 +276,9 @@ pub fn upload_large_file(
     api_key: &str,
 ) -> Result<VirusTotalUploadResponse, VtError> {
     // Get upload URL
-    tracing::info!("Getting upload URL for large file");
+    log::info!("Getting upload URL for large file");
     let upload_url = get_upload_url(api_key)?;
-    tracing::info!("Got upload URL: {}", upload_url);
+    log::info!("Got upload URL: {}", upload_url);
 
     // Upload to the special URL
     upload_file_to_url(file_path, &upload_url, api_key)
@@ -291,13 +291,13 @@ pub fn upload_file_smart(
 ) -> Result<VirusTotalUploadResponse, VtError> {
     let file_size = std::fs::metadata(file_path)?.len();
     let file_size_mb = file_size as f64 / (1024.0 * 1024.0);
-    tracing::info!("File size: {:.2} MB", file_size_mb);
+    log::info!("File size: {:.2} MB", file_size_mb);
 
     if file_size > MAX_STANDARD_UPLOAD_SIZE {
-        tracing::info!("File is larger than 32MB, using large file upload endpoint");
+        log::info!("File is larger than 32MB, using large file upload endpoint");
         upload_large_file(file_path, api_key)
     } else {
-        tracing::info!("File is smaller than 32MB, using standard upload endpoint");
+        log::info!("File is smaller than 32MB, using standard upload endpoint");
         upload_file(file_path, api_key)
     }
 }
@@ -314,14 +314,14 @@ pub fn get_analysis(analysis_id: &str, api_key: &str) -> Result<VirusTotalRespon
 
     match response {
         Ok(resp) => {
-            tracing::trace!(
+            log::trace!(
                 "VirusTotal analysis HTTP response status: {}",
                 resp.status()
             );
             let response_text = resp
                 .into_string()
                 .map_err(|e| VtError::HttpError(Box::new(e)))?;
-            tracing::trace!("VirusTotal analysis HTTP response body: {}", response_text);
+            log::trace!("VirusTotal analysis HTTP response body: {}", response_text);
 
             // The analysis endpoint returns slightly different structure
             // Try to parse as file report first, if it has the right structure
@@ -330,7 +330,7 @@ pub fn get_analysis(analysis_id: &str, api_key: &str) -> Result<VirusTotalRespon
             Ok(vt_response)
         }
         Err(ureq::Error::Status(code, resp)) => {
-            tracing::trace!("VirusTotal analysis HTTP error status: {}", code);
+            log::trace!("VirusTotal analysis HTTP error status: {}", code);
             if code == 429 {
                 let retry_after = if let Some(header) = resp.header("Retry-After") {
                     header.parse::<u64>().unwrap_or(60)
