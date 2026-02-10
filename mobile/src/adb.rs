@@ -1271,14 +1271,15 @@ pub fn pull_file_to_temp(
 
     #[cfg(target_os = "android")]
     {
-        // On Android, use xxd to dump file to hex in shell-accessible location, then convert back
+        // On Android, use xxd -p to dump file to plain hex format in shell-accessible location, then convert back
         // This is necessary because shell can't write to app's private directory
         let hex_dump_path = format!("/data/local/tmp/uad_dump_{}.hex", package_id.replace(".", "_"));
         
         debug!("Dumping file to hex on Android: {} -> {}", file_path, hex_dump_path);
         
-        // Step 1: Use xxd to create hex dump in /data/local/tmp (shell-accessible)
-        let dump_cmd = format!("xxd \"{}\" > \"{}\"", file_path, hex_dump_path);
+        // Step 1: Use xxd -p to create plain hex dump in /data/local/tmp (shell-accessible)
+        // -p flag outputs plain hexdump style (no addresses, no ASCII column, just hex)
+        let dump_cmd = format!("xxd -p \"{}\" > \"{}\"", file_path, hex_dump_path);
         shell_exec(device_serial, &dump_cmd)?;
         
         // Step 2: Read the hex dump file (Rust can read from /data/local/tmp)
@@ -1292,50 +1293,40 @@ pub fn pull_file_to_temp(
             }
         };
         
-        // Step 3: Convert hex dump back to binary
-        debug!("Converting hex dump back to binary: {} bytes of hex data", hex_content.len());
-        let mut binary_data = Vec::new();
-        
-        for line in hex_content.lines() {
-            // xxd format: "00000000: 504b 0304 1400 0808 0800 .... PK.........."
-            // We need to parse the hex bytes part (between : and ASCII part)
-            if let Some(colon_pos) = line.find(':') {
-                let hex_part = &line[colon_pos + 1..];
-                // Find where the ASCII representation starts (usually after two spaces)
-                let hex_bytes = if let Some(ascii_start) = hex_part.rfind("  ") {
-                    &hex_part[..ascii_start]
-                } else {
-                    hex_part
-                };
-                
-                // Parse hex bytes (format: "504b 0304 1400")
-                for hex_pair in hex_bytes.split_whitespace() {
-                    // Each pair is 4 chars representing 2 bytes: "504b" -> 0x50, 0x4b
-                    for i in (0..hex_pair.len()).step_by(2) {
-                        if i + 1 < hex_pair.len() {
-                            if let Ok(byte) = u8::from_str_radix(&hex_pair[i..i+2], 16) {
-                                binary_data.push(byte);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        
-        debug!("Converted hex dump to {} bytes of binary data", binary_data.len());
-        
-        // Step 4: Write binary data to app's private directory (Rust has app permissions)
-        if let Err(e) = std::fs::write(&absolute_path, &binary_data) {
-            error!("Failed to write binary file to {}: {}", absolute_path_str, e);
-            // Clean up hex dump
+        // Step 3: Convert plain hex dump back to binary using xxd -r -p
+        // Write hex content to a temporary file that xxd can read
+        let hex_input_path = format!("/data/local/tmp/uad_hex_input_{}.hex", package_id.replace(".", "_"));
+        if let Err(e) = std::fs::write(&hex_input_path, hex_content.as_bytes()) {
+            error!("Failed to write hex input file {}: {}", hex_input_path, e);
+            // Clean up
             let _ = shell_exec(device_serial, &format!("rm \"{}\"", hex_dump_path));
             return Err(e);
         }
         
-        debug!("Successfully wrote binary file to {}", absolute_path_str);
+        // Use xxd -r -p to reverse the hex dump back to binary
+        // Output to a temp file in /data/local/tmp first (shell can write there)
+        let binary_tmp_path = format!("/data/local/tmp/uad_binary_{}.apk", package_id.replace(".", "_"));
+        let reverse_cmd = format!("xxd -r -p \"{}\" > \"{}\"", hex_input_path, binary_tmp_path);
+        if let Err(e) = shell_exec(device_serial, &reverse_cmd) {
+            error!("Failed to reverse hex dump: {}", e);
+            // Clean up
+            let _ = shell_exec(device_serial, &format!("rm \"{}\" \"{}\"", hex_dump_path, hex_input_path));
+            return Err(e);
+        }
         
-        // Clean up hex dump file
-        let _ = shell_exec(device_serial, &format!("rm \"{}\"", hex_dump_path));
+        // Step 4: Copy binary file from /data/local/tmp to app's private directory
+        // Rust has app permissions to write here
+        if let Err(e) = std::fs::copy(&binary_tmp_path, &absolute_path) {
+            error!("Failed to copy binary file from {} to {}: {}", binary_tmp_path, absolute_path_str, e);
+            // Clean up
+            let _ = shell_exec(device_serial, &format!("rm \"{}\" \"{}\" \"{}\"", hex_dump_path, hex_input_path, binary_tmp_path));
+            return Err(e);
+        }
+        
+        debug!("Successfully copied binary file to {}", absolute_path_str);
+        
+        // Clean up temporary files
+        let _ = shell_exec(device_serial, &format!("rm \"{}\" \"{}\" \"{}\"", hex_dump_path, hex_input_path, binary_tmp_path));
         
         if absolute_path.exists() {
             let file_size = std::fs::metadata(&absolute_path)?.len();
