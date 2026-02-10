@@ -6,10 +6,9 @@ pub use crate::tab_debloat_control_stt::*;
 use crate::dlg_package_details::DlgPackageDetails;
 use eframe::egui;
 use egui_i18n::tr;
-use egui_material3::{data_table, icon_button_standard, outlined_card2, theme::get_global_color, MaterialButton};
+use egui_material3::{data_table, icon_button_standard, theme::get_global_color, MaterialButton};
 
 use crate::material_symbol_icons::{ICON_INFO, ICON_DELETE, ICON_TOGGLE_OFF, ICON_TOGGLE_ON};
-use crate::svg_stt::*;
 
 /// Minimum viewport width for desktop table view
 const DESKTOP_MIN_WIDTH: f32 = 1008.0;

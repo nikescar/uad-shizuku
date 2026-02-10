@@ -11,13 +11,12 @@ use crate::dlg_package_details::DlgPackageDetails;
 use eframe::egui;
 use egui_async::Bind;
 use egui_i18n::tr;
-use egui_material3::{data_table, icon_button_standard, outlined_card2, theme::get_global_color, MaterialButton};
+use egui_material3::{data_table, icon_button_standard, theme::get_global_color, MaterialButton};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::thread;
 
 // SVG icons as constants (moved to svg_stt.rs)
-use crate::svg_stt::*;
 use crate::material_symbol_icons::{ICON_REFRESH, ICON_DELETE, ICON_TOGGLE_OFF, ICON_TOGGLE_ON};
 
 /// Minimum viewport width for desktop table view
