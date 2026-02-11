@@ -139,10 +139,10 @@ jobs:
       - name: Android - Build Release APK
         if: (contains(matrix.platform.name, 'Android APK arm64'))
         run: | 
-          echo "storePassword=${{ secrets.STORE_PASSWORD }}" > ./mobile/keystore.properties
-          echo "keyPassword=${{ secrets.KEY_PASSWORD }}" >> ./mobile/keystore.properties
-          echo "keyAlias=${{ secrets.KEY_ALIAS }}" >> ./mobile/keystore.properties
-          echo "storeFile=release.keystore" >> ./mobile/keystore.properties
+          echo "storePassword=${{ secrets.STORE_PASSWORD }}" > ./mobile/app/keystore.properties
+          echo "keyPassword=${{ secrets.KEY_PASSWORD }}" >> ./mobile/app/keystore.properties
+          echo "keyAlias=${{ secrets.KEY_ALIAS }}" >> ./mobile/app/keystore.properties
+          echo "storeFile=release.keystore" >> ./mobile/app/keystore.properties
           echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > ./mobile/app/release.keystore
           echo "${{ secrets.STORE_PASSWORD }}" | keytool -list -v -keystore $PWD/mobile/app/release.keystore
 

@@ -181,11 +181,24 @@ export APPLICATION_VERSION_CODE=${timestamp:0:-1}
 export APPLICATION_VERSION_NAME=$(grep -m1 "^version = " ../Cargo.toml | cut -d' ' -f3 | tr -d '"')
 
 export RUSTFLAGS="-Zlocation-detail=none -Zfmt-debug=none"
-# cargo ndk -t armeabi-v7a -o app/src/main/jniLibs/ build --release --lib
+cargo ndk -t armeabi-v7a -o app/src/main/jniLibs/ build --release --lib
 cargo ndk -t arm64-v8a -o app/src/main/jniLibs/ build --release --lib
-# cargo ndk -t x86 -o app/src/main/jniLibs/ build --release --lib
-# cargo ndk -t x86_64 -o app/src/main/jniLibs/ build --release --lib
+cargo ndk -t x86 -o app/src/main/jniLibs/ build --release --lib
+cargo ndk -t x86_64 -o app/src/main/jniLibs/ build --release --lib
+
+if [[ ! -f "./app/keystore.properties" && ! -f "./app/release.keystore" && -n ${KEYSTORE_BASE64} ]]; then
+    echo "storePassword=${STORE_PASSWORD}" > ./app/keystore.properties
+    echo "keyPassword=${KEY_PASSWORD}" >> ./app/keystore.properties
+    echo "keyAlias=${KEY_ALIAS}" >> ./app/keystore.properties
+    echo "storeFile=release.keystore" >> ./app/keystore.properties
+    echo "${KEYSTORE_BASE64}" | base64 -d > ./app/release.keystore
+    echo "${STORE_PASSWORD}" | keytool -list -v -keystore ./app/release.keystore
+fi
+
+# generate keystore.properties file
 ANDROID_SPLIT_BUILD=1 gradle build
+# ANDROID_SPLIT_BUILD=1 gradle bundleDebug
+ANDROID_SPLIT_BUILD=1 gradle bundleRelease
 
 # adb commands
 # adb devices

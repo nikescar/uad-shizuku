@@ -138,6 +138,7 @@ stage/
 parts/
 *.snap
 .vscode/
+.upload/
 
 /reference
 

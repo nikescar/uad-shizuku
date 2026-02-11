@@ -265,5 +265,5 @@ fi
 if [[ "$1" == "syncfrom" ]]; then
   mkdir -p $TAKEOUT_DIR
   rsync -avzP --exclude='.qemu' --exclude='target' --rsh="ssh -p 2222 -i ~/qemu/.qemu_ssh/id_ed25519" \
-    root@localhost:$CONTAINER_DIR/$PROJECT_NAME/$RELATIVE_DIR/$TAKEOUT_DIR $TAKEOUT_DIR
+    root@localhost:$CONTAINER_DIR/$PROJECT_NAME/$RELATIVE_DIR/$TAKEOUT_DIR/ $TAKEOUT_DIR
 fi

@@ -31,14 +31,22 @@ $ adb logcat -s UAD-Shizuku > uadcat.log
 
 ### Create Upload Keystore
 
-generate keystore
-```
-~/.local/jdk-24.0.1/bin/keytool -genkey -v -keystore release.keystore -keyalg RSA -keysize 2048 -validity 10000 -alias upload
+generate keystore file in ./mobile/app dir
+```bash
+$ ~/.local/jdk-24.0.1/bin/keytool -genkey -v -keystore release.keystore -keyalg RSA -keysize 2048 -validity 10000 -alias upload
 ```
 
 check key password
+```bash
+$ ~/.local/jdk-24.0.1/bin/keytool -list -v -keystore release.keystore -storepass <STOREPASSWORD> -alias upload -keypass <STOREPASSWORD>
 ```
-~/.local/jdk-24.0.1/bin/keytool -list -v -keystore release.keystore -storepass <STOREPASSWORD> -alias upload -keypass <STOREPASSWORD>
+
+create keystore.properties file in ./mobile/app dir
+```bash
+storePassword=<STOREPASSWORD>
+keyPassword=<STOREPASSWORD>
+keyAlias=upload
+storeFile=release.keystore
 ```
 
 ### Android keystore for github workflow 
@@ -64,7 +72,7 @@ move it to ```./android/app/```.
 ```bash
 $ cd android/app
 $ wget https://www.gstatic.com/play-apps-publisher-rapid/signing-tool/prod/pepk.jar
-$ java -jar pepk.jar --keystore=release.keystore --alias=release --output=release-signing-play-generated.zip --include-cert --rsa-aes-encryption --encryption-key-path=encryption_public_key.pem
+$ java -jar pepk.jar --keystore=release.keystore --alias=upload --output=release-signing-play-generated.zip --include-cert --rsa-aes-encryption --encryption-key-path=encryption_public_key.pem
 ```
 upload created ```release-signing-play-generated.zip``` file.
 
@@ -73,14 +81,6 @@ upload created ```release-signing-play-generated.zip``` file.
 2. internal testing and pass 14 days with published testing
 3. add credentials to github repository secrets
 4. run github workflow
-
-### Submit app to Amazon Appstore
-1. register developer and app and be approved
-2. add credentials to github repository secrets
-3. run github workflow
-
-https://developer.amazon.com/docs/app-submission/submitting-apps-to-amazon-appstore.html
-https://developer.amazon.com/apps-and-games/console/apps/list.html#/
 
 ### Submit app to Fdroid
 1. add metadata to fdroid datarepo
