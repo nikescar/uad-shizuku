@@ -82,16 +82,27 @@ upload created ```release-signing-play-generated.zip``` file.
 3. add credentials to github repository secrets
 4. run github workflow
 
+### App testing
+Closed Testing Service Provider
+https://www.testerscommunity.com/app-details/LOZEF4vnbuI4DQdaRfs1
+Google Play Console Pulishing Overview
+https://play.google.com/console/u/1/developers/8469971848379081167/app/4976079442462544107/publishing
+```
+android test link : https://play.google.com/store/apps/details?id=pe.nikescar.uad_shizuku
+additional test invitation link : https://play.google.com/apps/internaltest/4700175684927727957
+join on the web link : https://play.google.com/apps/testing/pe.nikescar.uad_shizuku
+youtube instructions : https://www.youtube.com/shorts/OuPw-hi4-c4
+shizuku app link : https://play.google.com/store/apps/details?id=moe.shizuku.privileged.api&hl=en
+other instructions : https://uad-shizuku.pages.dev/docs/usage
+```
+
 ### Submit app to Fdroid
 1. add metadata to fdroid datarepo
 https://gitlab.com/fdroid/fdroiddata
 
 ### Publish to Flathub
-
 https://docs.flathub.org/docs/for-app-authors/submission
 
-
 ### Publish to Huawei
-
 https://docs.nhncloud.com/en/Mobile%20Service/IAP/en/console-huawei-guide/
 
