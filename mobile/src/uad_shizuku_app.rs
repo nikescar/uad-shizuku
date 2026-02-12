@@ -1645,6 +1645,12 @@ impl UadShizukuApp {
     }
 
     fn retrieve_installed_packages(&mut self) {
+        // Don't start a new loading thread if one is already running
+        if self.package_loading_thread.is_some() {
+            log::debug!("Package loading already in progress, skipping");
+            return;
+        }
+
         // Load uad_ng_lists after struct is constructed
         self.retrieve_uad_ng_lists();
 
@@ -1806,14 +1812,16 @@ impl UadShizukuApp {
                 match handle.join() {
                     Ok((packages, uad_lists)) => {
                         // Loading complete, update UI
-                        log::debug!("Applying loaded packages to UI");
+                        log::info!("Applying loaded packages to UI - {} packages loaded", packages.len());
                         
                         let shared_store = crate::shared_store_stt::get_shared_store();
                         {
                             let mut installed_pkgs = shared_store.installed_packages.lock().unwrap();
                             *installed_pkgs = packages.clone();
                         }
+                        log::debug!("Updated shared_store with {} packages", packages.len());
                         self.tab_debloat_control.update_packages(packages.clone());
+                        log::debug!("Updated tab_debloat_control with {} packages", packages.len());
                         
                         if let Some(lists) = uad_lists {
                             self.tab_debloat_control.update_uad_ng_lists(lists.clone());

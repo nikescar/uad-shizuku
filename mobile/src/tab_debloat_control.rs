@@ -948,6 +948,15 @@ impl TabDebloatControl {
             })
             .collect();
 
+        log::debug!(
+            "TabDebloatControl: Displaying {} of {} packages (filter: {:?}, hide_system: {}, show_only_enabled: {})",
+            filtered_packages.len(),
+            installed_packages.len(),
+            self.active_filter,
+            self.hide_system_app,
+            self.show_only_enabled
+        );
+
         // Collect filtered package names for both views
         for (_, pkg_id, _, _, _, _, _, _, _) in &filtered_packages {
             filtered_package_names.push(pkg_id.clone());
