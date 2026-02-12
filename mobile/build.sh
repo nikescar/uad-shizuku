@@ -203,7 +203,9 @@ fi
 # generate keystore.properties file
 ANDROID_SPLIT_BUILD=1 gradle build
 # ANDROID_SPLIT_BUILD=1 gradle bundleDebug
-ANDROID_SPLIT_BUILD=1 gradle bundleRelease
+if [[ -n "${GITHUB_ACTIONS}" ]] || [[ -n "${CI}" ]]; then
+    ANDROID_SPLIT_BUILD=1 gradle bundleRelease
+fi
 
 # adb commands
 # adb devices
