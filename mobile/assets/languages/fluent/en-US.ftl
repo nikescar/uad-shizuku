@@ -43,6 +43,13 @@ checking-update = Checking...
 update-available = Update available:
 up-to-date = Up to date
 update-error = Update check failed
+autoupdate = Auto Update
+autoupdate-desc = Automatically check for updates on startup
+update-available-title = Update Available
+update-available-message = A new version is available:
+release-notes = Release Notes:
+update-android-instruction = Click "Update Now" to open the download page in your browser. After downloading, install the APK to update the app.
+update-desktop-instruction = Click "Update Now" to download and install the update automatically.
 
 # Debloat Tab
 all = All ({ $enabled }/{ $total })

@@ -66,9 +66,8 @@ pub mod svg_stt;
 pub mod material_symbol_icons;
 
 // Installation management for desktop platforms
-#[cfg(not(target_os = "android"))]
+// (check_update function is available on all platforms)
 pub mod install;
-#[cfg(not(target_os = "android"))]
 pub mod install_stt;
 
 #[cfg(target_os = "android")]
@@ -145,6 +144,8 @@ pub struct Settings {
     pub override_text_style: String,
     #[serde(default)]
     pub unsafe_app_remove: bool,
+    #[serde(default)]
+    pub autoupdate: bool,
 }
 
 #[allow(dead_code)]
@@ -207,6 +208,7 @@ impl Default for Settings {
             font_path: default_font_path(),
             override_text_style: default_override_text_style(),
             unsafe_app_remove: false,
+            autoupdate: false,
         }
     }
 }
