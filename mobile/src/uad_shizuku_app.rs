@@ -2145,8 +2145,8 @@ impl UadShizukuApp {
                     ui.horizontal(|ui| {
                         ui.label(tr!("display-size"));
                         let display_sizes = vec![
-                            // ("Phone (412x732)", (412.0, 732.0)),
-                            // ("Tablet (768x1024)", (768.0, 1024.0)),
+                            ("Phone (412x732)", (412.0, 732.0)),
+                            ("Tablet (768x1024)", (768.0, 1024.0)),
                             ("Desktop (1024x768)", (1024.0, 768.0)),
                             ("1080p (1920x1080)", (1920.0, 1080.0)),
                         ];
@@ -2569,7 +2569,12 @@ impl UadShizukuApp {
             )
             .content(|ui| {
                 ui.vertical(|ui| {
-                    ui.set_width(400.0);
+                    let screen_width = ui.ctx().screen_rect().width();
+                    let dialog_width = screen_width - 100.0;
+                    ui.set_width(dialog_width);
+                    let screen_height = ui.ctx().screen_rect().height();
+                    let dialog_height = screen_height - 100.0;
+                    ui.set_height(dialog_height);
 
                     ui.add_space(8.0);
 
@@ -2732,7 +2737,12 @@ impl UadShizukuApp {
             dialog("update_dialog", &update_title, &mut self.update_dialog_open)
                 .content(|ui| {
                     ui.vertical(|ui| {
-                        ui.set_width(400.0);
+                        let screen_width = ui.ctx().screen_rect().width();
+                        let dialog_width = screen_width - 100.0;
+                        ui.set_width(dialog_width);
+                        let screen_height = ui.ctx().screen_rect().height();
+                        let dialog_height = screen_height - 100.0;
+                        ui.set_height(dialog_height);
 
                         ui.add_space(8.0);
 
@@ -2828,7 +2838,12 @@ impl UadShizukuApp {
             dialog("about_dialog", &about_title, &mut self.about_dialog_open)
                 .content(|ui| {
                     ui.vertical(|ui| {
-                        ui.set_width(400.0);
+                        let screen_width = ui.ctx().screen_rect().width();
+                        let dialog_width = screen_width - 100.0;
+                        ui.set_width(dialog_width);
+                        let screen_height = ui.ctx().screen_rect().height();
+                        let dialog_height = screen_height - 100.0;
+                        ui.set_height(dialog_height);
 
                         ui.add_space(8.0);
 
@@ -2878,26 +2893,108 @@ impl UadShizukuApp {
                         ui.add_space(4.0);
 
                         egui::ScrollArea::vertical()
-                            .max_height(200.0)
+                            .max_height(400.0)
                             .show(ui, |ui| {
-                                ui.label("Reference Projects:");
-                                ui.label("  - Universal Android Debloater Next Generation (GPL-3.0)");
-                                ui.label("  - bevy_game_template (MIT/Apache-2.0)");
-                                ui.label("  - android-activity (MIT/Apache-2.0)");
-                                ui.label("  - ai-rules (Apache-2.0)");
+                                ui.set_width(dialog_width - 40.0);
+                                
+                                ui.heading("Reference Projects");
+                                ui.add_space(4.0);
+                                ui.label("• Universal Android Debloater Next Generation");
+                                ui.label("  Cross-platform GUI written in Rust using ADB to debloat non-rooted Android devices.");
+                                ui.label("  License: GPL-3.0");
+                                ui.add_space(2.0);
+                                ui.label("• bevy_game_template");
+                                ui.label("  Template for Bevy game projects");
+                                ui.label("  License: MIT/Apache-2.0");
+                                ui.add_space(2.0);
+                                ui.label("• chatGPTBox");
+                                ui.label("  ChatGPT browser extension");
+                                ui.label("  License: MIT");
+                                ui.add_space(2.0);
+                                ui.label("• android-activity");
+                                ui.label("  Android activity glue crate");
+                                ui.label("  License: MIT/Apache-2.0");
+                                ui.add_space(2.0);
+                                ui.label("• ai-rules");
+                                ui.label("  AI rules configuration");
+                                ui.label("  License: Apache-2.0");
+                                ui.add_space(2.0);
+                                ui.label("• aShell");
+                                ui.label("  A local ADB shell for Shizuku powered Android devices");
+                                ui.label("  License: GPL-3.0");
 
-                                ui.add_space(8.0);
+                                ui.add_space(12.0);
+                                ui.heading("Rust Libraries");
+                                ui.add_space(4.0);
+                                ui.label("• log - Lightweight logging facade (MIT/Apache-2.0)");
+                                ui.label("• tracing - Application-level tracing framework (MIT)");
+                                ui.label("• tracing-subscriber - Utilities for tracing subscribers (MIT)");
+                                ui.label("• lazy_static - Macro for declaring lazily evaluated statics (MIT/Apache-2.0)");
+                                ui.label("• egui - Immediate mode GUI library (MIT/Apache-2.0)");
+                                ui.label("• eframe - Framework for egui applications (MIT/Apache-2.0)");
+                                ui.label("• egui_extras - Extra functionality for egui (MIT/Apache-2.0)");
+                                ui.label("• serde - Serialization framework (MIT/Apache-2.0)");
+                                ui.label("• serde_json - JSON serialization/deserialization (MIT/Apache-2.0)");
+                                ui.label("• wgpu - Cross-platform graphics API (MIT/Apache-2.0)");
+                                ui.label("• egui-i18n - Internationalization for egui (MIT)");
+                                ui.label("• which - Locate installed executables (MIT)");
+                                ui.label("• ehttp - Minimal HTTP client (MIT/Apache-2.0)");
+                                ui.label("• zip - ZIP archive reading and writing (MIT)");
+                                ui.label("• anyhow - Flexible error handling (MIT/Apache-2.0)");
+                                ui.label("• ureq - Simple HTTP request library (MIT/Apache-2.0)");
+                                ui.label("• ureq_multipart - Multipart form support for ureq (MIT)");
+                                ui.label("• regex - Regular expressions (MIT/Apache-2.0)");
+                                ui.label("• chrono - Date and time library (MIT/Apache-2.0)");
+                                ui.label("• jsonpath_lib - JSONPath implementation (MIT)");
+                                ui.label("• base64 - Base64 encoding/decoding (MIT/Apache-2.0)");
+                                ui.label("• image - Image processing library (MIT/Apache-2.0)");
+                                ui.label("• md5 - MD5 hash function (MIT/Apache-2.0)");
+                                ui.label("• xee-xpath - XPath implementation (MIT/Apache-2.0)");
+                                ui.label("• diesel - Safe, extensible ORM and query builder (MIT/Apache-2.0)");
+                                ui.label("• diesel_migrations - Database migrations for Diesel (MIT/Apache-2.0)");
+                                ui.label("• libsqlite3-sys - Native SQLite3 bindings (MIT)");
+                                ui.label("• serde-wasm-bindgen - Serde integration for wasm-bindgen (MIT)");
+                                ui.label("• wasm-bindgen - WebAssembly interop with JavaScript (MIT/Apache-2.0)");
+                                ui.label("• wasm-bindgen-futures - Async/await support for wasm-bindgen (MIT/Apache-2.0)");
 
-                                ui.label("Key Libraries:");
-                                ui.label("  - egui/eframe (MIT/Apache-2.0)");
-                                ui.label("  - diesel (MIT/Apache-2.0)");
-                                ui.label("  - serde (MIT/Apache-2.0)");
-                                ui.label("  - tracing (MIT)");
+                                ui.add_space(12.0);
+                                ui.heading("Android-Specific Libraries");
+                                ui.add_space(4.0);
+                                ui.label("• ndk-context - Android NDK context access (MIT/Apache-2.0)");
+                                ui.label("• jni - Rust bindings for JNI (MIT/Apache-2.0)");
+                                ui.label("• android_logger - Android logging for Rust (MIT/Apache-2.0)");
+                                ui.label("• android-activity - Glue for building Android applications (MIT/Apache-2.0)");
+                                ui.label("• ndk-sys - Raw FFI bindings to Android NDK (MIT/Apache-2.0)");
 
-                                ui.add_space(8.0);
+                                ui.add_space(12.0);
+                                ui.heading("iOS-Specific Libraries");
+                                ui.add_space(4.0);
+                                ui.label("• bevy - Data-driven game engine (MIT/Apache-2.0)");
+                                ui.label("• bevy_egui - Egui integration for Bevy (MIT)");
+                                ui.label("• objc2-avf-audio - Rust bindings for AVFAudio framework (MIT)");
 
-                                ui.label("Assets:");
-                                ui.label("  - Icons from SVG Repo (CC Attribution)");
+                                ui.add_space(12.0);
+                                ui.heading("Linux-Specific Libraries");
+                                ui.add_space(4.0);
+                                ui.label("• gtk - Rust bindings for GTK 3 (MIT)");
+                                ui.label("• gdk - Rust bindings for GDK 3 (MIT)");
+
+                                ui.add_space(12.0);
+                                ui.heading("Desktop Libraries");
+                                ui.add_space(4.0);
+                                ui.label("• directories - Platform-specific directory paths (MIT/Apache-2.0)");
+                                ui.label("• open - Open files and URLs with default programs (MIT)");
+
+                                ui.add_space(12.0);
+                                ui.heading("WebAssembly Libraries");
+                                ui.add_space(4.0);
+                                ui.label("• sqlite-wasm-vfs - SQLite VFS for WebAssembly (MIT)");
+                                ui.label("• sqlite-wasm-rs - SQLite for WebAssembly (MIT/Apache-2.0)");
+
+                                ui.add_space(12.0);
+                                ui.heading("Assets");
+                                ui.add_space(4.0);
+                                ui.label("• Icons from SVG Repo (CC Attribution)");
                             });
 
                         ui.add_space(16.0);

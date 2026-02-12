@@ -170,7 +170,7 @@ fn default_log_level() -> String {
 }
 
 fn default_theme_mode() -> String {
-    "Auto".to_string()
+    "Light".to_string()
 }
 
 fn default_contrast_level() -> String {
