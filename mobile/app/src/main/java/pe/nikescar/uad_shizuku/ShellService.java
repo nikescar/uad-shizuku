@@ -70,10 +70,19 @@ public class ShellService extends IShellService.Stub {
                 }
             }
 
+            // Set file permissions to be readable by all users (666)
+            try {
+                Runtime.getRuntime().exec(new String[]{"chmod", "666", outputPath}).waitFor();
+            } catch (Exception ignored) {}
+
             mProcess.waitFor();
         } catch (Exception e) {
             try (BufferedWriter writer = new BufferedWriter(new FileWriter(outputPath))) {
                 writer.write("ERROR: " + e.getMessage());
+                // Set permissions even for error case
+                try {
+                    Runtime.getRuntime().exec(new String[]{"chmod", "666", outputPath}).waitFor();
+                } catch (Exception ignored) {}
             } catch (Exception ignored) {}
         } finally {
             if (mProcess != null) {

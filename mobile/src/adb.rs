@@ -18,10 +18,16 @@ pub fn shell_exec(device: &str, command: &str) -> std::io::Result<String> {
         let _ = device; // device is implicit on Android (local)
         // Use file-based execution to bypass Binder IPC size limit.
         // The ShellService writes output to a temp file, then Rust reads it.
-        let output_path = "/data/data/pe.nikescar.uad_shizuku/tmp/uad_shizuku_output.txt";
-        let result = crate::android_shizuku::shizuku_exec_to_file(command, output_path);
-        // Clean up the temp file regardless of result
-        let _ = std::fs::remove_file(output_path);
+        // Use /data/local/tmp/ as it's accessible by both shell user (Shizuku) and the app
+        use std::time::{SystemTime, UNIX_EPOCH};
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_millis();
+        let output_path = format!("/data/local/tmp/uad_shizuku_{}.txt", timestamp);
+        let result = crate::android_shizuku::shizuku_exec_to_file(command, &output_path);
+        // Clean up the temp file regardless of result (ignore errors)
+        let _ = std::fs::remove_file(&output_path);
         result
     }
     #[cfg(not(target_os = "android"))]
