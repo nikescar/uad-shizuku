@@ -1085,8 +1085,7 @@ impl UadShizukuApp {
             if !self.update_download_url.is_empty() {
                 if let Err(e) = webbrowser::open(&self.update_download_url) {
                     log::error!("Failed to open browser for update download: {}", e);
-                    self.install_message = format!("Failed to open browser: {}", e);
-                    self.install_dialog_open = true;
+                    self.update_status = format!("Failed to open browser: {}", e);
                 } else {
                     log::info!("Opened browser for update download");
                     self.update_dialog_open = false;
