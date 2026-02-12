@@ -115,6 +115,7 @@ pub struct UadShizukuApp {
     pub settings_hybridanalysis_submit: bool,
     pub settings_hybridanalysis_tag_blacklist: String,
     pub settings_unsafe_app_remove: bool,
+    pub settings_autoupdate: bool,
 
     // Progress tracking for background tasks
     pub package_load_progress: std::sync::Arc<std::sync::Mutex<Option<f32>>>,
@@ -136,15 +137,15 @@ pub struct UadShizukuApp {
     #[cfg(not(target_os = "android"))]
     pub install_message: String,
 
-    // Update status (desktop only)
-    #[cfg(not(target_os = "android"))]
+    // Update status (both desktop and Android)
     pub update_status: String,
-    #[cfg(not(target_os = "android"))]
     pub update_available: bool,
-    #[cfg(not(target_os = "android"))]
     pub update_download_url: String,
-    #[cfg(not(target_os = "android"))]
     pub update_checking: bool,
+    pub update_dialog_open: bool,
+    pub update_current_version: String,
+    pub update_latest_version: String,
+    pub update_release_notes: String,
 
     // Font selector state
     pub system_fonts: Vec<(String, String)>,

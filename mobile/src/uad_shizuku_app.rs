@@ -35,7 +35,6 @@ use crate::LogLevel;
 pub use crate::uad_shizuku_app_stt::*;
 use crate::{Config, Settings};
 
-#[cfg(not(target_os = "android"))]
 use crate::install;
 #[cfg(not(target_os = "android"))]
 use crate::install_stt::InstallStatus;
@@ -279,6 +278,7 @@ impl Default for UadShizukuApp {
             settings_hybridanalysis_submit: settings.hybridanalysis_submit,
             settings_hybridanalysis_tag_blacklist: settings.hybridanalysis_tag_blacklist.clone(),
             settings_unsafe_app_remove: settings.unsafe_app_remove,
+            settings_autoupdate: settings.autoupdate,
             settings: settings,
 
             package_load_progress: Arc::new(Mutex::new(None)),
@@ -300,15 +300,15 @@ impl Default for UadShizukuApp {
             #[cfg(not(target_os = "android"))]
             install_message: String::new(),
 
-            // Update status (desktop only)
-            #[cfg(not(target_os = "android"))]
+            // Update status (both desktop and Android)
             update_status: String::new(),
-            #[cfg(not(target_os = "android"))]
             update_available: false,
-            #[cfg(not(target_os = "android"))]
             update_download_url: String::new(),
-            #[cfg(not(target_os = "android"))]
             update_checking: false,
+            update_dialog_open: false,
+            update_current_version: String::new(),
+            update_latest_version: String::new(),
+            update_release_notes: String::new(),
 
             // Font selector state
             system_fonts: Vec::new(),
@@ -821,6 +821,10 @@ impl UadShizukuApp {
         self.show_disclaimer_dialog(ui.ctx());
         // === Disclaimer dialog end
 
+        // === Update dialog (both desktop and Android)
+        self.show_update_dialog(ui.ctx());
+        // === Update dialog end
+
         // === About dialog
         self.show_about_dialog(ui.ctx());
         // === About dialog end
@@ -928,6 +932,7 @@ impl UadShizukuApp {
                 self.settings_virustotal_submit = self.settings.virustotal_submit;
                 self.settings_hybridanalysis_submit = self.settings.hybridanalysis_submit;
                 self.settings_unsafe_app_remove = self.settings.unsafe_app_remove;
+                self.settings_autoupdate = self.settings.autoupdate;
                 self.settings_dialog_open = true;
             }
 
@@ -1020,7 +1025,6 @@ impl UadShizukuApp {
     }
 
     /// Check for updates from GitHub
-    #[cfg(not(target_os = "android"))]
     fn check_for_update(&mut self) {
         self.update_checking = true;
         self.update_status.clear();
@@ -1032,7 +1036,12 @@ impl UadShizukuApp {
                 if info.available {
                     self.update_available = true;
                     self.update_download_url = info.download_url;
-                    self.update_status = format!("{} {} → {}", tr!("update-available"), info.current_version, info.latest_version);
+                    self.update_current_version = info.current_version;
+                    self.update_latest_version = info.latest_version.clone();
+                    self.update_release_notes = info.release_notes;
+                    self.update_status = format!("{} {} → {}", tr!("update-available"), self.update_current_version, info.latest_version);
+                    // Open update dialog automatically
+                    self.update_dialog_open = true;
                 } else {
                     self.update_status = tr!("up-to-date").to_string();
                 }
@@ -1045,27 +1054,45 @@ impl UadShizukuApp {
     }
 
     /// Perform update
-    #[cfg(not(target_os = "android"))]
     fn perform_update(&mut self) {
-        use crate::install_stt::InstallResult;
+        #[cfg(not(target_os = "android"))]
+        {
+            use crate::install_stt::InstallResult;
 
-        let tmp_dir = if let Some(ref cfg) = self.config {
-            cfg.tmp_dir.clone()
-        } else {
-            std::path::PathBuf::from("./tmp")
-        };
+            let tmp_dir = if let Some(ref cfg) = self.config {
+                cfg.tmp_dir.clone()
+            } else {
+                std::path::PathBuf::from("./tmp")
+            };
 
-        match install::do_update(&self.update_download_url, &tmp_dir) {
-            InstallResult::Success(msg) => {
-                self.install_message = msg;
-                self.update_available = false;
-                self.update_status.clear();
+            match install::do_update(&self.update_download_url, &tmp_dir) {
+                InstallResult::Success(msg) => {
+                    self.install_message = msg;
+                    self.update_available = false;
+                    self.update_status.clear();
+                    self.update_dialog_open = false;
+                }
+                InstallResult::Error(err) => {
+                    self.install_message = format!("Error: {}", err);
+                }
             }
-            InstallResult::Error(err) => {
-                self.install_message = format!("Error: {}", err);
+            self.install_dialog_open = true;
+        }
+        
+        #[cfg(target_os = "android")]
+        {
+            // On Android, open browser to download page
+            if !self.update_download_url.is_empty() {
+                if let Err(e) = webbrowser::open(&self.update_download_url) {
+                    log::error!("Failed to open browser for update download: {}", e);
+                    self.install_message = format!("Failed to open browser: {}", e);
+                    self.install_dialog_open = true;
+                } else {
+                    log::info!("Opened browser for update download");
+                    self.update_dialog_open = false;
+                }
             }
         }
-        self.install_dialog_open = true;
     }
 
     fn render_custom_tabs(&mut self, ui: &mut egui::Ui) {
@@ -2203,6 +2230,16 @@ impl UadShizukuApp {
                     ui.add_space(8.0);
 
                     ui.horizontal(|ui| {
+                        ui.checkbox(
+                            &mut self.settings_autoupdate,
+                            tr!("autoupdate"),
+                        );
+                        ui.label(tr!("autoupdate-desc"));
+                    });
+
+                    ui.add_space(8.0);
+
+                    ui.horizontal(|ui| {
                         ui.label(tr!("virustotal-api-key"));
                         let response = ui.text_edit_singleline(&mut self.settings_virustotal_apikey);
                         #[cfg(target_os = "android")]
@@ -2656,6 +2693,78 @@ impl UadShizukuApp {
         }
     }
 
+    fn show_update_dialog(&mut self, ctx: &egui::Context) {
+        if self.update_dialog_open {
+            let update_title = tr!("update-available-title");
+            let do_update = Cell::new(false);
+            let do_cancel = Cell::new(false);
+
+            dialog("update_dialog", &update_title, &mut self.update_dialog_open)
+                .content(|ui| {
+                    ui.vertical(|ui| {
+                        ui.set_width(400.0);
+
+                        ui.add_space(8.0);
+
+                        // Show version info
+                        ui.label(format!(
+                            "{} {} → {}",
+                            tr!("update-available-message"),
+                            self.update_current_version,
+                            self.update_latest_version
+                        ));
+
+                        ui.add_space(12.0);
+
+                        // Show release notes if available
+                        if !self.update_release_notes.is_empty() {
+                            ui.label(tr!("release-notes"));
+                            ui.add_space(4.0);
+
+                            egui::ScrollArea::vertical()
+                                .max_height(200.0)
+                                .show(ui, |ui| {
+                                    ui.label(&self.update_release_notes);
+                                });
+
+                            ui.add_space(12.0);
+                        }
+
+                        // Platform-specific instructions
+                        #[cfg(target_os = "android")]
+                        {
+                            ui.label(tr!("update-android-instruction"));
+                        }
+
+                        #[cfg(not(target_os = "android"))]
+                        {
+                            ui.label(tr!("update-desktop-instruction"));
+                        }
+
+                        ui.add_space(16.0);
+
+                        // Action buttons
+                        ui.horizontal(|ui| {
+                            if ui.button(tr!("update-now")).clicked() {
+                                do_update.set(true);
+                            }
+                            if ui.button(tr!("cancel")).clicked() {
+                                do_cancel.set(true);
+                            }
+                        });
+                    });
+                })
+                .show(ctx);
+
+            if do_update.get() {
+                self.perform_update();
+            }
+            if do_cancel.get() {
+                self.update_dialog_open = false;
+            }
+        }
+    }
+
     fn show_about_dialog(&mut self, ctx: &egui::Context) {
         if self.about_dialog_open {
             let about_title = tr!("about");
@@ -2665,15 +2774,10 @@ impl UadShizukuApp {
             let credits_label = tr!("about-credits");
 
             // Use Cell pattern for update button actions
-            #[cfg(not(target_os = "android"))]
             let do_check_update = Cell::new(false);
-            #[cfg(not(target_os = "android"))]
             let do_perform_update = Cell::new(false);
-            #[cfg(not(target_os = "android"))]
             let update_checking = self.update_checking;
-            #[cfg(not(target_os = "android"))]
             let update_available = self.update_available;
-            #[cfg(not(target_os = "android"))]
             let update_status = self.update_status.clone();
 
             dialog("about_dialog", &about_title, &mut self.about_dialog_open)
@@ -2688,23 +2792,20 @@ impl UadShizukuApp {
                         ui.horizontal(|ui| {
                             ui.label(format!("Version: {}", version));
 
-                            #[cfg(not(target_os = "android"))]
-                            {
-                                ui.add_space(8.0);
+                            ui.add_space(8.0);
 
-                                if update_checking {
-                                    ui.spinner();
-                                    ui.label(tr!("checking-update"));
-                                } else if update_available {
-                                    ui.label(&update_status);
-                                    if ui.button(tr!("update-now")).clicked() {
-                                        do_perform_update.set(true);
-                                    }
-                                } else if !update_status.is_empty() {
-                                    ui.label(&update_status);
-                                } else if ui.button(tr!("check-update")).clicked() {
-                                    do_check_update.set(true);
+                            if update_checking {
+                                ui.spinner();
+                                ui.label(tr!("checking-update"));
+                            } else if update_available {
+                                ui.label(&update_status);
+                                if ui.button(tr!("update-now")).clicked() {
+                                    do_perform_update.set(true);
                                 }
+                            } else if !update_status.is_empty() {
+                                ui.label(&update_status);
+                            } else if ui.button(tr!("check-update")).clicked() {
+                                do_check_update.set(true);
                             }
                         });
 
@@ -2761,11 +2862,9 @@ impl UadShizukuApp {
                 .show(ctx);
 
             // Handle update button actions
-            #[cfg(not(target_os = "android"))]
             if do_check_update.get() {
                 self.check_for_update();
             }
-            #[cfg(not(target_os = "android"))]
             if do_perform_update.get() {
                 self.perform_update();
             }
@@ -2799,6 +2898,7 @@ impl UadShizukuApp {
         self.settings.fdroid_renderer = self.settings_fdroid_renderer;
         self.settings.apkmirror_renderer = self.settings_apkmirror_renderer;
         self.settings.unsafe_app_remove = self.settings_unsafe_app_remove;
+        self.settings.autoupdate = self.settings_autoupdate;
 
         // Sync unsafe_app_remove to tab controls
         self.tab_debloat_control.unsafe_app_remove = self.settings.unsafe_app_remove;
@@ -2992,6 +3092,23 @@ impl eframe::App for UadShizukuApp {
             self.first_update_done = true;
             log::info!("First update - initializing Shizuku");
             self.retrieve_adb_devices();
+
+            // Check for updates if autoupdate is enabled
+            if self.settings.autoupdate {
+                log::info!("Autoupdate enabled - checking for updates");
+                self.check_for_update();
+            }
+        }
+
+        #[cfg(not(target_os = "android"))]
+        if !self.first_update_done {
+            self.first_update_done = true;
+            
+            // Check for updates if autoupdate is enabled
+            if self.settings.autoupdate {
+                log::info!("Autoupdate enabled - checking for updates");
+                self.check_for_update();
+            }
         }
 
         // Poll Shizuku state: auto-retry when permission granted or service bound

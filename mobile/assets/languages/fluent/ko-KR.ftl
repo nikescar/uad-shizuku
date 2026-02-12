@@ -43,6 +43,13 @@ checking-update = 확인 중...
 update-available = 업데이트 가능:
 up-to-date = 최신 버전
 update-error = 업데이트 확인 실패
+autoupdate = 자동 업데이트
+autoupdate-desc = 시작 시 자동으로 업데이트 확인
+update-available-title = 업데이트 사용 가능
+update-available-message = 새 버전이 있습니다:
+release-notes = 릴리스 노트:
+update-android-instruction = "지금 업데이트"를 클릭하여 브라우저에서 다운로드 페이지를 엽니다. 다운로드 후 APK를 설치하여 앱을 업데이트하세요.
+update-desktop-instruction = "지금 업데이트"를 클릭하여 업데이트를 자동으로 다운로드하고 설치합니다.
 
 # Debloat Tab
 all = 전체 ({ $enabled }/{ $total })
