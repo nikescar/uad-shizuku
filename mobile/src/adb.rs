@@ -18,7 +18,7 @@ pub fn shell_exec(device: &str, command: &str) -> std::io::Result<String> {
         let _ = device; // device is implicit on Android (local)
         // Use file-based execution to bypass Binder IPC size limit.
         // The ShellService writes output to a temp file, then Rust reads it.
-        let output_path = "/data/local/tmp/uad_shizuku_output.txt";
+        let output_path = "/data/data/pe.nikescar.uad_shizuku/tmp/uad_shizuku_output.txt";
         let result = crate::android_shizuku::shizuku_exec_to_file(command, output_path);
         // Clean up the temp file regardless of result
         let _ = std::fs::remove_file(output_path);
@@ -1273,16 +1273,16 @@ pub fn pull_file_to_temp(
     {
         // On Android, use xxd -p to dump file to plain hex format in shell-accessible location, then convert back
         // This is necessary because shell can't write to app's private directory
-        let hex_dump_path = format!("/data/local/tmp/uad_dump_{}.hex", package_id.replace(".", "_"));
+        let hex_dump_path = format!("/data/data/pe.nikescar.uad_shizuku/tmp/uad_dump_{}.hex", package_id.replace(".", "_"));
         
         debug!("Dumping file to hex on Android: {} -> {}", file_path, hex_dump_path);
         
-        // Step 1: Use xxd -p to create plain hex dump in /data/local/tmp (shell-accessible)
+        // Step 1: Use xxd -p to create plain hex dump in app's tmp directory (shell-accessible with Shizuku)
         // -p flag outputs plain hexdump style (no addresses, no ASCII column, just hex)
         let dump_cmd = format!("xxd -p \"{}\" > \"{}\"", file_path, hex_dump_path);
         shell_exec(device_serial, &dump_cmd)?;
         
-        // Step 2: Read the hex dump file (Rust can read from /data/local/tmp)
+        // Step 2: Read the hex dump file (Rust can read from app's tmp directory)
         let hex_content = match std::fs::read_to_string(&hex_dump_path) {
             Ok(content) => content,
             Err(e) => {
@@ -1295,7 +1295,7 @@ pub fn pull_file_to_temp(
         
         // Step 3: Convert plain hex dump back to binary using xxd -r -p
         // Write hex content to a temporary file that xxd can read
-        let hex_input_path = format!("/data/local/tmp/uad_hex_input_{}.hex", package_id.replace(".", "_"));
+        let hex_input_path = format!("/data/data/pe.nikescar.uad_shizuku/tmp/uad_hex_input_{}.hex", package_id.replace(".", "_"));
         if let Err(e) = std::fs::write(&hex_input_path, hex_content.as_bytes()) {
             error!("Failed to write hex input file {}: {}", hex_input_path, e);
             // Clean up
@@ -1304,8 +1304,8 @@ pub fn pull_file_to_temp(
         }
         
         // Use xxd -r -p to reverse the hex dump back to binary
-        // Output to a temp file in /data/local/tmp first (shell can write there)
-        let binary_tmp_path = format!("/data/local/tmp/uad_binary_{}.apk", package_id.replace(".", "_"));
+        // Output to a temp file in app's tmp directory first (shell can write there with Shizuku)
+        let binary_tmp_path = format!("/data/data/pe.nikescar.uad_shizuku/tmp/uad_binary_{}.apk", package_id.replace(".", "_"));
         let reverse_cmd = format!("xxd -r -p \"{}\" > \"{}\"", hex_input_path, binary_tmp_path);
         if let Err(e) = shell_exec(device_serial, &reverse_cmd) {
             error!("Failed to reverse hex dump: {}", e);
@@ -1314,7 +1314,7 @@ pub fn pull_file_to_temp(
             return Err(e);
         }
         
-        // Step 4: Copy binary file from /data/local/tmp to app's private directory
+        // Step 4: Copy binary file within app's tmp directory to final location
         // Rust has app permissions to write here
         if let Err(e) = std::fs::copy(&binary_tmp_path, &absolute_path) {
             error!("Failed to copy binary file from {} to {}: {}", binary_tmp_path, absolute_path_str, e);
