@@ -181,14 +181,27 @@ export APPLICATION_VERSION_CODE=${timestamp:0:-1}
 export APPLICATION_VERSION_NAME=$(grep -m1 "^version = " ../Cargo.toml | cut -d' ' -f3 | tr -d '"')
 
 export RUSTFLAGS="-Zlocation-detail=none -Zfmt-debug=none"
-cargo ndk -t arm64-v8a -o app/src/main/jniLibs/ build --release --lib
+# Build arm64-v8a first to prioritize 64-bit on compatible devices
+cargo ndk -t arm64-v8a -o app/src/main/jniLibs/ build --release --lib || {
+    echo "Error: cargo ndk build failed for arm64-v8a"
+    exit 1
+}
 
 # Run additional targets only in GitHub Actions workflow
 if [[ -n "${GITHUB_ACTIONS}" ]] || [[ -n "${CI}" ]]; then
     echo "Running additional architecture builds for CI..."
-    cargo ndk -t armeabi-v7a -o app/src/main/jniLibs/ build --release --lib
-    cargo ndk -t x86 -o app/src/main/jniLibs/ build --release --lib
-    cargo ndk -t x86_64 -o app/src/main/jniLibs/ build --release --lib
+    cargo ndk -t armeabi-v7a -o app/src/main/jniLibs/ build --release --lib || {
+        echo "Error: cargo ndk build failed for armeabi-v7a"
+        exit 1
+    }
+    cargo ndk -t x86 -o app/src/main/jniLibs/ build --release --lib || {
+        echo "Error: cargo ndk build failed for x86"
+        exit 1
+    }
+    cargo ndk -t x86_64 -o app/src/main/jniLibs/ build --release --lib || {
+        echo "Error: cargo ndk build failed for x86_64"
+        exit 1
+    }
 fi
 
 if [[ ! -f "./app/keystore.properties" && ! -f "./app/release.keystore" && -n ${KEYSTORE_BASE64} ]]; then

@@ -2790,7 +2790,6 @@ impl UadShizukuApp {
                                             log::error!("Failed to open download URL: {}", e);
                                         }
                                     }
-                                    self.update_dialog_open = false;
                                 }
                             }
                             
