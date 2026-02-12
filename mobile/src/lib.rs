@@ -142,6 +142,8 @@ pub struct Settings {
     pub font_path: String,
     #[serde(default = "default_override_text_style")]
     pub override_text_style: String,
+    #[serde(default = "default_theme_name")]
+    pub theme_name: String,
     #[serde(default)]
     pub unsafe_app_remove: bool,
     #[serde(default)]
@@ -177,6 +179,10 @@ fn default_contrast_level() -> String {
     "Normal".to_string()
 }
 
+fn default_theme_name() -> String {
+    "default".to_string()
+}
+
 fn default_display_size() -> String {
     "Desktop (1024x768)".to_string()
 }
@@ -207,6 +213,7 @@ impl Default for Settings {
             language: default_language(),
             font_path: default_font_path(),
             override_text_style: default_override_text_style(),
+            theme_name: default_theme_name(),
             unsafe_app_remove: false,
             autoupdate: false,
         }

@@ -42,9 +42,15 @@ use crate::install_stt::InstallStatus;
 use eframe::egui::Context;
 use egui_material3::theme::{
     load_fonts, load_themes, setup_local_fonts, setup_local_fonts_from_bytes, setup_local_theme,
-    update_window_background,
+    update_window_background, MaterialThemeFile,
 };
 use std::sync::OnceLock;
+
+// Embedded theme data
+const THEME_GREEN: &str = include_str!("../resources/material-theme-green.json");
+const THEME_LIGHTBLUE: &str = include_str!("../resources/material-theme-lightblue.json");
+const THEME_LIGHTPINK: &str = include_str!("../resources/material-theme-lightpink.json");
+const THEME_YELLOW: &str = include_str!("../resources/material-theme-yellow.json");
 
 /// Initialize common app components (database, i18n).
 /// Call this early in main() before creating the app.
@@ -368,6 +374,11 @@ impl UadShizukuApp {
             theme.theme_mode = Self::string_to_theme_mode(&self.settings.theme_mode);
             theme.contrast_level = Self::string_to_contrast_level(&self.settings.contrast_level);
         }
+        
+        // Apply saved theme if not default
+        if !self.settings.theme_name.is_empty() && self.settings.theme_name != "default" {
+            Self::apply_theme_by_name(&self.settings.theme_name);
+        }
     }
 
     fn apply_saved_language(&self) {
@@ -476,6 +487,29 @@ impl UadShizukuApp {
             ThemeMode::Light => "Light".to_string(),
             ThemeMode::Dark => "Dark".to_string(),
             ThemeMode::Auto => "Auto".to_string(),
+        }
+    }
+
+    /// Get theme data by name
+    fn get_theme_data_by_name(name: &str) -> Option<&'static str> {
+        match name {
+            "green" => Some(THEME_GREEN),
+            "lightblue" => Some(THEME_LIGHTBLUE),
+            "lightpink" => Some(THEME_LIGHTPINK),
+            "yellow" => Some(THEME_YELLOW),
+            _ => None,
+        }
+    }
+
+    /// Apply theme by name
+    fn apply_theme_by_name(name: &str) {
+        if let Some(theme_data) = Self::get_theme_data_by_name(name) {
+            if let Ok(theme_file) = serde_json::from_str::<MaterialThemeFile>(theme_data) {
+                if let Ok(mut global_theme) = get_global_theme().lock() {
+                    global_theme.material_theme = Some(theme_file);
+                }
+                load_themes();
+            }
         }
     }
 
@@ -2213,39 +2247,80 @@ impl UadShizukuApp {
 
                         ui.add_space(8.0);
 
-                        // Contrast Level Selector
-                        ui.label(tr!("contrast"));
-                        if let Ok(mut theme) = get_global_theme().lock() {
-                            // High contrast button
-                            let high_selected = theme.contrast_level == ContrastLevel::High;
-                            let high_button =
-                                ui.selectable_label(high_selected, tr!("contrast-high"));
-                            if high_button.clicked() {
-                                theme.contrast_level = ContrastLevel::High;
-                                self.settings.contrast_level =
-                                    Self::contrast_level_to_string(ContrastLevel::High);
-                            }
+                        // Theme Selector
+                        ui.label(tr!("theme"));
+                        ui.horizontal(|ui| {
+                            let mut selected_theme = self.settings.theme_name.clone();
+                            egui::ComboBox::from_id_salt("theme_selector")
+                                .selected_text(match selected_theme.as_str() {
+                                    "green" => "Green",
+                                    "lightblue" => "Light Blue",
+                                    "lightpink" => "Light Pink",
+                                    "yellow" => "Yellow",
+                                    _ => "Default",
+                                })
+                                .show_ui(ui, |ui| {
+                                    if ui.selectable_value(&mut selected_theme, "default".to_string(), "Default").clicked() {
+                                        self.settings.theme_name = "default".to_string();
+                                        setup_local_theme(Some("resources/material-theme.json"));
+                                        load_themes();
+                                    }
+                                    if ui.selectable_value(&mut selected_theme, "green".to_string(), "Green").clicked() {
+                                        self.settings.theme_name = "green".to_string();
+                                        Self::apply_theme_by_name("green");
+                                    }
+                                    if ui.selectable_value(&mut selected_theme, "lightblue".to_string(), "Light Blue").clicked() {
+                                        self.settings.theme_name = "lightblue".to_string();
+                                        Self::apply_theme_by_name("lightblue");
+                                    }
+                                    if ui.selectable_value(&mut selected_theme, "lightpink".to_string(), "Light Pink").clicked() {
+                                        self.settings.theme_name = "lightpink".to_string();
+                                        Self::apply_theme_by_name("lightpink");
+                                    }
+                                    if ui.selectable_value(&mut selected_theme, "yellow".to_string(), "Yellow").clicked() {
+                                        self.settings.theme_name = "yellow".to_string();
+                                        Self::apply_theme_by_name("yellow");
+                                    }
+                                });
+                        });
 
-                            // Medium contrast button
-                            let medium_selected = theme.contrast_level == ContrastLevel::Medium;
-                            let medium_button =
-                                ui.selectable_label(medium_selected, tr!("contrast-medium"));
-                            if medium_button.clicked() {
-                                theme.contrast_level = ContrastLevel::Medium;
-                                self.settings.contrast_level =
-                                    Self::contrast_level_to_string(ContrastLevel::Medium);
-                            }
+                        ui.add_space(8.0);
 
-                            // Normal contrast button
-                            let normal_selected = theme.contrast_level == ContrastLevel::Normal;
-                            let normal_button =
-                                ui.selectable_label(normal_selected, tr!("contrast-normal"));
-                            if normal_button.clicked() {
-                                theme.contrast_level = ContrastLevel::Normal;
-                                self.settings.contrast_level =
-                                    Self::contrast_level_to_string(ContrastLevel::Normal);
-                            }
-                        }
+
+
+                        // // Contrast Level Selector
+                        // ui.label(tr!("contrast"));
+                        // if let Ok(mut theme) = get_global_theme().lock() {
+                        //     // High contrast button
+                        //     let high_selected = theme.contrast_level == ContrastLevel::High;
+                        //     let high_button =
+                        //         ui.selectable_label(high_selected, tr!("contrast-high"));
+                        //     if high_button.clicked() {
+                        //         theme.contrast_level = ContrastLevel::High;
+                        //         self.settings.contrast_level =
+                        //             Self::contrast_level_to_string(ContrastLevel::High);
+                        //     }
+
+                        //     // Medium contrast button
+                        //     let medium_selected = theme.contrast_level == ContrastLevel::Medium;
+                        //     let medium_button =
+                        //         ui.selectable_label(medium_selected, tr!("contrast-medium"));
+                        //     if medium_button.clicked() {
+                        //         theme.contrast_level = ContrastLevel::Medium;
+                        //         self.settings.contrast_level =
+                        //             Self::contrast_level_to_string(ContrastLevel::Medium);
+                        //     }
+
+                        //     // Normal contrast button
+                        //     let normal_selected = theme.contrast_level == ContrastLevel::Normal;
+                        //     let normal_button =
+                        //         ui.selectable_label(normal_selected, tr!("contrast-normal"));
+                        //     if normal_button.clicked() {
+                        //         theme.contrast_level = ContrastLevel::Normal;
+                        //         self.settings.contrast_level =
+                        //             Self::contrast_level_to_string(ContrastLevel::Normal);
+                        //     }
+                        // }
                     });
                     
                     ui.add_space(8.0);
