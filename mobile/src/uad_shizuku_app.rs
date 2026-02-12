@@ -2752,9 +2752,25 @@ impl UadShizukuApp {
 
                         // Action buttons
                         ui.horizontal(|ui| {
-                            if ui.button(tr!("update-now")).clicked() {
-                                do_update.set(true);
+                            #[cfg(not(target_os = "android"))]
+                            {
+                                if ui.button(tr!("update-now")).clicked() {
+                                    do_update.set(true);
+                                }
                             }
+                            
+                            #[cfg(target_os = "android")]
+                            {
+                                if ui.button("Download from GitHub").clicked() {
+                                    if !self.update_download_url.is_empty() {
+                                        if let Err(e) = webbrowser::open(&self.update_download_url) {
+                                            log::error!("Failed to open download URL: {}", e);
+                                        }
+                                    }
+                                    self.update_dialog_open = false;
+                                }
+                            }
+                            
                             if ui.button(tr!("cancel")).clicked() {
                                 do_cancel.set(true);
                             }
