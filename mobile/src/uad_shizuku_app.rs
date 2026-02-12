@@ -1676,8 +1676,8 @@ impl UadShizukuApp {
 
             log::debug!("Retrieving installed packages for device: {}", device);
 
-            // Step 1: Get package fingerprints (lightweight)
-            let parsed_packages = match get_all_packages_fingerprints(&device) {
+            // Step 1: Get package fingerprints (lightweight) with retry logic
+            let mut parsed_packages = match get_all_packages_fingerprints(&device) {
                 Ok(fp) => fp,
                 Err(e) => {
                     log::error!("Failed to get package fingerprints: {}", e);
@@ -1685,6 +1685,29 @@ impl UadShizukuApp {
                 }
             };
             log::debug!("Retrieved {} package fingerprints", parsed_packages.len());
+
+            // Step 1.5: If empty, wait 3 seconds and retry once
+            if parsed_packages.is_empty() {
+                log::warn!("Package fingerprint retrieval returned 0 packages, waiting 3 seconds and retrying...");
+                std::thread::sleep(std::time::Duration::from_secs(3));
+                
+                match get_all_packages_fingerprints(&device) {
+                    Ok(fp) => {
+                        parsed_packages = fp;
+                        log::debug!("Retry retrieved {} package fingerprints", parsed_packages.len());
+                    }
+                    Err(e) => {
+                        log::error!("Retry failed to get package fingerprints: {}", e);
+                        return (Vec::new(), None);
+                    }
+                }
+                
+                // If still empty after retry, return error
+                if parsed_packages.is_empty() {
+                    log::error!("Package retrieval failed: got 0 packages after retry. Shizuku may not be ready yet.");
+                    return (Vec::new(), None);
+                }
+            }
 
             // Step 2: load all contents from get_cached_packages_with_apk, db_package_cache
             let cached_packages: Vec<PackageInfoCache> = get_cached_packages_with_apk(&device);
