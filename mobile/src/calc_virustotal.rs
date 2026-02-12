@@ -506,14 +506,9 @@ pub fn analyze_package(
                 let expected_filename = format!("{}.apk", package_name.replace('.', "_"));
                 let local_path = config.tmp_dir.join(&expected_filename);
 
-                #[cfg(not(target_os = "android"))]
+                // pull_file_to_temp handles both Android (base64 method) and non-Android (adb pull) platforms
                 let pull_result =
                     adb::pull_file_to_temp(device_serial, file_path, tmp_dir_str, package_name);
-                #[cfg(target_os = "android")]
-                let pull_result: Result<String, std::io::Error> = Err(std::io::Error::new(
-                    std::io::ErrorKind::Unsupported,
-                    "File pulling not supported on Android platform",
-                ));
                 match pull_result {
                     Ok(tmp_file) => {
                         // Update status - uploading

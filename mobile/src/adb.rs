@@ -1277,69 +1277,73 @@ pub fn pull_file_to_temp(
 
     #[cfg(target_os = "android")]
     {
-        // On Android, use xxd -p to dump file to plain hex format in shell-accessible location, then convert back
-        // This is necessary because shell can't write to app's private directory
-        let hex_dump_path = format!("/data/data/pe.nikescar.uad_shizuku/tmp/uad_dump_{}.hex", package_id.replace(".", "_"));
+        // On Android, use base64 encoding to transfer file via shell
+        // Shell (Shizuku) can write to /data/local/tmp/, and app can read from it
+        use std::time::{SystemTime, UNIX_EPOCH};
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_millis();
+        let base64_path = format!("/data/local/tmp/uad_base64_{}_{}.txt", 
+            package_id.replace(".", "_"), timestamp);
         
-        debug!("Dumping file to hex on Android: {} -> {}", file_path, hex_dump_path);
+        debug!("Encoding file via base64 on Android: {} -> {}", file_path, base64_path);
         
-        // Step 1: Use xxd -p to create plain hex dump in app's tmp directory (shell-accessible with Shizuku)
-        // -p flag outputs plain hexdump style (no addresses, no ASCII column, just hex)
-        let dump_cmd = format!("xxd -p \"{}\" > \"{}\"", file_path, hex_dump_path);
-        shell_exec(device_serial, &dump_cmd)?;
+        // Step 1: Use base64 to encode file and write to /data/local/tmp/ (shell-accessible)
+        let encode_cmd = format!("base64 \"{}\" > \"{}\"", file_path, base64_path);
+        if let Err(e) = shell_exec(device_serial, &encode_cmd) {
+            error!("Failed to base64 encode file {}: {}", file_path, e);
+            return Err(e);
+        }
         
-        // Step 2: Read the hex dump file (Rust can read from app's tmp directory)
-        let hex_content = match std::fs::read_to_string(&hex_dump_path) {
+        // Step 2: Read the base64-encoded file (app can read from /data/local/tmp/)
+        let base64_content = match std::fs::read_to_string(&base64_path) {
             Ok(content) => content,
             Err(e) => {
-                error!("Failed to read hex dump file {}: {}", hex_dump_path, e);
+                error!("Failed to read base64 file {}: {}", base64_path, e);
                 // Clean up
-                let _ = shell_exec(device_serial, &format!("rm \"{}\"", hex_dump_path));
+                let _ = shell_exec(device_serial, &format!("rm \"{}\"", base64_path));
                 return Err(e);
             }
         };
         
-        // Step 3: Convert plain hex dump back to binary using xxd -r -p
-        // Write hex content to a temporary file that xxd can read
-        let hex_input_path = format!("/data/data/pe.nikescar.uad_shizuku/tmp/uad_hex_input_{}.hex", package_id.replace(".", "_"));
-        if let Err(e) = std::fs::write(&hex_input_path, hex_content.as_bytes()) {
-            error!("Failed to write hex input file {}: {}", hex_input_path, e);
+        // Step 3: Decode base64 in Rust
+        // Remove all whitespace (including newlines) that Android base64 command adds for line wrapping
+        use base64::{engine::general_purpose, Engine as _};
+        let base64_clean: String = base64_content.chars()
+            .filter(|c| !c.is_whitespace())
+            .collect();
+        
+        let decoded_bytes = match base64::Engine::decode(&general_purpose::STANDARD, &base64_clean) {
+            Ok(bytes) => bytes,
+            Err(e) => {
+                error!("Failed to decode base64 content: {}", e);
+                // Clean up
+                let _ = shell_exec(device_serial, &format!("rm \"{}\"", base64_path));
+                return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, 
+                    format!("Base64 decode error: {}", e)));
+            }
+        };
+        
+        // Step 4: Write decoded binary to final destination
+        if let Err(e) = std::fs::write(&absolute_path, &decoded_bytes) {
+            error!("Failed to write binary file to {}: {}", absolute_path_str, e);
             // Clean up
-            let _ = shell_exec(device_serial, &format!("rm \"{}\"", hex_dump_path));
+            let _ = shell_exec(device_serial, &format!("rm \"{}\"", base64_path));
             return Err(e);
         }
         
-        // Use xxd -r -p to reverse the hex dump back to binary
-        // Output to a temp file in app's tmp directory first (shell can write there with Shizuku)
-        let binary_tmp_path = format!("/data/data/pe.nikescar.uad_shizuku/tmp/uad_binary_{}.apk", package_id.replace(".", "_"));
-        let reverse_cmd = format!("xxd -r -p \"{}\" > \"{}\"", hex_input_path, binary_tmp_path);
-        if let Err(e) = shell_exec(device_serial, &reverse_cmd) {
-            error!("Failed to reverse hex dump: {}", e);
-            // Clean up
-            let _ = shell_exec(device_serial, &format!("rm \"{}\" \"{}\"", hex_dump_path, hex_input_path));
-            return Err(e);
-        }
-        
-        // Step 4: Copy binary file within app's tmp directory to final location
-        // Rust has app permissions to write here
-        if let Err(e) = std::fs::copy(&binary_tmp_path, &absolute_path) {
-            error!("Failed to copy binary file from {} to {}: {}", binary_tmp_path, absolute_path_str, e);
-            // Clean up
-            let _ = shell_exec(device_serial, &format!("rm \"{}\" \"{}\" \"{}\"", hex_dump_path, hex_input_path, binary_tmp_path));
-            return Err(e);
-        }
-        
-        debug!("Successfully copied binary file to {}", absolute_path_str);
+        debug!("Successfully wrote binary file to {}", absolute_path_str);
         
         // Clean up temporary files
-        let _ = shell_exec(device_serial, &format!("rm \"{}\" \"{}\" \"{}\"", hex_dump_path, hex_input_path, binary_tmp_path));
+        let _ = shell_exec(device_serial, &format!("rm \"{}\"", base64_path));
         
         if absolute_path.exists() {
             let file_size = std::fs::metadata(&absolute_path)?.len();
             debug!("File pulled successfully: {} ({} bytes)", absolute_path_str, file_size);
             Ok(absolute_path_str.to_string())
         } else {
-            let err_msg = format!("File conversion succeeded but file not found at {}", absolute_path_str);
+            let err_msg = format!("File write succeeded but file not found at {}", absolute_path_str);
             error!("{}", err_msg);
             Err(std::io::Error::new(std::io::ErrorKind::NotFound, err_msg))
         }
