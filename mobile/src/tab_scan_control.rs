@@ -522,8 +522,15 @@ impl TabScanControl {
         let vt_progress = self.vt_scan_state.progress;
         let ha_progress = self.ha_scan_state.progress;
 
+        // Cache is only valid if progress matches AND at least one scan has been initialized
+        // This prevents showing 0 counts when both progresses are None during initialization
+        let both_none = vt_progress.is_none() && ha_progress.is_none();
+        let has_scanner_state = vt_scanner_state.is_some() || ha_scanner_state.is_some();
+        let cache_needs_init = both_none && has_scanner_state && self.cached_scan_counts.vt_counts.0.1 == 0;
+        
         let cache_valid = self.cached_scan_counts.vt_progress == vt_progress
-            && self.cached_scan_counts.ha_progress == ha_progress;
+            && self.cached_scan_counts.ha_progress == ha_progress
+            && !cache_needs_init;
 
         if cache_valid {
             return;

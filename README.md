@@ -105,6 +105,8 @@ Get list of FOSS apps, and install directly. github and fdroid auto-install supp
 * match datatable color to theme.
 * windows app signing & attestation
 * web version through webusb on browser
+* auto update(windows/macos/linux/android)
+* redesign mobile ui
 * usage history & netstats history
 * disable unsafe app delete from debloat & scan table
 * detach app installer from app table
