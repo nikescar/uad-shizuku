@@ -257,7 +257,7 @@ fi
 
 # rsync host to guest
 if [[ "$1" == "syncto" ]]; then
-  rsync -avzP --exclude='.qemu' --exclude='jniLibs' --exclude='target' --exclude='build' \
+  rsync -avzP --exclude='.qemu' --exclude='jniLibs' --exclude='target' --exclude='build' --exclude='.solidbase' --exclude='reference' --exclude='.git' \
     --rsh="ssh -p 2222 -i ~/qemu/.qemu_ssh/id_ed25519" $PROJECT_ROOT root@localhost:$CONTAINER_DIR
 fi
 
