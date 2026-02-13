@@ -113,7 +113,7 @@ pub struct UadShizukuApp {
     pub settings_apkmirror_renderer: bool,
     pub settings_virustotal_submit: bool,
     pub settings_hybridanalysis_submit: bool,
-    pub settings_hybridanalysis_tag_blacklist: String,
+    pub settings_hybridanalysis_tag_ignorelist: String,
     pub settings_unsafe_app_remove: bool,
     pub settings_autoupdate: bool,
 

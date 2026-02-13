@@ -113,8 +113,8 @@ pub struct Settings {
     pub virustotal_submit: bool,
     #[serde(default)]
     pub hybridanalysis_submit: bool,
-    #[serde(default = "default_hybridanalysis_tag_blacklist")]
-    pub hybridanalysis_tag_blacklist: String,
+    #[serde(default = "default_hybridanalysis_tag_ignorelist")]
+    pub hybridanalysis_tag_ignorelist: String,
     #[serde(default)]
     pub show_logs: bool,
     #[serde(default = "default_log_level")]
@@ -188,7 +188,7 @@ fn default_display_size() -> String {
     "Desktop (1024x768)".to_string()
 }
 
-fn default_hybridanalysis_tag_blacklist() -> String {
+fn default_hybridanalysis_tag_ignorelist() -> String {
     "rat, jrat".to_string()
 }
 
@@ -199,7 +199,7 @@ impl Default for Settings {
             hybridanalysis_apikey: String::new(),
             virustotal_submit: false,
             hybridanalysis_submit: false,
-            hybridanalysis_tag_blacklist: default_hybridanalysis_tag_blacklist(),
+            hybridanalysis_tag_ignorelist: default_hybridanalysis_tag_ignorelist(),
             show_logs: false,
             log_level: default_log_level(),
             theme_mode: default_theme_mode(),

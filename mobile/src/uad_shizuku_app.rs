@@ -283,7 +283,7 @@ impl Default for UadShizukuApp {
             settings_apkmirror_renderer: settings.apkmirror_renderer,
             settings_virustotal_submit: settings.virustotal_submit,
             settings_hybridanalysis_submit: settings.hybridanalysis_submit,
-            settings_hybridanalysis_tag_blacklist: settings.hybridanalysis_tag_blacklist.clone(),
+            settings_hybridanalysis_tag_ignorelist: settings.hybridanalysis_tag_ignorelist.clone(),
             settings_unsafe_app_remove: settings.unsafe_app_remove,
             settings_autoupdate: settings.autoupdate,
             settings: settings,
@@ -1580,7 +1580,7 @@ impl UadShizukuApp {
         self.tab_scan_control.apkmirror_renderer_enabled = self.settings.apkmirror_renderer;
         self.tab_scan_control.unsafe_app_remove = self.settings.unsafe_app_remove;
 
-        self.tab_scan_control.ui(ui, &self.settings.hybridanalysis_tag_blacklist);
+        self.tab_scan_control.ui(ui, &self.settings.hybridanalysis_tag_ignorelist);
     }
 
     fn render_apps_tab(&mut self, ui: &mut egui::Ui) {
@@ -2545,8 +2545,8 @@ impl UadShizukuApp {
                     ui.add_space(8.0);
 
                     ui.horizontal(|ui| {
-                        ui.label(tr!("hybridanalysis-tag-blacklist"));
-                        let response = ui.text_edit_singleline(&mut self.settings_hybridanalysis_tag_blacklist);
+                        ui.label(tr!("hybridanalysis-tag-ignorelist"));
+                        let response = ui.text_edit_singleline(&mut self.settings_hybridanalysis_tag_ignorelist);
                         #[cfg(target_os = "android")]
                         {
                             if response.gained_focus() {
@@ -2556,7 +2556,7 @@ impl UadShizukuApp {
                                 let _ = crate::android_inputmethod::hide_soft_input();
                             }
                         }
-                        crate::clipboard_popup::show_clipboard_popup(ui, &response, &mut self.settings_hybridanalysis_tag_blacklist);
+                        crate::clipboard_popup::show_clipboard_popup(ui, &response, &mut self.settings_hybridanalysis_tag_ignorelist);
                     });
 
                     ui.add_space(8.0);
@@ -3254,7 +3254,7 @@ impl UadShizukuApp {
         self.settings.hybridanalysis_apikey = self.settings_hybridanalysis_apikey.clone();
         self.settings.virustotal_submit = self.settings_virustotal_submit;
         self.settings.hybridanalysis_submit = self.settings_hybridanalysis_submit;
-        self.settings.hybridanalysis_tag_blacklist = self.settings_hybridanalysis_tag_blacklist.clone();
+        self.settings.hybridanalysis_tag_ignorelist = self.settings_hybridanalysis_tag_ignorelist.clone();
         self.settings.google_play_renderer = self.settings_google_play_renderer;
         self.settings.fdroid_renderer = self.settings_fdroid_renderer;
         self.settings.apkmirror_renderer = self.settings_apkmirror_renderer;
