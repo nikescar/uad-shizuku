@@ -838,6 +838,77 @@ impl UadShizukuApp {
                     }
                 }
             }
+
+            // VirusTotal scan progress
+            if let Some(p) = self.tab_scan_control.vt_scan_state.progress {
+                let progress_bar = egui::ProgressBar::new(p)
+                    .show_percentage()
+                    .desired_width(100.0)
+                    .animate(true);
+                ui.label(tr!("virustotal-filter"));
+                ui.horizontal(|ui| {
+                    ui.add(progress_bar).on_hover_text(tr!("scanning-packages"));
+
+                    if ui.button(tr!("stop")).clicked() {
+                        log::info!("Stop Virustotal scan clicked");
+                        self.tab_scan_control.vt_scan_state.cancel();
+                        if let Ok(mut cancelled) = self.tab_scan_control.vt_scan_cancelled.lock() {
+                            *cancelled = true;
+                        }
+                        if let Ok(mut progress) = self.tab_scan_control.vt_scan_progress.lock() {
+                            *progress = None;
+                        }
+                    }
+                });
+            }
+
+            // Hybrid Analysis scan progress
+            if let Some(p) = self.tab_scan_control.ha_scan_state.progress {
+                let progress_bar = egui::ProgressBar::new(p)
+                    .show_percentage()
+                    .desired_width(100.0)
+                    .animate(true);
+                ui.label(tr!("hybrid-analysis-filter"));
+                ui.horizontal(|ui| {
+                    ui.add(progress_bar).on_hover_text(tr!("scanning-packages"));
+
+                    if ui.button(tr!("stop")).clicked() {
+                        log::info!("Stop Hybrid Analysis scan clicked");
+                        self.tab_scan_control.ha_scan_state.cancel();
+                        if let Ok(mut cancelled) = self.tab_scan_control.ha_scan_cancelled.lock() {
+                            *cancelled = true;
+                        }
+                        if let Ok(mut progress) = self.tab_scan_control.ha_scan_progress.lock() {
+                            *progress = None;
+                        }
+                    }
+                });
+            }
+
+            // IzzyRisk calculation progress
+            if let Some(p) = self.tab_scan_control.izzyrisk_scan_state.progress {
+                let progress_bar = egui::ProgressBar::new(p)
+                    .show_percentage()
+                    .desired_width(100.0)
+                    .animate(true);
+                ui.label(tr!("izzyrisk-calculation"));
+                ui.horizontal(|ui| {
+                    ui.add(progress_bar).on_hover_text(tr!("calculating-risk-scores"));
+
+                    if ui.button(tr!("stop")).clicked() {
+                        log::info!("Stop IzzyRisk calculation clicked");
+                        self.tab_scan_control.izzyrisk_scan_state.cancel();
+                        if let Ok(mut cancelled) = self.tab_scan_control.izzyrisk_scan_cancelled.lock() {
+                            *cancelled = true;
+                        }
+                        if let Ok(mut progress) = self.tab_scan_control.izzyrisk_scan_progress.lock() {
+                            *progress = None;
+                        }
+                    }
+                });
+            }
+
+            
         });
         // === notification render progress area end
 
