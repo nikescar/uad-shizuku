@@ -1,6 +1,7 @@
 use crate::calc_hybridanalysis::SharedRateLimiter as HaSharedRateLimiter;
 use crate::calc_virustotal::SharedRateLimiter as VtSharedRateLimiter;
 use crate::dlg_package_details::DlgPackageDetails;
+use crate::dlg_uninstall_confirm::DlgUninstallConfirm;
 use egui_async::Bind;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -133,6 +134,9 @@ pub struct TabScanControl {
 
     // Safety setting: when false, prevent uninstall of Unsafe category apps
     pub unsafe_app_remove: bool,
+
+    // Uninstall confirmation dialog
+    pub uninstall_confirm_dialog: DlgUninstallConfirm,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

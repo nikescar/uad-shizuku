@@ -4,6 +4,7 @@ use crate::shared_store_stt::get_shared_store;
 use crate::uad_shizuku_app::UadNgLists;
 pub use crate::tab_debloat_control_stt::*;
 use crate::dlg_package_details::DlgPackageDetails;
+use crate::dlg_uninstall_confirm::DlgUninstallConfirm;
 use eframe::egui;
 use egui_i18n::tr;
 use egui_material3::{data_table, icon_button_standard, theme::get_global_color, MaterialButton};
@@ -28,6 +29,7 @@ impl Default for TabDebloatControl {
             cached_counts: CachedCategoryCounts::default(),
             text_filter: String::new(),
             unsafe_app_remove: false,
+            uninstall_confirm_dialog: DlgUninstallConfirm::default(),
         }
     }
 }
@@ -1554,51 +1556,9 @@ impl TabDebloatControl {
             }
         });
 
-        // Perform uninstall
+        // Open confirm dialog for single uninstall
         if let Some(pkg_name) = uninstall_package {
-            // Skip unsafe apps when unsafe_app_remove is disabled
-            let is_unsafe = uad_ng_lists_ref
-                .and_then(|lists| lists.apps.get(&pkg_name))
-                .map(|app| app.removal == "Unsafe")
-                .unwrap_or(false);
-            if is_unsafe && !self.unsafe_app_remove {
-                log::warn!("Skipping uninstall of unsafe app: {}", pkg_name);
-            } else if let Some(ref device) = self.selected_device {
-                let uninstall_result = if uninstall_is_system {
-                    crate::adb::uninstall_app_user(&pkg_name, device, None)
-                } else {
-                    crate::adb::uninstall_app(&pkg_name, device)
-                };
-
-                match uninstall_result {
-                    Ok(output) => {
-                        log::info!("App uninstalled successfully: {}", output);
-                        let mut packages = store.get_installed_packages();
-                        let is_system = packages.iter().find(|p| p.pkg == pkg_name).map(|p| p.flags.contains("SYSTEM")).unwrap_or(false);
-
-                        if is_system {
-                            if let Some(pkg) = packages.iter_mut().find(|p| p.pkg == pkg_name) {
-                                for user in pkg.users.iter_mut() {
-                                    user.installed = false;
-                                    user.enabled = 0;
-                                }
-                            }
-                        } else {
-                            packages.retain(|pkg| pkg.pkg != pkg_name);
-                            self.selected_packages.remove(&pkg_name);
-                        }
-                        store.set_installed_packages(packages);
-                        result = Some(AdbResult::Success(pkg_name.clone()));
-                    }
-                    Err(e) => {
-                        log::error!("Failed to uninstall app({}): {}", pkg_name, e);
-                        result = Some(AdbResult::Failure);
-                    }
-                }
-            } else {
-                log::error!("No device selected for uninstall");
-                result = Some(AdbResult::Failure);
-            }
+            self.uninstall_confirm_dialog.open_single(pkg_name, uninstall_is_system);
         }
 
         // Perform enable
@@ -1654,55 +1614,15 @@ impl TabDebloatControl {
             }
         }
 
-        // Handle batch uninstall
+        // Open confirm dialog for batch uninstall
         if batch_uninstall {
-            if let Some(ref device) = self.selected_device {
-                let packages_to_uninstall: Vec<String> = self.selected_packages.iter().cloned().collect();
-                let mut packages = store.get_installed_packages();
-                for pkg_name in packages_to_uninstall {
-                    // Skip unsafe apps when unsafe_app_remove is disabled
-                    let is_unsafe = uad_ng_lists_ref
-                        .and_then(|lists| lists.apps.get(&pkg_name))
-                        .map(|app| app.removal == "Unsafe")
-                        .unwrap_or(false);
-                    if is_unsafe && !self.unsafe_app_remove {
-                        log::warn!("Skipping batch uninstall of unsafe app: {}", pkg_name);
-                        continue;
-                    }
-                    let is_system = packages.iter().find(|p| p.pkg == pkg_name).map(|p| p.flags.contains("SYSTEM")).unwrap_or(false);
-                    let uninstall_result = if is_system {
-                        crate::adb::uninstall_app_user(&pkg_name, device, None)
-                    } else {
-                        crate::adb::uninstall_app(&pkg_name, device)
-                    };
-
-                    match uninstall_result {
-                        Ok(output) => {
-                            log::info!("App uninstalled successfully: {}", output);
-                            if is_system {
-                                if let Some(pkg) = packages.iter_mut().find(|p| p.pkg == pkg_name) {
-                                    for user in pkg.users.iter_mut() {
-                                        user.installed = false;
-                                        user.enabled = 0;
-                                    }
-                                }
-                            } else {
-                                packages.retain(|pkg| pkg.pkg != pkg_name);
-                                self.selected_packages.remove(&pkg_name);
-                            }
-                            result = Some(AdbResult::Success(pkg_name.clone()));
-                        }
-                        Err(e) => {
-                            log::error!("Failed to uninstall app {}: {}", pkg_name, e);
-                            result = Some(AdbResult::Failure);
-                        }
-                    }
-                }
-                store.set_installed_packages(packages);
-            } else {
-                log::error!("No device selected for batch uninstall");
-                result = Some(AdbResult::Failure);
-            }
+            let packages_to_uninstall: Vec<String> = self.selected_packages.iter().cloned().collect();
+            let installed = store.get_installed_packages();
+            let is_system_flags: Vec<bool> = packages_to_uninstall.iter().map(|pkg| {
+                installed.iter().find(|p| p.pkg == *pkg)
+                    .map(|p| p.flags.contains("SYSTEM")).unwrap_or(false)
+            }).collect();
+            self.uninstall_confirm_dialog.open_batch(packages_to_uninstall, is_system_flags);
         }
 
         // Handle batch disable
@@ -1760,6 +1680,59 @@ impl TabDebloatControl {
                 store.set_installed_packages(packages);
             } else {
                 log::error!("No device selected for batch enable");
+                result = Some(AdbResult::Failure);
+            }
+        }
+
+        // Show uninstall confirm dialog and execute on confirmation
+        if self.uninstall_confirm_dialog.show(ui.ctx()) {
+            let pkgs = std::mem::take(&mut self.uninstall_confirm_dialog.packages);
+            let sys_flags = std::mem::take(&mut self.uninstall_confirm_dialog.is_system);
+            self.uninstall_confirm_dialog.reset();
+
+            if let Some(ref device) = self.selected_device {
+                let mut packages = store.get_installed_packages();
+                for (pkg_name, is_system) in pkgs.into_iter().zip(sys_flags.into_iter()) {
+                    // Skip unsafe apps when unsafe_app_remove is disabled
+                    let is_unsafe = uad_ng_lists_ref
+                        .and_then(|lists| lists.apps.get(&pkg_name))
+                        .map(|app| app.removal == "Unsafe")
+                        .unwrap_or(false);
+                    if is_unsafe && !self.unsafe_app_remove {
+                        log::warn!("Skipping uninstall of unsafe app: {}", pkg_name);
+                        continue;
+                    }
+                    let uninstall_result = if is_system {
+                        crate::adb::uninstall_app_user(&pkg_name, device, None)
+                    } else {
+                        crate::adb::uninstall_app(&pkg_name, device)
+                    };
+
+                    match uninstall_result {
+                        Ok(output) => {
+                            log::info!("App uninstalled successfully: {}", output);
+                            if is_system {
+                                if let Some(pkg) = packages.iter_mut().find(|p| p.pkg == pkg_name) {
+                                    for user in pkg.users.iter_mut() {
+                                        user.installed = false;
+                                        user.enabled = 0;
+                                    }
+                                }
+                            } else {
+                                packages.retain(|pkg| pkg.pkg != pkg_name);
+                                self.selected_packages.remove(&pkg_name);
+                            }
+                            result = Some(AdbResult::Success(pkg_name.clone()));
+                        }
+                        Err(e) => {
+                            log::error!("Failed to uninstall app({}): {}", pkg_name, e);
+                            result = Some(AdbResult::Failure);
+                        }
+                    }
+                }
+                store.set_installed_packages(packages);
+            } else {
+                log::error!("No device selected for uninstall");
                 result = Some(AdbResult::Failure);
             }
         }

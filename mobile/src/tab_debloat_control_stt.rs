@@ -1,4 +1,5 @@
 use crate::dlg_package_details::DlgPackageDetails;
+use crate::dlg_uninstall_confirm::DlgUninstallConfirm;
 use std::collections::HashSet;
 
 pub enum AdbResult {
@@ -58,4 +59,7 @@ pub struct TabDebloatControl {
 
     // Safety setting: when false, prevent uninstall of Unsafe category apps
     pub unsafe_app_remove: bool,
+
+    // Uninstall confirmation dialog
+    pub uninstall_confirm_dialog: DlgUninstallConfirm,
 }
