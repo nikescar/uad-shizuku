@@ -9,6 +9,7 @@ mod android_packagemanager;
 pub mod android_shizuku;
 mod android_inputmethod;
 mod android_clipboard;
+mod android_contexttheme;
 mod clipboard_popup;
 mod tab_apps_control;
 pub mod tab_apps_control_stt;
@@ -112,8 +113,8 @@ pub struct Settings {
     pub virustotal_submit: bool,
     #[serde(default)]
     pub hybridanalysis_submit: bool,
-    #[serde(default = "default_hybridanalysis_tag_blacklist")]
-    pub hybridanalysis_tag_blacklist: String,
+    #[serde(default = "default_hybridanalysis_tag_ignorelist")]
+    pub hybridanalysis_tag_ignorelist: String,
     #[serde(default)]
     pub show_logs: bool,
     #[serde(default = "default_log_level")]
@@ -156,7 +157,7 @@ fn default_true() -> bool {
 }
 
 fn default_language() -> String {
-    "en-US".to_string()
+    "Auto".to_string()
 }
 
 fn default_font_path() -> String {
@@ -172,7 +173,7 @@ fn default_log_level() -> String {
 }
 
 fn default_theme_mode() -> String {
-    "Light".to_string()
+    "Auto".to_string()
 }
 
 fn default_contrast_level() -> String {
@@ -187,7 +188,7 @@ fn default_display_size() -> String {
     "Desktop (1024x768)".to_string()
 }
 
-fn default_hybridanalysis_tag_blacklist() -> String {
+fn default_hybridanalysis_tag_ignorelist() -> String {
     "rat, jrat".to_string()
 }
 
@@ -198,7 +199,7 @@ impl Default for Settings {
             hybridanalysis_apikey: String::new(),
             virustotal_submit: false,
             hybridanalysis_submit: false,
-            hybridanalysis_tag_blacklist: default_hybridanalysis_tag_blacklist(),
+            hybridanalysis_tag_ignorelist: default_hybridanalysis_tag_ignorelist(),
             show_logs: false,
             log_level: default_log_level(),
             theme_mode: default_theme_mode(),
@@ -346,6 +347,12 @@ pub fn is_mobile(ctx: &egui::Context) -> bool {
     let screen_size = ctx.screen_rect().size();
     screen_size.x < 1081.0
 }
+
+/// Minimum viewport width for desktop table view
+pub const DESKTOP_MIN_WIDTH: f32 = 1008.0;
+
+/// Base table width for calculating column ratios
+pub const BASE_TABLE_WIDTH: f32 = 1024.0;
 
 /// Check if a package ID has at least 2 domain levels (e.g., com.example)
 /// Package IDs with less than 2 levels (e.g., com.android) are typically system

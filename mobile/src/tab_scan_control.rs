@@ -18,12 +18,7 @@ use std::thread;
 
 // SVG icons as constants (moved to svg_stt.rs)
 use crate::material_symbol_icons::{ICON_REFRESH, ICON_DELETE, ICON_TOGGLE_OFF, ICON_TOGGLE_ON};
-
-/// Minimum viewport width for desktop table view
-const DESKTOP_MIN_WIDTH: f32 = 1008.0;
-
-/// Base table width for calculating column ratios
-const BASE_TABLE_WIDTH: f32 = 1024.0;
+use crate::{DESKTOP_MIN_WIDTH, BASE_TABLE_WIDTH};
 
 impl Default for TabScanControl {
     fn default() -> Self {
@@ -321,6 +316,14 @@ impl TabScanControl {
         let store = get_shared_store();
         let device_serial = self.device_serial.clone();
         let installed_packages = store.get_installed_packages();
+        
+        // Don't start calculation if no device is selected or no packages exist
+        if device_serial.is_none() || installed_packages.is_empty() {
+            log::debug!("Skipping IzzyRisk calculation: device_serial={:?}, packages_count={}", 
+                device_serial, installed_packages.len());
+            return;
+        }
+        
         let shared_scores = self.shared_package_risk_scores.clone();
         let progress_clone = self.izzyrisk_scan_progress.clone();
         let cancelled_clone = self.izzyrisk_scan_cancelled.clone();
@@ -937,35 +940,15 @@ impl TabScanControl {
         )
     }
 
-    pub fn ui(&mut self, ui: &mut egui::Ui, hybridanalysis_tag_blacklist: &str) {
-        // Sync progress from background threads to state machines
-        if let Ok(progress) = self.vt_scan_progress.lock() {
-            if let Some(p) = *progress {
-                self.vt_scan_state.update_progress(p);
-            } else if self.vt_scan_state.is_running {
-                self.vt_scan_state.complete();
-            }
-        }
-        if let Ok(progress) = self.ha_scan_progress.lock() {
-            if let Some(p) = *progress {
-                self.ha_scan_state.update_progress(p);
-            } else if self.ha_scan_state.is_running {
-                self.ha_scan_state.complete();
-            }
-        }
-        // Sync IzzyRisk progress
-        if let Ok(progress) = self.izzyrisk_scan_progress.lock() {
-            if let Some(p) = *progress {
-                self.izzyrisk_scan_state.update_progress(p);
-            } else if self.izzyrisk_scan_state.is_running {
-                self.izzyrisk_scan_state.complete();
-            }
-        }
+    pub fn ui(&mut self, ui: &mut egui::Ui, hybridanalysis_tag_ignorelist: &str) {
+        // Note: Progress sync is now done in uad_shizuku_app.sync_scan_progress() before rendering
+        // to ensure progress bars hide immediately when background tasks complete
+        
         // Sync risk scores from background thread
         self.sync_risk_scores();
 
         // Pre-fetch data once at the start to avoid repeated clones
-        let hybridanalysis_tag_blacklist = hybridanalysis_tag_blacklist.to_string();
+        let hybridanalysis_tag_ignorelist = hybridanalysis_tag_ignorelist.to_string();
         let shared_store = crate::shared_store_stt::get_shared_store();
         let installed_packages = shared_store.get_installed_packages();
         let vt_scanner_state = shared_store.get_vt_scanner_state();
@@ -1296,7 +1279,7 @@ impl TabScanControl {
         // Note: vt_scanner_state and ha_scanner_state are already pre-fetched at the start of ui()
 
         // Get viewport width for responsive design
-        let available_width = ui.available_width();
+        let available_width = ui.ctx().screen_rect().width();
         let is_desktop = available_width >= DESKTOP_MIN_WIDTH;
         let width_ratio = if is_desktop { available_width / BASE_TABLE_WIDTH } else { 1.0 };
 
@@ -1314,7 +1297,6 @@ impl TabScanControl {
             .sortable_column(tr!("col-tasks"), if is_desktop { 170.0 * width_ratio } else { available_width * 0.45 }, false)
             .allow_selection(false);
 
-        // === DESKTOP TABLE VIEW ===
         for (idx, package) in installed_packages.iter().enumerate() {
             if !self.should_show_package_with_state(package, &vt_scanner_state, &ha_scanner_state)
                 || !self.matches_text_filter_with_cache(package, &cached_fdroid_apps, &cached_google_play_apps, &cached_apkmirror_apps)
@@ -1651,7 +1633,7 @@ impl TabScanControl {
 
                 // HybridAnalysis column (desktop only)
                 let ha_result = ha_scan_result.clone();
-                let ha_tag_blacklist = hybridanalysis_tag_blacklist.clone();
+                let ha_tag_ignorelist = hybridanalysis_tag_ignorelist.clone();
                 let row_builder = if is_desktop { row_builder.widget_cell(move |ui: &mut egui::Ui| {
                     egui::ScrollArea::horizontal()
                         .id_salt(format!("ha_scroll_{}", idx))
@@ -1798,27 +1780,27 @@ impl TabScanControl {
                                                 }
                                             };
                                         
-                                            // Check if all tags are blacklisted
-                                            let blacklist_tags: Vec<String> = ha_tag_blacklist
+                                            // Check if all tags are ignored
+                                            let ignorelist_tags: Vec<String> = ha_tag_ignorelist
                                                 .split(',')
                                                 .map(|s| s.trim().to_lowercase())
                                                 .filter(|s| !s.is_empty())
                                                 .collect();
                                         
-                                            let all_tags_blacklisted = if file_result.classification_tags.is_empty() {
-                                                // No tags means we should treat it as blacklisted
+                                            let all_tags_ignored = if file_result.classification_tags.is_empty() {
+                                                // No tags means we should treat it as ignored
                                                 true
                                             } else {
-                                                // Check if all tags are in the blacklist
+                                                // Check if all tags are in the ignorelist
                                                 file_result.classification_tags.iter().all(|tag| {
-                                                    blacklist_tags.contains(&tag.to_lowercase())
+                                                    ignorelist_tags.contains(&tag.to_lowercase())
                                                 })
                                             };
                                         
                                             let bg_color = match file_result.verdict.as_str() {
                                                 "malicious" => {
-                                                    if all_tags_blacklisted {
-                                                        egui::Color32::from_rgb(128, 128, 128) // Gray for blacklisted tags
+                                                    if all_tags_ignored {
+                                                        egui::Color32::from_rgb(128, 128, 128) // Gray for ignored tags
                                                     } else {
                                                         egui::Color32::from_rgb(211, 47, 47) // Red for real malicious
                                                     }

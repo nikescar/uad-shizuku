@@ -9,12 +9,7 @@ use egui_i18n::tr;
 use egui_material3::{data_table, icon_button_standard, theme::get_global_color, MaterialButton};
 
 use crate::material_symbol_icons::{ICON_INFO, ICON_DELETE, ICON_TOGGLE_OFF, ICON_TOGGLE_ON};
-
-/// Minimum viewport width for desktop table view
-const DESKTOP_MIN_WIDTH: f32 = 1008.0;
-
-/// Base table width for calculating column ratios
-const BASE_TABLE_WIDTH: f32 = 1024.0;
+use crate::{DESKTOP_MIN_WIDTH, BASE_TABLE_WIDTH};
 
 impl Default for TabDebloatControl {
     fn default() -> Self {
@@ -855,7 +850,7 @@ impl TabDebloatControl {
         ui.ctx().set_style(style);
 
         // Get viewport width for responsive design
-        let available_width = ui.available_width();
+        let available_width = ui.ctx().screen_rect().width();
         let is_desktop = available_width >= DESKTOP_MIN_WIDTH;
 
         // Build table with proportional column widths for desktop
@@ -962,7 +957,6 @@ impl TabDebloatControl {
             filtered_package_names.push(pkg_id.clone());
         }
 
-        // === DESKTOP TABLE VIEW ===
         for (idx, pkg_id, package_name, is_system, debloat_category, runtime_perms, enabled_text, install_reason, is_selected) in filtered_packages {
             let clicked_idx_clone = clicked_package_idx.clone();
             let pkg_id_clone = pkg_id.clone();

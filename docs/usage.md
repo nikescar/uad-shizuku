@@ -183,7 +183,7 @@ Enable app info fetching from external sources:
 |---------|-------------|
 | **VirusTotal Submit** | Automatically submit APKs not in VirusTotal database |
 | **Hybrid Analysis Submit** | Automatically submit APKs not in Hybrid Analysis database |
-| **HA Tag Blacklist** | Comma-separated tags to ignore in Hybrid Analysis results |
+| **HA Tag Ignorelist** | Comma-separated tags to ignore in Hybrid Analysis results |
 
 ### Logging
 

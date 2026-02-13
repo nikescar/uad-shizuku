@@ -7,12 +7,7 @@ use egui_material3::{data_table, icon_button_standard, theme::get_global_color};
 // SVG icons as constants (moved to svg_stt.rs)
 use crate::svg_stt::*;
 use crate::material_symbol_icons::{ICON_CANCEL, ICON_CHECK_CIRCLE, ICON_DELETE, ICON_DOWNLOAD, ICON_INFO, ICON_CHECK_BOX, ICON_REFRESH};
-
-/// Minimum viewport width for desktop table view
-const DESKTOP_MIN_WIDTH: f32 = 1008.0;
-
-/// Base table width for calculating column ratios
-const BASE_TABLE_WIDTH: f32 = 1024.0;
+use crate::{DESKTOP_MIN_WIDTH, BASE_TABLE_WIDTH};
 
 // Pre-compiled regex patterns for performance (avoid recompiling on every call)
 lazy_static::lazy_static! {
@@ -1036,7 +1031,7 @@ impl TabAppsControl {
         ui.ctx().set_style(style);
 
         // Get viewport width for responsive design
-        let available_width = ui.available_width();
+        let available_width = ui.ctx().screen_rect().width();
         let is_desktop = available_width >= DESKTOP_MIN_WIDTH;
         let width_ratio = if is_desktop { available_width / BASE_TABLE_WIDTH } else { 1.0 };
         // log::debug!(
