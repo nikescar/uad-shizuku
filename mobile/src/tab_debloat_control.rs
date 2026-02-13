@@ -511,6 +511,11 @@ impl TabDebloatControl {
         fdroid_enabled: bool,
         apkmirror_enabled: bool,
     ) -> Option<AdbResult> {
+
+        // Get viewport width for responsive design
+        let available_width = ui.ctx().screen_rect().width();
+        let is_desktop = available_width >= DESKTOP_MIN_WIDTH;
+        
         let mut result = None;
         let store = get_shared_store();
 
@@ -739,9 +744,11 @@ impl TabDebloatControl {
                 self.text_filter.clear();
             }
 
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                ui.label(format!("* RP: {}", tr!("col-runtime-permissions")));
-            });
+            if is_desktop {
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    ui.label(format!("* RP: {}", tr!("col-runtime-permissions")));
+                });
+            }
         }); 
 
         ui.horizontal(|ui| { 
@@ -848,10 +855,6 @@ impl TabDebloatControl {
             10,
         );
         ui.ctx().set_style(style);
-
-        // Get viewport width for responsive design
-        let available_width = ui.ctx().screen_rect().width();
-        let is_desktop = available_width >= DESKTOP_MIN_WIDTH;
 
         // Build table with proportional column widths for desktop
         let width_ratio = if is_desktop { available_width / BASE_TABLE_WIDTH } else { 1.0 };

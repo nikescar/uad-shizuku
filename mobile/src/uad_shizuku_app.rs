@@ -2223,530 +2223,540 @@ impl UadShizukuApp {
                 &mut self.settings_dialog_open,
             )
             .content(|ui| {
-                ui.vertical(|ui| {
-                    ui.add_space(8.0);
+                let screen_width = ui.ctx().screen_rect().width();
+                let dialog_width = screen_width - 100.0;
+                ui.set_width(dialog_width);
+                let screen_height = ui.ctx().screen_rect().height();
+                let dialog_height = screen_height - 200.0;
+                ui.set_height(dialog_height);
 
-                    // Language Selector
-                    ui.horizontal(|ui| {
-                        ui.label(tr!("language"));
-                        let mut selected_lang = self.settings.language.clone();
+                ui.add_space(8.0);
+                
+                egui::ScrollArea::both()
+                    .id_salt("settings_dialog_scroll")
+                    .auto_shrink([false, false])
+                    .show(ui, |ui| {
+                        // Language Selector
+                        ui.horizontal(|ui| {
+                            ui.label(tr!("language"));
+                            let mut selected_lang = self.settings.language.clone();
 
-                        egui::ComboBox::from_label("   ")
-                            .selected_text(match selected_lang.as_str() {
-                                "Auto" => "Auto",
-                                "en-US" => "English",
-                                "ko-KR" => "Korean",
-                                _ => &selected_lang,
-                            })
-                            .show_ui(ui, |ui| {
-                                ui.selectable_value(
-                                    &mut selected_lang,
-                                    "Auto".to_string(),
-                                    "Auto",
-                                );
-                                ui.selectable_value(
-                                    &mut selected_lang,
-                                    "en-US".to_string(),
-                                    "English",
-                                );
-                                ui.selectable_value(
-                                    &mut selected_lang,
-                                    "ko-KR".to_string(),
-                                    "Korean",
-                                );
-                            });
-
-                        if selected_lang != self.settings.language {
-                            self.settings.language = selected_lang.clone();
-                            // Apply the language immediately
-                            let language_to_apply = if selected_lang == "Auto" {
-                                Self::detect_system_language()
-                            } else {
-                                selected_lang
-                            };
-                            egui_i18n::set_language(&language_to_apply);
-                        }
-                    
-                        ui.add_space(8.0);
-                        // Font Selector
-                    
-                        ui.label(tr!("font"));
-
-                        let mut selected = self.selected_font_display.clone();
-
-                        egui::ComboBox::from_id_salt("font_selector")
-                            .selected_text(&selected)
-                            .show_ui(ui, |ui| {
-                                ui.selectable_value(
-                                    &mut selected,
-                                    "Default (NotoSansKr)".to_string(),
-                                    "Default (NotoSansKr)",
-                                );
-                                for (display_name, _path) in &self.system_fonts {
-                                    ui.selectable_value(
-                                        &mut selected,
-                                        display_name.clone(),
-                                        display_name.as_str(),
-                                    );
-                                }
-                            });
-
-                        if selected != self.selected_font_display {
-                            self.selected_font_display = selected.clone();
-
-                            if selected == "Default (NotoSansKr)" {
-                                self.settings.font_path = String::new();
-                            } else if let Some((_, path)) = self
-                                .system_fonts
-                                .iter()
-                                .find(|(name, _)| name == &selected)
-                            {
-                                self.settings.font_path = path.clone();
-                            }
-
-                            // Apply font immediately using free functions
-                            use egui_material3::theme::{
-                                load_fonts, setup_local_fonts, setup_local_fonts_from_bytes,
-                            };
-                            if self.settings.font_path.is_empty() {
-                                setup_local_fonts_from_bytes(
-                                    "NotoSansKr",
-                                    include_bytes!("../resources/noto-sans-kr.ttf"),
-                                );
-                            } else {
-                                setup_local_fonts(Some(&self.settings.font_path));
-                            }
-                            load_fonts(ui.ctx());
-                        }
-
-                        ui.add_space(8.0);
-                        // Text Style Override Selector
-
-                        ui.horizontal(|ui|{
-                            let mut override_text_style = ui.style().override_text_style.clone();
-                            ui.label(tr!("text-style"));
-                            egui::ComboBox::from_id_salt("override_text_style")
-                                .selected_text(match &override_text_style {
-                                    None => "None".to_owned(),
-                                    Some(s) => s.to_string(),
+                            egui::ComboBox::from_label("   ")
+                                .selected_text(match selected_lang.as_str() {
+                                    "Auto" => "Auto",
+                                    "en-US" => "English",
+                                    "ko-KR" => "Korean",
+                                    _ => &selected_lang,
                                 })
                                 .show_ui(ui, |ui| {
                                     ui.selectable_value(
-                                        &mut override_text_style,
-                                        None,
-                                        "None",
+                                        &mut selected_lang,
+                                        "Auto".to_string(),
+                                        "Auto",
                                     );
-                                    let all_text_styles = ui.style().text_styles();
-                                    for style in all_text_styles {
-                                        let text = egui::RichText::new(style.to_string())
-                                            .text_style(style.clone());
+                                    ui.selectable_value(
+                                        &mut selected_lang,
+                                        "en-US".to_string(),
+                                        "English",
+                                    );
+                                    ui.selectable_value(
+                                        &mut selected_lang,
+                                        "ko-KR".to_string(),
+                                        "Korean",
+                                    );
+                                });
+
+                            if selected_lang != self.settings.language {
+                                self.settings.language = selected_lang.clone();
+                                // Apply the language immediately
+                                let language_to_apply = if selected_lang == "Auto" {
+                                    Self::detect_system_language()
+                                } else {
+                                    selected_lang
+                                };
+                                egui_i18n::set_language(&language_to_apply);
+                            }
+                        
+                            ui.add_space(8.0);
+                            // Font Selector
+                        
+                            ui.label(tr!("font"));
+
+                            let mut selected = self.selected_font_display.clone();
+
+                            egui::ComboBox::from_id_salt("font_selector")
+                                .selected_text(&selected)
+                                .show_ui(ui, |ui| {
+                                    ui.selectable_value(
+                                        &mut selected,
+                                        "Default (NotoSansKr)".to_string(),
+                                        "Default (NotoSansKr)",
+                                    );
+                                    for (display_name, _path) in &self.system_fonts {
                                         ui.selectable_value(
-                                            &mut override_text_style,
-                                            Some(style),
-                                            text,
+                                            &mut selected,
+                                            display_name.clone(),
+                                            display_name.as_str(),
                                         );
                                     }
                                 });
-                            let text_style = override_text_style.clone();
-                            ui.ctx().style_mut(|s| {
-                                s.override_text_style = text_style.clone();
-                            });
-                            
-                            // Save to settings when changed
-                            let style_string = match text_style {
-                                None => String::new(),
-                                Some(s) => s.to_string(),
-                            };
-                            if style_string != self.settings.override_text_style {
-                                self.settings.override_text_style = style_string;
-                            }
-                        });
-                    });
-                    ui.add_space(8.0);
 
-                    // Display Size Selector
-                    ui.horizontal(|ui| {
-                        ui.label(tr!("display-size"));
-                        let display_sizes = vec![
-                            ("Phone (412x732)", (412.0, 732.0)),
-                            ("Tablet (768x1024)", (768.0, 1024.0)),
-                            ("Desktop (1024x768)", (1024.0, 768.0)),
-                            ("1080p (1920x1080)", (1920.0, 1080.0)),
-                        ];
-                        let mut selected_size = self.settings.display_size.clone();
-                        egui::ComboBox::from_label("  ")
-                            .selected_text(&selected_size)
-                            .show_ui(ui, |ui| {
-                                for (label, _size) in &display_sizes {
-                                    ui.selectable_value(
-                                        &mut selected_size,
-                                        label.to_string(),
-                                        *label,
+                            if selected != self.selected_font_display {
+                                self.selected_font_display = selected.clone();
+
+                                if selected == "Default (NotoSansKr)" {
+                                    self.settings.font_path = String::new();
+                                } else if let Some((_, path)) = self
+                                    .system_fonts
+                                    .iter()
+                                    .find(|(name, _)| name == &selected)
+                                {
+                                    self.settings.font_path = path.clone();
+                                }
+
+                                // Apply font immediately using free functions
+                                use egui_material3::theme::{
+                                    load_fonts, setup_local_fonts, setup_local_fonts_from_bytes,
+                                };
+                                if self.settings.font_path.is_empty() {
+                                    setup_local_fonts_from_bytes(
+                                        "NotoSansKr",
+                                        include_bytes!("../resources/noto-sans-kr.ttf"),
                                     );
+                                } else {
+                                    setup_local_fonts(Some(&self.settings.font_path));
+                                }
+                                load_fonts(ui.ctx());
+                            }
+
+                            ui.add_space(8.0);
+                            // Text Style Override Selector
+
+                            ui.horizontal(|ui|{
+                                let mut override_text_style = ui.style().override_text_style.clone();
+                                ui.label(tr!("text-style"));
+                                egui::ComboBox::from_id_salt("override_text_style")
+                                    .selected_text(match &override_text_style {
+                                        None => "None".to_owned(),
+                                        Some(s) => s.to_string(),
+                                    })
+                                    .show_ui(ui, |ui| {
+                                        ui.selectable_value(
+                                            &mut override_text_style,
+                                            None,
+                                            "None",
+                                        );
+                                        let all_text_styles = ui.style().text_styles();
+                                        for style in all_text_styles {
+                                            let text = egui::RichText::new(style.to_string())
+                                                .text_style(style.clone());
+                                            ui.selectable_value(
+                                                &mut override_text_style,
+                                                Some(style),
+                                                text,
+                                            );
+                                        }
+                                    });
+                                let text_style = override_text_style.clone();
+                                ui.ctx().style_mut(|s| {
+                                    s.override_text_style = text_style.clone();
+                                });
+                                
+                                // Save to settings when changed
+                                let style_string = match text_style {
+                                    None => String::new(),
+                                    Some(s) => s.to_string(),
+                                };
+                                if style_string != self.settings.override_text_style {
+                                    self.settings.override_text_style = style_string;
                                 }
                             });
-
-                        if selected_size != self.settings.display_size {
-                            self.settings.display_size = selected_size.clone();
-
-                            // Find the corresponding size and resize the window
-                            if let Some((_, size)) = display_sizes
-                                .iter()
-                                .find(|(label, _)| *label == selected_size)
-                            {
-                                ui.ctx().send_viewport_cmd(egui::ViewportCommand::InnerSize(
-                                    egui::vec2(size.0, size.1),
-                                ));
-                                log::info!("Window resized to {}x{}", size.0, size.1);
-                            }
-                        }
+                        });
                         ui.add_space(8.0);
 
-                        // Color Mode Selector
-                        ui.label(tr!("color-mode"));
-                        if let Ok(mut theme) = get_global_theme().lock() {
-                            // Light mode button
-                            let light_selected = theme.theme_mode == ThemeMode::Light;
-                            let light_button =
-                                ui.selectable_label(light_selected, tr!("light-mode"));
-                            if light_button.clicked() {
-                                theme.theme_mode = ThemeMode::Light;
-                                self.settings.theme_mode =
-                                    Self::theme_mode_to_string(ThemeMode::Light);
-                            }
-
-                            // Auto mode button
-                            let auto_selected = theme.theme_mode == ThemeMode::Auto;
-                            let auto_button = ui.selectable_label(auto_selected, tr!("auto-mode"));
-                            if auto_button.clicked() {
-                                theme.theme_mode = ThemeMode::Auto;
-                                self.settings.theme_mode =
-                                    Self::theme_mode_to_string(ThemeMode::Auto);
-                            }
-
-                            // Dark mode button
-                            let dark_selected = theme.theme_mode == ThemeMode::Dark;
-                            let dark_button = ui.selectable_label(dark_selected, tr!("dark-mode"));
-                            if dark_button.clicked() {
-                                theme.theme_mode = ThemeMode::Dark;
-                                self.settings.theme_mode =
-                                    Self::theme_mode_to_string(ThemeMode::Dark);
-                            }
-                        }
-
-                        ui.add_space(8.0);
-
-                        // Theme Selector
-                        ui.label(tr!("theme"));
+                        // Display Size Selector
                         ui.horizontal(|ui| {
-                            let mut selected_theme = self.settings.theme_name.clone();
-                            egui::ComboBox::from_id_salt("theme_selector")
-                                .selected_text(match selected_theme.as_str() {
-                                    "green" => "Green",
-                                    "lightblue" => "Light Blue",
-                                    "lightpink" => "Light Pink",
-                                    "yellow" => "Yellow",
-                                    _ => "Default",
-                                })
+                            ui.label(tr!("display-size"));
+                            let display_sizes = vec![
+                                ("Phone (412x732)", (412.0, 732.0)),
+                                ("Tablet (768x1024)", (768.0, 1024.0)),
+                                ("Desktop (1024x768)", (1024.0, 768.0)),
+                                ("1080p (1920x1080)", (1920.0, 1080.0)),
+                            ];
+                            let mut selected_size = self.settings.display_size.clone();
+                            egui::ComboBox::from_label("  ")
+                                .selected_text(&selected_size)
                                 .show_ui(ui, |ui| {
-                                    if ui.selectable_value(&mut selected_theme, "default".to_string(), "Default").clicked() {
-                                        self.settings.theme_name = "default".to_string();
-                                        theme_to_apply.set(Some("default".to_string()));
-                                    }
-                                    if ui.selectable_value(&mut selected_theme, "green".to_string(), "Green").clicked() {
-                                        self.settings.theme_name = "green".to_string();
-                                        theme_to_apply.set(Some("green".to_string()));
-                                    }
-                                    if ui.selectable_value(&mut selected_theme, "lightblue".to_string(), "Light Blue").clicked() {
-                                        self.settings.theme_name = "lightblue".to_string();
-                                        theme_to_apply.set(Some("lightblue".to_string()));
-                                    }
-                                    if ui.selectable_value(&mut selected_theme, "lightpink".to_string(), "Light Pink").clicked() {
-                                        self.settings.theme_name = "lightpink".to_string();
-                                        theme_to_apply.set(Some("lightpink".to_string()));
-                                    }
-                                    if ui.selectable_value(&mut selected_theme, "yellow".to_string(), "Yellow").clicked() {
-                                        self.settings.theme_name = "yellow".to_string();
-                                        theme_to_apply.set(Some("yellow".to_string()));
+                                    for (label, _size) in &display_sizes {
+                                        ui.selectable_value(
+                                            &mut selected_size,
+                                            label.to_string(),
+                                            *label,
+                                        );
                                     }
                                 });
+
+                            if selected_size != self.settings.display_size {
+                                self.settings.display_size = selected_size.clone();
+
+                                // Find the corresponding size and resize the window
+                                if let Some((_, size)) = display_sizes
+                                    .iter()
+                                    .find(|(label, _)| *label == selected_size)
+                                {
+                                    ui.ctx().send_viewport_cmd(egui::ViewportCommand::InnerSize(
+                                        egui::vec2(size.0, size.1),
+                                    ));
+                                    log::info!("Window resized to {}x{}", size.0, size.1);
+                                }
+                            }
+                            ui.add_space(8.0);
+
+                            // Color Mode Selector
+                            ui.label(tr!("color-mode"));
+                            if let Ok(mut theme) = get_global_theme().lock() {
+                                // Light mode button
+                                let light_selected = theme.theme_mode == ThemeMode::Light;
+                                let light_button =
+                                    ui.selectable_label(light_selected, tr!("light-mode"));
+                                if light_button.clicked() {
+                                    theme.theme_mode = ThemeMode::Light;
+                                    self.settings.theme_mode =
+                                        Self::theme_mode_to_string(ThemeMode::Light);
+                                }
+
+                                // Auto mode button
+                                let auto_selected = theme.theme_mode == ThemeMode::Auto;
+                                let auto_button = ui.selectable_label(auto_selected, tr!("auto-mode"));
+                                if auto_button.clicked() {
+                                    theme.theme_mode = ThemeMode::Auto;
+                                    self.settings.theme_mode =
+                                        Self::theme_mode_to_string(ThemeMode::Auto);
+                                }
+
+                                // Dark mode button
+                                let dark_selected = theme.theme_mode == ThemeMode::Dark;
+                                let dark_button = ui.selectable_label(dark_selected, tr!("dark-mode"));
+                                if dark_button.clicked() {
+                                    theme.theme_mode = ThemeMode::Dark;
+                                    self.settings.theme_mode =
+                                        Self::theme_mode_to_string(ThemeMode::Dark);
+                                }
+                            }
+
+                            ui.add_space(8.0);
+
+                            // Theme Selector
+                            ui.label(tr!("theme"));
+                            ui.horizontal(|ui| {
+                                let mut selected_theme = self.settings.theme_name.clone();
+                                egui::ComboBox::from_id_salt("theme_selector")
+                                    .selected_text(match selected_theme.as_str() {
+                                        "green" => "Green",
+                                        "lightblue" => "Light Blue",
+                                        "lightpink" => "Light Pink",
+                                        "yellow" => "Yellow",
+                                        _ => "Default",
+                                    })
+                                    .show_ui(ui, |ui| {
+                                        if ui.selectable_value(&mut selected_theme, "default".to_string(), "Default").clicked() {
+                                            self.settings.theme_name = "default".to_string();
+                                            theme_to_apply.set(Some("default".to_string()));
+                                        }
+                                        if ui.selectable_value(&mut selected_theme, "green".to_string(), "Green").clicked() {
+                                            self.settings.theme_name = "green".to_string();
+                                            theme_to_apply.set(Some("green".to_string()));
+                                        }
+                                        if ui.selectable_value(&mut selected_theme, "lightblue".to_string(), "Light Blue").clicked() {
+                                            self.settings.theme_name = "lightblue".to_string();
+                                            theme_to_apply.set(Some("lightblue".to_string()));
+                                        }
+                                        if ui.selectable_value(&mut selected_theme, "lightpink".to_string(), "Light Pink").clicked() {
+                                            self.settings.theme_name = "lightpink".to_string();
+                                            theme_to_apply.set(Some("lightpink".to_string()));
+                                        }
+                                        if ui.selectable_value(&mut selected_theme, "yellow".to_string(), "Yellow").clicked() {
+                                            self.settings.theme_name = "yellow".to_string();
+                                            theme_to_apply.set(Some("yellow".to_string()));
+                                        }
+                                    });
+                            });
+
+                            ui.add_space(8.0);
+
+
+
+                            // // Contrast Level Selector
+                            // ui.label(tr!("contrast"));
+                            // if let Ok(mut theme) = get_global_theme().lock() {
+                            //     // High contrast button
+                            //     let high_selected = theme.contrast_level == ContrastLevel::High;
+                            //     let high_button =
+                            //         ui.selectable_label(high_selected, tr!("contrast-high"));
+                            //     if high_button.clicked() {
+                            //         theme.contrast_level = ContrastLevel::High;
+                            //         self.settings.contrast_level =
+                            //             Self::contrast_level_to_string(ContrastLevel::High);
+                            //     }
+
+                            //     // Medium contrast button
+                            //     let medium_selected = theme.contrast_level == ContrastLevel::Medium;
+                            //     let medium_button =
+                            //         ui.selectable_label(medium_selected, tr!("contrast-medium"));
+                            //     if medium_button.clicked() {
+                            //         theme.contrast_level = ContrastLevel::Medium;
+                            //         self.settings.contrast_level =
+                            //             Self::contrast_level_to_string(ContrastLevel::Medium);
+                            //     }
+
+                            //     // Normal contrast button
+                            //     let normal_selected = theme.contrast_level == ContrastLevel::Normal;
+                            //     let normal_button =
+                            //         ui.selectable_label(normal_selected, tr!("contrast-normal"));
+                            //     if normal_button.clicked() {
+                            //         theme.contrast_level = ContrastLevel::Normal;
+                            //         self.settings.contrast_level =
+                            //             Self::contrast_level_to_string(ContrastLevel::Normal);
+                            //     }
+                            // }
+                        });
+                        
+                        ui.add_space(8.0);
+
+                        ui.horizontal(|ui| {
+                            ui.checkbox(
+                                &mut self.settings_unsafe_app_remove,
+                                tr!("allow-unsafe-app-remove"),
+                            );
                         });
 
                         ui.add_space(8.0);
 
+                        ui.horizontal(|ui| {
+                            ui.checkbox(
+                                &mut self.settings_autoupdate,
+                                tr!("autoupdate"),
+                            );
+                            ui.label(tr!("autoupdate-desc"));
+                        });
 
+                        ui.add_space(8.0);
 
-                        // // Contrast Level Selector
-                        // ui.label(tr!("contrast"));
-                        // if let Ok(mut theme) = get_global_theme().lock() {
-                        //     // High contrast button
-                        //     let high_selected = theme.contrast_level == ContrastLevel::High;
-                        //     let high_button =
-                        //         ui.selectable_label(high_selected, tr!("contrast-high"));
-                        //     if high_button.clicked() {
-                        //         theme.contrast_level = ContrastLevel::High;
-                        //         self.settings.contrast_level =
-                        //             Self::contrast_level_to_string(ContrastLevel::High);
-                        //     }
-
-                        //     // Medium contrast button
-                        //     let medium_selected = theme.contrast_level == ContrastLevel::Medium;
-                        //     let medium_button =
-                        //         ui.selectable_label(medium_selected, tr!("contrast-medium"));
-                        //     if medium_button.clicked() {
-                        //         theme.contrast_level = ContrastLevel::Medium;
-                        //         self.settings.contrast_level =
-                        //             Self::contrast_level_to_string(ContrastLevel::Medium);
-                        //     }
-
-                        //     // Normal contrast button
-                        //     let normal_selected = theme.contrast_level == ContrastLevel::Normal;
-                        //     let normal_button =
-                        //         ui.selectable_label(normal_selected, tr!("contrast-normal"));
-                        //     if normal_button.clicked() {
-                        //         theme.contrast_level = ContrastLevel::Normal;
-                        //         self.settings.contrast_level =
-                        //             Self::contrast_level_to_string(ContrastLevel::Normal);
-                        //     }
-                        // }
-                    });
-                    
-                    ui.add_space(8.0);
-
-                    ui.horizontal(|ui| {
-                        ui.checkbox(
-                            &mut self.settings_unsafe_app_remove,
-                            tr!("allow-unsafe-app-remove"),
-                        );
-                    });
-
-                    ui.add_space(8.0);
-
-                    ui.horizontal(|ui| {
-                        ui.checkbox(
-                            &mut self.settings_autoupdate,
-                            tr!("autoupdate"),
-                        );
-                        ui.label(tr!("autoupdate-desc"));
-                    });
-
-                    ui.add_space(8.0);
-
-                    ui.horizontal(|ui| {
-                        ui.label(tr!("virustotal-api-key"));
-                        let response = ui.text_edit_singleline(&mut self.settings_virustotal_apikey);
-                        #[cfg(target_os = "android")]
-                        {
-                            if response.gained_focus() {
-                                let _ = crate::android_inputmethod::show_soft_input();
+                        ui.horizontal(|ui| {
+                            ui.label(tr!("virustotal-api-key"));
+                            let response = ui.text_edit_singleline(&mut self.settings_virustotal_apikey);
+                            #[cfg(target_os = "android")]
+                            {
+                                if response.gained_focus() {
+                                    let _ = crate::android_inputmethod::show_soft_input();
+                                }
+                                if response.lost_focus() {
+                                    let _ = crate::android_inputmethod::hide_soft_input();
+                                }
                             }
-                            if response.lost_focus() {
-                                let _ = crate::android_inputmethod::hide_soft_input();
+                            crate::clipboard_popup::show_clipboard_popup(ui, &response, &mut self.settings_virustotal_apikey);
+                            if ui.button(tr!("get-api-key")).clicked() {
+                                if let Err(e) = webbrowser::open("https://www.virustotal.com/gui/my-apikey") {
+                                    log::error!("Failed to open VirusTotal API key URL: {}", e);
+                                }
                             }
-                        }
-                        crate::clipboard_popup::show_clipboard_popup(ui, &response, &mut self.settings_virustotal_apikey);
-                        if ui.button(tr!("get-api-key")).clicked() {
-                            if let Err(e) = webbrowser::open("https://www.virustotal.com/gui/my-apikey") {
-                                log::error!("Failed to open VirusTotal API key URL: {}", e);
+                        });
+
+                        ui.add_space(8.0);
+
+                        ui.horizontal(|ui| {
+                            ui.checkbox(
+                                &mut self.settings_virustotal_submit,
+                                tr!("allow-virustotal-upload"),
+                            );
+                            ui.label(tr!("virustotal-upload-desc"));
+                            ui.checkbox(&mut self.settings_flush_virustotal, tr!("flush"));
+                        });
+
+                        ui.add_space(8.0);
+
+                        ui.horizontal(|ui| {
+                            ui.label(tr!("hybridanalysis-api-key"));
+                            let response = ui.text_edit_singleline(&mut self.settings_hybridanalysis_apikey);
+                            #[cfg(target_os = "android")]
+                            {
+                                if response.gained_focus() {
+                                    let _ = crate::android_inputmethod::show_soft_input();
+                                }
+                                if response.lost_focus() {
+                                    let _ = crate::android_inputmethod::hide_soft_input();
+                                }
                             }
-                        }
-                    });
-
-                    ui.add_space(8.0);
-
-                    ui.horizontal(|ui| {
-                        ui.checkbox(
-                            &mut self.settings_virustotal_submit,
-                            tr!("allow-virustotal-upload"),
-                        );
-                        ui.label(tr!("virustotal-upload-desc"));
-                        ui.checkbox(&mut self.settings_flush_virustotal, tr!("flush"));
-                    });
-
-                    ui.add_space(8.0);
-
-                    ui.horizontal(|ui| {
-                        ui.label(tr!("hybridanalysis-api-key"));
-                        let response = ui.text_edit_singleline(&mut self.settings_hybridanalysis_apikey);
-                        #[cfg(target_os = "android")]
-                        {
-                            if response.gained_focus() {
-                                let _ = crate::android_inputmethod::show_soft_input();
+                            crate::clipboard_popup::show_clipboard_popup(ui, &response, &mut self.settings_hybridanalysis_apikey);
+                            if ui.button(tr!("get-api-key")).clicked() {
+                                if let Err(e) = webbrowser::open("https://hybrid-analysis.com/my-account") {
+                                    log::error!("Failed to open HybridAnalysis API key URL: {}", e);
+                                }
                             }
-                            if response.lost_focus() {
-                                let _ = crate::android_inputmethod::hide_soft_input();
+                        });
+
+                        ui.add_space(8.0);
+
+                        ui.horizontal(|ui| {
+                            ui.checkbox(
+                                &mut self.settings_hybridanalysis_submit,
+                                tr!("allow-hybridanalysis-upload"),
+                            );
+                            ui.label(tr!("hybridanalysis-upload-desc"));
+                            ui.checkbox(&mut self.settings_flush_hybridanalysis, tr!("flush"));
+                        });
+
+                        ui.add_space(8.0);
+
+                        ui.horizontal(|ui| {
+                            ui.label(tr!("hybridanalysis-tag-ignorelist"));
+                            let response = ui.text_edit_singleline(&mut self.settings_hybridanalysis_tag_ignorelist);
+                            #[cfg(target_os = "android")]
+                            {
+                                if response.gained_focus() {
+                                    let _ = crate::android_inputmethod::show_soft_input();
+                                }
+                                if response.lost_focus() {
+                                    let _ = crate::android_inputmethod::hide_soft_input();
+                                }
                             }
-                        }
-                        crate::clipboard_popup::show_clipboard_popup(ui, &response, &mut self.settings_hybridanalysis_apikey);
-                        if ui.button(tr!("get-api-key")).clicked() {
-                            if let Err(e) = webbrowser::open("https://hybrid-analysis.com/my-account") {
-                                log::error!("Failed to open HybridAnalysis API key URL: {}", e);
+                            crate::clipboard_popup::show_clipboard_popup(ui, &response, &mut self.settings_hybridanalysis_tag_ignorelist);
+                        });
+
+                        ui.add_space(8.0);
+
+                        ui.horizontal(|ui| {
+                            ui.checkbox(
+                                &mut self.settings_google_play_renderer,
+                                tr!("google-play-renderer"),
+                            );
+                            ui.label(tr!("google-play-renderer-desc"));
+                            ui.checkbox(&mut self.settings_flush_googleplay, tr!("flush"));
+                        });
+
+                        ui.add_space(8.0);
+
+                        ui.horizontal(|ui| {
+                            ui.checkbox(&mut self.settings_fdroid_renderer, tr!("fdroid-renderer"));
+                            ui.label(tr!("fdroid-renderer-desc"));
+                            ui.checkbox(&mut self.settings_flush_fdroid, tr!("flush"));
+                        });
+
+                        ui.add_space(8.0);
+
+                        ui.horizontal(|ui| {
+                            ui.checkbox(
+                                &mut self.settings_apkmirror_renderer,
+                                tr!("apkmirror-renderer"),
+                            );
+                            ui.label(tr!("apkmirror-renderer-desc"));
+                            ui.checkbox(&mut self.settings_flush_apkmirror, tr!("flush"));
+                        });
+
+                        ui.add_space(8.0);
+
+                        ui.horizontal(|ui| {
+                            ui.checkbox(
+                                &mut self.settings.apkmirror_auto_upload,
+                                tr!("apkmirror-auto-upload"),
+                            );
+                            ui.label(tr!("apkmirror-auto-upload-desc"));
+                        });
+
+                        ui.add_space(8.0);
+
+                        ui.horizontal(|ui| {
+                            ui.label(tr!("apkmirror-email"));
+                            let response = ui.add(
+                                egui::TextEdit::singleline(&mut self.settings.apkmirror_email)
+                                    .desired_width(200.0)
+                                    .hint_text(tr!("email-hint")),
+                            );
+                            #[cfg(target_os = "android")]
+                            {
+                                if response.gained_focus() {
+                                    let _ = crate::android_inputmethod::show_soft_input();
+                                }
+                                if response.lost_focus() {
+                                    let _ = crate::android_inputmethod::hide_soft_input();
+                                }
                             }
-                        }
-                    });
+                            crate::clipboard_popup::show_clipboard_popup(ui, &response, &mut self.settings.apkmirror_email);
+                        });
 
-                    ui.add_space(8.0);
+                        ui.add_space(8.0);
 
-                    ui.horizontal(|ui| {
-                        ui.checkbox(
-                            &mut self.settings_hybridanalysis_submit,
-                            tr!("allow-hybridanalysis-upload"),
-                        );
-                        ui.label(tr!("hybridanalysis-upload-desc"));
-                        ui.checkbox(&mut self.settings_flush_hybridanalysis, tr!("flush"));
-                    });
-
-                    ui.add_space(8.0);
-
-                    ui.horizontal(|ui| {
-                        ui.label(tr!("hybridanalysis-tag-ignorelist"));
-                        let response = ui.text_edit_singleline(&mut self.settings_hybridanalysis_tag_ignorelist);
-                        #[cfg(target_os = "android")]
-                        {
-                            if response.gained_focus() {
-                                let _ = crate::android_inputmethod::show_soft_input();
+                        ui.horizontal(|ui| {
+                            ui.label(tr!("apkmirror-name"));
+                            let response = ui.add(
+                                egui::TextEdit::singleline(&mut self.settings.apkmirror_name)
+                                    .desired_width(200.0)
+                                    .hint_text(tr!("name-hint")),
+                            );
+                            #[cfg(target_os = "android")]
+                            {
+                                if response.gained_focus() {
+                                    let _ = crate::android_inputmethod::show_soft_input();
+                                }
+                                if response.lost_focus() {
+                                    let _ = crate::android_inputmethod::hide_soft_input();
+                                }
                             }
-                            if response.lost_focus() {
-                                let _ = crate::android_inputmethod::hide_soft_input();
+                            crate::clipboard_popup::show_clipboard_popup(ui, &response, &mut self.settings.apkmirror_name);
+                        });                    
+
+                        ui.add_space(8.0);
+
+                        ui.horizontal(|ui| {
+                            ui.checkbox(&mut self.settings_invalidate_cache, tr!("invalidate-cache"));
+                            ui.label(tr!("invalidate-cache-desc"));
+                        });
+
+                        ui.add_space(8.0);
+
+                        ui.horizontal(|ui| {
+                            ui.label(tr!("show-logs"));
+                            ui.checkbox(&mut self.settings.show_logs, tr!("show"));
+
+                            let current_level = Self::string_to_log_level(&self.settings.log_level);
+
+                            let error_selected = current_level == LogLevel::Error;
+                            let error_button = ui.selectable_label(error_selected, "ERROR");
+                            if error_button.clicked() {
+                                self.settings.log_level = Self::log_level_to_string(LogLevel::Error);
+                                crate::log_capture::update_log_level(&self.settings.log_level);
                             }
-                        }
-                        crate::clipboard_popup::show_clipboard_popup(ui, &response, &mut self.settings_hybridanalysis_tag_ignorelist);
-                    });
 
-                    ui.add_space(8.0);
-
-                    ui.horizontal(|ui| {
-                        ui.checkbox(
-                            &mut self.settings_google_play_renderer,
-                            tr!("google-play-renderer"),
-                        );
-                        ui.label(tr!("google-play-renderer-desc"));
-                        ui.checkbox(&mut self.settings_flush_googleplay, tr!("flush"));
-                    });
-
-                    ui.add_space(8.0);
-
-                    ui.horizontal(|ui| {
-                        ui.checkbox(&mut self.settings_fdroid_renderer, tr!("fdroid-renderer"));
-                        ui.label(tr!("fdroid-renderer-desc"));
-                        ui.checkbox(&mut self.settings_flush_fdroid, tr!("flush"));
-                    });
-
-                    ui.add_space(8.0);
-
-                    ui.horizontal(|ui| {
-                        ui.checkbox(
-                            &mut self.settings_apkmirror_renderer,
-                            tr!("apkmirror-renderer"),
-                        );
-                        ui.label(tr!("apkmirror-renderer-desc"));
-                        ui.checkbox(&mut self.settings_flush_apkmirror, tr!("flush"));
-                    });
-
-                    ui.add_space(8.0);
-
-                    ui.horizontal(|ui| {
-                        ui.checkbox(
-                            &mut self.settings.apkmirror_auto_upload,
-                            tr!("apkmirror-auto-upload"),
-                        );
-                        ui.label(tr!("apkmirror-auto-upload-desc"));
-                    });
-
-                    ui.add_space(8.0);
-
-                    ui.horizontal(|ui| {
-                        ui.label(tr!("apkmirror-email"));
-                        let response = ui.add(
-                            egui::TextEdit::singleline(&mut self.settings.apkmirror_email)
-                                .desired_width(200.0)
-                                .hint_text(tr!("email-hint")),
-                        );
-                        #[cfg(target_os = "android")]
-                        {
-                            if response.gained_focus() {
-                                let _ = crate::android_inputmethod::show_soft_input();
+                            let warn_selected = current_level == LogLevel::Warn;
+                            let warn_button = ui.selectable_label(warn_selected, "WARN");
+                            if warn_button.clicked() {
+                                self.settings.log_level = Self::log_level_to_string(LogLevel::Warn);
+                                crate::log_capture::update_log_level(&self.settings.log_level);
                             }
-                            if response.lost_focus() {
-                                let _ = crate::android_inputmethod::hide_soft_input();
+
+                            let info_selected = current_level == LogLevel::Info;
+                            let info_button = ui.selectable_label(info_selected, "INFO");
+                            if info_button.clicked() {
+                                self.settings.log_level = Self::log_level_to_string(LogLevel::Info);
+                                crate::log_capture::update_log_level(&self.settings.log_level);
                             }
-                        }
-                        crate::clipboard_popup::show_clipboard_popup(ui, &response, &mut self.settings.apkmirror_email);
-                    });
 
-                    ui.add_space(8.0);
-
-                    ui.horizontal(|ui| {
-                        ui.label(tr!("apkmirror-name"));
-                        let response = ui.add(
-                            egui::TextEdit::singleline(&mut self.settings.apkmirror_name)
-                                .desired_width(200.0)
-                                .hint_text(tr!("name-hint")),
-                        );
-                        #[cfg(target_os = "android")]
-                        {
-                            if response.gained_focus() {
-                                let _ = crate::android_inputmethod::show_soft_input();
+                            let debug_selected = current_level == LogLevel::Debug;
+                            let debug_button = ui.selectable_label(debug_selected, "DEBUG");
+                            if debug_button.clicked() {
+                                self.settings.log_level = Self::log_level_to_string(LogLevel::Debug);
+                                crate::log_capture::update_log_level(&self.settings.log_level);
                             }
-                            if response.lost_focus() {
-                                let _ = crate::android_inputmethod::hide_soft_input();
+
+                            let trace_selected = current_level == LogLevel::Trace;
+                            let trace_button = ui.selectable_label(trace_selected, "TRACE");
+                            if trace_button.clicked() {
+                                self.settings.log_level = Self::log_level_to_string(LogLevel::Trace);
+                                crate::log_capture::update_log_level(&self.settings.log_level);
                             }
-                        }
-                        crate::clipboard_popup::show_clipboard_popup(ui, &response, &mut self.settings.apkmirror_name);
-                    });                    
+                        });
 
-                    ui.add_space(8.0);
-
-                    ui.horizontal(|ui| {
-                        ui.checkbox(&mut self.settings_invalidate_cache, tr!("invalidate-cache"));
-                        ui.label(tr!("invalidate-cache-desc"));
-                    });
-
-                    ui.add_space(8.0);
-
-                    ui.horizontal(|ui| {
-                        ui.label(tr!("show-logs"));
-                        ui.checkbox(&mut self.settings.show_logs, tr!("show"));
-
-                        let current_level = Self::string_to_log_level(&self.settings.log_level);
-
-                        let error_selected = current_level == LogLevel::Error;
-                        let error_button = ui.selectable_label(error_selected, "ERROR");
-                        if error_button.clicked() {
-                            self.settings.log_level = Self::log_level_to_string(LogLevel::Error);
-                            crate::log_capture::update_log_level(&self.settings.log_level);
-                        }
-
-                        let warn_selected = current_level == LogLevel::Warn;
-                        let warn_button = ui.selectable_label(warn_selected, "WARN");
-                        if warn_button.clicked() {
-                            self.settings.log_level = Self::log_level_to_string(LogLevel::Warn);
-                            crate::log_capture::update_log_level(&self.settings.log_level);
-                        }
-
-                        let info_selected = current_level == LogLevel::Info;
-                        let info_button = ui.selectable_label(info_selected, "INFO");
-                        if info_button.clicked() {
-                            self.settings.log_level = Self::log_level_to_string(LogLevel::Info);
-                            crate::log_capture::update_log_level(&self.settings.log_level);
-                        }
-
-                        let debug_selected = current_level == LogLevel::Debug;
-                        let debug_button = ui.selectable_label(debug_selected, "DEBUG");
-                        if debug_button.clicked() {
-                            self.settings.log_level = Self::log_level_to_string(LogLevel::Debug);
-                            crate::log_capture::update_log_level(&self.settings.log_level);
-                        }
-
-                        let trace_selected = current_level == LogLevel::Trace;
-                        let trace_button = ui.selectable_label(trace_selected, "TRACE");
-                        if trace_button.clicked() {
-                            self.settings.log_level = Self::log_level_to_string(LogLevel::Trace);
-                            crate::log_capture::update_log_level(&self.settings.log_level);
-                        }
-                    });
-
-                    ui.add_space(8.0);
+                        ui.add_space(8.0);
                 });
             })
             .action(tr!("cancel"), || {
@@ -2846,7 +2856,7 @@ impl UadShizukuApp {
                     let dialog_width = screen_width - 100.0;
                     ui.set_width(dialog_width);
                     let screen_height = ui.ctx().screen_rect().height();
-                    let dialog_height = screen_height - 100.0;
+                    let dialog_height = screen_height - 200.0;
                     ui.set_height(dialog_height);
 
                     ui.add_space(8.0);
@@ -3020,7 +3030,7 @@ impl UadShizukuApp {
                         let dialog_width = screen_width - 100.0;
                         ui.set_width(dialog_width);
                         let screen_height = ui.ctx().screen_rect().height();
-                        let dialog_height = screen_height - 100.0;
+                        let dialog_height = screen_height - 200.0;
                         ui.set_height(dialog_height);
 
                         ui.add_space(8.0);
@@ -3111,7 +3121,7 @@ impl UadShizukuApp {
                         let dialog_width = screen_width - 100.0;
                         ui.set_width(dialog_width);
                         let screen_height = ui.ctx().screen_rect().height();
-                        let dialog_height = screen_height - 100.0;
+                        let dialog_height = screen_height - 200.0;
                         ui.set_height(dialog_height);
 
                         ui.add_space(8.0);
