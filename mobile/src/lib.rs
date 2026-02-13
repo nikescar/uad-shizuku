@@ -21,6 +21,8 @@ mod tab_usage_control;
 pub mod tab_usage_control_stt;
 mod dlg_package_details;
 pub mod dlg_package_details_stt;
+mod dlg_uninstall_confirm;
+pub mod dlg_uninstall_confirm_stt;
 
 pub mod api_apkmirror;
 pub mod api_apkmirror_stt;

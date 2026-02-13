@@ -8,6 +8,7 @@ use crate::db_virustotal;
 use crate::shared_store_stt::get_shared_store;
 pub use crate::tab_scan_control_stt::*;
 use crate::dlg_package_details::DlgPackageDetails;
+use crate::dlg_uninstall_confirm::DlgUninstallConfirm;
 use eframe::egui;
 use egui_async::Bind;
 use egui_i18n::tr;
@@ -61,6 +62,7 @@ impl Default for TabScanControl {
             apkmirror_renderer_enabled: false,
             text_filter: String::new(),
             unsafe_app_remove: false,
+            uninstall_confirm_dialog: DlgUninstallConfirm::default(),
         }
     }
 }
@@ -2017,56 +2019,9 @@ impl TabScanControl {
             }
         });
 
-        // Perform uninstall
+        // Open confirm dialog for uninstall
         if let Some(pkg_name) = uninstall_package {
-            if let Some(ref device) = self.device_serial {
-                let uninstall_result = if uninstall_is_system {
-                    crate::adb::uninstall_app_user(&pkg_name, device, None)
-                } else {
-                    crate::adb::uninstall_app(&pkg_name, device)
-                };
-
-                match uninstall_result {
-                    Ok(output) => {
-                        log::info!("App uninstalled successfully: {}", output);
-
-                        let shared_store = crate::shared_store_stt::get_shared_store();
-                        let mut installed_packages = shared_store.installed_packages.lock().unwrap();
-                        let is_system = installed_packages
-                            .iter()
-                            .find(|p| p.pkg == pkg_name)
-                            .map(|p| p.flags.contains("SYSTEM"))
-                            .unwrap_or(false);
-
-                        if is_system {
-                            if let Some(pkg) = installed_packages
-                                .iter_mut()
-                                .find(|p| p.pkg == pkg_name)
-                            {
-                                for user in pkg.users.iter_mut() {
-                                    user.installed = false;
-                                    user.enabled = 0;
-                                }
-                            }
-                        } else {
-                            installed_packages.retain(|pkg| pkg.pkg != pkg_name);
-                            if let Some(idx_to_remove) = installed_packages
-                                .iter()
-                                .position(|p| p.pkg == pkg_name)
-                            {
-                                if idx_to_remove < self.selected_packages.len() {
-                                    self.selected_packages.remove(idx_to_remove);
-                                }
-                            }
-                        }
-                    }
-                    Err(e) => {
-                        log::error!("Failed to uninstall app({}): {}", pkg_name, e);
-                    }
-                }
-            } else {
-                log::error!("No device selected for uninstall");
-            }
+            self.uninstall_confirm_dialog.open_single(pkg_name, uninstall_is_system);
         }
 
         // Perform enable
@@ -2275,6 +2230,64 @@ impl TabScanControl {
                         }
                     });
                 }
+            }
+        }
+
+        // Show uninstall confirm dialog and execute on confirmation
+        if self.uninstall_confirm_dialog.show(ui.ctx()) {
+            let pkgs = std::mem::take(&mut self.uninstall_confirm_dialog.packages);
+            let sys_flags = std::mem::take(&mut self.uninstall_confirm_dialog.is_system);
+            self.uninstall_confirm_dialog.reset();
+
+            if let Some(ref device) = self.device_serial {
+                for (pkg_name, is_system) in pkgs.into_iter().zip(sys_flags.into_iter()) {
+                    let uninstall_result = if is_system {
+                        crate::adb::uninstall_app_user(&pkg_name, device, None)
+                    } else {
+                        crate::adb::uninstall_app(&pkg_name, device)
+                    };
+
+                    match uninstall_result {
+                        Ok(output) => {
+                            log::info!("App uninstalled successfully: {}", output);
+
+                            let shared_store = crate::shared_store_stt::get_shared_store();
+                            let mut installed_packages = shared_store.installed_packages.lock().unwrap();
+                            let is_system = installed_packages
+                                .iter()
+                                .find(|p| p.pkg == pkg_name)
+                                .map(|p| p.flags.contains("SYSTEM"))
+                                .unwrap_or(false);
+
+                            if is_system {
+                                if let Some(pkg) = installed_packages
+                                    .iter_mut()
+                                    .find(|p| p.pkg == pkg_name)
+                                {
+                                    for user in pkg.users.iter_mut() {
+                                        user.installed = false;
+                                        user.enabled = 0;
+                                    }
+                                }
+                            } else {
+                                installed_packages.retain(|pkg| pkg.pkg != pkg_name);
+                                if let Some(idx_to_remove) = installed_packages
+                                    .iter()
+                                    .position(|p| p.pkg == pkg_name)
+                                {
+                                    if idx_to_remove < self.selected_packages.len() {
+                                        self.selected_packages.remove(idx_to_remove);
+                                    }
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            log::error!("Failed to uninstall app({}): {}", pkg_name, e);
+                        }
+                    }
+                }
+            } else {
+                log::error!("No device selected for uninstall");
             }
         }
 

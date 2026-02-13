@@ -1,4 +1,5 @@
 use crate::adb::PackageFingerprint;
+use crate::dlg_uninstall_confirm::DlgUninstallConfirm;
 pub use crate::tab_apps_control_stt::*;
 use eframe::egui;
 use egui_i18n::tr;
@@ -41,6 +42,7 @@ impl Default for TabAppsControl {
             text_filter: String::new(),
             sort_column: None,
             sort_ascending: true,
+            uninstall_confirm_dialog: DlgUninstallConfirm::default(),
         }
     }
 }
@@ -1263,36 +1265,10 @@ impl TabAppsControl {
             }
         }
 
-        // Perform uninstall if clicked
+        // Open confirm dialog for uninstall
         if let Some(pkg_name) = uninstall_package {
-            if let Some(ref device) = self.selected_device {
-                {
-                    let uninstall_result = if uninstall_is_system {
-                        crate::adb::uninstall_app_user(&pkg_name, device, None)
-                    } else {
-                        crate::adb::uninstall_app(&pkg_name, device)
-                    };
-
-                    match uninstall_result {
-                        Ok(output) => {
-                            log::info!("App uninstalled successfully: {}", output);
-                            // Remove from recently_installed_apps if present
-                            if let Some(app_name) = uninstall_app_name {
-                                self.recently_installed_apps.remove(&app_name);
-                            }
-                            // Trigger refresh to update UI
-                            self.refresh_pending = true;
-                        }
-                        Err(e) => {
-                            log::error!("Failed to uninstall app({}): {}", pkg_name, e);
-                            has_error = true;
-                        }
-                    }
-                }
-            } else {
-                log::error!("No device selected for uninstall");
-                has_error = true;
-            }
+            self.uninstall_confirm_dialog.app_names = vec![uninstall_app_name];
+            self.uninstall_confirm_dialog.open_single(pkg_name, uninstall_is_system);
         }
 
         // Perform enable if clicked
@@ -1338,6 +1314,42 @@ impl TabAppsControl {
                 has_error = true;
             }
         }
+        // Show uninstall confirm dialog and execute on confirmation
+        if self.uninstall_confirm_dialog.show(ui.ctx()) {
+            let pkgs = std::mem::take(&mut self.uninstall_confirm_dialog.packages);
+            let sys_flags = std::mem::take(&mut self.uninstall_confirm_dialog.is_system);
+            let app_names = std::mem::take(&mut self.uninstall_confirm_dialog.app_names);
+            self.uninstall_confirm_dialog.reset();
+
+            if let Some(ref device) = self.selected_device {
+                for (i, pkg_name) in pkgs.into_iter().enumerate() {
+                    let is_system = sys_flags.get(i).copied().unwrap_or(false);
+                    let uninstall_result = if is_system {
+                        crate::adb::uninstall_app_user(&pkg_name, device, None)
+                    } else {
+                        crate::adb::uninstall_app(&pkg_name, device)
+                    };
+
+                    match uninstall_result {
+                        Ok(output) => {
+                            log::info!("App uninstalled successfully: {}", output);
+                            if let Some(Some(app_name)) = app_names.get(i) {
+                                self.recently_installed_apps.remove(app_name);
+                            }
+                            self.refresh_pending = true;
+                        }
+                        Err(e) => {
+                            log::error!("Failed to uninstall app({}): {}", pkg_name, e);
+                            has_error = true;
+                        }
+                    }
+                }
+            } else {
+                log::error!("No device selected for uninstall");
+                has_error = true;
+            }
+        }
+
         has_error
     }
 }
