@@ -377,7 +377,7 @@ impl UadShizukuApp {
         
         // Apply saved theme if not default
         if !self.settings.theme_name.is_empty() && self.settings.theme_name != "default" {
-            Self::apply_theme_by_name(&self.settings.theme_name);
+            self.apply_theme_by_name(&self.settings.theme_name);
         }
     }
 
@@ -502,13 +502,13 @@ impl UadShizukuApp {
     }
 
     /// Apply theme by name
-    fn apply_theme_by_name(name: &str) {
+    fn apply_theme_by_name(&self, name: &str) {
         if let Some(theme_data) = Self::get_theme_data_by_name(name) {
             if let Ok(theme_file) = serde_json::from_str::<MaterialThemeFile>(theme_data) {
-                if let Ok(mut global_theme) = get_global_theme().lock() {
+                self.update_theme(|global_theme| {
                     global_theme.material_theme = Some(theme_file);
-                }
-                load_themes();
+                    global_theme.selected_colors.clear();
+                });
             }
         }
     }
@@ -580,6 +580,15 @@ impl UadShizukuApp {
             theme.clone()
         } else {
             MaterialThemeContext::default()
+        }
+    }
+
+    fn update_theme<F>(&self, update_fn: F)
+    where
+        F: FnOnce(&mut MaterialThemeContext),
+    {
+        if let Ok(mut theme) = get_global_theme().lock() {
+            update_fn(&mut *theme);
         }
     }
 
@@ -2038,6 +2047,7 @@ impl UadShizukuApp {
             self.ensure_system_fonts_loaded();
 
             let save_clicked = Cell::new(false);
+            let theme_to_apply = Cell::new(None::<String>);
 
             dialog(
                 "settings_dialog",
@@ -2262,24 +2272,23 @@ impl UadShizukuApp {
                                 .show_ui(ui, |ui| {
                                     if ui.selectable_value(&mut selected_theme, "default".to_string(), "Default").clicked() {
                                         self.settings.theme_name = "default".to_string();
-                                        setup_local_theme(Some("resources/material-theme.json"));
-                                        load_themes();
+                                        theme_to_apply.set(Some("default".to_string()));
                                     }
                                     if ui.selectable_value(&mut selected_theme, "green".to_string(), "Green").clicked() {
                                         self.settings.theme_name = "green".to_string();
-                                        Self::apply_theme_by_name("green");
+                                        theme_to_apply.set(Some("green".to_string()));
                                     }
                                     if ui.selectable_value(&mut selected_theme, "lightblue".to_string(), "Light Blue").clicked() {
                                         self.settings.theme_name = "lightblue".to_string();
-                                        Self::apply_theme_by_name("lightblue");
+                                        theme_to_apply.set(Some("lightblue".to_string()));
                                     }
                                     if ui.selectable_value(&mut selected_theme, "lightpink".to_string(), "Light Pink").clicked() {
                                         self.settings.theme_name = "lightpink".to_string();
-                                        Self::apply_theme_by_name("lightpink");
+                                        theme_to_apply.set(Some("lightpink".to_string()));
                                     }
                                     if ui.selectable_value(&mut selected_theme, "yellow".to_string(), "Yellow").clicked() {
                                         self.settings.theme_name = "yellow".to_string();
-                                        Self::apply_theme_by_name("yellow");
+                                        theme_to_apply.set(Some("yellow".to_string()));
                                     }
                                 });
                         });
@@ -2573,6 +2582,16 @@ impl UadShizukuApp {
             // Handle save after dialog is shown
             if save_clicked.get() {
                 self.save_settings();
+            }
+
+            // Apply theme if one was selected
+            if let Some(theme_name) = theme_to_apply.take() {
+                if theme_name == "default" {
+                    setup_local_theme(Some("resources/material-theme.json"));
+                    load_themes();
+                } else {
+                    self.apply_theme_by_name(&theme_name);
+                }
             }
         }
     }
