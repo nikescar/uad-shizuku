@@ -989,28 +989,6 @@ impl TabScanControl {
                 ui.vertical(|ui| {
                     ui.set_width(150.0);
                     ui.label(tr!("virustotal-filter"));
-
-                    // Show progress using state machine
-                    if let Some(p) = self.vt_scan_state.progress {
-                        let progress_bar = egui::ProgressBar::new(p)
-                            .show_percentage()
-                            .desired_width(100.0)
-                            .animate(true);
-                        ui.horizontal(|ui| {
-                            ui.add(progress_bar).on_hover_text(tr!("scanning-packages"));
-
-                            if ui.button(tr!("stop")).clicked() {
-                                log::info!("Stop Virustotal scan clicked");
-                                self.vt_scan_state.cancel();
-                                if let Ok(mut cancelled) = self.vt_scan_cancelled.lock() {
-                                    *cancelled = true;
-                                }
-                                if let Ok(mut progress) = self.vt_scan_progress.lock() {
-                                    *progress = None;
-                                }
-                            }
-                        });
-                    }
                 });
 
                 let (all, malicious, suspicious, safe, not_scanned) = self.get_vt_counts();
@@ -1094,28 +1072,6 @@ impl TabScanControl {
                 ui.vertical(|ui| {
                     ui.set_width(150.0);
                     ui.label(tr!("hybrid-analysis-filter"));
-
-                    // Show progress using state machine
-                    if let Some(p) = self.ha_scan_state.progress {
-                        let progress_bar = egui::ProgressBar::new(p)
-                            .show_percentage()
-                            .desired_width(100.0)
-                            .animate(true);
-                        ui.horizontal(|ui| {
-                            ui.add(progress_bar).on_hover_text(tr!("scanning-packages"));
-
-                            if ui.button(tr!("stop")).clicked() {
-                                log::info!("Stop Hybrid Analysis scan clicked");
-                                self.ha_scan_state.cancel();
-                                if let Ok(mut cancelled) = self.ha_scan_cancelled.lock() {
-                                    *cancelled = true;
-                                }
-                                if let Ok(mut progress) = self.ha_scan_progress.lock() {
-                                    *progress = None;
-                                }
-                            }
-                        });
-                    }
                 });
 
                 let (all, malicious, suspicious, safe, not_scanned) = self.get_ha_counts();
@@ -1193,40 +1149,15 @@ impl TabScanControl {
                 }
             });
 
-            // IzzyRisk progress bar
-            ui.add_space(5.0);
-            ui.horizontal(|ui| {
-                ui.vertical(|ui| {
-                    if let Some(p) = self.izzyrisk_scan_state.progress {
-                        let progress_bar = egui::ProgressBar::new(p)
-                            .show_percentage()
-                            .desired_width(100.0)
-                            .animate(true);
-                        ui.set_width(150.0);
-                        ui.label(tr!("izzyrisk-calculation"));
-                        ui.horizontal(|ui| {
-                            ui.add(progress_bar).on_hover_text(tr!("calculating-risk-scores"));
 
-                            if ui.button(tr!("stop")).clicked() {
-                                log::info!("Stop IzzyRisk calculation clicked");
-                                self.izzyrisk_scan_state.cancel();
-                                if let Ok(mut cancelled) = self.izzyrisk_scan_cancelled.lock() {
-                                    *cancelled = true;
-                                }
-                                if let Ok(mut progress) = self.izzyrisk_scan_progress.lock() {
-                                    *progress = None;
-                                }
-                            }
-                        });
-                    }
-                });
-            });
         }
 
         if installed_packages.is_empty() {
             ui.label(tr!("no-packages-loaded"));
             return;
         }
+
+        ui.add_space(10.0);
 
         ui.horizontal(|ui| {
             ui.label(tr!("show-only-enabled"));
