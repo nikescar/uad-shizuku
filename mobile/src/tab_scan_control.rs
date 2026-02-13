@@ -1142,7 +1142,7 @@ impl TabScanControl {
 
         ui.add_space(10.0);
 
-        ui.horizontal(|ui| {
+        ui.horizontal_wrapped(|ui| {
             ui.label(tr!("show-only-enabled"));
             toggle_ui(ui, &mut self.show_only_enabled);
             ui.add_space(10.0);

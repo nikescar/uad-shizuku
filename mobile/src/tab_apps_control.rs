@@ -975,7 +975,7 @@ impl TabAppsControl {
         ui.add_space(10.0);
 
         // Show only installable toggle
-        ui.horizontal(|ui| {
+        ui.horizontal_wrapped(|ui| {
             ui.label(tr!("show-only-installable"));
             toggle_ui(ui, &mut self.show_only_installable);
             ui.add_space(10.0);

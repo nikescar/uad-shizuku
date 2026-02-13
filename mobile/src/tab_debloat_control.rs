@@ -719,7 +719,7 @@ impl TabDebloatControl {
         ui.add_space(10.0);
 
         // Show only enabled toggle
-        ui.horizontal(|ui| { 
+        ui.horizontal_wrapped(|ui| { 
             ui.label(tr!("show-only-enabled"));
             toggle_ui(ui, &mut self.show_only_enabled);
             ui.add_space(10.0);
@@ -740,7 +740,7 @@ impl TabDebloatControl {
                 }
             }
             crate::clipboard_popup::show_clipboard_popup(ui, &response, &mut self.text_filter);
-            if !self.text_filter.is_empty() && ui.button("✕").clicked() {
+            if !self.text_filter.is_empty() && ui.button("X").clicked() {
                 self.text_filter.clear();
             }
 
