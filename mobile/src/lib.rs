@@ -157,7 +157,7 @@ fn default_true() -> bool {
 }
 
 fn default_language() -> String {
-    "en-US".to_string()
+    "Auto".to_string()
 }
 
 fn default_font_path() -> String {

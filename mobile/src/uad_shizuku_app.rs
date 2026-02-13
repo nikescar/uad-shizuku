@@ -4,6 +4,7 @@ use std::cell::Cell;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
+use sys_locale::get_locale;
 
 /// Flag to track when "Retry Detection" button is clicked in ADB install dialog
 static ADB_RETRY_REQUESTED: AtomicBool = AtomicBool::new(false);
@@ -381,10 +382,21 @@ impl UadShizukuApp {
         }
     }
 
-    fn apply_saved_language(&self) {
-        if !self.settings.language.is_empty() {
-            egui_i18n::set_language(&self.settings.language);
+    /// Detect system language using sys_locale and map to supported languages
+    fn detect_system_language() -> String {
+        match get_locale().as_deref() {
+            Some("ko_KR") | Some("ko-KR") | Some("ko") => "ko-KR".to_string(),
+            Some("en_US") | Some("en-US") | Some("en_GB") | Some("en-GB") | Some("en") | _ => "en-US".to_string(),
         }
+    }
+
+    fn apply_saved_language(&self) {
+        let language_to_apply = if self.settings.language == "Auto" || self.settings.language.is_empty() {
+            Self::detect_system_language()
+        } else {
+            self.settings.language.clone()
+        };
+        egui_i18n::set_language(&language_to_apply);
     }
 
     fn apply_saved_text_style(&self, ctx: &egui::Context) {
@@ -2163,16 +2175,21 @@ impl UadShizukuApp {
                     // Language Selector
                     ui.horizontal(|ui| {
                         ui.label(tr!("language"));
-                        let current_lang = egui_i18n::get_language();
-                        let mut selected_lang = current_lang.to_string();
+                        let mut selected_lang = self.settings.language.clone();
 
                         egui::ComboBox::from_label("   ")
                             .selected_text(match selected_lang.as_str() {
+                                "Auto" => "Auto",
                                 "en-US" => "English",
                                 "ko-KR" => "Korean",
                                 _ => &selected_lang,
                             })
                             .show_ui(ui, |ui| {
+                                ui.selectable_value(
+                                    &mut selected_lang,
+                                    "Auto".to_string(),
+                                    "Auto",
+                                );
                                 ui.selectable_value(
                                     &mut selected_lang,
                                     "en-US".to_string(),
@@ -2185,9 +2202,15 @@ impl UadShizukuApp {
                                 );
                             });
 
-                        if selected_lang != current_lang {
-                            egui_i18n::set_language(&selected_lang);
-                            self.settings.language = selected_lang;
+                        if selected_lang != self.settings.language {
+                            self.settings.language = selected_lang.clone();
+                            // Apply the language immediately
+                            let language_to_apply = if selected_lang == "Auto" {
+                                Self::detect_system_language()
+                            } else {
+                                selected_lang
+                            };
+                            egui_i18n::set_language(&language_to_apply);
                         }
                     
                         ui.add_space(8.0);

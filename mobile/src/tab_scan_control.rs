@@ -321,6 +321,14 @@ impl TabScanControl {
         let store = get_shared_store();
         let device_serial = self.device_serial.clone();
         let installed_packages = store.get_installed_packages();
+        
+        // Don't start calculation if no device is selected or no packages exist
+        if device_serial.is_none() || installed_packages.is_empty() {
+            log::debug!("Skipping IzzyRisk calculation: device_serial={:?}, packages_count={}", 
+                device_serial, installed_packages.len());
+            return;
+        }
+        
         let shared_scores = self.shared_package_risk_scores.clone();
         let progress_clone = self.izzyrisk_scan_progress.clone();
         let cancelled_clone = self.izzyrisk_scan_cancelled.clone();
