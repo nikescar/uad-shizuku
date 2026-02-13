@@ -697,15 +697,49 @@ impl UadShizukuApp {
         ctx.set_visuals(visuals);
     }
 
+    /// Sync scan progress from background threads to state machines
+    /// This must be called before rendering progress bars to ensure they hide immediately
+    fn sync_scan_progress(&mut self) {
+        // Sync VirusTotal progress
+        if let Ok(progress) = self.tab_scan_control.vt_scan_progress.lock() {
+            if let Some(p) = *progress {
+                self.tab_scan_control.vt_scan_state.update_progress(p);
+            } else if self.tab_scan_control.vt_scan_state.is_running {
+                self.tab_scan_control.vt_scan_state.complete();
+            }
+        }
+        // Sync Hybrid Analysis progress
+        if let Ok(progress) = self.tab_scan_control.ha_scan_progress.lock() {
+            if let Some(p) = *progress {
+                self.tab_scan_control.ha_scan_state.update_progress(p);
+            } else if self.tab_scan_control.ha_scan_state.is_running {
+                self.tab_scan_control.ha_scan_state.complete();
+            }
+        }
+        // Sync IzzyRisk progress
+        if let Ok(progress) = self.tab_scan_control.izzyrisk_scan_progress.lock() {
+            if let Some(p) = *progress {
+                self.tab_scan_control.izzyrisk_scan_state.update_progress(p);
+            } else if self.tab_scan_control.izzyrisk_scan_state.is_running {
+                self.tab_scan_control.izzyrisk_scan_state.complete();
+            }
+        }
+    }
+
     pub fn ui(&mut self, ui: &mut egui::Ui) {
+        let available_width = ui.ctx().screen_rect().width();
+        let is_desktop = available_width >= crate::DESKTOP_MIN_WIDTH;
         // Apply theme at the start of UI rendering
         self.apply_theme(ui.ctx());
         
         // Apply saved text style
         self.apply_saved_text_style(ui.ctx());
+        
+        // Sync scan progress states before rendering progress bars
+        self.sync_scan_progress();
 
         // === top app bar area start
-        ui.horizontal(|ui| {
+        ui.with_layout(egui::Layout::left_to_right(egui::Align::Min), |ui| {
             let items_button = ui.add(MaterialButton::filled("☰"));
             self.items_button_rect = Some(items_button.rect);
             if items_button.clicked() {
@@ -714,244 +748,258 @@ impl UadShizukuApp {
                 // ui.ctx().request_repaint(); // Repaint when menu state changes
             }
             self.show_menus(ui.ctx());
+            ui.horizontal(|ui| {
+                egui::ScrollArea::horizontal()
+                    .id_salt(format!("top_app_bar_area"))
+                    .auto_shrink([false, false])
+                    .show(ui, |ui| {
+                        ui.vertical(|ui| {
+                            ui.heading(tr!("app-title"));
+                            if is_desktop {
+                                ui.label(tr!("app-description"));
+                            }
+                        });
 
-            ui.vertical(|ui| {
-                ui.heading(tr!("app-title"));
-                ui.label(tr!("app-description"));
-            });
+                        {
+                            ui.label(tr!("devices"));
+                            let selected_text = self
+                                .selected_device
+                                .clone()
+                                .unwrap_or_else(|| tr!("select-device"));
 
-            {
-                ui.label(tr!("devices"));
-                let selected_text = self
-                    .selected_device
-                    .clone()
-                    .unwrap_or_else(|| tr!("select-device"));
+                            let combo_response = egui::ComboBox::from_label("   ")
+                                .selected_text(selected_text)
+                                .show_ui(ui, |ui| {
+                                    for (_i, device) in self.adb_devices.iter().enumerate() {
+                                        ui.selectable_value(
+                                            &mut self.selected_device,
+                                            Some(device.clone()),
+                                            device,
+                                        );
+                                    }
+                                });
 
-                let combo_response = egui::ComboBox::from_label("")
-                    .selected_text(selected_text)
-                    .show_ui(ui, |ui| {
-                        for (_i, device) in self.adb_devices.iter().enumerate() {
-                            ui.selectable_value(
-                                &mut self.selected_device,
-                                Some(device.clone()),
-                                device,
-                            );
+                            if self.adb_devices.is_empty() && combo_response.response.clicked() {
+                                self.retrieve_adb_devices();
+                            }
+
+                            // Update users list when device selection changes
+                            if self.selected_device != self.current_device {
+                                log::debug!("device selection changed to {:?}", self.selected_device);
+                                self.current_device = self.selected_device.clone();
+                                self.retrieve_adb_users();
+                                // Reset user selection when device changes
+                                self.selected_user = None;
+                                self.current_user = None;
+                                self.retrieve_installed_packages();
+                            }
+
+                            // User selection ComboBox
+                            ui.label(tr!("users"));
+                            let user_selected_text = if let Some(user_id) = self.selected_user {
+                                if let Some(user_info) = self.adb_users.iter().find(|u| u.user_id == user_id) {
+                                    format!("User {} ({})", user_id, user_info.name)
+                                } else {
+                                    format!("User {}", user_id)
+                                }
+                            } else {
+                                tr!("all-users")
+                            };
+
+                            egui::ComboBox::from_label(" ")
+                                .selected_text(user_selected_text)
+                                .show_ui(ui, |ui| {
+                                    // Add "All Users" option
+                                    ui.selectable_value(&mut self.selected_user, None, tr!("all-users"));
+
+                                    // Add individual users
+                                    for user in &self.adb_users {
+                                        let label = format!("User {} ({})", user.user_id, user.name);
+                                        ui.selectable_value(&mut self.selected_user, Some(user.user_id), label);
+                                    }
+                                });
+
+                            // Retrieve installed packages when user selection changes
+                            if self.selected_user != self.current_user {
+                                log::debug!("user selection changed to {:?}", self.selected_user);
+                                self.current_user = self.selected_user;
+                                self.retrieve_installed_packages();
+                            }
+
+                            // Update device list on button click
+                            let refresh_button = egui::Button::new(ICON_REFRESH.to_string())
+                                .min_size(egui::vec2(20.0, 20.0));
+                            if ui.add(refresh_button).on_hover_text(tr!("refresh-list")).clicked() {
+                                self.retrieve_adb_devices();
+                            }
                         }
                     });
-
-                if self.adb_devices.is_empty() && combo_response.response.clicked() {
-                    self.retrieve_adb_devices();
-                }
-
-                // Update users list when device selection changes
-                if self.selected_device != self.current_device {
-                    log::debug!("device selection changed to {:?}", self.selected_device);
-                    self.current_device = self.selected_device.clone();
-                    self.retrieve_adb_users();
-                    // Reset user selection when device changes
-                    self.selected_user = None;
-                    self.current_user = None;
-                    self.retrieve_installed_packages();
-                }
-
-                // User selection ComboBox
-                ui.label(tr!("users"));
-                let user_selected_text = if let Some(user_id) = self.selected_user {
-                    if let Some(user_info) = self.adb_users.iter().find(|u| u.user_id == user_id) {
-                        format!("User {} ({})", user_id, user_info.name)
-                    } else {
-                        format!("User {}", user_id)
-                    }
-                } else {
-                    tr!("all-users")
-                };
-
-                egui::ComboBox::from_label(" ")
-                    .selected_text(user_selected_text)
-                    .show_ui(ui, |ui| {
-                        // Add "All Users" option
-                        ui.selectable_value(&mut self.selected_user, None, tr!("all-users"));
-
-                        // Add individual users
-                        for user in &self.adb_users {
-                            let label = format!("User {} ({})", user.user_id, user.name);
-                            ui.selectable_value(&mut self.selected_user, Some(user.user_id), label);
-                        }
-                    });
-
-                // Retrieve installed packages when user selection changes
-                if self.selected_user != self.current_user {
-                    log::debug!("user selection changed to {:?}", self.selected_user);
-                    self.current_user = self.selected_user;
-                    self.retrieve_installed_packages();
-                }
-
-                // Update device list on button click
-                if ui.add(icon_button_standard(ICON_REFRESH.to_string())).on_hover_text(tr!("refresh-list")).clicked() {
-                    self.retrieve_adb_devices();
-                }
-
-                // Show progress bar if packages are loading
-                let debloat_progress_value =
-                    if let Ok(debloat_progress) = self.package_load_progress.lock() {
-                        *debloat_progress
-                    } else {
-                        None
-                    };
-
-                if let Some(p) = debloat_progress_value {
-                    let debloat_progress_bar = egui::ProgressBar::new(p)
-                        .show_percentage()
-                        .desired_width(100.0)
-                        .animate(true);
-                    ui.add(debloat_progress_bar)
-                        .on_hover_text(tr!("loading-packages"));
-                }
-            }
+                });
         });
         // === top app bar area end
 
         // === notification render progress area start
         ui.horizontal(|ui| {
-            // Google Play renderer progress
-            if self.google_play_renderer.is_enabled {
-                if let Some(queue) = &self.google_play_queue {
-                    let pending = queue.queue_size();
-                    let completed = queue.completed_count();
-                    if pending > 0 {
-                        let total = pending + completed;
-                        let progress = completed as f32 / total as f32;
-                        let progress_bar = egui::ProgressBar::new(progress)
+            egui::ScrollArea::horizontal()
+            .id_salt(format!("notification_render_progress_area"))
+            .auto_shrink([false, false])
+            .show(ui, |ui| {
+                    // Package loading progress
+                    let debloat_progress_value =
+                        if let Ok(debloat_progress) = self.package_load_progress.lock() {
+                            *debloat_progress
+                        } else {
+                            None
+                        };
+
+                    if let Some(p) = debloat_progress_value {
+                        let progress_bar = egui::ProgressBar::new(p)
                             .show_percentage()
                             .desired_width(100.0)
                             .animate(true);
-                        ui.label(tr!("rendering-google-play"));
-                        ui.add(progress_bar)
-                            .on_hover_text(tr!("google-play-renderer"));
-                        if ui.button(tr!("stop")).clicked() {
-                            log::info!("Stop Google Play renderer clicked");
-                            queue.clear_queue();
+                        ui.label(tr!("loading-packages"));
+                        ui.add(progress_bar).on_hover_text(tr!("loading-packages"));
+                    }
+
+                    // Google Play renderer progress
+                    if self.google_play_renderer.is_enabled {
+                        if let Some(queue) = &self.google_play_queue {
+                            let pending = queue.queue_size();
+                            let completed = queue.completed_count();
+                            if pending > 0 {
+                                let total = pending + completed;
+                                let progress = completed as f32 / total as f32;
+                                let progress_bar = egui::ProgressBar::new(progress)
+                                    .show_percentage()
+                                    .desired_width(100.0)
+                                    .animate(true);
+                                ui.label(tr!("rendering-google-play"));
+                                ui.add(progress_bar)
+                                    .on_hover_text(tr!("google-play-renderer"));
+                                if ui.button(tr!("stop")).clicked() {
+                                    log::info!("Stop Google Play renderer clicked");
+                                    queue.clear_queue();
+                                }
+                            }
                         }
                     }
-                }
-            }
 
-            // F-Droid renderer progress
-            if self.fdroid_renderer.is_enabled {
-                if let Some(queue) = &self.fdroid_queue {
-                    let pending = queue.queue_size();
-                    let completed = queue.completed_count();
-                    if pending > 0 {
-                        let total = pending + completed;
-                        let progress = completed as f32 / total as f32;
-                        let progress_bar = egui::ProgressBar::new(progress)
+                    // F-Droid renderer progress
+                    if self.fdroid_renderer.is_enabled {
+                        if let Some(queue) = &self.fdroid_queue {
+                            let pending = queue.queue_size();
+                            let completed = queue.completed_count();
+                            if pending > 0 {
+                                let total = pending + completed;
+                                let progress = completed as f32 / total as f32;
+                                let progress_bar = egui::ProgressBar::new(progress)
+                                    .show_percentage()
+                                    .desired_width(100.0)
+                                    .animate(true);
+                                ui.label(tr!("rendering-fdroid"));
+                                ui.add(progress_bar)
+                                    .on_hover_text(tr!("fdroid-renderer"));
+                                if ui.button(tr!("stop")).clicked() {
+                                    log::info!("Stop F-Droid renderer clicked");
+                                    queue.clear_queue();
+                                }
+                            }
+                        }
+                    }
+
+                    // APKMirror renderer progress
+                    if self.apkmirror_renderer.is_enabled {
+                        if let Some(queue) = &self.apkmirror_queue {
+                            let pending = queue.queue_size();
+                            let completed = queue.completed_count();
+                            if pending > 0 {
+                                let total = pending + completed;
+                                let progress = completed as f32 / total as f32;
+                                let progress_bar = egui::ProgressBar::new(progress)
+                                    .show_percentage()
+                                    .desired_width(100.0)
+                                    .animate(true);
+                                ui.label(tr!("rendering-apkmirror"));
+                                ui.add(progress_bar)
+                                    .on_hover_text(tr!("apkmirror-renderer"));
+                                if ui.button(tr!("stop")).clicked() {
+                                    log::info!("Stop APKMirror renderer clicked");
+                                    queue.clear_queue();
+                                }
+                            }
+                        }
+                    }
+
+                    // VirusTotal scan progress
+                    if let Some(p) = self.tab_scan_control.vt_scan_state.progress {
+                        let progress_bar = egui::ProgressBar::new(p)
                             .show_percentage()
                             .desired_width(100.0)
                             .animate(true);
-                        ui.label(tr!("rendering-fdroid"));
-                        ui.add(progress_bar)
-                            .on_hover_text(tr!("fdroid-renderer"));
-                        if ui.button(tr!("stop")).clicked() {
-                            log::info!("Stop F-Droid renderer clicked");
-                            queue.clear_queue();
-                        }
-                    }
-                }
-            }
+                        ui.label(tr!("virustotal-filter"));
+                        ui.horizontal(|ui| {
+                            ui.add(progress_bar).on_hover_text(tr!("scanning-packages"));
 
-            // APKMirror renderer progress
-            if self.apkmirror_renderer.is_enabled {
-                if let Some(queue) = &self.apkmirror_queue {
-                    let pending = queue.queue_size();
-                    let completed = queue.completed_count();
-                    if pending > 0 {
-                        let total = pending + completed;
-                        let progress = completed as f32 / total as f32;
-                        let progress_bar = egui::ProgressBar::new(progress)
+                            if ui.button(tr!("stop")).clicked() {
+                                log::info!("Stop Virustotal scan clicked");
+                                self.tab_scan_control.vt_scan_state.cancel();
+                                if let Ok(mut cancelled) = self.tab_scan_control.vt_scan_cancelled.lock() {
+                                    *cancelled = true;
+                                }
+                                if let Ok(mut progress) = self.tab_scan_control.vt_scan_progress.lock() {
+                                    *progress = None;
+                                }
+                            }
+                        });
+                    }
+
+                    // Hybrid Analysis scan progress
+                    if let Some(p) = self.tab_scan_control.ha_scan_state.progress {
+                        let progress_bar = egui::ProgressBar::new(p)
                             .show_percentage()
                             .desired_width(100.0)
                             .animate(true);
-                        ui.label(tr!("rendering-apkmirror"));
-                        ui.add(progress_bar)
-                            .on_hover_text(tr!("apkmirror-renderer"));
-                        if ui.button(tr!("stop")).clicked() {
-                            log::info!("Stop APKMirror renderer clicked");
-                            queue.clear_queue();
-                        }
-                    }
-                }
-            }
+                        ui.label(tr!("hybrid-analysis-filter"));
+                        ui.horizontal(|ui| {
+                            ui.add(progress_bar).on_hover_text(tr!("scanning-packages"));
 
-            // VirusTotal scan progress
-            if let Some(p) = self.tab_scan_control.vt_scan_state.progress {
-                let progress_bar = egui::ProgressBar::new(p)
-                    .show_percentage()
-                    .desired_width(100.0)
-                    .animate(true);
-                ui.label(tr!("virustotal-filter"));
-                ui.horizontal(|ui| {
-                    ui.add(progress_bar).on_hover_text(tr!("scanning-packages"));
-
-                    if ui.button(tr!("stop")).clicked() {
-                        log::info!("Stop Virustotal scan clicked");
-                        self.tab_scan_control.vt_scan_state.cancel();
-                        if let Ok(mut cancelled) = self.tab_scan_control.vt_scan_cancelled.lock() {
-                            *cancelled = true;
-                        }
-                        if let Ok(mut progress) = self.tab_scan_control.vt_scan_progress.lock() {
-                            *progress = None;
-                        }
+                            if ui.button(tr!("stop")).clicked() {
+                                log::info!("Stop Hybrid Analysis scan clicked");
+                                self.tab_scan_control.ha_scan_state.cancel();
+                                if let Ok(mut cancelled) = self.tab_scan_control.ha_scan_cancelled.lock() {
+                                    *cancelled = true;
+                                }
+                                if let Ok(mut progress) = self.tab_scan_control.ha_scan_progress.lock() {
+                                    *progress = None;
+                                }
+                            }
+                        });
                     }
+
+                    // IzzyRisk calculation progress
+                    if let Some(p) = self.tab_scan_control.izzyrisk_scan_state.progress {
+                        let progress_bar = egui::ProgressBar::new(p)
+                            .show_percentage()
+                            .desired_width(100.0)
+                            .animate(true);
+                        ui.label(tr!("izzyrisk-calculation"));
+                        ui.horizontal(|ui| {
+                            ui.add(progress_bar).on_hover_text(tr!("calculating-risk-scores"));
+
+                            if ui.button(tr!("stop")).clicked() {
+                                log::info!("Stop IzzyRisk calculation clicked");
+                                self.tab_scan_control.izzyrisk_scan_state.cancel();
+                                if let Ok(mut cancelled) = self.tab_scan_control.izzyrisk_scan_cancelled.lock() {
+                                    *cancelled = true;
+                                }
+                                if let Ok(mut progress) = self.tab_scan_control.izzyrisk_scan_progress.lock() {
+                                    *progress = None;
+                                }
+                            }
+                        });
+                    }
+
                 });
-            }
-
-            // Hybrid Analysis scan progress
-            if let Some(p) = self.tab_scan_control.ha_scan_state.progress {
-                let progress_bar = egui::ProgressBar::new(p)
-                    .show_percentage()
-                    .desired_width(100.0)
-                    .animate(true);
-                ui.label(tr!("hybrid-analysis-filter"));
-                ui.horizontal(|ui| {
-                    ui.add(progress_bar).on_hover_text(tr!("scanning-packages"));
-
-                    if ui.button(tr!("stop")).clicked() {
-                        log::info!("Stop Hybrid Analysis scan clicked");
-                        self.tab_scan_control.ha_scan_state.cancel();
-                        if let Ok(mut cancelled) = self.tab_scan_control.ha_scan_cancelled.lock() {
-                            *cancelled = true;
-                        }
-                        if let Ok(mut progress) = self.tab_scan_control.ha_scan_progress.lock() {
-                            *progress = None;
-                        }
-                    }
-                });
-            }
-
-            // IzzyRisk calculation progress
-            if let Some(p) = self.tab_scan_control.izzyrisk_scan_state.progress {
-                let progress_bar = egui::ProgressBar::new(p)
-                    .show_percentage()
-                    .desired_width(100.0)
-                    .animate(true);
-                ui.label(tr!("izzyrisk-calculation"));
-                ui.horizontal(|ui| {
-                    ui.add(progress_bar).on_hover_text(tr!("calculating-risk-scores"));
-
-                    if ui.button(tr!("stop")).clicked() {
-                        log::info!("Stop IzzyRisk calculation clicked");
-                        self.tab_scan_control.izzyrisk_scan_state.cancel();
-                        if let Ok(mut cancelled) = self.tab_scan_control.izzyrisk_scan_cancelled.lock() {
-                            *cancelled = true;
-                        }
-                        if let Ok(mut progress) = self.tab_scan_control.izzyrisk_scan_progress.lock() {
-                            *progress = None;
-                        }
-                    }
-                });
-            }
-
-            
         });
         // === notification render progress area end
 
@@ -1252,16 +1300,18 @@ impl UadShizukuApp {
     }
 
     fn render_custom_tabs(&mut self, ui: &mut egui::Ui) {
-        // Custom themed tabs
+        // Custom themed tabs — compact when content is scrolled down
         let _previous_tab = self.custom_selected;
-        ui.add(
-            tabs_primary(&mut self.custom_selected)
-                .id_salt("custom_primary")
-                .tab(tr!("debloat"))
-                .tab(tr!("scan"))
-                .tab(tr!("apps")),
-                //.tab(tr!("usage")),
-        );
+        let mut tabs = tabs_primary(&mut self.custom_selected)
+            .id_salt("custom_primary")
+            .tab(tr!("debloat"))
+            .tab(tr!("scan"))
+            .tab(tr!("apps"));
+            //.tab(tr!("usage"));
+        if self.is_scrolled {
+            tabs = tabs.height(24.0);
+        }
+        ui.add(tabs);
 
         // Enhanced content with custom styling
         ui.add_space(10.0);
@@ -1276,12 +1326,13 @@ impl UadShizukuApp {
 
                 ui.add_space(8.0);
 
-                egui::ScrollArea::both()
+                let scroll_output = egui::ScrollArea::both()
                     .id_salt("debloat_scroll")
                     .max_height(max_height)
                     .show(ui, |ui| {
                         self.render_debloat_tab(ui);
                     });
+                self.is_scrolled = scroll_output.state.offset.y > 0.0;
             }
             1 => {
                 ui.horizontal(|ui| {
@@ -1295,36 +1346,39 @@ impl UadShizukuApp {
                 });
                 ui.add_space(8.0);
 
-                egui::ScrollArea::both()
+                let scroll_output = egui::ScrollArea::both()
                     .id_salt("scan_scroll")
                     .max_height(max_height)
                     .show(ui, |ui| {
                         self.render_scan_tab(ui);
                     });
+                self.is_scrolled = scroll_output.state.offset.y > 0.0;
             }
             2 => {
                 // ui.colored_label(egui::Color32::from_rgb(103, 80, 164), "Apps");
                 ui.label(tr!("apps-description"));
                 ui.add_space(8.0);
 
-                egui::ScrollArea::both()
+                let scroll_output = egui::ScrollArea::both()
                     .id_salt("apps_scroll")
                     .max_height(max_height)
                     .show(ui, |ui| {
                         self.render_apps_tab(ui);
                     });
+                self.is_scrolled = scroll_output.state.offset.y > 0.0;
             }
             3 => {
                 // ui.colored_label(egui::Color32::from_rgb(103, 80, 164), "Usage");
                 ui.label(tr!("usage-description"));
                 ui.add_space(8.0);
 
-                egui::ScrollArea::both()
+                let scroll_output = egui::ScrollArea::both()
                     .id_salt("usage_scroll")
                     .max_height(max_height)
                     .show(ui, |ui| {
                         self.render_usage_tab(ui);
                     });
+                self.is_scrolled = scroll_output.state.offset.y > 0.0;
             }
             _ => {
                 ui.colored_label(egui::Color32::from_rgb(103, 80, 164), "");
@@ -2797,90 +2851,95 @@ impl UadShizukuApp {
 
                     ui.add_space(8.0);
 
-                    #[cfg(target_os = "android")]
-                    {
-                        ui.label("Detected platform: Android");
-                        ui.add_space(8.0);
-                        ui.label("Shizuku is required to provide ADB functionality on Android devices.");
-                        ui.add_space(16.0);
+                    egui::ScrollArea::horizontal()
+                        .id_salt("adb_install_dialog_scroll")
+                        .auto_shrink([false, false])
+                        .show(ui, |ui| {
+                        #[cfg(target_os = "android")]
+                        {
+                            ui.label("Detected platform: Android");
+                            ui.add_space(8.0);
+                            ui.label("Shizuku is required to provide ADB functionality on Android devices.");
+                            ui.add_space(16.0);
 
-                        ui.label("Please follow these steps:");
-                        ui.add_space(8.0);
-                        
-                        ui.label("1. Install Shizuku app from Google Play:");
-                        ui.add_space(4.0);
-                        
-                        ui.horizontal(|ui| {
-                            if ui.button("Open Google Play Store").clicked() {
-                                if let Err(e) = webbrowser::open("https://play.google.com/store/apps/details?id=moe.shizuku.privileged.api") {
-                                    log::error!("Failed to open Google Play Store URL: {}", e);
+                            ui.label("Please follow these steps:");
+                            ui.add_space(8.0);
+
+                            ui.label("1. Install Shizuku app from Google Play:");
+                            ui.add_space(4.0);
+
+                            ui.horizontal(|ui| {
+                                if ui.button("Open Google Play Store").clicked() {
+                                    if let Err(e) = webbrowser::open("https://play.google.com/store/apps/details?id=moe.shizuku.privileged.api") {
+                                        log::error!("Failed to open Google Play Store URL: {}", e);
+                                    }
                                 }
-                            }
-                        });
-                        
-                        ui.add_space(8.0);
-                        ui.label("2. Enable Developer Mode (Settings > About > tap Build number 7 times)");
-                        ui.add_space(4.0);
-                        ui.label("3. Enable Wireless Debugging (Settings > Developer options)");
-                        ui.add_space(4.0);
-                        ui.label("4. Open Shizuku app and start the service");
-                        ui.add_space(4.0);
-                        ui.label("5. Return to UAD-Shizuku and tap 'Retry Detection'");
-                        ui.add_space(16.0);
+                            });
 
-                        ui.label("For detailed instructions:");
-                        ui.add_space(8.0);
-                        
-                        ui.horizontal(|ui| {
-                            if ui.button("Installation Guide (English)").clicked() {
-                                if let Err(e) = webbrowser::open("https://uad-shizuku.pages.dev/docs/installation") {
-                                    log::error!("Failed to open installation guide URL: {}", e);
+                            ui.add_space(8.0);
+                            ui.label("2. Enable Developer Mode (Settings > About > tap Build number 7 times)");
+                            ui.add_space(4.0);
+                            ui.label("3. Enable Wireless Debugging (Settings > Developer options)");
+                            ui.add_space(4.0);
+                            ui.label("4. Open Shizuku app and start the service");
+                            ui.add_space(4.0);
+                            ui.label("5. Return to UAD-Shizuku and tap 'Retry Detection'");
+                            ui.add_space(16.0);
+
+                            ui.label("For detailed instructions:");
+                            ui.add_space(8.0);
+
+                            ui.horizontal(|ui| {
+                                if ui.button("Installation Guide (English)").clicked() {
+                                    if let Err(e) = webbrowser::open("https://uad-shizuku.pages.dev/docs/installation") {
+                                        log::error!("Failed to open installation guide URL: {}", e);
+                                    }
                                 }
-                            }
-                        });
+                            });
 
-                        ui.horizontal(|ui| {
-                            if ui.button("설치 가이드 (한국어)").clicked() {
-                                if let Err(e) = webbrowser::open("https://uad-shizuku.pages.dev/docs/kr/docs/installation") {
-                                    log::error!("Failed to open Korean installation guide URL: {}", e);
+                            ui.horizontal(|ui| {
+                                if ui.button("설치 가이드 (한국어)").clicked() {
+                                    if let Err(e) = webbrowser::open("https://uad-shizuku.pages.dev/docs/kr/docs/installation") {
+                                        log::error!("Failed to open Korean installation guide URL: {}", e);
+                                    }
                                 }
-                            }
-                        });
-                    }
+                            });
+                        }
 
-                    #[cfg(not(target_os = "android"))]
-                    {
-                        let platform_name = match os {
-                            "windows" => "Windows",
-                            "macos" => "macOS",
-                            "linux" => "Linux",
-                            _ => os,
-                        };
+                        #[cfg(not(target_os = "android"))]
+                        {
+                            let platform_name = match os {
+                                "windows" => "Windows",
+                                "macos" => "macOS",
+                                "linux" => "Linux",
+                                _ => os,
+                            };
 
-                        ui.label(format!("Detected platform: {}", platform_name));
-                        ui.add_space(8.0);
-                        ui.label("ADB (Android Debug Bridge) is required but not found in your system PATH.");
-                        ui.add_space(16.0);
+                            ui.label(format!("Detected platform: {}", platform_name));
+                            ui.add_space(8.0);
+                            ui.label("ADB (Android Debug Bridge) is required but not found in your system PATH.");
+                            ui.add_space(16.0);
 
-                        ui.label("Please follow the installation guide to install ADB:");
-                        ui.add_space(8.0);
+                            ui.label("Please follow the installation guide to install ADB:");
+                            ui.add_space(8.0);
 
-                        ui.horizontal(|ui| {
-                            if ui.button("Installation Guide (English)").clicked() {
-                                if let Err(e) = webbrowser::open("https://uad-shizuku.pages.dev/docs/installation") {
-                                    log::error!("Failed to open installation guide URL: {}", e);
+                            ui.horizontal(|ui| {
+                                if ui.button("Installation Guide (English)").clicked() {
+                                    if let Err(e) = webbrowser::open("https://uad-shizuku.pages.dev/docs/installation") {
+                                        log::error!("Failed to open installation guide URL: {}", e);
+                                    }
                                 }
-                            }
-                        });
+                            });
 
-                        ui.horizontal(|ui| {
-                            if ui.button("설치 가이드 (한국어)").clicked() {
-                                if let Err(e) = webbrowser::open("https://uad-shizuku.pages.dev/docs/kr/docs/installation") {
-                                    log::error!("Failed to open Korean installation guide URL: {}", e);
+                            ui.horizontal(|ui| {
+                                if ui.button("설치 가이드 (한국어)").clicked() {
+                                    if let Err(e) = webbrowser::open("https://uad-shizuku.pages.dev/docs/kr/docs/installation") {
+                                        log::error!("Failed to open Korean installation guide URL: {}", e);
+                                    }
                                 }
-                            }
-                        });
-                    }
+                            });
+                        }
+                    });
 
                     ui.add_space(16.0);
                 });
@@ -2951,7 +3010,8 @@ impl UadShizukuApp {
         if self.update_dialog_open {
             let update_title = tr!("update-available-title");
             let do_update = Cell::new(false);
-            let do_cancel = Cell::new(false);
+            #[cfg(target_os = "android")]
+            let download_url = self.update_download_url.clone();
 
             dialog("update_dialog", &update_title, &mut self.update_dialog_open)
                 .content(|ui| {
@@ -2965,76 +3025,66 @@ impl UadShizukuApp {
 
                         ui.add_space(8.0);
 
-                        // Show version info
-                        ui.label(format!(
-                            "{} {} → {}",
-                            tr!("update-available-message"),
-                            self.update_current_version,
-                            self.update_latest_version
-                        ));
-
-                        ui.add_space(12.0);
-
-                        // Show release notes if available
-                        if !self.update_release_notes.is_empty() {
-                            ui.label(tr!("release-notes"));
-                            ui.add_space(4.0);
-
-                            egui::ScrollArea::vertical()
-                                .max_height(200.0)
-                                .show(ui, |ui| {
-                                    ui.label(&self.update_release_notes);
-                                });
+                        egui::ScrollArea::horizontal()
+                            .id_salt("update_dialog_scroll")
+                            .auto_shrink([false, false])
+                            .show(ui, |ui| {
+                            // Show version info
+                            ui.label(format!(
+                                "{} {} → {}",
+                                tr!("update-available-message"),
+                                self.update_current_version,
+                                self.update_latest_version
+                            ));
 
                             ui.add_space(12.0);
-                        }
 
-                        // Platform-specific instructions
-                        #[cfg(target_os = "android")]
-                        {
-                            ui.label(tr!("update-android-instruction"));
-                        }
+                            // Show release notes if available
+                            if !self.update_release_notes.is_empty() {
+                                ui.label(tr!("release-notes"));
+                                ui.add_space(4.0);
 
-                        #[cfg(not(target_os = "android"))]
-                        {
-                            ui.label(tr!("update-desktop-instruction"));
-                        }
+                                egui::ScrollArea::vertical()
+                                    .max_height(200.0)
+                                    .show(ui, |ui| {
+                                        ui.label(&self.update_release_notes);
+                                    });
 
-                        ui.add_space(16.0);
-
-                        // Action buttons
-                        ui.horizontal(|ui| {
-                            #[cfg(not(target_os = "android"))]
-                            {
-                                if ui.button(tr!("update-now")).clicked() {
-                                    do_update.set(true);
-                                }
+                                ui.add_space(12.0);
                             }
-                            
+
+                            // Platform-specific instructions
                             #[cfg(target_os = "android")]
                             {
-                                if ui.button("Download from GitHub").clicked() {
-                                    if !self.update_download_url.is_empty() {
-                                        if let Err(e) = webbrowser::open(&self.update_download_url) {
-                                            log::error!("Failed to open download URL: {}", e);
-                                        }
-                                    }
-                                }
+                                ui.label(tr!("update-android-instruction"));
                             }
-                            
-                            if ui.button(tr!("cancel")).clicked() {
-                                do_cancel.set(true);
+
+                            #[cfg(not(target_os = "android"))]
+                            {
+                                ui.label(tr!("update-desktop-instruction"));
                             }
                         });
                     });
                 })
+                .action(tr!("cancel"), || {})
+                .primary_action(tr!("update-now"), || {
+                    do_update.set(true);
+                })
                 .show(ctx);
 
             if do_update.get() {
-                self.perform_update();
-            }
-            if do_cancel.get() {
-                self.update_dialog_open = false;
+                #[cfg(not(target_os = "android"))]
+                {
+                    self.perform_update();
+                }
+                #[cfg(target_os = "android")]
+                {
+                    if !download_url.is_empty() {
+                        if let Err(e) = webbrowser::open(&download_url) {
+                            log::error!("Failed to open download URL: {}", e);
+                        }
+                    }
+                }
             }
         }
     }
@@ -3066,157 +3116,162 @@ impl UadShizukuApp {
 
                         ui.add_space(8.0);
 
-                        // App name and version
-                        ui.heading("UAD-Shizuku");
-                        ui.horizontal(|ui| {
-                            ui.label(format!("Version: {}", version));
-
-                            ui.add_space(8.0);
-
-                            if update_checking {
-                                ui.spinner();
-                                ui.label(tr!("checking-update"));
-                            } else if update_available {
-                                ui.label(&update_status);
-                                if ui.button(tr!("update-now")).clicked() {
-                                    do_perform_update.set(true);
-                                }
-                            } else if !update_status.is_empty() {
-                                ui.label(&update_status);
-                            } else if ui.button(tr!("check-update")).clicked() {
-                                do_check_update.set(true);
-                            }
-                        });
-
-                        ui.add_space(12.0);
-
-                        // Description
-                        ui.label(&description);
-
-                        ui.add_space(12.0);
-
-                        // Website
-                        ui.horizontal(|ui| {
-                            ui.label(format!("{}: ", website_label));
-                            if ui.button("https://uad-shizuku.pages.dev").clicked() {
-                                if let Err(e) = webbrowser::open("https://uad-shizuku.pages.dev") {
-                                    log::error!("Failed to open website URL: {}", e);
-                                }
-                            }
-                        });
-
-                        ui.add_space(12.0);
-
-                        // Credits section
-                        ui.label(egui::RichText::new(&credits_label).strong());
-                        ui.add_space(4.0);
-
-                        egui::ScrollArea::vertical()
-                            .max_height(400.0)
+                        egui::ScrollArea::horizontal()
+                            .id_salt("about_dialog_scroll")
+                            .auto_shrink([false, false])
                             .show(ui, |ui| {
-                                ui.set_width(dialog_width - 40.0);
-                                
-                                ui.heading("Reference Projects");
-                                ui.add_space(4.0);
-                                ui.label("• Universal Android Debloater Next Generation");
-                                ui.label("  Cross-platform GUI written in Rust using ADB to debloat non-rooted Android devices.");
-                                ui.label("  License: GPL-3.0");
-                                ui.add_space(2.0);
-                                ui.label("• bevy_game_template");
-                                ui.label("  Template for Bevy game projects");
-                                ui.label("  License: MIT/Apache-2.0");
-                                ui.add_space(2.0);
-                                ui.label("• chatGPTBox");
-                                ui.label("  ChatGPT browser extension");
-                                ui.label("  License: MIT");
-                                ui.add_space(2.0);
-                                ui.label("• android-activity");
-                                ui.label("  Android activity glue crate");
-                                ui.label("  License: MIT/Apache-2.0");
-                                ui.add_space(2.0);
-                                ui.label("• ai-rules");
-                                ui.label("  AI rules configuration");
-                                ui.label("  License: Apache-2.0");
-                                ui.add_space(2.0);
-                                ui.label("• aShell");
-                                ui.label("  A local ADB shell for Shizuku powered Android devices");
-                                ui.label("  License: GPL-3.0");
+                            // App name and version
+                            ui.heading("UAD-Shizuku");
+                            ui.horizontal(|ui| {
+                                ui.label(format!("Version: {}", version));
 
-                                ui.add_space(12.0);
-                                ui.heading("Rust Libraries");
-                                ui.add_space(4.0);
-                                ui.label("• log - Lightweight logging facade (MIT/Apache-2.0)");
-                                ui.label("• tracing - Application-level tracing framework (MIT)");
-                                ui.label("• tracing-subscriber - Utilities for tracing subscribers (MIT)");
-                                ui.label("• lazy_static - Macro for declaring lazily evaluated statics (MIT/Apache-2.0)");
-                                ui.label("• egui - Immediate mode GUI library (MIT/Apache-2.0)");
-                                ui.label("• eframe - Framework for egui applications (MIT/Apache-2.0)");
-                                ui.label("• egui_extras - Extra functionality for egui (MIT/Apache-2.0)");
-                                ui.label("• serde - Serialization framework (MIT/Apache-2.0)");
-                                ui.label("• serde_json - JSON serialization/deserialization (MIT/Apache-2.0)");
-                                ui.label("• wgpu - Cross-platform graphics API (MIT/Apache-2.0)");
-                                ui.label("• egui-i18n - Internationalization for egui (MIT)");
-                                ui.label("• which - Locate installed executables (MIT)");
-                                ui.label("• ehttp - Minimal HTTP client (MIT/Apache-2.0)");
-                                ui.label("• zip - ZIP archive reading and writing (MIT)");
-                                ui.label("• anyhow - Flexible error handling (MIT/Apache-2.0)");
-                                ui.label("• ureq - Simple HTTP request library (MIT/Apache-2.0)");
-                                ui.label("• ureq_multipart - Multipart form support for ureq (MIT)");
-                                ui.label("• regex - Regular expressions (MIT/Apache-2.0)");
-                                ui.label("• chrono - Date and time library (MIT/Apache-2.0)");
-                                ui.label("• jsonpath_lib - JSONPath implementation (MIT)");
-                                ui.label("• base64 - Base64 encoding/decoding (MIT/Apache-2.0)");
-                                ui.label("• image - Image processing library (MIT/Apache-2.0)");
-                                ui.label("• md5 - MD5 hash function (MIT/Apache-2.0)");
-                                ui.label("• xee-xpath - XPath implementation (MIT/Apache-2.0)");
-                                ui.label("• diesel - Safe, extensible ORM and query builder (MIT/Apache-2.0)");
-                                ui.label("• diesel_migrations - Database migrations for Diesel (MIT/Apache-2.0)");
-                                ui.label("• libsqlite3-sys - Native SQLite3 bindings (MIT)");
-                                ui.label("• serde-wasm-bindgen - Serde integration for wasm-bindgen (MIT)");
-                                ui.label("• wasm-bindgen - WebAssembly interop with JavaScript (MIT/Apache-2.0)");
-                                ui.label("• wasm-bindgen-futures - Async/await support for wasm-bindgen (MIT/Apache-2.0)");
+                                ui.add_space(8.0);
 
-                                ui.add_space(12.0);
-                                ui.heading("Android-Specific Libraries");
-                                ui.add_space(4.0);
-                                ui.label("• ndk-context - Android NDK context access (MIT/Apache-2.0)");
-                                ui.label("• jni - Rust bindings for JNI (MIT/Apache-2.0)");
-                                ui.label("• android_logger - Android logging for Rust (MIT/Apache-2.0)");
-                                ui.label("• android-activity - Glue for building Android applications (MIT/Apache-2.0)");
-                                ui.label("• ndk-sys - Raw FFI bindings to Android NDK (MIT/Apache-2.0)");
-
-                                ui.add_space(12.0);
-                                ui.heading("iOS-Specific Libraries");
-                                ui.add_space(4.0);
-                                ui.label("• bevy - Data-driven game engine (MIT/Apache-2.0)");
-                                ui.label("• bevy_egui - Egui integration for Bevy (MIT)");
-                                ui.label("• objc2-avf-audio - Rust bindings for AVFAudio framework (MIT)");
-
-                                ui.add_space(12.0);
-                                ui.heading("Linux-Specific Libraries");
-                                ui.add_space(4.0);
-                                ui.label("• gtk - Rust bindings for GTK 3 (MIT)");
-                                ui.label("• gdk - Rust bindings for GDK 3 (MIT)");
-
-                                ui.add_space(12.0);
-                                ui.heading("Desktop Libraries");
-                                ui.add_space(4.0);
-                                ui.label("• directories - Platform-specific directory paths (MIT/Apache-2.0)");
-                                ui.label("• open - Open files and URLs with default programs (MIT)");
-
-                                ui.add_space(12.0);
-                                ui.heading("WebAssembly Libraries");
-                                ui.add_space(4.0);
-                                ui.label("• sqlite-wasm-vfs - SQLite VFS for WebAssembly (MIT)");
-                                ui.label("• sqlite-wasm-rs - SQLite for WebAssembly (MIT/Apache-2.0)");
-
-                                ui.add_space(12.0);
-                                ui.heading("Assets");
-                                ui.add_space(4.0);
-                                ui.label("• Icons from SVG Repo (CC Attribution)");
+                                if update_checking {
+                                    ui.spinner();
+                                    ui.label(tr!("checking-update"));
+                                } else if update_available {
+                                    ui.label(&update_status);
+                                    if ui.button(tr!("update-now")).clicked() {
+                                        do_perform_update.set(true);
+                                    }
+                                } else if !update_status.is_empty() {
+                                    ui.label(&update_status);
+                                } else if ui.button(tr!("check-update")).clicked() {
+                                    do_check_update.set(true);
+                                }
                             });
 
-                        ui.add_space(16.0);
+                            ui.add_space(12.0);
+
+                            // Description
+                            ui.label(&description);
+
+                            ui.add_space(12.0);
+
+                            // Website
+                            ui.horizontal(|ui| {
+                                ui.label(format!("{}: ", website_label));
+                                if ui.button("https://uad-shizuku.pages.dev").clicked() {
+                                    if let Err(e) = webbrowser::open("https://uad-shizuku.pages.dev") {
+                                        log::error!("Failed to open website URL: {}", e);
+                                    }
+                                }
+                            });
+
+                            ui.add_space(12.0);
+
+                            // Credits section
+                            ui.label(egui::RichText::new(&credits_label).strong());
+                            ui.add_space(4.0);
+
+                            egui::ScrollArea::vertical()
+                                .max_height(400.0)
+                                .show(ui, |ui| {
+                                    ui.set_width(dialog_width - 40.0);
+
+                                    ui.heading("Reference Projects");
+                                    ui.add_space(4.0);
+                                    ui.label("• Universal Android Debloater Next Generation");
+                                    ui.label("  Cross-platform GUI written in Rust using ADB to debloat non-rooted Android devices.");
+                                    ui.label("  License: GPL-3.0");
+                                    ui.add_space(2.0);
+                                    ui.label("• bevy_game_template");
+                                    ui.label("  Template for Bevy game projects");
+                                    ui.label("  License: MIT/Apache-2.0");
+                                    ui.add_space(2.0);
+                                    ui.label("• chatGPTBox");
+                                    ui.label("  ChatGPT browser extension");
+                                    ui.label("  License: MIT");
+                                    ui.add_space(2.0);
+                                    ui.label("• android-activity");
+                                    ui.label("  Android activity glue crate");
+                                    ui.label("  License: MIT/Apache-2.0");
+                                    ui.add_space(2.0);
+                                    ui.label("• ai-rules");
+                                    ui.label("  AI rules configuration");
+                                    ui.label("  License: Apache-2.0");
+                                    ui.add_space(2.0);
+                                    ui.label("• aShell");
+                                    ui.label("  A local ADB shell for Shizuku powered Android devices");
+                                    ui.label("  License: GPL-3.0");
+
+                                    ui.add_space(12.0);
+                                    ui.heading("Rust Libraries");
+                                    ui.add_space(4.0);
+                                    ui.label("• log - Lightweight logging facade (MIT/Apache-2.0)");
+                                    ui.label("• tracing - Application-level tracing framework (MIT)");
+                                    ui.label("• tracing-subscriber - Utilities for tracing subscribers (MIT)");
+                                    ui.label("• lazy_static - Macro for declaring lazily evaluated statics (MIT/Apache-2.0)");
+                                    ui.label("• egui - Immediate mode GUI library (MIT/Apache-2.0)");
+                                    ui.label("• eframe - Framework for egui applications (MIT/Apache-2.0)");
+                                    ui.label("• egui_extras - Extra functionality for egui (MIT/Apache-2.0)");
+                                    ui.label("• serde - Serialization framework (MIT/Apache-2.0)");
+                                    ui.label("• serde_json - JSON serialization/deserialization (MIT/Apache-2.0)");
+                                    ui.label("• wgpu - Cross-platform graphics API (MIT/Apache-2.0)");
+                                    ui.label("• egui-i18n - Internationalization for egui (MIT)");
+                                    ui.label("• which - Locate installed executables (MIT)");
+                                    ui.label("• ehttp - Minimal HTTP client (MIT/Apache-2.0)");
+                                    ui.label("• zip - ZIP archive reading and writing (MIT)");
+                                    ui.label("• anyhow - Flexible error handling (MIT/Apache-2.0)");
+                                    ui.label("• ureq - Simple HTTP request library (MIT/Apache-2.0)");
+                                    ui.label("• ureq_multipart - Multipart form support for ureq (MIT)");
+                                    ui.label("• regex - Regular expressions (MIT/Apache-2.0)");
+                                    ui.label("• chrono - Date and time library (MIT/Apache-2.0)");
+                                    ui.label("• jsonpath_lib - JSONPath implementation (MIT)");
+                                    ui.label("• base64 - Base64 encoding/decoding (MIT/Apache-2.0)");
+                                    ui.label("• image - Image processing library (MIT/Apache-2.0)");
+                                    ui.label("• md5 - MD5 hash function (MIT/Apache-2.0)");
+                                    ui.label("• xee-xpath - XPath implementation (MIT/Apache-2.0)");
+                                    ui.label("• diesel - Safe, extensible ORM and query builder (MIT/Apache-2.0)");
+                                    ui.label("• diesel_migrations - Database migrations for Diesel (MIT/Apache-2.0)");
+                                    ui.label("• libsqlite3-sys - Native SQLite3 bindings (MIT)");
+                                    ui.label("• serde-wasm-bindgen - Serde integration for wasm-bindgen (MIT)");
+                                    ui.label("• wasm-bindgen - WebAssembly interop with JavaScript (MIT/Apache-2.0)");
+                                    ui.label("• wasm-bindgen-futures - Async/await support for wasm-bindgen (MIT/Apache-2.0)");
+
+                                    ui.add_space(12.0);
+                                    ui.heading("Android-Specific Libraries");
+                                    ui.add_space(4.0);
+                                    ui.label("• ndk-context - Android NDK context access (MIT/Apache-2.0)");
+                                    ui.label("• jni - Rust bindings for JNI (MIT/Apache-2.0)");
+                                    ui.label("• android_logger - Android logging for Rust (MIT/Apache-2.0)");
+                                    ui.label("• android-activity - Glue for building Android applications (MIT/Apache-2.0)");
+                                    ui.label("• ndk-sys - Raw FFI bindings to Android NDK (MIT/Apache-2.0)");
+
+                                    ui.add_space(12.0);
+                                    ui.heading("iOS-Specific Libraries");
+                                    ui.add_space(4.0);
+                                    ui.label("• bevy - Data-driven game engine (MIT/Apache-2.0)");
+                                    ui.label("• bevy_egui - Egui integration for Bevy (MIT)");
+                                    ui.label("• objc2-avf-audio - Rust bindings for AVFAudio framework (MIT)");
+
+                                    ui.add_space(12.0);
+                                    ui.heading("Linux-Specific Libraries");
+                                    ui.add_space(4.0);
+                                    ui.label("• gtk - Rust bindings for GTK 3 (MIT)");
+                                    ui.label("• gdk - Rust bindings for GDK 3 (MIT)");
+
+                                    ui.add_space(12.0);
+                                    ui.heading("Desktop Libraries");
+                                    ui.add_space(4.0);
+                                    ui.label("• directories - Platform-specific directory paths (MIT/Apache-2.0)");
+                                    ui.label("• open - Open files and URLs with default programs (MIT)");
+
+                                    ui.add_space(12.0);
+                                    ui.heading("WebAssembly Libraries");
+                                    ui.add_space(4.0);
+                                    ui.label("• sqlite-wasm-vfs - SQLite VFS for WebAssembly (MIT)");
+                                    ui.label("• sqlite-wasm-rs - SQLite for WebAssembly (MIT/Apache-2.0)");
+
+                                    ui.add_space(12.0);
+                                    ui.heading("Assets");
+                                    ui.add_space(4.0);
+                                    ui.label("• Icons from SVG Repo (CC Attribution)");
+                                });
+
+                            ui.add_space(16.0);
+                        });
                     });
                 })
                 .action(tr!("ok"), || {})

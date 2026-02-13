@@ -18,12 +18,7 @@ use std::thread;
 
 // SVG icons as constants (moved to svg_stt.rs)
 use crate::material_symbol_icons::{ICON_REFRESH, ICON_DELETE, ICON_TOGGLE_OFF, ICON_TOGGLE_ON};
-
-/// Minimum viewport width for desktop table view
-const DESKTOP_MIN_WIDTH: f32 = 1008.0;
-
-/// Base table width for calculating column ratios
-const BASE_TABLE_WIDTH: f32 = 1024.0;
+use crate::{DESKTOP_MIN_WIDTH, BASE_TABLE_WIDTH};
 
 impl Default for TabScanControl {
     fn default() -> Self {
@@ -946,29 +941,9 @@ impl TabScanControl {
     }
 
     pub fn ui(&mut self, ui: &mut egui::Ui, hybridanalysis_tag_ignorelist: &str) {
-        // Sync progress from background threads to state machines
-        if let Ok(progress) = self.vt_scan_progress.lock() {
-            if let Some(p) = *progress {
-                self.vt_scan_state.update_progress(p);
-            } else if self.vt_scan_state.is_running {
-                self.vt_scan_state.complete();
-            }
-        }
-        if let Ok(progress) = self.ha_scan_progress.lock() {
-            if let Some(p) = *progress {
-                self.ha_scan_state.update_progress(p);
-            } else if self.ha_scan_state.is_running {
-                self.ha_scan_state.complete();
-            }
-        }
-        // Sync IzzyRisk progress
-        if let Ok(progress) = self.izzyrisk_scan_progress.lock() {
-            if let Some(p) = *progress {
-                self.izzyrisk_scan_state.update_progress(p);
-            } else if self.izzyrisk_scan_state.is_running {
-                self.izzyrisk_scan_state.complete();
-            }
-        }
+        // Note: Progress sync is now done in uad_shizuku_app.sync_scan_progress() before rendering
+        // to ensure progress bars hide immediately when background tasks complete
+        
         // Sync risk scores from background thread
         self.sync_risk_scores();
 
@@ -1304,7 +1279,7 @@ impl TabScanControl {
         // Note: vt_scanner_state and ha_scanner_state are already pre-fetched at the start of ui()
 
         // Get viewport width for responsive design
-        let available_width = ui.available_width();
+        let available_width = ui.ctx().screen_rect().width();
         let is_desktop = available_width >= DESKTOP_MIN_WIDTH;
         let width_ratio = if is_desktop { available_width / BASE_TABLE_WIDTH } else { 1.0 };
 
@@ -1322,7 +1297,6 @@ impl TabScanControl {
             .sortable_column(tr!("col-tasks"), if is_desktop { 170.0 * width_ratio } else { available_width * 0.45 }, false)
             .allow_selection(false);
 
-        // === DESKTOP TABLE VIEW ===
         for (idx, package) in installed_packages.iter().enumerate() {
             if !self.should_show_package_with_state(package, &vt_scanner_state, &ha_scanner_state)
                 || !self.matches_text_filter_with_cache(package, &cached_fdroid_apps, &cached_google_play_apps, &cached_apkmirror_apps)

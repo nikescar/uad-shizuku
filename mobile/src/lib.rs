@@ -348,6 +348,12 @@ pub fn is_mobile(ctx: &egui::Context) -> bool {
     screen_size.x < 1081.0
 }
 
+/// Minimum viewport width for desktop table view
+pub const DESKTOP_MIN_WIDTH: f32 = 1008.0;
+
+/// Base table width for calculating column ratios
+pub const BASE_TABLE_WIDTH: f32 = 1024.0;
+
 /// Check if a package ID has at least 2 domain levels (e.g., com.example)
 /// Package IDs with less than 2 levels (e.g., com.android) are typically system
 /// packages that won't be found on app stores or malware databases.
