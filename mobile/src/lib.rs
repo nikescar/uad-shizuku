@@ -9,6 +9,7 @@ mod android_packagemanager;
 pub mod android_shizuku;
 mod android_inputmethod;
 mod android_clipboard;
+mod android_contexttheme;
 mod clipboard_popup;
 mod tab_apps_control;
 pub mod tab_apps_control_stt;
@@ -172,7 +173,7 @@ fn default_log_level() -> String {
 }
 
 fn default_theme_mode() -> String {
-    "Light".to_string()
+    "Auto".to_string()
 }
 
 fn default_contrast_level() -> String {

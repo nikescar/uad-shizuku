@@ -482,6 +482,38 @@ impl UadShizukuApp {
         }
     }
 
+    /// Detect OS theme preference using dark-light crate (desktop) or Android JNI (Android)
+    fn detect_os_theme() -> ThemeMode {
+        #[cfg(target_os = "android")]
+        {
+            // Use Android JNI to get system theme mode
+            match crate::android_contexttheme::get_ui_theme_mode() {
+                Ok(crate::android_contexttheme::UiThemeMode::Dark) => {
+                    log::debug!("Android system theme detected: Dark");
+                    ThemeMode::Dark
+                }
+                Ok(crate::android_contexttheme::UiThemeMode::Light) => {
+                    log::debug!("Android system theme detected: Light");
+                    ThemeMode::Light
+                }
+                Ok(crate::android_contexttheme::UiThemeMode::Unspecified) | Err(_) => {
+                    log::debug!("Android system theme unspecified or error, defaulting to Light");
+                    ThemeMode::Light
+                }
+            }
+        }
+        
+        #[cfg(not(target_os = "android"))]
+        {
+            // Use dark-light crate for desktop platforms
+            match dark_light::detect() {
+                dark_light::Mode::Dark => ThemeMode::Dark,
+                dark_light::Mode::Light => ThemeMode::Light,
+                dark_light::Mode::Default => ThemeMode::Light, // Default to Light if unspecified
+            }
+        }
+    }
+
     fn theme_mode_to_string(mode: ThemeMode) -> String {
         match mode {
             ThemeMode::Light => "Light".to_string(),
@@ -599,13 +631,12 @@ impl UadShizukuApp {
             ThemeMode::Light => egui::Visuals::light(),
             ThemeMode::Dark => egui::Visuals::dark(),
             ThemeMode::Auto => {
-                // Use system preference or default to light
-                if ctx.style().visuals.dark_mode {
-                    theme.theme_mode = ThemeMode::Dark; // Resolve Auto to Dark for color lookup
-                    egui::Visuals::dark()
-                } else {
-                    theme.theme_mode = ThemeMode::Light; // Resolve Auto to Light for color lookup
-                    egui::Visuals::light()
+                // Detect OS theme preference using dark-light crate
+                let detected_mode = Self::detect_os_theme();
+                theme.theme_mode = detected_mode; // Resolve Auto to detected OS theme
+                match detected_mode {
+                    ThemeMode::Dark => egui::Visuals::dark(),
+                    _ => egui::Visuals::light(),
                 }
             }
         };
