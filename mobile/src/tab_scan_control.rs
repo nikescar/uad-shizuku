@@ -17,7 +17,7 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 
 // SVG icons as constants (moved to svg_stt.rs)
-use crate::material_symbol_icons::{ICON_REFRESH, ICON_DELETE, ICON_TOGGLE_OFF, ICON_TOGGLE_ON};
+use crate::material_symbol_icons::{ICON_INFO, ICON_REFRESH, ICON_DELETE, ICON_TOGGLE_OFF, ICON_TOGGLE_ON};
 use crate::{DESKTOP_MIN_WIDTH, BASE_TABLE_WIDTH};
 
 impl Default for TabScanControl {
@@ -1294,7 +1294,7 @@ impl TabScanControl {
                 .sortable_column(tr!("col-hybrid-analysis"), 200.0 * width_ratio, false);
         }
         interactive_table = interactive_table
-            .sortable_column(tr!("col-tasks"), if is_desktop { 170.0 * width_ratio } else { available_width * 0.45 }, false)
+            .sortable_column(tr!("col-tasks"), if is_desktop { 170.0 * width_ratio } else { available_width * 0.42 }, false)
             .allow_selection(false);
 
         for (idx, package) in installed_packages.iter().enumerate() {
@@ -1379,7 +1379,12 @@ impl TabScanControl {
                             }
                             ui.vertical(|ui| {
                                 ui.style_mut().spacing.item_spacing.y = 0.1;
-                                ui.label(egui::RichText::new(&title).strong());
+                                egui::ScrollArea::horizontal()
+                                    .id_salt(format!("scan_title_scroll_{}", idx))
+                                    .auto_shrink([false, true])
+                                    .show(ui, |ui| {
+                                        ui.add(egui::Label::new(egui::RichText::new(&title).strong()).wrap_mode(egui::TextWrapMode::Extend));
+                                    });
                                 ui.label(
                                     egui::RichText::new(&developer)
                                         .small()
@@ -1388,73 +1393,78 @@ impl TabScanControl {
                                 
                                 if !is_desktop {
                                     ui.add_space(4.0);
-                                    ui.horizontal_wrapped(|ui| {
-                                        ui.spacing_mut().item_spacing.x = 4.0;
-                                        
-                                        // Show IzzyRisk in mobile view
-                                        egui::Frame::new()
-                                            .stroke(egui::Stroke::new(1.0, egui::Color32::from_rgb(158, 158, 158)))
-                                            .corner_radius(6.0)
-                                            .inner_margin(egui::Margin::symmetric(8, 3))
-                                            .show(ui, |ui| {
-                                                ui.label(egui::RichText::new(format!("Risk:{}", &izzyrisk_for_cell)).size(10.0));
-                                            });
-                                        
-                                        // Show VT results in mobile view
-                                        match &vt_result_for_cell {
-                                            Some(calc_virustotal::ScanStatus::Completed(result)) => {
-                                                for file_result in result.file_results.iter() {
-                                                    let (text, bg_color) = if file_result.error.is_some() {
-                                                        ("ERR".to_string(), egui::Color32::from_rgb(211, 47, 47))
-                                                    } else if file_result.skipped {
-                                                        ("SKIP".to_string(), egui::Color32::from_rgb(128, 128, 128))
-                                                    } else if file_result.not_found {
-                                                        ("404".to_string(), egui::Color32::from_rgb(128, 128, 128))
-                                                    } else if file_result.malicious > 0 {
-                                                        (format!("VT:{}/{}", file_result.malicious + file_result.suspicious, file_result.total()), egui::Color32::from_rgb(211, 47, 47))
-                                                    } else if file_result.suspicious > 0 {
-                                                        (format!("VT:{}/{}", file_result.suspicious, file_result.total()), egui::Color32::from_rgb(255, 152, 0))
-                                                    } else {
-                                                        (format!("VT:0/{}", file_result.total()), egui::Color32::from_rgb(56, 142, 60))
-                                                    };
-                                                    
-                                                    egui::Frame::new()
-                                                        .fill(bg_color)
-                                                        .corner_radius(6.0)
-                                                        .inner_margin(egui::Margin::symmetric(8, 3))
-                                                        .show(ui, |ui| {
-                                                            ui.label(egui::RichText::new(&text).color(egui::Color32::WHITE).size(10.0));
-                                                        });
+                                    egui::ScrollArea::horizontal()
+                                        .id_salt(format!("scan_badge_scroll_{}", idx))
+                                        .auto_shrink([false, true])
+                                        .show(ui, |ui| {
+                                        ui.horizontal_wrapped(|ui| {
+                                            ui.spacing_mut().item_spacing.x = 4.0;
+
+                                            // Show IzzyRisk in mobile view
+                                            egui::Frame::new()
+                                                .stroke(egui::Stroke::new(1.0, egui::Color32::from_rgb(158, 158, 158)))
+                                                .corner_radius(6.0)
+                                                .inner_margin(egui::Margin::symmetric(8, 3))
+                                                .show(ui, |ui| {
+                                                    ui.label(egui::RichText::new(format!("Risk:{}", &izzyrisk_for_cell)).size(10.0));
+                                                });
+
+                                            // Show VT results in mobile view
+                                            match &vt_result_for_cell {
+                                                Some(calc_virustotal::ScanStatus::Completed(result)) => {
+                                                    for file_result in result.file_results.iter() {
+                                                        let (text, bg_color) = if file_result.error.is_some() {
+                                                            ("ERR".to_string(), egui::Color32::from_rgb(211, 47, 47))
+                                                        } else if file_result.skipped {
+                                                            ("SKIP".to_string(), egui::Color32::from_rgb(128, 128, 128))
+                                                        } else if file_result.not_found {
+                                                            ("404".to_string(), egui::Color32::from_rgb(128, 128, 128))
+                                                        } else if file_result.malicious > 0 {
+                                                            (format!("VT:{}/{}", file_result.malicious + file_result.suspicious, file_result.total()), egui::Color32::from_rgb(211, 47, 47))
+                                                        } else if file_result.suspicious > 0 {
+                                                            (format!("VT:{}/{}", file_result.suspicious, file_result.total()), egui::Color32::from_rgb(255, 152, 0))
+                                                        } else {
+                                                            (format!("VT:0/{}", file_result.total()), egui::Color32::from_rgb(56, 142, 60))
+                                                        };
+
+                                                        egui::Frame::new()
+                                                            .fill(bg_color)
+                                                            .corner_radius(6.0)
+                                                            .inner_margin(egui::Margin::symmetric(8, 3))
+                                                            .show(ui, |ui| {
+                                                                ui.label(egui::RichText::new(&text).color(egui::Color32::WHITE).size(10.0));
+                                                            });
+                                                    }
                                                 }
+                                                _ => {}
                                             }
-                                            _ => {}
-                                        }
-                                        
-                                        // Show HA results in mobile view
-                                        match &ha_result_for_cell {
-                                            Some(calc_hybridanalysis::ScanStatus::Completed(result)) => {
-                                                for file_result in result.file_results.iter() {
-                                                    let (text, bg_color) = match file_result.verdict.as_str() {
-                                                        "malicious" => ("HA:MAL".to_string(), egui::Color32::from_rgb(211, 47, 47)),
-                                                        "suspicious" => ("HA:SUS".to_string(), egui::Color32::from_rgb(255, 152, 0)),
-                                                        "whitelisted" => ("HA:WL".to_string(), egui::Color32::from_rgb(56, 142, 60)),
-                                                        "no specific threat" => ("HA:OK".to_string(), egui::Color32::from_rgb(0, 150, 136)),
-                                                        "upload_error" | "analysis_error" => ("HA:ERR".to_string(), egui::Color32::from_rgb(211, 47, 47)),
-                                                        "404 Not Found" => ("HA:404".to_string(), egui::Color32::from_rgb(128, 128, 128)),
-                                                        _ => continue,
-                                                    };
-                                                    
-                                                    egui::Frame::new()
-                                                        .fill(bg_color)
-                                                        .corner_radius(6.0)
-                                                        .inner_margin(egui::Margin::symmetric(8, 3))
-                                                        .show(ui, |ui| {
-                                                            ui.label(egui::RichText::new(&text).color(egui::Color32::WHITE).size(10.0));
-                                                        });
+
+                                            // Show HA results in mobile view
+                                            match &ha_result_for_cell {
+                                                Some(calc_hybridanalysis::ScanStatus::Completed(result)) => {
+                                                    for file_result in result.file_results.iter() {
+                                                        let (text, bg_color) = match file_result.verdict.as_str() {
+                                                            "malicious" => ("HA:MAL".to_string(), egui::Color32::from_rgb(211, 47, 47)),
+                                                            "suspicious" => ("HA:SUS".to_string(), egui::Color32::from_rgb(255, 152, 0)),
+                                                            "whitelisted" => ("HA:WL".to_string(), egui::Color32::from_rgb(56, 142, 60)),
+                                                            "no specific threat" => ("HA:OK".to_string(), egui::Color32::from_rgb(0, 150, 136)),
+                                                            "upload_error" | "analysis_error" => ("HA:ERR".to_string(), egui::Color32::from_rgb(211, 47, 47)),
+                                                            "404 Not Found" => ("HA:404".to_string(), egui::Color32::from_rgb(128, 128, 128)),
+                                                            _ => continue,
+                                                        };
+
+                                                        egui::Frame::new()
+                                                            .fill(bg_color)
+                                                            .corner_radius(6.0)
+                                                            .inner_margin(egui::Margin::symmetric(8, 3))
+                                                            .show(ui, |ui| {
+                                                                ui.label(egui::RichText::new(&text).color(egui::Color32::WHITE).size(10.0));
+                                                            });
+                                                    }
                                                 }
+                                                _ => {}
                                             }
-                                            _ => {}
-                                        }
+                                        });
                                     });
                                 }
                             });
@@ -1561,7 +1571,7 @@ impl TabScanControl {
                 let row_builder = if is_desktop { row_builder.widget_cell(move |ui: &mut egui::Ui| {
                     egui::ScrollArea::horizontal()
                         .id_salt(format!("vt_scroll_{}", idx))
-                        .auto_shrink([false, false])
+                        .auto_shrink([false, true])
                         .show(ui, |ui| {
                             ui.horizontal(|ui| {
                                 ui.spacing_mut().item_spacing.x = 4.0;
@@ -1637,7 +1647,7 @@ impl TabScanControl {
                 let row_builder = if is_desktop { row_builder.widget_cell(move |ui: &mut egui::Ui| {
                     egui::ScrollArea::horizontal()
                         .id_salt(format!("ha_scroll_{}", idx))
-                        .auto_shrink([false, false])
+                        .auto_shrink([false, true])
                         .show(ui, |ui| {
                             ui.horizontal(|ui| {
                                 ui.spacing_mut().item_spacing.x = 4.0;
@@ -1854,48 +1864,53 @@ impl TabScanControl {
 
                 // Tasks column
                 let row_builder = row_builder.widget_cell(move |ui: &mut egui::Ui| {
-                    ui.horizontal(|ui| {
-                        // Refresh button - delete scan results and re-queue
-                        if ui.add(icon_button_standard(ICON_REFRESH.to_string())).on_hover_text(tr!("refresh-list")).clicked() {
-                            ui.data_mut(|data| {
-                                data.insert_temp(egui::Id::new("refresh_clicked_package"), package_name_for_buttons.clone());
-                            });
-                        }
-                        // let chip = assist_chip("")
-                        //     .leading_icon_svg(INFO_SVG)
-                        //     .elevated(true);
-                        // if ui.add(chip.on_click(|| {
-                        //     log::info!("Opening package info dialog");
-                        // })).clicked() {
-                        //     if let Ok(mut clicked) = clicked_idx_clone.lock() {
-                        //         *clicked = Some(idx);
-                        //     }
-                        // }
+                    egui::ScrollArea::horizontal()
+                        .id_salt(format!("scan_task_scroll_{}", idx))
+                        .auto_shrink([false, true])
+                        .show(ui, |ui| {
+                        ui.horizontal(|ui| {
+                            // Info button - open package details dialog
+                            if ui.add(icon_button_standard(ICON_INFO.to_string())).on_hover_text(tr!("package-info")).clicked() {
+                                if let Ok(mut clicked) = clicked_idx_clone.lock() {
+                                    *clicked = Some(idx);
+                                }
+                            }
 
-                        if (enabled_str.contains("DEFAULT") || enabled_str.contains("ENABLED")) && !is_unsafe_blocked {
-                            if ui.add(icon_button_standard(ICON_DELETE.to_string())).on_hover_text(tr!("uninstall")).clicked() {
+                            // Refresh button - delete scan results and re-queue
+                            if ui.add(icon_button_standard(ICON_REFRESH.to_string())).on_hover_text(tr!("refresh-list")).clicked() {
                                 ui.data_mut(|data| {
-                                    data.insert_temp(egui::Id::new("uninstall_clicked_package"), package_name_for_buttons.clone());
-                                    data.insert_temp(egui::Id::new("uninstall_clicked_is_system"), is_system);
+                                    data.insert_temp(egui::Id::new("refresh_clicked_package"), package_name_for_buttons.clone());
                                 });
                             }
-                        }
 
-                        if (enabled_str.contains("DEFAULT") || enabled_str.contains("ENABLED")) && !is_unsafe_blocked  {
-                            if ui.add(icon_button_standard(ICON_TOGGLE_ON.to_string())).on_hover_text(tr!("disable")).clicked() {
-                                ui.data_mut(|data| {
-                                    data.insert_temp(egui::Id::new("disable_clicked_package"), package_name_for_buttons.clone());
-                                });
+                            // Disable button
+                            if (enabled_str.contains("DEFAULT") || enabled_str.contains("ENABLED")) && !is_unsafe_blocked  {
+                                if ui.add(icon_button_standard(ICON_TOGGLE_ON.to_string())).on_hover_text(tr!("disable")).clicked() {
+                                    ui.data_mut(|data| {
+                                        data.insert_temp(egui::Id::new("disable_clicked_package"), package_name_for_buttons.clone());
+                                    });
+                                }
                             }
-                        }
 
-                        if enabled_str.contains("REMOVED_USER") || enabled_str.contains("DISABLED_USER") || enabled_str.contains("DISABLED") {
-                            if ui.add(icon_button_standard(ICON_TOGGLE_OFF.to_string())).on_hover_text(tr!("enable")).clicked() {
-                                ui.data_mut(|data| {
-                                    data.insert_temp(egui::Id::new("enable_clicked_package"), package_name_for_buttons.clone());
-                                });
+                            // Enable button
+                            if enabled_str.contains("REMOVED_USER") || enabled_str.contains("DISABLED_USER") || enabled_str.contains("DISABLED") {
+                                if ui.add(icon_button_standard(ICON_TOGGLE_OFF.to_string())).on_hover_text(tr!("enable")).clicked() {
+                                    ui.data_mut(|data| {
+                                        data.insert_temp(egui::Id::new("enable_clicked_package"), package_name_for_buttons.clone());
+                                    });
+                                }
                             }
-                        }
+
+                            // Uninstall button
+                            if (enabled_str.contains("DEFAULT") || enabled_str.contains("ENABLED")) && !is_unsafe_blocked {
+                                if ui.add(icon_button_standard(ICON_DELETE.to_string())).on_hover_text(tr!("uninstall")).clicked() {
+                                    ui.data_mut(|data| {
+                                        data.insert_temp(egui::Id::new("uninstall_clicked_package"), package_name_for_buttons.clone());
+                                        data.insert_temp(egui::Id::new("uninstall_clicked_is_system"), is_system);
+                                    });
+                                }
+                            }
+                        });
                     });
                 })
                 .id(format!("scan_table_row_{}", idx));

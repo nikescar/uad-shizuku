@@ -1053,7 +1053,7 @@ impl TabAppsControl {
         } else {
             interactive_table = interactive_table
                 .column(tr!("app-name"), available_width * 0.45, false)
-                .column(tr!("install"), available_width * 0.55, false);
+                .column(tr!("install"), available_width * 0.53, false);
         }
         interactive_table = interactive_table.allow_selection(false);
 
@@ -1097,7 +1097,7 @@ impl TabAppsControl {
                     row_builder.widget_cell(move |ui: &mut egui::Ui| {
                         egui::ScrollArea::horizontal()
                             .id_salt(format!("links_scroll_{}_{}", idx, app_for_links.category))
-                            .auto_shrink([false, false])
+                            .auto_shrink([false, true])
                             .show(ui, |ui| {
                                 ui.horizontal(|ui| {
                                     ui.spacing_mut().item_spacing.x = 4.0;
