@@ -4,6 +4,8 @@ on:
   push:
     tags:
       - v*
+    branches:
+      - test
   workflow_dispatch:
 
 env:
@@ -118,12 +120,18 @@ jobs:
         shell: bash
         run: |
           # Extract version from git tag (remove 'v' prefix if present)
-          VERSION=$(git describe --tags --abbrev=0 | sed 's/^v//')
-          echo "Detected version: $VERSION"
-          # Update version in Cargo.toml (compatible with both GNU and BSD sed)
-          sed -i.bak "s/^version = .*/version = \"$VERSION\"/" ./Cargo.toml && rm -f ./Cargo.toml.bak
-          echo "Updated Cargo.toml with version $VERSION"
-          grep "^version = " ./Cargo.toml
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            VERSION=$(git describe --tags --abbrev=0 | sed 's/^v//')
+            echo "Detected version: $VERSION"
+            # Update version in Cargo.toml (compatible with both GNU and BSD sed)
+            sed -i.bak "s/^version = .*/version = \"$VERSION\"/" ./Cargo.toml && rm -f ./Cargo.toml.bak
+            echo "Updated Cargo.toml with version $VERSION"
+            grep "^version = " ./Cargo.toml
+          else
+            echo "Not a tag build, skipping version update"
+            VERSION=$(git describe --tags --always --dirty)
+            echo "Build version: $VERSION"
+          fi
       
       - name: Install Rust Toolchain
         uses: dtolnay/rust-toolchain@nightly
