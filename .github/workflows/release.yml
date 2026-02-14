@@ -156,9 +156,26 @@ jobs:
 
           pushd mobile
           bash ./build.gh.sh
+          
+          # Verify outputs
+          echo "=== Listing APK outputs ==="
+          ls -alh ./app/build/outputs/apk/release/ || echo "APK directory not found"
+          echo "=== Listing AAB outputs ==="
+          ls -alh ./app/build/outputs/bundle/release/ || echo "AAB directory not found"
+          
+          # Copy APK for artifact upload
           cp ./app/build/outputs/apk/release/app-release.apk ./app/build/outputs/apk/release/uad-shizuku-all-signed.apk
-          ls -al ./app/build/outputs/apk/release
           popd
+      
+      - name: Android - Verify AAB exists
+        if: (contains(matrix.platform.name, 'Android APK arm64'))
+        run: |
+          if [ ! -f "mobile/app/build/outputs/bundle/release/app-release.aab" ]; then
+            echo "ERROR: AAB file not found at mobile/app/build/outputs/bundle/release/app-release.aab"
+            exit 1
+          fi
+          echo "AAB file verified:"
+          ls -lh mobile/app/build/outputs/bundle/release/app-release.aab
       
       - name: Android, Publish to google play # https://github.com/marketplace/actions/upload-android-release-to-play-store
         if: (contains(matrix.platform.name, 'Android APK arm64'))
@@ -168,8 +185,8 @@ jobs:
           packageName: pe.nikescar.uad_shizuku
           releaseFiles: mobile/app/build/outputs/bundle/release/app-release.aab
           track: production
+          status: completed
           inAppUpdatePriority: 2
-          debugSymbols: mobile/app/build/intermediates/merged_native_libs/release/mergeReleaseNativeLibs/out/lib
       
       # - name: Android, Upload to the Amazon AppStore
       #   if: "(contains(matrix.platform.name, 'Android APK arm64'))"

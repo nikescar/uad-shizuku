@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 # this is build script running in github actions for github releases.
+set -e  # Exit immediately if a command fails
+set -x  # Print commands as they execute
 
 # https://github.com/actions/runner-images/blob/main/images/ubuntu/Ubuntu2404-Readme.md
 # ANDROID_HOME 	/usr/local/lib/android/sdk
@@ -36,5 +38,17 @@ cargo ndk -t armeabi-v7a -o app/src/main/jniLibs/ build --release --lib
 cargo ndk -t arm64-v8a -o app/src/main/jniLibs/ build --release --lib
 cargo ndk -t x86 -o app/src/main/jniLibs/ build --release --lib
 cargo ndk -t x86_64 -o app/src/main/jniLibs/ build --release --lib
-gradle build
+
+# Build APK
+gradle assembleRelease
+
+# Build AAB (Android App Bundle) for Google Play
 gradle bundleRelease
+
+# Verify AAB was created
+if [ ! -f "app/build/outputs/bundle/release/app-release.aab" ]; then
+    echo "ERROR: AAB file was not created at app/build/outputs/bundle/release/app-release.aab"
+    exit 1
+fi
+echo "Successfully created AAB at app/build/outputs/bundle/release/app-release.aab"
+ls -lh app/build/outputs/bundle/release/app-release.aab
