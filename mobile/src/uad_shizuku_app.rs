@@ -1722,7 +1722,7 @@ impl UadShizukuApp {
                 // Step 1: Check if Shizuku is running
                 if !android_shizuku::shizuku_is_available() {
                     log::error!("Shizuku is not running. Please install and activate Shizuku.");
-                    self.adb_install_dialog_open = true;
+                    self.dlg_adb_install.open = true;
                     self.adb_devices.clear();
                     return;
                 }
@@ -1736,7 +1736,7 @@ impl UadShizukuApp {
                         android_shizuku::shizuku_request_permission();
                         self.shizuku_permission_requested = true;
                     }
-                    self.adb_install_dialog_open = true;
+                    self.dlg_adb_install.open = true;
                     self.adb_devices.clear();
                     return;
                 }
@@ -1749,20 +1749,20 @@ impl UadShizukuApp {
                         log::error!("Binding Shizuku ShellService...");
                         android_shizuku::shizuku_bind_service();
                         self.shizuku_bind_requested = true;
-                        self.adb_install_dialog_open = true;
+                        self.dlg_adb_install.open = true;
                         self.adb_devices.clear();
                         return;
                     }
                     1 => {
                         // Binding in progress, wait
-                        self.adb_install_dialog_open = true;
+                        self.dlg_adb_install.open = true;
                         self.adb_devices.clear();
                         return;
                     }
                     3 => {
                         // Bind failed
                         log::error!("Failed to bind Shizuku ShellService");
-                        self.adb_install_dialog_open = true;
+                        self.dlg_adb_install.open = true;
                         self.adb_devices.clear();
                         return;
                     }
