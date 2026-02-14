@@ -38,10 +38,12 @@ impl DlgAdbInstall {
             .resizable(true)
             .collapsible(false)
             .scroll([false, false])
-            .default_width(ctx.screen_rect().width() - 40.0)
-            .default_height(ctx.screen_rect().height() - 40.0)
-            .max_width(ctx.screen_rect().width() - 40.0)
-            .max_height(ctx.screen_rect().height() - 40.0)
+            .min_width(500.0)
+            .min_height(400.0)
+            .resize(|r| {
+                r.default_size([ctx.screen_rect().width() - 40.0, ctx.screen_rect().height() - 40.0])
+                    .max_size([ctx.screen_rect().width() - 40.0, ctx.screen_rect().height() - 40.0])
+            })
             .show(ctx, |ui| {
                 ui.heading(title);
                 ui.add_space(8.0);

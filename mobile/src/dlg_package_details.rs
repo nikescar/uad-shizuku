@@ -63,12 +63,12 @@ impl DlgPackageDetails {
             .resizable(true)
             .collapsible(false)
             .scroll([false, false])
-            // .default_width(700.0)
-            // .default_height(500.0)
-            .default_width(ctx.screen_rect().width() - 40.0)
-            .default_height(ctx.screen_rect().height() - 40.0)
-            .max_width(ctx.screen_rect().width() - 40.0)
-            .max_height(ctx.screen_rect().height() - 40.0)
+            .min_width(700.0)
+            .min_height(500.0)
+            .resize(|r| {
+                r.default_size([ctx.screen_rect().width() - 40.0, ctx.screen_rect().height() - 40.0])
+                    .max_size([ctx.screen_rect().width() - 40.0, ctx.screen_rect().height() - 40.0])
+            })
             .show(ctx, |ui| {
                 // Build tab labels dynamically
                 let mut tabs = tabs_primary(&mut self.selected_tab)

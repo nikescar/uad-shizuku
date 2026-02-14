@@ -146,10 +146,12 @@ impl DlgSettings {
             .resizable(true)
             .collapsible(false)
             .scroll([false, false])
-            .default_width(ctx.screen_rect().width() - 40.0)
-            .default_height(ctx.screen_rect().height() - 40.0)
-            .max_width(ctx.screen_rect().width() - 40.0)
-            .max_height(ctx.screen_rect().height() - 40.0)
+            .min_width(600.0)
+            .min_height(400.0)
+            .resize(|r| {
+                r.default_size([ctx.screen_rect().width() - 40.0, ctx.screen_rect().height() - 40.0])
+                    .max_size([ctx.screen_rect().width() - 40.0, ctx.screen_rect().height() - 40.0])
+            })
             .show(ctx, |ui| {
                 ui.heading("Settings");
                 ui.add_space(8.0);
