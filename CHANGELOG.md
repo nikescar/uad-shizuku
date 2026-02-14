@@ -1,4 +1,93 @@
 ## What's Changed
+* fix. skip google play push failed. by @nikescar
+* fix. settings dlg error. by @nikescar
+* fix. do not archive exe file. by @nikescar
+* fix. google play publish error. by @nikescar
+* fix. add builds for android. and auto add to google play. by @nikescar
+* fix. bugs realted to dialog windows replace. by @nikescar
+* fix. make github workflow run on test branch. by @nikescar
+* fix. move dialog window separate to files. by @nikescar
+* bump by @nikescar
+* fix. change icon colors. by @nikescar
+* fix. multiple mobile ui fixes. by @nikescar
+* feat. add uninstall confirm dialog. by @nikescar in [#35](https://github.com/nikescar/uad-shizuku/pull/35)
+* feat. add uninstall confirm dialog. by @nikescar
+* fix. mobile ui enhancement. by @nikescar
+* fix. mobile ui enhancement. by @nikescar
+* fix. dialog for mobile ui. by @nikescar
+* feat.os detection by @nikescar in [#34](https://github.com/nikescar/uad-shizuku/pull/34)
+* chore. cargo fix. by @nikescar
+* fix. multiple ui fixes for small screen. by @nikescar
+* fix. change blacklist term to ignorelist. by @nikescar
+* feat. os language detection. by @nikescar
+* feat. os theme detection. by @nikescar
+* fix. move progress bar in scan table to main window. by @nikescar in [#33](https://github.com/nikescar/uad-shizuku/pull/33)
+* fix. move progress bar in scan table to main window. by @nikescar
+* feat. add material theme setting. by @nikescar
+* fix. remove contrast settings and add theme selections. by @nikescar
+* fix. change default window size, default theme to light. by @nikescar
+* fix. stop build when cargo build error. by @nikescar
+* fix. wait 3 seconds for shizuku delay on android. by @nikescar
+* fix. open release page for update action on android. by @nikescar
+* fix. android adb pull error. by @nikescar
+* fix. not to build release on local build. by @nikescar
+* fix. android package load init error. by @nikescar
+* fix. install dialog error on android. by @nikescar in [#32](https://github.com/nikescar/uad-shizuku/pull/32)
+* fix. install dialog error on android. by @nikescar
+* fix. add ignore dir for qemu.sh. by @nikescar
+* fix. run cross compile only on github ci env. by @nikescar
+* fix. android get_users error. by @nikescar in [#31](https://github.com/nikescar/uad-shizuku/pull/31)
+* fix. android get_users error. by @nikescar
+* fix. autoupdate for desktop, android. by @nikescar in [#30](https://github.com/nikescar/uad-shizuku/pull/30)
+* fix. autoupdate for desktop, android. by @nikescar
+* fix. change tmp path on adb ops in android os. by @nikescar in [#29](https://github.com/nikescar/uad-shizuku/pull/29)
+* fix. change tmp path on adb ops in android os. by @nikescar
+* fix. ha, vt filter counting error on scan table. by @nikescar in [#28](https://github.com/nikescar/uad-shizuku/pull/28)
+* fix. ha, vt filter counting error on scan table. by @nikescar
+* docs. update docs for app testing. by @nikescar
+* docs. update fdroid fastlane. by @nikescar
+* docs. add instructions for google play app testing. by @nikescar
+* fix. error on build system for android. by @nikescar
+* docs. update android docs. by @nikescar
+* feat. shizuku dialog on android os. by @nikescar in [#27](https://github.com/nikescar/uad-shizuku/pull/27)
+* feat. shizuku dialog on android os. by @nikescar
+* docs. update credits. by @nikescar
+* fix.add desc sort to mobile UI by @nikescar in [#26](https://github.com/nikescar/uad-shizuku/pull/26)
+* fix. add desc sort to mobile sorter button. by @nikescar
+* chore. cargo fix. by @nikescar
+* fix. adk dump error. by @nikescar
+* fix. adb pull alternative to xxd hexdump to get apk file for android os. by @nikescar in [#25](https://github.com/nikescar/uad-shizuku/pull/25)
+* fix. adb pull alternative to xxd hexdump to get apk file for android os. by @nikescar
+* feat. android log without tracing crates by @nikescar in [#24](https://github.com/nikescar/uad-shizuku/pull/24)
+* feat. android log without tracing crates by @nikescar
+* feat.redesign mobile UI by @nikescar in [#23](https://github.com/nikescar/uad-shizuku/pull/23)
+* feat. add sort button to mobile ui. by @nikescar
+* fix. add runtime permission button to debloat table. by @nikescar
+* fix. add scan chips for mobile ui. by @nikescar
+* fix. add desktop data labels to mobile pkg cell. by @nikescar
+* fix. replace refresh icon to icon_button. by @nikescar
+* fix. change refresh button to icon button. by @nikescar
+* fix. replace hyperlink with webbrowser crate. by @nikescar
+* fix. set fixed size to package info window. by @nikescar
+* fix. replace icons with material symbol icons. by @nikescar
+* feat. replace existing mobile ui with datatable. by @nikescar
+* chore. replace rust ai rules. by @nikescar
+* feat. add disable unsafe app uninstall/disable with setting. by @nikescar in [#22](https://github.com/nikescar/uad-shizuku/pull/22)
+* feat. add disable unsafe app uninstall/disable with setting. by @nikescar
+* fix.remove android scalegesture by @nikescar in [#21](https://github.com/nikescar/uad-shizuku/pull/21)
+* fix. remove unused android scaleguesture code. by @nikescar
+* bump by @nikescar
+* refactor. rename github workflow tasks. by @nikescar
+* docs. update readme.md, add star history. by @nikescar
+* feat. clipboard popup by @nikescar in [#20](https://github.com/nikescar/uad-shizuku/pull/20)
+* feat.clipboard android. by @nikescar
+* feat.android shizuku integrations. by @nikescar
+* docs. fix link. by @nikescar
+* docs. adds description on install, dev docs. by @nikescar
+* docs. add usage. by @nikescar
+
+## What's Changed in 0.0.7
+* release. v0.0.7 by @nikescar
 * Feat.installation autoupdate by @nikescar in [#19](https://github.com/nikescar/uad-shizuku/pull/19)
 * feat. installation for windows, macos, linux. by @nikescar
 * docs. update todos. by @nikescar
@@ -12,6 +101,8 @@
 * bump by @nikescar
 * docs. update todos. by @nikescar
 * docs. add screenshot image. by @nikescar
+
+**Full Changelog**: https://github.com/nikescar/uad-shizuku/compare/v0.0.6...v0.0.7
 
 ## What's Changed in 0.0.6
 * fix. hybridanalysis init scan bug. by @nikescar
