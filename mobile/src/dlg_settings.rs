@@ -337,10 +337,7 @@ impl DlgSettings {
                                 }
                             }
 
-                            ui.add_space(8.0);
-
-                            // Theme Selector
-                            ui.label(tr!("theme"));
+                            ui.label(tr!("theme-mode"));
                             let mut selected_theme = settings.theme_name.clone();
                             egui::ComboBox::from_id_salt("theme_selector")
                                 .selected_text(match selected_theme.as_str() {
