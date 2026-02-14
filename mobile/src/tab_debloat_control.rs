@@ -1405,7 +1405,7 @@ impl TabDebloatControl {
                             }
                             
                             if (enabled_str.contains("DEFAULT") || enabled_str.contains("ENABLED")) && !is_unsafe_blocked {
-                                if ui.add(icon_button_standard(ICON_TOGGLE_ON.to_string())).on_hover_text(tr!("disable")).clicked() {
+                                if ui.add(icon_button_standard(ICON_TOGGLE_OFF.to_string()).icon_color(egui::Color32::from_rgb(211, 47, 47))).on_hover_text(tr!("disable")).clicked() {
                                     ui.data_mut(|data| {
                                         data.insert_temp(egui::Id::new("disable_clicked_package"), pkg_id_for_buttons.clone());
                                     });
@@ -1413,7 +1413,7 @@ impl TabDebloatControl {
                             }
 
                             if enabled_str.contains("REMOVED_USER") || enabled_str.contains("DISABLED_USER") || enabled_str.contains("DISABLED") {
-                                if ui.add(icon_button_standard(ICON_TOGGLE_OFF.to_string())).on_hover_text(tr!("enable")).clicked() {
+                                if ui.add(icon_button_standard(ICON_TOGGLE_ON.to_string()).icon_color(egui::Color32::from_rgb(56, 142, 60))).on_hover_text(tr!("enable")).clicked() {
                                     ui.data_mut(|data| {
                                         data.insert_temp(egui::Id::new("enable_clicked_package"), pkg_id_for_buttons.clone());
                                     });
@@ -1421,7 +1421,7 @@ impl TabDebloatControl {
                             }
 
                             if (enabled_str.contains("DEFAULT") || enabled_str.contains("ENABLED")) && !is_unsafe_blocked {
-                                if ui.add(icon_button_standard(ICON_DELETE.to_string())).on_hover_text(tr!("uninstall")).clicked() {
+                                if ui.add(icon_button_standard(ICON_DELETE.to_string()).icon_color(egui::Color32::from_rgb(211, 47, 47))).on_hover_text(tr!("uninstall")).clicked() {
                                     ui.data_mut(|data| {
                                         data.insert_temp(egui::Id::new("uninstall_clicked_package"), pkg_id_for_buttons.clone());
                                         data.insert_temp(egui::Id::new("uninstall_clicked_is_system"), is_system);

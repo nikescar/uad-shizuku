@@ -2240,8 +2240,8 @@ impl UadShizukuApp {
                     .id_salt("settings_dialog_scroll")
                     .auto_shrink([false, false])
                     .show(ui, |ui| {
-                        // Language Selector
                         ui.horizontal(|ui| {
+                            // Language Selector
                             ui.label(tr!("language"));
                             let mut selected_lang = self.settings.language.clone();
 
@@ -3120,14 +3120,14 @@ impl UadShizukuApp {
 
             dialog("about_dialog", &about_title, &mut self.about_dialog_open)
                 .content(|ui| {
-                    ui.vertical(|ui| {
-                        let screen_width = ui.ctx().screen_rect().width();
-                        let dialog_width = screen_width - 100.0;
-                        ui.set_width(dialog_width);
-                        let screen_height = ui.ctx().screen_rect().height();
-                        let dialog_height = screen_height - 200.0;
-                        ui.set_height(dialog_height);
+                    let screen_width = ui.ctx().screen_rect().width();
+                    let dialog_width = screen_width - 100.0;
+                    ui.set_width(dialog_width);
+                    let screen_height = ui.ctx().screen_rect().height();
+                    let dialog_height = screen_height - 200.0;
+                    ui.set_height(dialog_height);
 
+                    ui.horizontal_wrapped(|ui| {
                         ui.add_space(8.0);
 
                         egui::ScrollArea::horizontal()

@@ -8,7 +8,7 @@ use egui_material3::{data_table, icon_button_standard, theme::get_global_color};
 
 // SVG icons as constants (moved to svg_stt.rs)
 use crate::svg_stt::*;
-use crate::material_symbol_icons::{ICON_CANCEL, ICON_CHECK_CIRCLE, ICON_DELETE, ICON_DOWNLOAD, ICON_INFO, ICON_CHECK_BOX, ICON_REFRESH};
+use crate::material_symbol_icons::{ICON_CANCEL, ICON_CHECK_CIRCLE, ICON_DELETE, ICON_DOWNLOAD, ICON_INFO, ICON_CHECK_BOX, ICON_REFRESH, ICON_TOGGLE_OFF, ICON_TOGGLE_ON};
 use crate::{DESKTOP_MIN_WIDTH, BASE_TABLE_WIDTH};
 
 // Pre-compiled regex patterns for performance (avoid recompiling on every call)
@@ -1148,8 +1148,30 @@ impl TabAppsControl {
 
 
                             if let Some((ref pkg_name, is_system, ref enabled_state)) = installed_pkg_info {
+                                if enabled_state == "DISABLED" || enabled_state == "DISABLED_USER" {
+                                    if ui.add(icon_button_standard(ICON_TOGGLE_ON.to_string()).icon_color(egui::Color32::from_rgb(56, 142, 60))).on_hover_text(tr!("enable")).clicked() {
+                                        ui.data_mut(|data| {
+                                            data.insert_temp(
+                                                egui::Id::new("apps_enable_clicked_package"),
+                                                pkg_name.clone(),
+                                            );
+                                        });
+                                    }
+                                }
+
                                 if enabled_state == "DEFAULT" || enabled_state == "ENABLED" {
-                                    if ui.add(icon_button_standard(ICON_DELETE.to_string())).on_hover_text(tr!("uninstall")).clicked() {
+                                    if ui.add(icon_button_standard(ICON_TOGGLE_OFF.to_string()).icon_color(egui::Color32::from_rgb(211, 47, 47))).on_hover_text(tr!("disable")).clicked() {
+                                        ui.data_mut(|data| {
+                                            data.insert_temp(
+                                                egui::Id::new("apps_disable_clicked_package"),
+                                                pkg_name.clone(),
+                                            );
+                                        });
+                                    }
+                                }
+
+                                if enabled_state == "DEFAULT" || enabled_state == "ENABLED" {
+                                    if ui.add(icon_button_standard(ICON_DELETE.to_string()).icon_color(egui::Color32::from_rgb(211, 47, 47))).on_hover_text(tr!("uninstall")).clicked() {
                                         ui.data_mut(|data| {
                                             data.insert_temp(
                                                 egui::Id::new("apps_uninstall_clicked_package"),
@@ -1167,27 +1189,6 @@ impl TabAppsControl {
                                     }
                                 }
 
-                                if enabled_state == "DISABLED" || enabled_state == "DISABLED_USER" {
-                                    if ui.add(icon_button_standard(ICON_CHECK_CIRCLE.to_string())).on_hover_text(tr!("enable")).clicked() {
-                                        ui.data_mut(|data| {
-                                            data.insert_temp(
-                                                egui::Id::new("apps_enable_clicked_package"),
-                                                pkg_name.clone(),
-                                            );
-                                        });
-                                    }
-                                }
-
-                                if enabled_state == "DEFAULT" || enabled_state == "ENABLED" {
-                                    if ui.add(icon_button_standard(ICON_CANCEL.to_string())).on_hover_text(tr!("disable")).clicked() {
-                                        ui.data_mut(|data| {
-                                            data.insert_temp(
-                                                egui::Id::new("apps_disable_clicked_package"),
-                                                pkg_name.clone(),
-                                            );
-                                        });
-                                    }
-                                }
                             }
                         } else if let Some((ref url, ref link_type)) = downloadable_link {
                             let hover_text = format!("[{}]\n{}", link_type, url);
