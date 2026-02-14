@@ -55,9 +55,9 @@ jobs:
             target: aarch64-linux-android
             build-args: "--release"
 
-          # - name: Android APK arm64
-          #   target: aarch64-linux-android
-          #   build-args: "--release"
+          - name: Android APK arm64
+            target: aarch64-linux-android
+            build-args: "--release"
 
           - name: Android armv7
             target: armv7-linux-androideabi
@@ -160,16 +160,16 @@ jobs:
           ls -al ./app/build/outputs/apk/release
           popd
       
-      # - name: Android, Publish to google play # https://github.com/marketplace/actions/upload-android-release-to-play-store
-      #   if: (contains(matrix.platform.name, 'Android APK arm64'))
-      #   uses: r0adkll/upload-google-play@v1
-      #   with:
-      #     serviceAccountJsonPlainText: ${{ secrets.SERVICE_ACCOUNT_JSON }}
-      #     packageName: pe.nikescar.uad_shizuku
-      #     releaseFiles: mobile/app/build/outputs/bundle/release/app-release.aab
-      #     track: production
-      #     inAppUpdatePriority: 2
-      #     debugSymbols: mobile/app/build/intermediates/merged_native_libs/release/mergeReleaseNativeLibs/out/lib
+      - name: Android, Publish to google play # https://github.com/marketplace/actions/upload-android-release-to-play-store
+        if: (contains(matrix.platform.name, 'Android APK arm64'))
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.SERVICE_ACCOUNT_JSON }}
+          packageName: pe.nikescar.uad_shizuku
+          releaseFiles: mobile/app/build/outputs/bundle/release/app-release.aab
+          track: production
+          inAppUpdatePriority: 2
+          debugSymbols: mobile/app/build/intermediates/merged_native_libs/release/mergeReleaseNativeLibs/out/lib
       
       # - name: Android, Upload to the Amazon AppStore
       #   if: "(contains(matrix.platform.name, 'Android APK arm64'))"
