@@ -1230,32 +1230,6 @@ impl TabScanControl {
             }
         }); 
 
-        // Apply Material theme styling
-        let surface = get_global_color("surface");
-        let on_surface = get_global_color("onSurface");
-        let primary = get_global_color("primary");
-
-        let mut style = (*ui.ctx().style()).clone();
-        style.visuals.widgets.noninteractive.bg_fill = surface;
-        style.visuals.widgets.inactive.bg_fill = surface;
-        style.visuals.widgets.hovered.bg_fill =
-            egui::Color32::from_rgba_premultiplied(primary.r(), primary.g(), primary.b(), 20);
-        style.visuals.widgets.active.bg_fill =
-            egui::Color32::from_rgba_premultiplied(primary.r(), primary.g(), primary.b(), 40);
-        style.visuals.selection.bg_fill = primary;
-        style.visuals.widgets.noninteractive.fg_stroke.color = on_surface;
-        style.visuals.widgets.inactive.fg_stroke.color = on_surface;
-        style.visuals.widgets.hovered.fg_stroke.color = on_surface;
-        style.visuals.widgets.active.fg_stroke.color = on_surface;
-        style.visuals.striped = true;
-        style.visuals.faint_bg_color = egui::Color32::from_rgba_premultiplied(
-            on_surface.r(),
-            on_surface.g(),
-            on_surface.b(),
-            10,
-        );
-        ui.ctx().set_style(style);
-
         if self.sort_column.is_some() {
             self.sort_packages();
         }
@@ -1283,12 +1257,12 @@ impl TabScanControl {
         // Get viewport width for responsive design
         let available_width = ui.ctx().screen_rect().width();
         let is_desktop = available_width >= DESKTOP_MIN_WIDTH;
-        let width_ratio = if is_desktop { available_width / BASE_TABLE_WIDTH } else { 1.0 };
+        let width_ratio = available_width / BASE_TABLE_WIDTH;
 
         let mut interactive_table = data_table()
             .id(egui::Id::new("scan_data_table"))
             .default_row_height(if is_desktop { 60.0 } else { 80.0 })
-            .sortable_column(tr!("col-package-name"), if is_desktop { 350.0 * width_ratio } else { available_width * 0.55 }, false);
+            .sortable_column(tr!("col-package-name"), if is_desktop { 350.0 * width_ratio } else { available_width * 0.65 }, false);
         if is_desktop {
             interactive_table = interactive_table
                 .sortable_column(tr!("col-izzy-risk"), 80.0 * width_ratio, true)
@@ -1296,7 +1270,7 @@ impl TabScanControl {
                 .sortable_column(tr!("col-hybrid-analysis"), 200.0 * width_ratio, false);
         }
         interactive_table = interactive_table
-            .sortable_column(tr!("col-tasks"), if is_desktop { 170.0 * width_ratio } else { available_width * 0.42 }, false)
+            .sortable_column(tr!("col-tasks"), if is_desktop { 170.0 * width_ratio } else { available_width * 0.3 }, false)
             .allow_selection(false);
 
         for (idx, package) in installed_packages.iter().enumerate() {
@@ -1871,6 +1845,8 @@ impl TabScanControl {
                         .auto_shrink([false, true])
                         .show(ui, |ui| {
                         ui.horizontal(|ui| {
+                            ui.spacing_mut().item_spacing.x = 0.0;
+                            
                             // Info button - open package details dialog
                             if ui.add(icon_button_standard(ICON_INFO.to_string())).on_hover_text(tr!("package-info")).clicked() {
                                 if let Ok(mut clicked) = clicked_idx_clone.lock() {

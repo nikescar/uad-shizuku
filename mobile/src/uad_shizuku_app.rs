@@ -1,5 +1,6 @@
 #![doc(hidden)]
 
+use std::process;
 use std::cell::Cell;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -345,7 +346,7 @@ impl Default for UadShizukuApp {
             shizuku_error_message: None,
 
             // Pinch-to-zoom state
-            zoom_factor: 0.5,
+            zoom_factor: 1.0,
         };
 
         // Apply persisted theme preferences
@@ -748,7 +749,7 @@ impl UadShizukuApp {
                 // ui.ctx().request_repaint(); // Repaint when menu state changes
             }
             self.show_menus(ui.ctx());
-            ui.horizontal(|ui| {
+            ui.horizontal_wrapped(|ui| {
                 egui::ScrollArea::horizontal()
                     .id_salt(format!("top_app_bar_area"))
                     .auto_shrink([false, false])
@@ -842,8 +843,10 @@ impl UadShizukuApp {
         ui.horizontal(|ui| {
             egui::ScrollArea::horizontal()
             .id_salt(format!("notification_render_progress_area"))
-            .auto_shrink([false, false])
+            .auto_shrink([false, true])
             .show(ui, |ui| {
+                    ui.spacing_mut().item_spacing.x = 0.0;
+
                     // Package loading progress
                     let debloat_progress_value =
                         if let Ok(debloat_progress) = self.package_load_progress.lock() {
@@ -1152,6 +1155,7 @@ impl UadShizukuApp {
 
             if should_exit.get() {
                 ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                process::exit(1);
             }
         }
     }

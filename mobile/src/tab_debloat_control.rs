@@ -832,41 +832,15 @@ impl TabDebloatControl {
 
         let clicked_package_idx = std::sync::Arc::new(std::sync::Mutex::new(None::<usize>));
 
-        // Apply Material theme styling
-        let surface = get_global_color("surface");
-        let on_surface = get_global_color("onSurface");
-        let primary = get_global_color("primary");
-
-        let mut style = (*ui.ctx().style()).clone();
-        style.visuals.widgets.noninteractive.bg_fill = surface;
-        style.visuals.widgets.inactive.bg_fill = surface;
-        style.visuals.widgets.hovered.bg_fill =
-            egui::Color32::from_rgba_premultiplied(primary.r(), primary.g(), primary.b(), 20);
-        style.visuals.widgets.active.bg_fill =
-            egui::Color32::from_rgba_premultiplied(primary.r(), primary.g(), primary.b(), 40);
-        style.visuals.selection.bg_fill = primary;
-        style.visuals.widgets.noninteractive.fg_stroke.color = on_surface;
-        style.visuals.widgets.inactive.fg_stroke.color = on_surface;
-        style.visuals.widgets.hovered.fg_stroke.color = on_surface;
-        style.visuals.widgets.active.fg_stroke.color = on_surface;
-        style.visuals.striped = true;
-        style.visuals.faint_bg_color = egui::Color32::from_rgba_premultiplied(
-            on_surface.r(),
-            on_surface.g(),
-            on_surface.b(),
-            10,
-        );
-        ui.ctx().set_style(style);
-
         // Build table with proportional column widths for desktop
-        let width_ratio = if is_desktop { available_width / BASE_TABLE_WIDTH } else { 1.0 };
+        let width_ratio = available_width / BASE_TABLE_WIDTH;
         let mut debloat_table = data_table()
             .id(egui::Id::new(format!(
                 "debloat_data_table_v{}",
                 self.table_version
             )))
             .default_row_height(if is_desktop { 64.0 } else { 80.0 })
-            .sortable_column(tr!("col-package-name"), if is_desktop { 350.0 * width_ratio } else { available_width * 0.55 }, false);
+            .sortable_column(tr!("col-package-name"), if is_desktop { 350.0 * width_ratio } else { available_width * 0.52 }, false);
         if is_desktop {
             debloat_table = debloat_table
                 .sortable_column(tr!("col-debloat-category"), 130.0 * width_ratio, false)
@@ -875,7 +849,7 @@ impl TabDebloatControl {
                 .sortable_column(tr!("col-install-reason"), 110.0 * width_ratio, false);
         }
         debloat_table = debloat_table
-            .sortable_column(tr!("col-tasks"), if is_desktop { 160.0 * width_ratio } else { available_width * 0.36 }, false)
+            .sortable_column(tr!("col-tasks"), if is_desktop { 160.0 * width_ratio } else { available_width * 0.3  }, false)
             .allow_selection(true);
 
         // Sort column index mapping: self.sort_column uses logical (desktop) indices
@@ -1422,21 +1396,14 @@ impl TabDebloatControl {
                         .auto_shrink([false, true])
                         .show(ui, |ui| {
                         ui.horizontal(|ui| {
+                            ui.spacing_mut().item_spacing.x = 0.0;
+
                             if ui.add(icon_button_standard(ICON_INFO.to_string())).on_hover_text(tr!("package-info")).clicked() {
                                 if let Ok(mut clicked) = clicked_idx_clone.lock() {
                                     *clicked = Some(idx);
                                 }
                             }
-
-                            if (enabled_str.contains("DEFAULT") || enabled_str.contains("ENABLED")) && !is_unsafe_blocked {
-                                if ui.add(icon_button_standard(ICON_DELETE.to_string())).on_hover_text(tr!("uninstall")).clicked() {
-                                    ui.data_mut(|data| {
-                                        data.insert_temp(egui::Id::new("uninstall_clicked_package"), pkg_id_for_buttons.clone());
-                                        data.insert_temp(egui::Id::new("uninstall_clicked_is_system"), is_system);
-                                    });
-                                }
-                            }
-
+                            
                             if (enabled_str.contains("DEFAULT") || enabled_str.contains("ENABLED")) && !is_unsafe_blocked {
                                 if ui.add(icon_button_standard(ICON_TOGGLE_ON.to_string())).on_hover_text(tr!("disable")).clicked() {
                                     ui.data_mut(|data| {
@@ -1452,6 +1419,16 @@ impl TabDebloatControl {
                                     });
                                 }
                             }
+
+                            if (enabled_str.contains("DEFAULT") || enabled_str.contains("ENABLED")) && !is_unsafe_blocked {
+                                if ui.add(icon_button_standard(ICON_DELETE.to_string())).on_hover_text(tr!("uninstall")).clicked() {
+                                    ui.data_mut(|data| {
+                                        data.insert_temp(egui::Id::new("uninstall_clicked_package"), pkg_id_for_buttons.clone());
+                                        data.insert_temp(egui::Id::new("uninstall_clicked_is_system"), is_system);
+                                    });
+                                }
+                            }
+
                         });
                     });
                 });

@@ -1,4 +1,5 @@
 use crate::adb::PackageFingerprint;
+use crate::dlg_package_details::DlgPackageDetails;
 use crate::dlg_uninstall_confirm::DlgUninstallConfirm;
 pub use crate::tab_apps_control_stt::*;
 use eframe::egui;
@@ -42,6 +43,7 @@ impl Default for TabAppsControl {
             text_filter: String::new(),
             sort_column: None,
             sort_ascending: true,
+            package_details_dialog: DlgPackageDetails::default(),
             uninstall_confirm_dialog: DlgUninstallConfirm::default(),
         }
     }
@@ -1005,37 +1007,10 @@ impl TabAppsControl {
 
         ui.add_space(10.0);
 
-        // Apply Material theme styling to the table area
-        let surface = get_global_color("surface");
-        let on_surface = get_global_color("onSurface");
-        let primary = get_global_color("primary");
-
-        // Override table styling with Material theme
-        let mut style = (*ui.ctx().style()).clone();
-        style.visuals.widgets.noninteractive.bg_fill = surface;
-        style.visuals.widgets.inactive.bg_fill = surface;
-        style.visuals.widgets.hovered.bg_fill =
-            egui::Color32::from_rgba_premultiplied(primary.r(), primary.g(), primary.b(), 20);
-        style.visuals.widgets.active.bg_fill =
-            egui::Color32::from_rgba_premultiplied(primary.r(), primary.g(), primary.b(), 40);
-        style.visuals.selection.bg_fill = primary;
-        style.visuals.widgets.noninteractive.fg_stroke.color = on_surface;
-        style.visuals.widgets.inactive.fg_stroke.color = on_surface;
-        style.visuals.widgets.hovered.fg_stroke.color = on_surface;
-        style.visuals.widgets.active.fg_stroke.color = on_surface;
-        style.visuals.striped = true;
-        style.visuals.faint_bg_color = egui::Color32::from_rgba_premultiplied(
-            on_surface.r(),
-            on_surface.g(),
-            on_surface.b(),
-            10,
-        );
-        ui.ctx().set_style(style);
-
         // Get viewport width for responsive design
         let available_width = ui.ctx().screen_rect().width();
         let is_desktop = available_width >= DESKTOP_MIN_WIDTH;
-        let width_ratio = if is_desktop { available_width / BASE_TABLE_WIDTH } else { 1.0 };
+        let width_ratio = available_width / BASE_TABLE_WIDTH;
         // log::debug!(
         //     "Viewport width: {}, is_desktop: {}, width_ratio: {}",
         //     available_width,
@@ -1054,8 +1029,8 @@ impl TabAppsControl {
                 .column(tr!("install"), 300.0 * width_ratio, false);
         } else {
             interactive_table = interactive_table
-                .column(tr!("app-name"), available_width * 0.45, false)
-                .column(tr!("install"), available_width * 0.53, false);
+                .column(tr!("app-name"), available_width * 0.65 , false)
+                .column(tr!("install"), available_width * 0.3 , false);
         }
         interactive_table = interactive_table.allow_selection(false);
 
@@ -1152,10 +1127,25 @@ impl TabAppsControl {
                 // Install/Actions column (always)
                 row_builder.widget_cell(move |ui: &mut egui::Ui| {
                     ui.horizontal(|ui| {
+                        ui.spacing_mut().item_spacing.x = 0.0;
+
                         if let Some(ref status) = install_status {
                             ui.label(status);
                         } else if is_installed {
-                            ui.add(icon_button_standard(ICON_CHECK_BOX.to_string())).on_hover_text(tr!("installed"));
+
+                            // ui.add(icon_button_standard(ICON_CHECK_BOX.to_string())).on_hover_text(tr!("installed"));
+                            // Info button - open package details dialog
+                            if ui.add(icon_button_standard(ICON_INFO.to_string())).on_hover_text(tr!("package-info")).clicked() {
+                                if let Some((ref pkg_name, _, _)) = installed_pkg_info {
+                                    ui.data_mut(|data| {
+                                        data.insert_temp(
+                                            egui::Id::new("apps_info_clicked_package"),
+                                            pkg_name.clone(),
+                                        );
+                                    });
+                                }
+                            }
+
 
                             if let Some((ref pkg_name, is_system, ref enabled_state)) = installed_pkg_info {
                                 if enabled_state == "DEFAULT" || enabled_state == "ENABLED" {
@@ -1216,6 +1206,7 @@ impl TabAppsControl {
         interactive_table.show(ui);
 
         // Track action button clicks
+        let mut info_package: Option<String> = None;
         let mut uninstall_package: Option<String> = None;
         let mut uninstall_is_system = false;
         let mut uninstall_app_name: Option<String> = None;
@@ -1227,6 +1218,12 @@ impl TabAppsControl {
             if let Some(app) = data.get_temp::<AppEntry>(egui::Id::new("install_clicked_app")) {
                 install_clicked_app = Some(app);
                 data.remove::<AppEntry>(egui::Id::new("install_clicked_app"));
+            }
+
+            // Check for info button click
+            if let Some(pkg) = data.get_temp::<String>(egui::Id::new("apps_info_clicked_package")) {
+                info_package = Some(pkg);
+                data.remove::<String>(egui::Id::new("apps_info_clicked_package"));
             }
 
             // Check for action button clicks
@@ -1349,6 +1346,16 @@ impl TabAppsControl {
                 has_error = true;
             }
         }
+
+        // Open package details dialog for info click
+        if let Some(pkg_name) = info_package {
+            if let Some(idx) = self.installed_packages.iter().position(|p| p.pkg == pkg_name) {
+                self.package_details_dialog.open(idx);
+            }
+        }
+
+        // Show package details dialog
+        self.package_details_dialog.show(ui.ctx(), &self.installed_packages, &None);
 
         has_error
     }

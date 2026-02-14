@@ -1,4 +1,5 @@
 use crate::adb::PackageFingerprint;
+use crate::dlg_package_details::DlgPackageDetails;
 use crate::dlg_uninstall_confirm::DlgUninstallConfirm;
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
@@ -36,6 +37,7 @@ pub struct TabAppsControl {
     pub text_filter: String, // Text filter for searching all visible text in the table
     pub sort_column: Option<usize>, // Sort column for mobile view
     pub sort_ascending: bool, // Sort direction
-    // Uninstall confirmation dialog
+    // Dialogs
+    pub package_details_dialog: DlgPackageDetails,
     pub uninstall_confirm_dialog: DlgUninstallConfirm,
 }
