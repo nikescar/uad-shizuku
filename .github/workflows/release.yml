@@ -188,15 +188,6 @@ jobs:
           status: completed
           inAppUpdatePriority: 2
       
-      # - name: Android, Upload to the Amazon AppStore
-      #   if: "(contains(matrix.platform.name, 'Android APK arm64'))"
-      #   uses: ALJAZEERAPLUS/amazon-appstore-action@v1
-      #   with:
-      #     client-id: ${{secrets.AMAZON_APPSTORE_CLIENT_ID}}
-      #     client-secret: ${{secrets.AMAZON_APPSTORE_CLIENT_SECRET}}
-      #     app-id: ${{ secrets.AMAZON_APPSTORE_APP_ID }}
-      #     apk-file: app/build/outputs/apk/release/app-release.apk
-
       - name: Build Binary for ${{ matrix.platform.name }}
         if: (contains(matrix.platform.target, 'x86_64') || contains(matrix.platform.target, 'aarch64') || contains(matrix.platform.target, 'armv7')) && !contains(matrix.platform.name, 'Android APK arm64')
         uses: actions-rs/cargo@v1
@@ -261,16 +252,24 @@ jobs:
           do
               if [ -d "$i" ]
               then
+                  # Handle APK separately
                   [[ "$i" == *"uad-shizuku-all-signed.apk"* ]] && cp artifacts/uad-shizuku-all-signed.apk/uad-shizuku-all-signed.apk distbin/uad-shizuku-all-signed.apk && continue
+                  
+                  # Handle Windows executables - copy directly without compression
+                  if [[ "$i" == *"windows"* ]]; then
+                      cp "$i"/*.exe distbin/ 2>/dev/null || true
+                      continue
+                  fi
+                  
+                  # Handle other platforms - tar compress
                   cp LICENSE* "$i"
                   cp README.md "$i"
                   rm "$i/uad-shizuku.d" 1>/dev/null 2>&1 || true
                   chmod +x "$i/uad-shizuku" 1>/dev/null 2>&1 || true
-                  chmod +x "$i/uad-shizuku.exe" 1>/dev/null 2>&1 || true
                   tar -cvpzf "${i}.tar.gz" --directory=${i} .
               fi
           done
-          cp artifacts/*.tar.gz distbin/
+          cp artifacts/*.tar.gz distbin/ 2>/dev/null || true
         
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
