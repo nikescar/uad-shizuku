@@ -3,12 +3,9 @@
 use std::process;
 use std::cell::Cell;
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use sys_locale::get_locale;
 
-/// Flag to track when "Retry Detection" button is clicked in ADB install dialog
-static ADB_RETRY_REQUESTED: AtomicBool = AtomicBool::new(false);
 
 use eframe::egui;
 use egui_i18n::tr;
@@ -268,37 +265,35 @@ impl Default for UadShizukuApp {
             tab_usage_control: TabUsageControl::default(),
             tab_apps_control: TabAppsControl::new(cache_dir, tmp_dir),
 
-            // Settings dialog
-            settings_dialog_open: false,
-            settings_virustotal_apikey: settings.virustotal_apikey.clone(),
-            settings_hybridanalysis_apikey: settings.hybridanalysis_apikey.clone(),
-            settings_invalidate_cache: false,
-            settings_flush_virustotal: false,
-            settings_flush_hybridanalysis: false,
-            settings_flush_googleplay: false,
-            settings_flush_fdroid: false,
-            settings_flush_apkmirror: false,
-            // Temporary settings for dialog (applied only on Save)
-            settings_google_play_renderer: settings.google_play_renderer,
-            settings_fdroid_renderer: settings.fdroid_renderer,
-            settings_apkmirror_renderer: settings.apkmirror_renderer,
-            settings_virustotal_submit: settings.virustotal_submit,
-            settings_hybridanalysis_submit: settings.hybridanalysis_submit,
-            settings_hybridanalysis_tag_ignorelist: settings.hybridanalysis_tag_ignorelist.clone(),
-            settings_unsafe_app_remove: settings.unsafe_app_remove,
-            settings_autoupdate: settings.autoupdate,
-            settings: settings,
+            settings: settings.clone(),
+
+            // Dialog states
+            dlg_settings: crate::dlg_settings_stt::DlgSettings {
+                virustotal_apikey: settings.virustotal_apikey.clone(),
+                hybridanalysis_apikey: settings.hybridanalysis_apikey.clone(),
+                google_play_renderer: settings.google_play_renderer,
+                fdroid_renderer: settings.fdroid_renderer,
+                apkmirror_renderer: settings.apkmirror_renderer,
+                virustotal_submit: settings.virustotal_submit,
+                hybridanalysis_submit: settings.hybridanalysis_submit,
+                hybridanalysis_tag_ignorelist: settings.hybridanalysis_tag_ignorelist.clone(),
+                unsafe_app_remove: settings.unsafe_app_remove,
+                autoupdate: settings.autoupdate,
+                ..Default::default()
+            },
 
             package_load_progress: Arc::new(Mutex::new(None)),
 
-            // ADB installation dialog (opens automatically if ADB not found)
-            adb_install_dialog_open: which::which("adb").is_err(),
+            dlg_adb_install: crate::dlg_adb_install_stt::DlgAdbInstall {
+                open: which::which("adb").is_err(),
+                ..Default::default()
+            },
 
             // Disclaimer dialog (shows on startup)
             disclaimer_dialog_open: true,
 
-            // About dialog
-            about_dialog_open: false,
+            dlg_about: crate::dlg_about_stt::DlgAbout::default(),
+            dlg_update: crate::dlg_update_stt::DlgUpdate::default(),
 
             // Installation status (desktop only)
             #[cfg(not(target_os = "android"))]
@@ -311,17 +306,7 @@ impl Default for UadShizukuApp {
             // Update status (both desktop and Android)
             update_status: String::new(),
             update_available: false,
-            update_download_url: String::new(),
             update_checking: false,
-            update_dialog_open: false,
-            update_current_version: String::new(),
-            update_latest_version: String::new(),
-            update_release_notes: String::new(),
-
-            // Font selector state
-            system_fonts: Vec::new(),
-            system_fonts_loaded: false,
-            selected_font_display: String::new(),
 
             // Renderer state machines
             google_play_renderer: RendererStateMachine::default(),
@@ -411,82 +396,6 @@ impl UadShizukuApp {
 
     /// Enumerate system TTF/OTF fonts by scanning platform-specific directories.
     /// Returns a sorted Vec of (display_name, file_path) tuples.
-    fn enumerate_system_fonts() -> Vec<(String, String)> {
-        let mut fonts: Vec<(String, String)> = Vec::new();
-
-        let mut font_dirs: Vec<std::path::PathBuf> = Vec::new();
-
-        if cfg!(target_os = "android") {
-            font_dirs.push(std::path::PathBuf::from("/system/fonts"));
-        } else if cfg!(target_os = "macos") {
-            font_dirs.push(std::path::PathBuf::from("/Library/Fonts"));
-            font_dirs.push(std::path::PathBuf::from("/System/Library/Fonts"));
-            if let Some(home) = std::env::var_os("HOME") {
-                font_dirs.push(std::path::PathBuf::from(home).join("Library/Fonts"));
-            }
-        } else if cfg!(target_os = "windows") {
-            font_dirs.push(std::path::PathBuf::from("C:\\Windows\\Fonts"));
-        } else {
-            // Linux and other Unix
-            font_dirs.push(std::path::PathBuf::from("/usr/share/fonts"));
-            font_dirs.push(std::path::PathBuf::from("/usr/local/share/fonts"));
-            if let Some(home) = std::env::var_os("HOME") {
-                let home = std::path::PathBuf::from(home);
-                font_dirs.push(home.join(".fonts"));
-                font_dirs.push(home.join(".local/share/fonts"));
-            }
-        }
-
-        for dir in &font_dirs {
-            if dir.is_dir() {
-                Self::scan_font_dir(dir, &mut fonts);
-            }
-        }
-
-        fonts.sort_by(|a, b| a.0.to_lowercase().cmp(&b.0.to_lowercase()));
-        fonts.dedup_by(|a, b| a.0 == b.0);
-        fonts
-    }
-
-    /// Recursively scan a directory for TTF/OTF files.
-    fn scan_font_dir(dir: &std::path::Path, fonts: &mut Vec<(String, String)>) {
-        if let Ok(entries) = std::fs::read_dir(dir) {
-            for entry in entries.flatten() {
-                let path = entry.path();
-                if path.is_dir() {
-                    Self::scan_font_dir(&path, fonts);
-                } else if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
-                    let ext_lower = ext.to_lowercase();
-                    if ext_lower == "ttf" || ext_lower == "otf" {
-                        if let Some(stem) = path.file_stem().and_then(|s| s.to_str()) {
-                            let display_name = stem.replace('-', " ").replace('_', " ");
-                            fonts.push((display_name, path.to_string_lossy().to_string()));
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    /// Ensure system fonts are enumerated (lazy, cached).
-    fn ensure_system_fonts_loaded(&mut self) {
-        if !self.system_fonts_loaded {
-            self.system_fonts = Self::enumerate_system_fonts();
-            self.system_fonts_loaded = true;
-
-            if self.settings.font_path.is_empty() {
-                self.selected_font_display = "Default (NotoSansKr)".to_string();
-            } else {
-                self.selected_font_display = self
-                    .system_fonts
-                    .iter()
-                    .find(|(_, path)| path == &self.settings.font_path)
-                    .map(|(name, _)| name.clone())
-                    .unwrap_or_else(|| "Default (NotoSansKr)".to_string());
-            }
-        }
-    }
-
     fn string_to_theme_mode(value: &str) -> ThemeMode {
         match value {
             "Light" => ThemeMode::Light,
@@ -1018,23 +927,73 @@ impl UadShizukuApp {
         // === logs area end
 
         // === settings dialog
-        self.show_settings_dialog(ui.ctx());
+        self.dlg_settings.show(ui.ctx(), &mut self.settings);
+        // Handle save and theme changes from settings dialog
+        if self.dlg_settings.save_clicked {
+            self.save_settings();
+        }
+        if let Some(theme_name) = self.dlg_settings.theme_to_apply.take() {
+            if theme_name == "default" {
+                setup_local_theme(Some("resources/material-theme.json"));
+                load_themes();
+            } else {
+                self.apply_theme_by_name(&theme_name);
+            }
+        }
         // === settings dialog end
 
         // === ADB installation dialog (all platforms including Android)
-        self.show_adb_install_dialog(ui.ctx());
+        self.dlg_adb_install.show(ui.ctx());
+        // Handle retry request from ADB install dialog
+        if self.dlg_adb_install.retry_requested {
+            self.dlg_adb_install.retry_requested = false;
+            
+            #[cfg(target_os = "android")]
+            {
+                use crate::android_shizuku;
+                if android_shizuku::shizuku_is_available() {
+                    log::info!("Shizuku detected after retry");
+                    self.retrieve_adb_devices();
+                } else {
+                    self.dlg_adb_install.open();
+                }
+            }
+            
+            #[cfg(not(target_os = "android"))]
+            {
+                if which::which("adb").is_err() {
+                    self.dlg_adb_install.open();
+                } else {
+                    log::info!("ADB detected after retry");
+                    self.retrieve_adb_devices();
+                    self.retrieve_adb_users();
+                    self.retrieve_installed_packages();
+                }
+            }
+        }
         // === ADB installation dialog end
 
         // === Disclaimer dialog
-        self.show_disclaimer_dialog(ui.ctx());
+        // TODO: implement disclaimer dialog if needed
         // === Disclaimer dialog end
 
         // === Update dialog (both desktop and Android)
-        self.show_update_dialog(ui.ctx());
+        self.dlg_update.show(ui.ctx());
+        // Handle update request from update dialog
+        if self.dlg_update.do_update {
+            self.perform_update();
+        }
         // === Update dialog end
 
         // === About dialog
-        self.show_about_dialog(ui.ctx());
+        self.dlg_about.show(ui.ctx(), self.update_checking, self.update_available, &self.update_status);
+        // Handle check update and perform update from about dialog
+        if self.dlg_about.do_check_update {
+            self.check_for_update();
+        }
+        if self.dlg_about.do_perform_update {
+            self.perform_update();
+        }
         // === About dialog end
 
         // === Install dialog (desktop only)
@@ -1134,18 +1093,21 @@ impl UadShizukuApp {
 
             if open_settings.get() {
                 // Sync temporary settings from current settings when opening dialog
-                self.settings_google_play_renderer = self.settings.google_play_renderer;
-                self.settings_fdroid_renderer = self.settings.fdroid_renderer;
-                self.settings_apkmirror_renderer = self.settings.apkmirror_renderer;
-                self.settings_virustotal_submit = self.settings.virustotal_submit;
-                self.settings_hybridanalysis_submit = self.settings.hybridanalysis_submit;
-                self.settings_unsafe_app_remove = self.settings.unsafe_app_remove;
-                self.settings_autoupdate = self.settings.autoupdate;
-                self.settings_dialog_open = true;
+                self.dlg_settings.google_play_renderer = self.settings.google_play_renderer;
+                self.dlg_settings.fdroid_renderer = self.settings.fdroid_renderer;
+                self.dlg_settings.apkmirror_renderer = self.settings.apkmirror_renderer;
+                self.dlg_settings.virustotal_apikey = self.settings.virustotal_apikey.clone();
+                self.dlg_settings.hybridanalysis_apikey = self.settings.hybridanalysis_apikey.clone();
+                self.dlg_settings.virustotal_submit = self.settings.virustotal_submit;
+                self.dlg_settings.hybridanalysis_submit = self.settings.hybridanalysis_submit;
+                self.dlg_settings.hybridanalysis_tag_ignorelist = self.settings.hybridanalysis_tag_ignorelist.clone();
+                self.dlg_settings.unsafe_app_remove = self.settings.unsafe_app_remove;
+                self.dlg_settings.autoupdate = self.settings.autoupdate;
+                self.dlg_settings.open();
             }
 
             if open_about.get() {
-                self.about_dialog_open = true;
+                self.dlg_about.open();
             }
 
             #[cfg(not(target_os = "android"))]
@@ -1244,13 +1206,13 @@ impl UadShizukuApp {
                 self.update_checking = false;
                 if info.available {
                     self.update_available = true;
-                    self.update_download_url = info.download_url;
-                    self.update_current_version = info.current_version;
-                    self.update_latest_version = info.latest_version.clone();
-                    self.update_release_notes = info.release_notes;
-                    self.update_status = format!("{} {} → {}", tr!("update-available"), self.update_current_version, info.latest_version);
+                    self.dlg_update.download_url = info.download_url;
+                    self.dlg_update.current_version = info.current_version;
+                    self.dlg_update.latest_version = info.latest_version.clone();
+                    self.dlg_update.release_notes = info.release_notes;
+                    self.update_status = format!("{} {} → {}", tr!("update-available"), self.dlg_update.current_version, info.latest_version);
                     // Open update dialog automatically
-                    self.update_dialog_open = true;
+                    self.dlg_update.open();
                 } else {
                     self.update_status = tr!("up-to-date").to_string();
                 }
@@ -1274,12 +1236,12 @@ impl UadShizukuApp {
                 std::path::PathBuf::from("./tmp")
             };
 
-            match install::do_update(&self.update_download_url, &tmp_dir) {
+            match install::do_update(&self.dlg_update.download_url, &tmp_dir) {
                 InstallResult::Success(msg) => {
                     self.install_message = msg;
                     self.update_available = false;
                     self.update_status.clear();
-                    self.update_dialog_open = false;
+                    self.dlg_update.close();
                 }
                 InstallResult::Error(err) => {
                     self.install_message = format!("Error: {}", err);
@@ -1291,13 +1253,13 @@ impl UadShizukuApp {
         #[cfg(target_os = "android")]
         {
             // On Android, open browser to download page
-            if !self.update_download_url.is_empty() {
-                if let Err(e) = webbrowser::open(&self.update_download_url) {
+            if !self.dlg_update.download_url.is_empty() {
+                if let Err(e) = webbrowser::open(&self.dlg_update.download_url) {
                     log::error!("Failed to open browser for update download: {}", e);
                     self.update_status = format!("Failed to open browser: {}", e);
                 } else {
                     log::info!("Opened browser for update download");
-                    self.update_dialog_open = false;
+                    self.dlg_update.close();
                 }
             }
         }
@@ -2213,582 +2175,6 @@ impl UadShizukuApp {
     // Flags : https://android.googlesource.com/platform/frameworks/base/+/master/core/java/android/content/pm/ApplicationInfo.java
     // Permissions : https://developer.android.com/reference/android/Manifest.permission
     // Stalkerware IOC : https://github.com/AssoEchap/stalkerware-indicators
-    fn show_settings_dialog(&mut self, ctx: &egui::Context) {
-        if self.settings_dialog_open {
-            // Lazy-load system fonts before dialog borrows self.settings_dialog_open
-            self.ensure_system_fonts_loaded();
-
-            let save_clicked = Cell::new(false);
-            let theme_to_apply = Cell::new(None::<String>);
-
-            dialog(
-                "settings_dialog",
-                "Settings",
-                &mut self.settings_dialog_open,
-            )
-            .content(|ui| {
-                let screen_width = ui.ctx().screen_rect().width();
-                let dialog_width = screen_width - 100.0;
-                ui.set_width(dialog_width);
-                let screen_height = ui.ctx().screen_rect().height();
-                let dialog_height = screen_height - 200.0;
-                ui.set_height(dialog_height);
-
-                ui.add_space(8.0);
-                
-                egui::ScrollArea::both()
-                    .id_salt("settings_dialog_scroll")
-                    .auto_shrink([false, false])
-                    .show(ui, |ui| {
-                        ui.horizontal(|ui| {
-                            // Language Selector
-                            ui.label(tr!("language"));
-                            let mut selected_lang = self.settings.language.clone();
-
-                            egui::ComboBox::from_label("   ")
-                                .selected_text(match selected_lang.as_str() {
-                                    "Auto" => "Auto",
-                                    "en-US" => "English",
-                                    "ko-KR" => "Korean",
-                                    _ => &selected_lang,
-                                })
-                                .show_ui(ui, |ui| {
-                                    ui.selectable_value(
-                                        &mut selected_lang,
-                                        "Auto".to_string(),
-                                        "Auto",
-                                    );
-                                    ui.selectable_value(
-                                        &mut selected_lang,
-                                        "en-US".to_string(),
-                                        "English",
-                                    );
-                                    ui.selectable_value(
-                                        &mut selected_lang,
-                                        "ko-KR".to_string(),
-                                        "Korean",
-                                    );
-                                });
-
-                            if selected_lang != self.settings.language {
-                                self.settings.language = selected_lang.clone();
-                                // Apply the language immediately
-                                let language_to_apply = if selected_lang == "Auto" {
-                                    Self::detect_system_language()
-                                } else {
-                                    selected_lang
-                                };
-                                egui_i18n::set_language(&language_to_apply);
-                            }
-                        
-                            ui.add_space(8.0);
-                            // Font Selector
-                        
-                            ui.label(tr!("font"));
-
-                            let mut selected = self.selected_font_display.clone();
-
-                            egui::ComboBox::from_id_salt("font_selector")
-                                .selected_text(&selected)
-                                .show_ui(ui, |ui| {
-                                    ui.selectable_value(
-                                        &mut selected,
-                                        "Default (NotoSansKr)".to_string(),
-                                        "Default (NotoSansKr)",
-                                    );
-                                    for (display_name, _path) in &self.system_fonts {
-                                        ui.selectable_value(
-                                            &mut selected,
-                                            display_name.clone(),
-                                            display_name.as_str(),
-                                        );
-                                    }
-                                });
-
-                            if selected != self.selected_font_display {
-                                self.selected_font_display = selected.clone();
-
-                                if selected == "Default (NotoSansKr)" {
-                                    self.settings.font_path = String::new();
-                                } else if let Some((_, path)) = self
-                                    .system_fonts
-                                    .iter()
-                                    .find(|(name, _)| name == &selected)
-                                {
-                                    self.settings.font_path = path.clone();
-                                }
-
-                                // Apply font immediately using free functions
-                                use egui_material3::theme::{
-                                    load_fonts, setup_local_fonts, setup_local_fonts_from_bytes,
-                                };
-                                if self.settings.font_path.is_empty() {
-                                    setup_local_fonts_from_bytes(
-                                        "NotoSansKr",
-                                        include_bytes!("../resources/noto-sans-kr.ttf"),
-                                    );
-                                } else {
-                                    setup_local_fonts(Some(&self.settings.font_path));
-                                }
-                                load_fonts(ui.ctx());
-                            }
-
-                            ui.add_space(8.0);
-                            // Text Style Override Selector
-
-                            ui.horizontal(|ui|{
-                                let mut override_text_style = ui.style().override_text_style.clone();
-                                ui.label(tr!("text-style"));
-                                egui::ComboBox::from_id_salt("override_text_style")
-                                    .selected_text(match &override_text_style {
-                                        None => "None".to_owned(),
-                                        Some(s) => s.to_string(),
-                                    })
-                                    .show_ui(ui, |ui| {
-                                        ui.selectable_value(
-                                            &mut override_text_style,
-                                            None,
-                                            "None",
-                                        );
-                                        let all_text_styles = ui.style().text_styles();
-                                        for style in all_text_styles {
-                                            let text = egui::RichText::new(style.to_string())
-                                                .text_style(style.clone());
-                                            ui.selectable_value(
-                                                &mut override_text_style,
-                                                Some(style),
-                                                text,
-                                            );
-                                        }
-                                    });
-                                let text_style = override_text_style.clone();
-                                ui.ctx().style_mut(|s| {
-                                    s.override_text_style = text_style.clone();
-                                });
-                                
-                                // Save to settings when changed
-                                let style_string = match text_style {
-                                    None => String::new(),
-                                    Some(s) => s.to_string(),
-                                };
-                                if style_string != self.settings.override_text_style {
-                                    self.settings.override_text_style = style_string;
-                                }
-                            });
-                        });
-                        ui.add_space(8.0);
-
-                        // Display Size Selector
-                        ui.horizontal(|ui| {
-                            ui.label(tr!("display-size"));
-                            let display_sizes = vec![
-                                ("Phone (412x732)", (412.0, 732.0)),
-                                ("Tablet (768x1024)", (768.0, 1024.0)),
-                                ("Desktop (1024x768)", (1024.0, 768.0)),
-                                ("1080p (1920x1080)", (1920.0, 1080.0)),
-                            ];
-                            let mut selected_size = self.settings.display_size.clone();
-                            egui::ComboBox::from_label("  ")
-                                .selected_text(&selected_size)
-                                .show_ui(ui, |ui| {
-                                    for (label, _size) in &display_sizes {
-                                        ui.selectable_value(
-                                            &mut selected_size,
-                                            label.to_string(),
-                                            *label,
-                                        );
-                                    }
-                                });
-
-                            if selected_size != self.settings.display_size {
-                                self.settings.display_size = selected_size.clone();
-
-                                // Find the corresponding size and resize the window
-                                if let Some((_, size)) = display_sizes
-                                    .iter()
-                                    .find(|(label, _)| *label == selected_size)
-                                {
-                                    ui.ctx().send_viewport_cmd(egui::ViewportCommand::InnerSize(
-                                        egui::vec2(size.0, size.1),
-                                    ));
-                                    log::info!("Window resized to {}x{}", size.0, size.1);
-                                }
-                            }
-                            ui.add_space(8.0);
-
-                            // Color Mode Selector
-                            ui.label(tr!("color-mode"));
-                            if let Ok(mut theme) = get_global_theme().lock() {
-                                // Light mode button
-                                let light_selected = theme.theme_mode == ThemeMode::Light;
-                                let light_button =
-                                    ui.selectable_label(light_selected, tr!("light-mode"));
-                                if light_button.clicked() {
-                                    theme.theme_mode = ThemeMode::Light;
-                                    self.settings.theme_mode =
-                                        Self::theme_mode_to_string(ThemeMode::Light);
-                                }
-
-                                // Auto mode button
-                                let auto_selected = theme.theme_mode == ThemeMode::Auto;
-                                let auto_button = ui.selectable_label(auto_selected, tr!("auto-mode"));
-                                if auto_button.clicked() {
-                                    theme.theme_mode = ThemeMode::Auto;
-                                    self.settings.theme_mode =
-                                        Self::theme_mode_to_string(ThemeMode::Auto);
-                                }
-
-                                // Dark mode button
-                                let dark_selected = theme.theme_mode == ThemeMode::Dark;
-                                let dark_button = ui.selectable_label(dark_selected, tr!("dark-mode"));
-                                if dark_button.clicked() {
-                                    theme.theme_mode = ThemeMode::Dark;
-                                    self.settings.theme_mode =
-                                        Self::theme_mode_to_string(ThemeMode::Dark);
-                                }
-                            }
-
-                            ui.add_space(8.0);
-
-                            // Theme Selector
-                            ui.label(tr!("theme"));
-                            ui.horizontal(|ui| {
-                                let mut selected_theme = self.settings.theme_name.clone();
-                                egui::ComboBox::from_id_salt("theme_selector")
-                                    .selected_text(match selected_theme.as_str() {
-                                        "green" => "Green",
-                                        "lightblue" => "Light Blue",
-                                        "lightpink" => "Light Pink",
-                                        "yellow" => "Yellow",
-                                        _ => "Default",
-                                    })
-                                    .show_ui(ui, |ui| {
-                                        if ui.selectable_value(&mut selected_theme, "default".to_string(), "Default").clicked() {
-                                            self.settings.theme_name = "default".to_string();
-                                            theme_to_apply.set(Some("default".to_string()));
-                                        }
-                                        if ui.selectable_value(&mut selected_theme, "green".to_string(), "Green").clicked() {
-                                            self.settings.theme_name = "green".to_string();
-                                            theme_to_apply.set(Some("green".to_string()));
-                                        }
-                                        if ui.selectable_value(&mut selected_theme, "lightblue".to_string(), "Light Blue").clicked() {
-                                            self.settings.theme_name = "lightblue".to_string();
-                                            theme_to_apply.set(Some("lightblue".to_string()));
-                                        }
-                                        if ui.selectable_value(&mut selected_theme, "lightpink".to_string(), "Light Pink").clicked() {
-                                            self.settings.theme_name = "lightpink".to_string();
-                                            theme_to_apply.set(Some("lightpink".to_string()));
-                                        }
-                                        if ui.selectable_value(&mut selected_theme, "yellow".to_string(), "Yellow").clicked() {
-                                            self.settings.theme_name = "yellow".to_string();
-                                            theme_to_apply.set(Some("yellow".to_string()));
-                                        }
-                                    });
-                            });
-
-                            ui.add_space(8.0);
-
-
-
-                            // // Contrast Level Selector
-                            // ui.label(tr!("contrast"));
-                            // if let Ok(mut theme) = get_global_theme().lock() {
-                            //     // High contrast button
-                            //     let high_selected = theme.contrast_level == ContrastLevel::High;
-                            //     let high_button =
-                            //         ui.selectable_label(high_selected, tr!("contrast-high"));
-                            //     if high_button.clicked() {
-                            //         theme.contrast_level = ContrastLevel::High;
-                            //         self.settings.contrast_level =
-                            //             Self::contrast_level_to_string(ContrastLevel::High);
-                            //     }
-
-                            //     // Medium contrast button
-                            //     let medium_selected = theme.contrast_level == ContrastLevel::Medium;
-                            //     let medium_button =
-                            //         ui.selectable_label(medium_selected, tr!("contrast-medium"));
-                            //     if medium_button.clicked() {
-                            //         theme.contrast_level = ContrastLevel::Medium;
-                            //         self.settings.contrast_level =
-                            //             Self::contrast_level_to_string(ContrastLevel::Medium);
-                            //     }
-
-                            //     // Normal contrast button
-                            //     let normal_selected = theme.contrast_level == ContrastLevel::Normal;
-                            //     let normal_button =
-                            //         ui.selectable_label(normal_selected, tr!("contrast-normal"));
-                            //     if normal_button.clicked() {
-                            //         theme.contrast_level = ContrastLevel::Normal;
-                            //         self.settings.contrast_level =
-                            //             Self::contrast_level_to_string(ContrastLevel::Normal);
-                            //     }
-                            // }
-                        });
-                        
-                        ui.add_space(8.0);
-
-                        ui.horizontal(|ui| {
-                            ui.checkbox(
-                                &mut self.settings_unsafe_app_remove,
-                                tr!("allow-unsafe-app-remove"),
-                            );
-                        });
-
-                        ui.add_space(8.0);
-
-                        ui.horizontal(|ui| {
-                            ui.checkbox(
-                                &mut self.settings_autoupdate,
-                                tr!("autoupdate"),
-                            );
-                            ui.label(tr!("autoupdate-desc"));
-                        });
-
-                        ui.add_space(8.0);
-
-                        ui.horizontal(|ui| {
-                            ui.label(tr!("virustotal-api-key"));
-                            let response = ui.text_edit_singleline(&mut self.settings_virustotal_apikey);
-                            #[cfg(target_os = "android")]
-                            {
-                                if response.gained_focus() {
-                                    let _ = crate::android_inputmethod::show_soft_input();
-                                }
-                                if response.lost_focus() {
-                                    let _ = crate::android_inputmethod::hide_soft_input();
-                                }
-                            }
-                            crate::clipboard_popup::show_clipboard_popup(ui, &response, &mut self.settings_virustotal_apikey);
-                            if ui.button(tr!("get-api-key")).clicked() {
-                                if let Err(e) = webbrowser::open("https://www.virustotal.com/gui/my-apikey") {
-                                    log::error!("Failed to open VirusTotal API key URL: {}", e);
-                                }
-                            }
-                        });
-
-                        ui.add_space(8.0);
-
-                        ui.horizontal(|ui| {
-                            ui.checkbox(
-                                &mut self.settings_virustotal_submit,
-                                tr!("allow-virustotal-upload"),
-                            );
-                            ui.label(tr!("virustotal-upload-desc"));
-                            ui.checkbox(&mut self.settings_flush_virustotal, tr!("flush"));
-                        });
-
-                        ui.add_space(8.0);
-
-                        ui.horizontal(|ui| {
-                            ui.label(tr!("hybridanalysis-api-key"));
-                            let response = ui.text_edit_singleline(&mut self.settings_hybridanalysis_apikey);
-                            #[cfg(target_os = "android")]
-                            {
-                                if response.gained_focus() {
-                                    let _ = crate::android_inputmethod::show_soft_input();
-                                }
-                                if response.lost_focus() {
-                                    let _ = crate::android_inputmethod::hide_soft_input();
-                                }
-                            }
-                            crate::clipboard_popup::show_clipboard_popup(ui, &response, &mut self.settings_hybridanalysis_apikey);
-                            if ui.button(tr!("get-api-key")).clicked() {
-                                if let Err(e) = webbrowser::open("https://hybrid-analysis.com/my-account") {
-                                    log::error!("Failed to open HybridAnalysis API key URL: {}", e);
-                                }
-                            }
-                        });
-
-                        ui.add_space(8.0);
-
-                        ui.horizontal(|ui| {
-                            ui.checkbox(
-                                &mut self.settings_hybridanalysis_submit,
-                                tr!("allow-hybridanalysis-upload"),
-                            );
-                            ui.label(tr!("hybridanalysis-upload-desc"));
-                            ui.checkbox(&mut self.settings_flush_hybridanalysis, tr!("flush"));
-                        });
-
-                        ui.add_space(8.0);
-
-                        ui.horizontal(|ui| {
-                            ui.label(tr!("hybridanalysis-tag-ignorelist"));
-                            let response = ui.text_edit_singleline(&mut self.settings_hybridanalysis_tag_ignorelist);
-                            #[cfg(target_os = "android")]
-                            {
-                                if response.gained_focus() {
-                                    let _ = crate::android_inputmethod::show_soft_input();
-                                }
-                                if response.lost_focus() {
-                                    let _ = crate::android_inputmethod::hide_soft_input();
-                                }
-                            }
-                            crate::clipboard_popup::show_clipboard_popup(ui, &response, &mut self.settings_hybridanalysis_tag_ignorelist);
-                        });
-
-                        ui.add_space(8.0);
-
-                        ui.horizontal(|ui| {
-                            ui.checkbox(
-                                &mut self.settings_google_play_renderer,
-                                tr!("google-play-renderer"),
-                            );
-                            ui.label(tr!("google-play-renderer-desc"));
-                            ui.checkbox(&mut self.settings_flush_googleplay, tr!("flush"));
-                        });
-
-                        ui.add_space(8.0);
-
-                        ui.horizontal(|ui| {
-                            ui.checkbox(&mut self.settings_fdroid_renderer, tr!("fdroid-renderer"));
-                            ui.label(tr!("fdroid-renderer-desc"));
-                            ui.checkbox(&mut self.settings_flush_fdroid, tr!("flush"));
-                        });
-
-                        ui.add_space(8.0);
-
-                        ui.horizontal(|ui| {
-                            ui.checkbox(
-                                &mut self.settings_apkmirror_renderer,
-                                tr!("apkmirror-renderer"),
-                            );
-                            ui.label(tr!("apkmirror-renderer-desc"));
-                            ui.checkbox(&mut self.settings_flush_apkmirror, tr!("flush"));
-                        });
-
-                        ui.add_space(8.0);
-
-                        ui.horizontal(|ui| {
-                            ui.checkbox(
-                                &mut self.settings.apkmirror_auto_upload,
-                                tr!("apkmirror-auto-upload"),
-                            );
-                            ui.label(tr!("apkmirror-auto-upload-desc"));
-                        });
-
-                        ui.add_space(8.0);
-
-                        ui.horizontal(|ui| {
-                            ui.label(tr!("apkmirror-email"));
-                            let response = ui.add(
-                                egui::TextEdit::singleline(&mut self.settings.apkmirror_email)
-                                    .desired_width(200.0)
-                                    .hint_text(tr!("email-hint")),
-                            );
-                            #[cfg(target_os = "android")]
-                            {
-                                if response.gained_focus() {
-                                    let _ = crate::android_inputmethod::show_soft_input();
-                                }
-                                if response.lost_focus() {
-                                    let _ = crate::android_inputmethod::hide_soft_input();
-                                }
-                            }
-                            crate::clipboard_popup::show_clipboard_popup(ui, &response, &mut self.settings.apkmirror_email);
-                        });
-
-                        ui.add_space(8.0);
-
-                        ui.horizontal(|ui| {
-                            ui.label(tr!("apkmirror-name"));
-                            let response = ui.add(
-                                egui::TextEdit::singleline(&mut self.settings.apkmirror_name)
-                                    .desired_width(200.0)
-                                    .hint_text(tr!("name-hint")),
-                            );
-                            #[cfg(target_os = "android")]
-                            {
-                                if response.gained_focus() {
-                                    let _ = crate::android_inputmethod::show_soft_input();
-                                }
-                                if response.lost_focus() {
-                                    let _ = crate::android_inputmethod::hide_soft_input();
-                                }
-                            }
-                            crate::clipboard_popup::show_clipboard_popup(ui, &response, &mut self.settings.apkmirror_name);
-                        });                    
-
-                        ui.add_space(8.0);
-
-                        ui.horizontal(|ui| {
-                            ui.checkbox(&mut self.settings_invalidate_cache, tr!("invalidate-cache"));
-                            ui.label(tr!("invalidate-cache-desc"));
-                        });
-
-                        ui.add_space(8.0);
-
-                        ui.horizontal(|ui| {
-                            ui.label(tr!("show-logs"));
-                            ui.checkbox(&mut self.settings.show_logs, tr!("show"));
-
-                            let current_level = Self::string_to_log_level(&self.settings.log_level);
-
-                            let error_selected = current_level == LogLevel::Error;
-                            let error_button = ui.selectable_label(error_selected, "ERROR");
-                            if error_button.clicked() {
-                                self.settings.log_level = Self::log_level_to_string(LogLevel::Error);
-                                crate::log_capture::update_log_level(&self.settings.log_level);
-                            }
-
-                            let warn_selected = current_level == LogLevel::Warn;
-                            let warn_button = ui.selectable_label(warn_selected, "WARN");
-                            if warn_button.clicked() {
-                                self.settings.log_level = Self::log_level_to_string(LogLevel::Warn);
-                                crate::log_capture::update_log_level(&self.settings.log_level);
-                            }
-
-                            let info_selected = current_level == LogLevel::Info;
-                            let info_button = ui.selectable_label(info_selected, "INFO");
-                            if info_button.clicked() {
-                                self.settings.log_level = Self::log_level_to_string(LogLevel::Info);
-                                crate::log_capture::update_log_level(&self.settings.log_level);
-                            }
-
-                            let debug_selected = current_level == LogLevel::Debug;
-                            let debug_button = ui.selectable_label(debug_selected, "DEBUG");
-                            if debug_button.clicked() {
-                                self.settings.log_level = Self::log_level_to_string(LogLevel::Debug);
-                                crate::log_capture::update_log_level(&self.settings.log_level);
-                            }
-
-                            let trace_selected = current_level == LogLevel::Trace;
-                            let trace_button = ui.selectable_label(trace_selected, "TRACE");
-                            if trace_button.clicked() {
-                                self.settings.log_level = Self::log_level_to_string(LogLevel::Trace);
-                                crate::log_capture::update_log_level(&self.settings.log_level);
-                            }
-                        });
-
-                        ui.add_space(8.0);
-                });
-            })
-            .action(tr!("cancel"), || {
-                log::info!("Settings dialog Cancel clicked!");
-            })
-            .primary_action(tr!("save"), || {
-                log::info!("Settings dialog Save clicked!");
-                save_clicked.set(true);
-            })
-            .show(ctx);
-
-            // Handle save after dialog is shown
-            if save_clicked.get() {
-                self.save_settings();
-            }
-
-            // Apply theme if one was selected
-            if let Some(theme_name) = theme_to_apply.take() {
-                if theme_name == "default" {
-                    setup_local_theme(Some("resources/material-theme.json"));
-                    load_themes();
-                } else {
-                    self.apply_theme_by_name(&theme_name);
-                }
-            }
-        }
-    }
-
     fn show_package_loading_dialog(&mut self, ctx: &egui::Context) {
         if self.package_loading_dialog_open {
             dialog(
@@ -2805,499 +2191,6 @@ impl UadShizukuApp {
 
             // Request repaint to keep dialog updating
             ctx.request_repaint();
-        }
-    }
-
-    fn show_adb_install_dialog(&mut self, ctx: &egui::Context) {
-        // Handle retry request from previous frame
-        if ADB_RETRY_REQUESTED.swap(false, Ordering::SeqCst) {
-            #[cfg(target_os = "android")]
-            {
-                use crate::android_shizuku;
-                if android_shizuku::shizuku_is_available() {
-                    // Shizuku now available after retry
-                    log::info!("Shizuku detected after retry");
-                    self.retrieve_adb_devices();
-                } else {
-                    // Shizuku still not available, reopen dialog
-                    self.adb_install_dialog_open = true;
-                }
-            }
-            
-            #[cfg(not(target_os = "android"))]
-            {
-                if which::which("adb").is_err() {
-                    // ADB still not found, reopen dialog
-                    self.adb_install_dialog_open = true;
-                } else {
-                    // ADB found after retry
-                    log::info!("ADB detected after retry");
-                    self.retrieve_adb_devices();
-                    self.retrieve_adb_users();
-                    self.retrieve_installed_packages();
-                }
-            }
-        }
-
-        if self.adb_install_dialog_open {
-            // Platform detection
-            let os = std::env::consts::OS;
-            
-            #[cfg(target_os = "android")]
-            let title = "Shizuku Not Found - Installation Instructions";
-            
-            #[cfg(not(target_os = "android"))]
-            let title = "ADB Not Found - Installation Instructions";
-            
-            dialog(
-                "adb_install_dialog",
-                title,
-                &mut self.adb_install_dialog_open,
-            )
-            .content(|ui| {
-                ui.vertical(|ui| {
-                    let screen_width = ui.ctx().screen_rect().width();
-                    let dialog_width = screen_width - 100.0;
-                    ui.set_width(dialog_width);
-                    let screen_height = ui.ctx().screen_rect().height();
-                    let dialog_height = screen_height - 200.0;
-                    ui.set_height(dialog_height);
-
-                    ui.add_space(8.0);
-
-                    egui::ScrollArea::horizontal()
-                        .id_salt("adb_install_dialog_scroll")
-                        .auto_shrink([false, false])
-                        .show(ui, |ui| {
-                        #[cfg(target_os = "android")]
-                        {
-                            ui.label("Detected platform: Android");
-                            ui.add_space(8.0);
-                            ui.label("Shizuku is required to provide ADB functionality on Android devices.");
-                            ui.add_space(16.0);
-
-                            ui.label("Please follow these steps:");
-                            ui.add_space(8.0);
-
-                            ui.label("1. Install Shizuku app from Google Play:");
-                            ui.add_space(4.0);
-
-                            ui.horizontal(|ui| {
-                                if ui.button("Open Google Play Store").clicked() {
-                                    if let Err(e) = webbrowser::open("https://play.google.com/store/apps/details?id=moe.shizuku.privileged.api") {
-                                        log::error!("Failed to open Google Play Store URL: {}", e);
-                                    }
-                                }
-                            });
-
-                            ui.add_space(8.0);
-                            ui.label("2. Enable Developer Mode (Settings > About > tap Build number 7 times)");
-                            ui.add_space(4.0);
-                            ui.label("3. Enable Wireless Debugging (Settings > Developer options)");
-                            ui.add_space(4.0);
-                            ui.label("4. Open Shizuku app and start the service");
-                            ui.add_space(4.0);
-                            ui.label("5. Return to UAD-Shizuku and tap 'Retry Detection'");
-                            ui.add_space(16.0);
-
-                            ui.label("For detailed instructions:");
-                            ui.add_space(8.0);
-
-                            ui.horizontal(|ui| {
-                                if ui.button("Installation Guide (English)").clicked() {
-                                    if let Err(e) = webbrowser::open("https://uad-shizuku.pages.dev/docs/installation") {
-                                        log::error!("Failed to open installation guide URL: {}", e);
-                                    }
-                                }
-                            });
-
-                            ui.horizontal(|ui| {
-                                if ui.button("설치 가이드 (한국어)").clicked() {
-                                    if let Err(e) = webbrowser::open("https://uad-shizuku.pages.dev/docs/kr/docs/installation") {
-                                        log::error!("Failed to open Korean installation guide URL: {}", e);
-                                    }
-                                }
-                            });
-                        }
-
-                        #[cfg(not(target_os = "android"))]
-                        {
-                            let platform_name = match os {
-                                "windows" => "Windows",
-                                "macos" => "macOS",
-                                "linux" => "Linux",
-                                _ => os,
-                            };
-
-                            ui.label(format!("Detected platform: {}", platform_name));
-                            ui.add_space(8.0);
-                            ui.label("ADB (Android Debug Bridge) is required but not found in your system PATH.");
-                            ui.add_space(16.0);
-
-                            ui.label("Please follow the installation guide to install ADB:");
-                            ui.add_space(8.0);
-
-                            ui.horizontal(|ui| {
-                                if ui.button("Installation Guide (English)").clicked() {
-                                    if let Err(e) = webbrowser::open("https://uad-shizuku.pages.dev/docs/installation") {
-                                        log::error!("Failed to open installation guide URL: {}", e);
-                                    }
-                                }
-                            });
-
-                            ui.horizontal(|ui| {
-                                if ui.button("설치 가이드 (한국어)").clicked() {
-                                    if let Err(e) = webbrowser::open("https://uad-shizuku.pages.dev/docs/kr/docs/installation") {
-                                        log::error!("Failed to open Korean installation guide URL: {}", e);
-                                    }
-                                }
-                            });
-                        }
-                    });
-
-                    ui.add_space(16.0);
-                });
-            })
-            .action(tr!("close"), || {})
-            .primary_action("Retry Detection", || {
-                ADB_RETRY_REQUESTED.store(true, Ordering::SeqCst);
-            })
-            .show(ctx);
-
-            // Check if requirements became available (user may have installed them)
-            #[cfg(target_os = "android")]
-            {
-                use crate::android_shizuku;
-                if android_shizuku::shizuku_is_available() {
-                    self.adb_install_dialog_open = false;
-                    log::info!("Shizuku detected, closing installation dialog");
-                    self.retrieve_adb_devices();
-                }
-            }
-            
-            #[cfg(not(target_os = "android"))]
-            {
-                if which::which("adb").is_ok() {
-                    self.adb_install_dialog_open = false;
-                    log::info!("ADB detected, closing installation dialog");
-                    self.retrieve_adb_devices();
-                    self.retrieve_adb_users();
-                    self.retrieve_installed_packages();
-                }
-            }
-        }
-    }
-
-    fn show_disclaimer_dialog(&mut self, ctx: &egui::Context) {
-        // Disclaimer dialog
-        if self.disclaimer_dialog_open {
-            let disclaimer_title = tr!("disclaimer-title");
-            let disclaimer_no_user_data = tr!("disclaimer-no-user-data");
-            let disclaimer_uninstall_warning = tr!("disclaimer-uninstall-warning");
-
-            dialog(
-                "disclaimer_dialog",
-                &disclaimer_title,
-                &mut self.disclaimer_dialog_open,
-            )
-            .content(|ui| {
-                ui.vertical(|ui| {
-                    ui.set_width(400.0);
-
-                    ui.add_space(8.0);
-
-                    ui.label(&disclaimer_uninstall_warning);
-
-                    ui.add_space(8.0);
-
-                    ui.label(&disclaimer_no_user_data);
-
-                    ui.add_space(16.0);
-                });
-            })
-            .action(tr!("ok"), || {})
-            .show(ctx);
-        }
-    }
-
-    fn show_update_dialog(&mut self, ctx: &egui::Context) {
-        if self.update_dialog_open {
-            let update_title = tr!("update-available-title");
-            let do_update = Cell::new(false);
-            #[cfg(target_os = "android")]
-            let download_url = self.update_download_url.clone();
-
-            dialog("update_dialog", &update_title, &mut self.update_dialog_open)
-                .content(|ui| {
-                    ui.vertical(|ui| {
-                        let screen_width = ui.ctx().screen_rect().width();
-                        let dialog_width = screen_width - 100.0;
-                        ui.set_width(dialog_width);
-                        let screen_height = ui.ctx().screen_rect().height();
-                        let dialog_height = screen_height - 200.0;
-                        ui.set_height(dialog_height);
-
-                        ui.add_space(8.0);
-
-                        egui::ScrollArea::horizontal()
-                            .id_salt("update_dialog_scroll")
-                            .auto_shrink([false, false])
-                            .show(ui, |ui| {
-                            // Show version info
-                            ui.label(format!(
-                                "{} {} → {}",
-                                tr!("update-available-message"),
-                                self.update_current_version,
-                                self.update_latest_version
-                            ));
-
-                            ui.add_space(12.0);
-
-                            // Show release notes if available
-                            if !self.update_release_notes.is_empty() {
-                                ui.label(tr!("release-notes"));
-                                ui.add_space(4.0);
-
-                                egui::ScrollArea::vertical()
-                                    .max_height(200.0)
-                                    .show(ui, |ui| {
-                                        ui.label(&self.update_release_notes);
-                                    });
-
-                                ui.add_space(12.0);
-                            }
-
-                            // Platform-specific instructions
-                            #[cfg(target_os = "android")]
-                            {
-                                ui.label(tr!("update-android-instruction"));
-                            }
-
-                            #[cfg(not(target_os = "android"))]
-                            {
-                                ui.label(tr!("update-desktop-instruction"));
-                            }
-                        });
-                    });
-                })
-                .action(tr!("cancel"), || {})
-                .primary_action(tr!("update-now"), || {
-                    do_update.set(true);
-                })
-                .show(ctx);
-
-            if do_update.get() {
-                #[cfg(not(target_os = "android"))]
-                {
-                    self.perform_update();
-                }
-                #[cfg(target_os = "android")]
-                {
-                    if !download_url.is_empty() {
-                        if let Err(e) = webbrowser::open(&download_url) {
-                            log::error!("Failed to open download URL: {}", e);
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    fn show_about_dialog(&mut self, ctx: &egui::Context) {
-        if self.about_dialog_open {
-            let about_title = tr!("about");
-            let version = env!("CARGO_PKG_VERSION");
-            let description = tr!("about-description");
-            let website_label = tr!("about-website");
-            let credits_label = tr!("about-credits");
-
-            // Use Cell pattern for update button actions
-            let do_check_update = Cell::new(false);
-            let do_perform_update = Cell::new(false);
-            let update_checking = self.update_checking;
-            let update_available = self.update_available;
-            let update_status = self.update_status.clone();
-
-            dialog("about_dialog", &about_title, &mut self.about_dialog_open)
-                .content(|ui| {
-                    let screen_width = ui.ctx().screen_rect().width();
-                    let dialog_width = screen_width - 100.0;
-                    ui.set_width(dialog_width);
-                    let screen_height = ui.ctx().screen_rect().height();
-                    let dialog_height = screen_height - 200.0;
-                    ui.set_height(dialog_height);
-
-                    ui.horizontal_wrapped(|ui| {
-                        ui.add_space(8.0);
-
-                        egui::ScrollArea::horizontal()
-                            .id_salt("about_dialog_scroll")
-                            .auto_shrink([false, false])
-                            .show(ui, |ui| {
-                            // App name and version
-                            ui.heading("UAD-Shizuku");
-                            ui.horizontal(|ui| {
-                                ui.label(format!("Version: {}", version));
-
-                                ui.add_space(8.0);
-
-                                if update_checking {
-                                    ui.spinner();
-                                    ui.label(tr!("checking-update"));
-                                } else if update_available {
-                                    ui.label(&update_status);
-                                    if ui.button(tr!("update-now")).clicked() {
-                                        do_perform_update.set(true);
-                                    }
-                                } else if !update_status.is_empty() {
-                                    ui.label(&update_status);
-                                } else if ui.button(tr!("check-update")).clicked() {
-                                    do_check_update.set(true);
-                                }
-                            });
-
-                            ui.add_space(12.0);
-
-                            // Description
-                            ui.label(&description);
-
-                            ui.add_space(12.0);
-
-                            // Website
-                            ui.horizontal(|ui| {
-                                ui.label(format!("{}: ", website_label));
-                                if ui.button("https://uad-shizuku.pages.dev").clicked() {
-                                    if let Err(e) = webbrowser::open("https://uad-shizuku.pages.dev") {
-                                        log::error!("Failed to open website URL: {}", e);
-                                    }
-                                }
-                            });
-
-                            ui.add_space(12.0);
-
-                            // Credits section
-                            ui.label(egui::RichText::new(&credits_label).strong());
-                            ui.add_space(4.0);
-
-                            egui::ScrollArea::vertical()
-                                .max_height(400.0)
-                                .show(ui, |ui| {
-                                    ui.set_width(dialog_width - 40.0);
-
-                                    ui.heading("Reference Projects");
-                                    ui.add_space(4.0);
-                                    ui.label("• Universal Android Debloater Next Generation");
-                                    ui.label("  Cross-platform GUI written in Rust using ADB to debloat non-rooted Android devices.");
-                                    ui.label("  License: GPL-3.0");
-                                    ui.add_space(2.0);
-                                    ui.label("• bevy_game_template");
-                                    ui.label("  Template for Bevy game projects");
-                                    ui.label("  License: MIT/Apache-2.0");
-                                    ui.add_space(2.0);
-                                    ui.label("• chatGPTBox");
-                                    ui.label("  ChatGPT browser extension");
-                                    ui.label("  License: MIT");
-                                    ui.add_space(2.0);
-                                    ui.label("• android-activity");
-                                    ui.label("  Android activity glue crate");
-                                    ui.label("  License: MIT/Apache-2.0");
-                                    ui.add_space(2.0);
-                                    ui.label("• ai-rules");
-                                    ui.label("  AI rules configuration");
-                                    ui.label("  License: Apache-2.0");
-                                    ui.add_space(2.0);
-                                    ui.label("• aShell");
-                                    ui.label("  A local ADB shell for Shizuku powered Android devices");
-                                    ui.label("  License: GPL-3.0");
-
-                                    ui.add_space(12.0);
-                                    ui.heading("Rust Libraries");
-                                    ui.add_space(4.0);
-                                    ui.label("• log - Lightweight logging facade (MIT/Apache-2.0)");
-                                    ui.label("• tracing - Application-level tracing framework (MIT)");
-                                    ui.label("• tracing-subscriber - Utilities for tracing subscribers (MIT)");
-                                    ui.label("• lazy_static - Macro for declaring lazily evaluated statics (MIT/Apache-2.0)");
-                                    ui.label("• egui - Immediate mode GUI library (MIT/Apache-2.0)");
-                                    ui.label("• eframe - Framework for egui applications (MIT/Apache-2.0)");
-                                    ui.label("• egui_extras - Extra functionality for egui (MIT/Apache-2.0)");
-                                    ui.label("• serde - Serialization framework (MIT/Apache-2.0)");
-                                    ui.label("• serde_json - JSON serialization/deserialization (MIT/Apache-2.0)");
-                                    ui.label("• wgpu - Cross-platform graphics API (MIT/Apache-2.0)");
-                                    ui.label("• egui-i18n - Internationalization for egui (MIT)");
-                                    ui.label("• which - Locate installed executables (MIT)");
-                                    ui.label("• ehttp - Minimal HTTP client (MIT/Apache-2.0)");
-                                    ui.label("• zip - ZIP archive reading and writing (MIT)");
-                                    ui.label("• anyhow - Flexible error handling (MIT/Apache-2.0)");
-                                    ui.label("• ureq - Simple HTTP request library (MIT/Apache-2.0)");
-                                    ui.label("• ureq_multipart - Multipart form support for ureq (MIT)");
-                                    ui.label("• regex - Regular expressions (MIT/Apache-2.0)");
-                                    ui.label("• chrono - Date and time library (MIT/Apache-2.0)");
-                                    ui.label("• jsonpath_lib - JSONPath implementation (MIT)");
-                                    ui.label("• base64 - Base64 encoding/decoding (MIT/Apache-2.0)");
-                                    ui.label("• image - Image processing library (MIT/Apache-2.0)");
-                                    ui.label("• md5 - MD5 hash function (MIT/Apache-2.0)");
-                                    ui.label("• xee-xpath - XPath implementation (MIT/Apache-2.0)");
-                                    ui.label("• diesel - Safe, extensible ORM and query builder (MIT/Apache-2.0)");
-                                    ui.label("• diesel_migrations - Database migrations for Diesel (MIT/Apache-2.0)");
-                                    ui.label("• libsqlite3-sys - Native SQLite3 bindings (MIT)");
-                                    ui.label("• serde-wasm-bindgen - Serde integration for wasm-bindgen (MIT)");
-                                    ui.label("• wasm-bindgen - WebAssembly interop with JavaScript (MIT/Apache-2.0)");
-                                    ui.label("• wasm-bindgen-futures - Async/await support for wasm-bindgen (MIT/Apache-2.0)");
-
-                                    ui.add_space(12.0);
-                                    ui.heading("Android-Specific Libraries");
-                                    ui.add_space(4.0);
-                                    ui.label("• ndk-context - Android NDK context access (MIT/Apache-2.0)");
-                                    ui.label("• jni - Rust bindings for JNI (MIT/Apache-2.0)");
-                                    ui.label("• android_logger - Android logging for Rust (MIT/Apache-2.0)");
-                                    ui.label("• android-activity - Glue for building Android applications (MIT/Apache-2.0)");
-                                    ui.label("• ndk-sys - Raw FFI bindings to Android NDK (MIT/Apache-2.0)");
-
-                                    ui.add_space(12.0);
-                                    ui.heading("iOS-Specific Libraries");
-                                    ui.add_space(4.0);
-                                    ui.label("• bevy - Data-driven game engine (MIT/Apache-2.0)");
-                                    ui.label("• bevy_egui - Egui integration for Bevy (MIT)");
-                                    ui.label("• objc2-avf-audio - Rust bindings for AVFAudio framework (MIT)");
-
-                                    ui.add_space(12.0);
-                                    ui.heading("Linux-Specific Libraries");
-                                    ui.add_space(4.0);
-                                    ui.label("• gtk - Rust bindings for GTK 3 (MIT)");
-                                    ui.label("• gdk - Rust bindings for GDK 3 (MIT)");
-
-                                    ui.add_space(12.0);
-                                    ui.heading("Desktop Libraries");
-                                    ui.add_space(4.0);
-                                    ui.label("• directories - Platform-specific directory paths (MIT/Apache-2.0)");
-                                    ui.label("• open - Open files and URLs with default programs (MIT)");
-
-                                    ui.add_space(12.0);
-                                    ui.heading("WebAssembly Libraries");
-                                    ui.add_space(4.0);
-                                    ui.label("• sqlite-wasm-vfs - SQLite VFS for WebAssembly (MIT)");
-                                    ui.label("• sqlite-wasm-rs - SQLite for WebAssembly (MIT/Apache-2.0)");
-
-                                    ui.add_space(12.0);
-                                    ui.heading("Assets");
-                                    ui.add_space(4.0);
-                                    ui.label("• Icons from SVG Repo (CC Attribution)");
-                                });
-
-                            ui.add_space(16.0);
-                        });
-                    });
-                })
-                .action(tr!("ok"), || {})
-                .show(ctx);
-
-            // Handle update button actions
-            if do_check_update.get() {
-                self.check_for_update();
-            }
-            if do_perform_update.get() {
-                self.perform_update();
-            }
         }
     }
 
@@ -3319,16 +2212,16 @@ impl UadShizukuApp {
         let old_apkmirror_auto_upload = self.settings.apkmirror_auto_upload;
 
         // Update settings struct from temporary values
-        self.settings.virustotal_apikey = self.settings_virustotal_apikey.clone();
-        self.settings.hybridanalysis_apikey = self.settings_hybridanalysis_apikey.clone();
-        self.settings.virustotal_submit = self.settings_virustotal_submit;
-        self.settings.hybridanalysis_submit = self.settings_hybridanalysis_submit;
-        self.settings.hybridanalysis_tag_ignorelist = self.settings_hybridanalysis_tag_ignorelist.clone();
-        self.settings.google_play_renderer = self.settings_google_play_renderer;
-        self.settings.fdroid_renderer = self.settings_fdroid_renderer;
-        self.settings.apkmirror_renderer = self.settings_apkmirror_renderer;
-        self.settings.unsafe_app_remove = self.settings_unsafe_app_remove;
-        self.settings.autoupdate = self.settings_autoupdate;
+        self.settings.virustotal_apikey = self.dlg_settings.virustotal_apikey.clone();
+        self.settings.hybridanalysis_apikey = self.dlg_settings.hybridanalysis_apikey.clone();
+        self.settings.virustotal_submit = self.dlg_settings.virustotal_submit;
+        self.settings.hybridanalysis_submit = self.dlg_settings.hybridanalysis_submit;
+        self.settings.hybridanalysis_tag_ignorelist = self.dlg_settings.hybridanalysis_tag_ignorelist.clone();
+        self.settings.google_play_renderer = self.dlg_settings.google_play_renderer;
+        self.settings.fdroid_renderer = self.dlg_settings.fdroid_renderer;
+        self.settings.apkmirror_renderer = self.dlg_settings.apkmirror_renderer;
+        self.settings.unsafe_app_remove = self.dlg_settings.unsafe_app_remove;
+        self.settings.autoupdate = self.dlg_settings.autoupdate;
 
         // Sync unsafe_app_remove to tab controls
         self.tab_debloat_control.unsafe_app_remove = self.settings.unsafe_app_remove;
@@ -3455,31 +2348,31 @@ impl UadShizukuApp {
             }
         }
 
-        if self.settings_invalidate_cache {
+        if self.dlg_settings.invalidate_cache {
             invalidate_cache();
-            self.settings_invalidate_cache = false;
+            self.dlg_settings.invalidate_cache = false;
         }
 
         // Flush individual tables if requested
-        if self.settings_flush_virustotal {
+        if self.dlg_settings.flush_virustotal {
             flush_virustotal();
-            self.settings_flush_virustotal = false;
+            self.dlg_settings.flush_virustotal = false;
         }
-        if self.settings_flush_hybridanalysis {
+        if self.dlg_settings.flush_hybridanalysis {
             flush_hybridanalysis();
-            self.settings_flush_hybridanalysis = false;
+            self.dlg_settings.flush_hybridanalysis = false;
         }
-        if self.settings_flush_googleplay {
+        if self.dlg_settings.flush_googleplay {
             flush_googleplay();
-            self.settings_flush_googleplay = false;
+            self.dlg_settings.flush_googleplay = false;
         }
-        if self.settings_flush_fdroid {
+        if self.dlg_settings.flush_fdroid {
             flush_fdroid();
-            self.settings_flush_fdroid = false;
+            self.dlg_settings.flush_fdroid = false;
         }
-        if self.settings_flush_apkmirror {
+        if self.dlg_settings.flush_apkmirror {
             flush_apkmirror();
-            self.settings_flush_apkmirror = false;
+            self.dlg_settings.flush_apkmirror = false;
         }
 
         // Update log settings for in-app log display

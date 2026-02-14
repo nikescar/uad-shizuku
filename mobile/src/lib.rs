@@ -23,6 +23,14 @@ mod dlg_package_details;
 pub mod dlg_package_details_stt;
 mod dlg_uninstall_confirm;
 pub mod dlg_uninstall_confirm_stt;
+mod dlg_settings;
+pub mod dlg_settings_stt;
+mod dlg_adb_install;
+pub mod dlg_adb_install_stt;
+mod dlg_update;
+pub mod dlg_update_stt;
+mod dlg_about;
+pub mod dlg_about_stt;
 
 pub mod api_apkmirror;
 pub mod api_apkmirror_stt;

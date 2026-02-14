@@ -95,39 +95,22 @@ pub struct UadShizukuApp {
     pub tab_usage_control: TabUsageControl,
     pub tab_apps_control: TabAppsControl,
 
-    // Settings dialog state
-    pub settings_dialog_open: bool,
+    // Settings
     pub settings: Settings,
-    pub settings_virustotal_apikey: String,
-    pub settings_hybridanalysis_apikey: String,
-    pub settings_invalidate_cache: bool,
-    // Flush checkboxes for each service
-    pub settings_flush_virustotal: bool,
-    pub settings_flush_hybridanalysis: bool,
-    pub settings_flush_googleplay: bool,
-    pub settings_flush_fdroid: bool,
-    pub settings_flush_apkmirror: bool,
-    // Temporary settings for dialog (applied only on Save)
-    pub settings_google_play_renderer: bool,
-    pub settings_fdroid_renderer: bool,
-    pub settings_apkmirror_renderer: bool,
-    pub settings_virustotal_submit: bool,
-    pub settings_hybridanalysis_submit: bool,
-    pub settings_hybridanalysis_tag_ignorelist: String,
-    pub settings_unsafe_app_remove: bool,
-    pub settings_autoupdate: bool,
+
+    // Dialog states
+    pub dlg_settings: crate::dlg_settings_stt::DlgSettings,
 
     // Progress tracking for background tasks
     pub package_load_progress: std::sync::Arc<std::sync::Mutex<Option<f32>>>,
 
-    // ADB installation dialog state
-    pub adb_install_dialog_open: bool,
+    pub dlg_adb_install: crate::dlg_adb_install_stt::DlgAdbInstall,
 
     // Disclaimer dialog state
     pub disclaimer_dialog_open: bool,
 
-    // About dialog state
-    pub about_dialog_open: bool,
+    pub dlg_about: crate::dlg_about_stt::DlgAbout,
+    pub dlg_update: crate::dlg_update_stt::DlgUpdate,
 
     // Installation status (desktop only)
     #[cfg(not(target_os = "android"))]
@@ -140,17 +123,7 @@ pub struct UadShizukuApp {
     // Update status (both desktop and Android)
     pub update_status: String,
     pub update_available: bool,
-    pub update_download_url: String,
     pub update_checking: bool,
-    pub update_dialog_open: bool,
-    pub update_current_version: String,
-    pub update_latest_version: String,
-    pub update_release_notes: String,
-
-    // Font selector state
-    pub system_fonts: Vec<(String, String)>,
-    pub system_fonts_loaded: bool,
-    pub selected_font_display: String,
 
     // Renderer state machines
     pub google_play_renderer: RendererStateMachine,
