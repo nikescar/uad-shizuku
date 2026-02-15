@@ -120,12 +120,3 @@ pub fn get_installed_packages() -> std::io::Result<Vec<String>> {
     }
     Ok(package_names)
 }
-
-#[cfg(target_os = "android")]
-pub fn get_application_icon(_package_name: &str) -> std::io::Result<Vec<u8>> {
-    // Implementation would go here
-    Err(std::io::Error::new(
-        std::io::ErrorKind::Other,
-        "Not implemented",
-    ))
-}

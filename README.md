@@ -101,6 +101,7 @@ Get list of FOSS apps, and install directly. github and fdroid auto-install supp
 
 ## Todos
 
+* separate malicious filter into non-ignored app and ignored app
 * match datatable color to theme.
 * windows app signing & attestation.
 * replace adb with https://github.com/cocool97/adb_client.git
