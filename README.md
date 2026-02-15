@@ -102,7 +102,8 @@ Get list of FOSS apps, and install directly. github and fdroid auto-install supp
 ## Todos
 
 * match datatable color to theme.
-* windows app signing & attestation
+* windows app signing & attestation.
+* replace adb with https://github.com/cocool97/adb_client.git
 * web version through webusb on browser
 * usage history & netstats history
 * disable unsafe app delete from debloat & scan table
