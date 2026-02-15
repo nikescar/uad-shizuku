@@ -1,4 +1,5 @@
 use crate::adb::PackageFingerprint;
+use crate::calc_androidpackage::AndroidPackageInfo;
 use crate::calc_hybridanalysis::ScannerState as HaScannerState;
 use crate::calc_virustotal::ScannerState as VtScannerState;
 use crate::models::{ApkMirrorApp, FDroidApp, GooglePlayApp};
@@ -20,6 +21,8 @@ pub enum SharedStoreUpdate {
     CachedFDroidApp { pkg_id: String, app: FDroidApp },
     /// Update cached APKMirror app
     CachedApkMirrorApp { pkg_id: String, app: ApkMirrorApp },
+    /// Update cached Android Package app
+    CachedAndroidPackageApp { pkg_id: String, app: AndroidPackageInfo },
 }
 
 /// Shared store for data that is accessed by both debloat and scan tabs
@@ -34,12 +37,16 @@ pub struct SharedStore {
     pub fdroid_textures: Mutex<HashMap<String, egui::TextureHandle>>,
     /// Texture cache for APKMirror icons
     pub apkmirror_textures: Mutex<HashMap<String, egui::TextureHandle>>,
+    /// Texture cache for Android Package icons
+    pub android_package_textures: Mutex<HashMap<String, egui::TextureHandle>>,
     /// Cached Google Play app info
     pub cached_google_play_apps: Mutex<HashMap<String, GooglePlayApp>>,
     /// Cached F-Droid app info
     pub cached_fdroid_apps: Mutex<HashMap<String, FDroidApp>>,
     /// Cached APKMirror app info
     pub cached_apkmirror_apps: Mutex<HashMap<String, ApkMirrorApp>>,
+    /// Cached Android Package app info
+    pub cached_android_package_apps: Mutex<HashMap<String, AndroidPackageInfo>>,
     /// VirusTotal scanner state (scan tab only)
     pub vt_scanner_state: Mutex<Option<VtScannerState>>,
     /// Hybrid Analysis scanner state (scan tab only)
