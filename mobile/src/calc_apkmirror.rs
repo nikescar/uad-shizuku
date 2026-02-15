@@ -708,7 +708,17 @@ fn find_apk_files_in_directory(device_serial: &str, dir_path: &str) -> Vec<Strin
                 .filter(|path| !path.is_empty())
                 .collect()
         }
-        _ => Vec::new(),
+        Ok(_) => Vec::new(),
+        Err(_) => {
+            #[cfg(not(target_os = "android"))]
+            {
+                crate::adb_cli::find_files_in_directory(device_serial, dir_path, "*.apk", 1)
+            }
+            #[cfg(target_os = "android")]
+            {
+                Vec::new()
+            }
+        }
     }
 }
 

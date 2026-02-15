@@ -285,7 +285,7 @@ impl Default for UadShizukuApp {
             package_load_progress: Arc::new(Mutex::new(None)),
 
             dlg_adb_install: crate::dlg_adb_install_stt::DlgAdbInstall {
-                open: which::which("adb").is_err(),
+                open: false,
                 ..Default::default()
             },
 
@@ -961,14 +961,10 @@ impl UadShizukuApp {
             
             #[cfg(not(target_os = "android"))]
             {
-                if which::which("adb").is_err() {
-                    self.dlg_adb_install.open();
-                } else {
-                    log::info!("ADB detected after retry");
-                    self.retrieve_adb_devices();
-                    self.retrieve_adb_users();
-                    self.retrieve_installed_packages();
-                }
+                log::info!("ADB retry: attempting device retrieval");
+                self.retrieve_adb_devices();
+                self.retrieve_adb_users();
+                self.retrieve_installed_packages();
             }
         }
         // === ADB installation dialog end

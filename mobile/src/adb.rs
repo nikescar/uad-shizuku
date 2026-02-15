@@ -33,17 +33,21 @@ pub fn shell_exec(device: &str, command: &str) -> std::io::Result<String> {
     #[cfg(not(target_os = "android"))]
     {
         use std::process::Command;
-        let output = Command::new("adb")
+        match Command::new("adb")
             .arg("-s")
             .arg(device)
             .arg("shell")
             .arg(command)
-            .output()?;
-        if output.status.success() {
-            Ok(String::from_utf8_lossy(&output.stdout).to_string())
-        } else {
-            let err = String::from_utf8_lossy(&output.stderr).to_string();
-            Err(std::io::Error::new(std::io::ErrorKind::Other, err))
+            .output()
+        {
+            Ok(output) if output.status.success() => {
+                Ok(String::from_utf8_lossy(&output.stdout).to_string())
+            }
+            Ok(output) => {
+                let err = String::from_utf8_lossy(&output.stderr).to_string();
+                Err(std::io::Error::new(std::io::ErrorKind::Other, err))
+            }
+            Err(_) => crate::adb_cli::shell_exec(device, command),
         }
     }
 }
@@ -57,37 +61,39 @@ pub fn get_devices() -> std::io::Result<Vec<String>> {
     #[cfg(not(target_os = "android"))]
     {
         use std::process::Command;
-        let output = Command::new("adb").arg("devices").arg("-l").output()?;
+        match Command::new("adb").arg("devices").arg("-l").output() {
+            Ok(output) if output.status.success() => {
+                let devices = String::from_utf8_lossy(&output.stdout).to_string();
 
-        if output.status.success() {
-            let devices = String::from_utf8_lossy(&output.stdout).to_string();
+                let parsed: Vec<String> = devices
+                    .lines()
+                    .filter_map(|line| {
+                        // Skip empty lines and the header line
+                        if line.trim().is_empty() || line.starts_with("List of devices") {
+                            return None;
+                        }
 
-            let parsed: Vec<String> = devices
-                .lines()
-                .filter_map(|line| {
-                    // Skip empty lines and the header line
-                    if line.trim().is_empty() || line.starts_with("List of devices") {
-                        return None;
-                    }
-
-                    // Check if line contains "device" status
-                    if line.contains("device") {
-                        let first_token = line.split_whitespace().next()?.trim().to_string();
-                        if !first_token.is_empty() {
-                            Some(first_token)
+                        // Check if line contains "device" status
+                        if line.contains("device") {
+                            let first_token = line.split_whitespace().next()?.trim().to_string();
+                            if !first_token.is_empty() {
+                                Some(first_token)
+                            } else {
+                                None
+                            }
                         } else {
                             None
                         }
-                    } else {
-                        None
-                    }
-                })
-                .collect();
+                    })
+                    .collect();
 
-            Ok(parsed)
-        } else {
-            let err = String::from_utf8_lossy(&output.stderr).to_string();
-            Err(std::io::Error::new(std::io::ErrorKind::Other, err))
+                Ok(parsed)
+            }
+            Ok(output) => {
+                let err = String::from_utf8_lossy(&output.stderr).to_string();
+                Err(std::io::Error::new(std::io::ErrorKind::Other, err))
+            }
+            Err(_) => crate::adb_cli::get_devices(),
         }
     }
 }
@@ -1187,19 +1193,22 @@ pub fn install_apk(apk_path: &str, device: &str) -> std::io::Result<String> {
     #[cfg(not(target_os = "android"))]
     {
         use std::process::Command;
-        let output = Command::new("adb")
+        match Command::new("adb")
             .arg("-s")
             .arg(device)
             .arg("install")
             .arg(apk_path)
-            .output()?;
-
-        if output.status.success() {
-            let result = String::from_utf8_lossy(&output.stdout).to_string();
-            Ok(result)
-        } else {
-            let err = String::from_utf8_lossy(&output.stderr).to_string();
-            Err(std::io::Error::new(std::io::ErrorKind::Other, err))
+            .output()
+        {
+            Ok(output) if output.status.success() => {
+                let result = String::from_utf8_lossy(&output.stdout).to_string();
+                Ok(result)
+            }
+            Ok(output) => {
+                let err = String::from_utf8_lossy(&output.stderr).to_string();
+                Err(std::io::Error::new(std::io::ErrorKind::Other, err))
+            }
+            Err(_) => crate::adb_cli::install_apk(apk_path, device),
         }
     }
 }
@@ -1212,19 +1221,22 @@ pub fn uninstall_app(package_name: &str, device: &str) -> std::io::Result<String
     #[cfg(not(target_os = "android"))]
     {
         use std::process::Command;
-        let output = Command::new("adb")
+        match Command::new("adb")
             .arg("-s")
             .arg(device)
             .arg("uninstall")
             .arg(package_name)
-            .output()?;
-
-        if output.status.success() {
-            let result = String::from_utf8_lossy(&output.stdout).to_string();
-            Ok(result)
-        } else {
-            let err = String::from_utf8_lossy(&output.stderr).to_string();
-            Err(std::io::Error::new(std::io::ErrorKind::Other, err))
+            .output()
+        {
+            Ok(output) if output.status.success() => {
+                let result = String::from_utf8_lossy(&output.stdout).to_string();
+                Ok(result)
+            }
+            Ok(output) => {
+                let err = String::from_utf8_lossy(&output.stderr).to_string();
+                Err(std::io::Error::new(std::io::ErrorKind::Other, err))
+            }
+            Err(_) => crate::adb_cli::uninstall_app(package_name, device),
         }
     }
 }
@@ -1353,40 +1365,44 @@ pub fn pull_file_to_temp(
         use std::process::Command;
         debug!("Executing: adb -s {} pull {} {}", device_serial, file_path, absolute_path_str);
 
-        let output = Command::new("adb")
+        match Command::new("adb")
             .arg("-s")
             .arg(device_serial)
             .arg("pull")
             .arg(file_path)
             .arg(absolute_path_str)
             .current_dir(tmp_dir)
-            .output()?;
+            .output()
+        {
+            Ok(output) => {
+                let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+                let stderr = String::from_utf8_lossy(&output.stderr).to_string();
 
-        let stdout = String::from_utf8_lossy(&output.stdout).to_string();
-        let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+                debug!("adb pull stdout: {}", stdout);
+                if !stderr.is_empty() {
+                    debug!("adb pull stderr: {}", stderr);
+                }
 
-        debug!("adb pull stdout: {}", stdout);
-        if !stderr.is_empty() {
-            debug!("adb pull stderr: {}", stderr);
-        }
-
-        if output.status.success() {
-            if absolute_path.exists() {
-                let file_size = std::fs::metadata(&absolute_path)?.len();
-                debug!("File successfully pulled to: {} ({} bytes)", absolute_path_str, file_size);
-                Ok(absolute_path_str.to_string())
-            } else {
-                let err_msg = format!(
-                    "adb pull reported success but file does not exist at {}. stdout: {}, stderr: {}",
-                    absolute_path_str, stdout, stderr
-                );
-                error!("{}", err_msg);
-                Err(std::io::Error::new(std::io::ErrorKind::NotFound, err_msg))
+                if output.status.success() {
+                    if absolute_path.exists() {
+                        let file_size = std::fs::metadata(&absolute_path)?.len();
+                        debug!("File successfully pulled to: {} ({} bytes)", absolute_path_str, file_size);
+                        Ok(absolute_path_str.to_string())
+                    } else {
+                        let err_msg = format!(
+                            "adb pull reported success but file does not exist at {}. stdout: {}, stderr: {}",
+                            absolute_path_str, stdout, stderr
+                        );
+                        error!("{}", err_msg);
+                        Err(std::io::Error::new(std::io::ErrorKind::NotFound, err_msg))
+                    }
+                } else {
+                    let err = format!("adb pull failed: {} {}", stderr, stdout);
+                    error!("{}", err);
+                    Err(std::io::Error::new(std::io::ErrorKind::Other, err))
+                }
             }
-        } else {
-            let err = format!("adb pull failed: {} {}", stderr, stdout);
-            error!("{}", err);
-            Err(std::io::Error::new(std::io::ErrorKind::Other, err))
+            Err(_) => crate::adb_cli::pull_file(device_serial, file_path, absolute_path_str),
         }
     }
 }
@@ -1416,14 +1432,16 @@ pub fn kill_server() -> std::io::Result<String> {
     #[cfg(not(target_os = "android"))]
     {
         use std::process::Command;
-        let output = Command::new("adb").arg("kill-server").output()?;
-
-        if output.status.success() {
-            let result = String::from_utf8_lossy(&output.stdout).to_string();
-            Ok(result)
-        } else {
-            let err = String::from_utf8_lossy(&output.stderr).to_string();
-            Err(std::io::Error::new(std::io::ErrorKind::Other, err))
+        match Command::new("adb").arg("kill-server").output() {
+            Ok(output) if output.status.success() => {
+                let result = String::from_utf8_lossy(&output.stdout).to_string();
+                Ok(result)
+            }
+            Ok(output) => {
+                let err = String::from_utf8_lossy(&output.stderr).to_string();
+                Err(std::io::Error::new(std::io::ErrorKind::Other, err))
+            }
+            Err(_) => crate::adb_cli::kill_server(),
         }
     }
 }
@@ -1438,14 +1456,16 @@ pub fn root_get_permission() -> std::io::Result<String> {
     #[cfg(not(target_os = "android"))]
     {
         use std::process::Command;
-        let output = Command::new("adb").arg("root").output()?;
-
-        if output.status.success() {
-            let result = String::from_utf8_lossy(&output.stdout).to_string();
-            Ok(result)
-        } else {
-            let err = String::from_utf8_lossy(&output.stderr).to_string();
-            Err(std::io::Error::new(std::io::ErrorKind::Other, err))
+        match Command::new("adb").arg("root").output() {
+            Ok(output) if output.status.success() => {
+                let result = String::from_utf8_lossy(&output.stdout).to_string();
+                Ok(result)
+            }
+            Ok(output) => {
+                let err = String::from_utf8_lossy(&output.stderr).to_string();
+                Err(std::io::Error::new(std::io::ErrorKind::Other, err))
+            }
+            Err(_) => crate::adb_cli::root_get_permission(),
         }
     }
 }
