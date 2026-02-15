@@ -60,6 +60,7 @@ impl Default for TabScanControl {
             google_play_renderer_enabled: false,
             fdroid_renderer_enabled: false,
             apkmirror_renderer_enabled: false,
+            android_package_renderer_enabled: false,
             text_filter: String::new(),
             unsafe_app_remove: false,
             uninstall_confirm_dialog: DlgUninstallConfirm::default(),
@@ -163,6 +164,39 @@ impl TabScanControl {
         None
     }
 
+    fn load_texture_from_bytes(
+        ctx: &egui::Context,
+        package_id: &str,
+        png_bytes: &[u8],
+    ) -> Option<egui::TextureHandle> {
+        let store = get_shared_store();
+
+        if let Some(texture) = store.get_android_package_texture(package_id) {
+            return Some(texture);
+        }
+
+        match image::load_from_memory(png_bytes) {
+            Ok(image) => {
+                let size = [image.width() as _, image.height() as _];
+                let image_buffer = image.to_rgba8();
+                let pixels = image_buffer.as_flat_samples();
+                let color_image =
+                    egui::ColorImage::from_rgba_unmultiplied(size, pixels.as_slice());
+                let texture = ctx.load_texture(
+                    format!("ap_{}", package_id),
+                    color_image,
+                    egui::TextureOptions::LINEAR,
+                );
+                store.set_android_package_texture(package_id.to_string(), texture.clone());
+                Some(texture)
+            }
+            Err(e) => {
+                log::debug!("Failed to load image for {}: {}", package_id, e);
+                None
+            }
+        }
+    }
+
     /// Prepare app info data map for all visible packages
     pub fn prepare_app_info_for_display(
         &mut self,
@@ -175,6 +209,7 @@ impl TabScanControl {
         if !self.google_play_renderer_enabled
             && !self.fdroid_renderer_enabled
             && !self.apkmirror_renderer_enabled
+            && !self.android_package_renderer_enabled
         {
             return app_data_map;
         }
@@ -188,6 +223,31 @@ impl TabScanControl {
             Vec::new();
 
         for pkg_id in package_ids {
+            // Android Package renderer (highest priority on Android)
+            if self.android_package_renderer_enabled {
+                if let Some(ap_app) = store.get_cached_android_package_app(pkg_id) {
+                    let texture = Self::load_texture_from_bytes(ctx, pkg_id, &ap_app.icon_bytes);
+                    app_data_map.insert(
+                        pkg_id.clone(),
+                        (texture, ap_app.label.clone(), pkg_id.clone(), None),
+                    );
+                    continue;
+                } else {
+                    #[cfg(target_os = "android")]
+                    {
+                        if let Some(info) = crate::calc_androidpackage::fetch_android_package_info(pkg_id) {
+                            let texture = Self::load_texture_from_bytes(ctx, pkg_id, &info.icon_bytes);
+                            store.set_cached_android_package_app(pkg_id.clone(), info.clone());
+                            app_data_map.insert(
+                                pkg_id.clone(),
+                                (texture, info.label.clone(), pkg_id.clone(), None),
+                            );
+                            continue;
+                        }
+                    }
+                }
+            }
+
             let is_system = system_packages.contains(pkg_id);
 
             if !is_system {

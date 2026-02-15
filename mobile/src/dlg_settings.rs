@@ -455,78 +455,63 @@ impl DlgSettings {
 
                         ui.add_space(8.0);
 
-                        ui.horizontal_wrapped(|ui| {
-                            ui.checkbox(&mut self.google_play_renderer, tr!("google-play-renderer"));
-                            ui.label(tr!("google-play-renderer-desc"));
-                            ui.checkbox(&mut self.flush_googleplay, tr!("flush"));
-                        });
+                        #[cfg(not(target_os = "android"))]
+                        {
+                            ui.horizontal_wrapped(|ui| {
+                                ui.checkbox(&mut self.google_play_renderer, tr!("google-play-renderer"));
+                                ui.label(tr!("google-play-renderer-desc"));
+                                ui.checkbox(&mut self.flush_googleplay, tr!("flush"));
+                            });
 
-                        ui.add_space(8.0);
+                            ui.add_space(8.0);
 
-                        ui.horizontal_wrapped(|ui| {
-                            ui.checkbox(&mut self.fdroid_renderer, tr!("fdroid-renderer"));
-                            ui.label(tr!("fdroid-renderer-desc"));
-                            ui.checkbox(&mut self.flush_fdroid, tr!("flush"));
-                        });
+                            ui.horizontal_wrapped(|ui| {
+                                ui.checkbox(&mut self.fdroid_renderer, tr!("fdroid-renderer"));
+                                ui.label(tr!("fdroid-renderer-desc"));
+                                ui.checkbox(&mut self.flush_fdroid, tr!("flush"));
+                            });
 
-                        ui.add_space(8.0);
+                            ui.add_space(8.0);
 
-                        ui.horizontal_wrapped(|ui| {
-                            ui.checkbox(&mut self.apkmirror_renderer, tr!("apkmirror-renderer"));
-                            ui.label(tr!("apkmirror-renderer-desc"));
-                            ui.checkbox(&mut self.flush_apkmirror, tr!("flush"));
-                        });
+                            ui.horizontal_wrapped(|ui| {
+                                ui.checkbox(&mut self.apkmirror_renderer, tr!("apkmirror-renderer"));
+                                ui.label(tr!("apkmirror-renderer-desc"));
+                                ui.checkbox(&mut self.flush_apkmirror, tr!("flush"));
+                            });
 
-                        ui.add_space(8.0);
+                            ui.add_space(8.0);
 
-                        ui.horizontal_wrapped(|ui| {
-                            ui.checkbox(&mut settings.apkmirror_auto_upload, tr!("apkmirror-auto-upload"));
-                            ui.label(tr!("apkmirror-auto-upload-desc"));
-                        });
+                            ui.horizontal_wrapped(|ui| {
+                                ui.checkbox(&mut settings.apkmirror_auto_upload, tr!("apkmirror-auto-upload"));
+                                ui.label(tr!("apkmirror-auto-upload-desc"));
+                            });
 
-                        ui.add_space(8.0);
+                            ui.add_space(8.0);
 
-                        ui.horizontal_wrapped(|ui| {
-                            ui.label(tr!("apkmirror-email"));
-                            let response = ui.add(
-                                egui::TextEdit::singleline(&mut settings.apkmirror_email)
-                                    .desired_width(200.0)
-                                    .hint_text(tr!("email-hint")),
-                            );
-                            #[cfg(target_os = "android")]
-                            {
-                                if response.gained_focus() {
-                                    let _ = crate::android_inputmethod::show_soft_input();
-                                }
-                                if response.lost_focus() {
-                                    let _ = crate::android_inputmethod::hide_soft_input();
-                                }
-                            }
-                            crate::clipboard_popup::show_clipboard_popup(ui, &response, &mut settings.apkmirror_email);
-                        });
+                            ui.horizontal_wrapped(|ui| {
+                                ui.label(tr!("apkmirror-email"));
+                                let response = ui.add(
+                                    egui::TextEdit::singleline(&mut settings.apkmirror_email)
+                                        .desired_width(200.0)
+                                        .hint_text(tr!("email-hint")),
+                                );
+                                crate::clipboard_popup::show_clipboard_popup(ui, &response, &mut settings.apkmirror_email);
+                            });
 
-                        ui.add_space(8.0);
+                            ui.add_space(8.0);
 
-                        ui.horizontal_wrapped(|ui| {
-                            ui.label(tr!("apkmirror-name"));
-                            let response = ui.add(
-                                egui::TextEdit::singleline(&mut settings.apkmirror_name)
-                                    .desired_width(200.0)
-                                    .hint_text(tr!("name-hint")),
-                            );
-                            #[cfg(target_os = "android")]
-                            {
-                                if response.gained_focus() {
-                                    let _ = crate::android_inputmethod::show_soft_input();
-                                }
-                                if response.lost_focus() {
-                                    let _ = crate::android_inputmethod::hide_soft_input();
-                                }
-                            }
-                            crate::clipboard_popup::show_clipboard_popup(ui, &response, &mut settings.apkmirror_name);
-                        });
+                            ui.horizontal_wrapped(|ui| {
+                                ui.label(tr!("apkmirror-name"));
+                                let response = ui.add(
+                                    egui::TextEdit::singleline(&mut settings.apkmirror_name)
+                                        .desired_width(200.0)
+                                        .hint_text(tr!("name-hint")),
+                                );
+                                crate::clipboard_popup::show_clipboard_popup(ui, &response, &mut settings.apkmirror_name);
+                            });
 
-                        ui.add_space(8.0);
+                            ui.add_space(8.0);
+                        }
 
                         ui.horizontal_wrapped(|ui| {
                             ui.checkbox(&mut self.invalidate_cache, tr!("invalidate-cache"));

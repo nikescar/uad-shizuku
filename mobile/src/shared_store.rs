@@ -1,4 +1,5 @@
 use crate::adb::PackageFingerprint;
+use crate::calc_androidpackage::AndroidPackageInfo;
 use crate::calc_hybridanalysis::ScannerState as HaScannerState;
 use crate::calc_virustotal::ScannerState as VtScannerState;
 use crate::models::{ApkMirrorApp, FDroidApp, GooglePlayApp};
@@ -24,9 +25,11 @@ impl SharedStore {
             google_play_textures: Mutex::new(HashMap::new()),
             fdroid_textures: Mutex::new(HashMap::new()),
             apkmirror_textures: Mutex::new(HashMap::new()),
+            android_package_textures: Mutex::new(HashMap::new()),
             cached_google_play_apps: Mutex::new(HashMap::new()),
             cached_fdroid_apps: Mutex::new(HashMap::new()),
             cached_apkmirror_apps: Mutex::new(HashMap::new()),
+            cached_android_package_apps: Mutex::new(HashMap::new()),
             vt_scanner_state: Mutex::new(None),
             ha_scanner_state: Mutex::new(None),
             update_queue: SegQueue::new(),
@@ -59,6 +62,11 @@ impl SharedStore {
                 }
                 SharedStoreUpdate::CachedApkMirrorApp { pkg_id, app } => {
                     if let Ok(mut cache) = self.cached_apkmirror_apps.lock() {
+                        cache.insert(pkg_id, app);
+                    }
+                }
+                SharedStoreUpdate::CachedAndroidPackageApp { pkg_id, app } => {
+                    if let Ok(mut cache) = self.cached_android_package_apps.lock() {
                         cache.insert(pkg_id, app);
                     }
                 }
@@ -144,6 +152,19 @@ impl SharedStore {
         }
     }
 
+    pub fn get_android_package_texture(&self, pkg_id: &str) -> Option<egui::TextureHandle> {
+        self.android_package_textures
+            .lock()
+            .ok()
+            .and_then(|g| g.get(pkg_id).cloned())
+    }
+
+    pub fn set_android_package_texture(&self, pkg_id: String, texture: egui::TextureHandle) {
+        if let Ok(mut cache) = self.android_package_textures.lock() {
+            cache.insert(pkg_id, texture);
+        }
+    }
+
     pub fn clear_all_textures(&self) {
         if let Ok(mut cache) = self.google_play_textures.lock() {
             cache.clear();
@@ -152,6 +173,9 @@ impl SharedStore {
             cache.clear();
         }
         if let Ok(mut cache) = self.apkmirror_textures.lock() {
+            cache.clear();
+        }
+        if let Ok(mut cache) = self.android_package_textures.lock() {
             cache.clear();
         }
     }
@@ -233,6 +257,26 @@ impl SharedStore {
             .push(SharedStoreUpdate::CachedApkMirrorApp { pkg_id, app });
     }
 
+    pub fn get_cached_android_package_apps(&self) -> HashMap<String, AndroidPackageInfo> {
+        self.cached_android_package_apps
+            .lock()
+            .map(|g| g.clone())
+            .unwrap_or_default()
+    }
+
+    pub fn get_cached_android_package_app(&self, pkg_id: &str) -> Option<AndroidPackageInfo> {
+        self.cached_android_package_apps
+            .lock()
+            .ok()
+            .and_then(|g| g.get(pkg_id).cloned())
+    }
+
+    pub fn set_cached_android_package_app(&self, pkg_id: String, app: AndroidPackageInfo) {
+        if let Ok(mut cache) = self.cached_android_package_apps.lock() {
+            cache.insert(pkg_id, app);
+        }
+    }
+
     pub fn clear_all_cached_apps(&self) {
         if let Ok(mut cache) = self.cached_google_play_apps.lock() {
             cache.clear();
@@ -241,6 +285,9 @@ impl SharedStore {
             cache.clear();
         }
         if let Ok(mut cache) = self.cached_apkmirror_apps.lock() {
+            cache.clear();
+        }
+        if let Ok(mut cache) = self.cached_android_package_apps.lock() {
             cache.clear();
         }
     }

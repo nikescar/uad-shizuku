@@ -505,6 +505,39 @@ impl TabDebloatControl {
         Some(texture)
     }
 
+    fn load_texture_from_bytes(
+        ctx: &egui::Context,
+        package_id: &str,
+        png_bytes: &[u8],
+    ) -> Option<egui::TextureHandle> {
+        let store = get_shared_store();
+
+        if let Some(texture) = store.get_android_package_texture(package_id) {
+            return Some(texture);
+        }
+
+        let image = match image::load_from_memory(png_bytes) {
+            Ok(img) => img,
+            Err(e) => {
+                log::warn!("Failed to load image for {}: {}", package_id, e);
+                return None;
+            }
+        };
+
+        let size = [image.width() as _, image.height() as _];
+        let image_buffer = image.to_rgba8();
+        let pixels = image_buffer.as_flat_samples();
+        let color_image = egui::ColorImage::from_rgba_unmultiplied(size, pixels.as_slice());
+        let texture = ctx.load_texture(
+            format!("ap_{}", package_id),
+            color_image,
+            Default::default(),
+        );
+
+        store.set_android_package_texture(package_id.to_string(), texture.clone());
+        Some(texture)
+    }
+
 
     pub fn ui(
         &mut self,
@@ -512,6 +545,7 @@ impl TabDebloatControl {
         google_play_enabled: bool,
         fdroid_enabled: bool,
         apkmirror_enabled: bool,
+        android_package_enabled: bool,
     ) -> Option<AdbResult> {
 
         // Get viewport width for responsive design
@@ -530,6 +564,11 @@ impl TabDebloatControl {
         let cached_fdroid_apps = store.get_cached_fdroid_apps();
         let cached_google_play_apps = store.get_cached_google_play_apps();
         let cached_apkmirror_apps = store.get_cached_apkmirror_apps();
+        let cached_android_package_apps = if android_package_enabled {
+            store.get_cached_android_package_apps()
+        } else {
+            std::collections::HashMap::new()
+        };
 
         // Update cached counts if needed (only recomputes when table_version changes)
         self.update_cached_counts(&installed_packages, uad_ng_lists_ref);
@@ -948,6 +987,29 @@ impl TabDebloatControl {
             let gp_cached = cached_google_play_apps.get(&pkg_id);
             let am_cached = cached_apkmirror_apps.get(&pkg_id);
 
+            // Prepare Android Package texture data (highest priority on Android)
+            let (ap_texture, ap_title) = if android_package_enabled {
+                if let Some(ap_app) = cached_android_package_apps.get(&pkg_id) {
+                    let tex = Self::load_texture_from_bytes(ui.ctx(), &pkg_id, &ap_app.icon_bytes);
+                    (tex.map(|t| t.id()), Some(ap_app.label.clone()))
+                } else {
+                    #[cfg(target_os = "android")]
+                    {
+                        if let Some(info) = crate::calc_androidpackage::fetch_android_package_info(&pkg_id) {
+                            store.set_cached_android_package_app(pkg_id.clone(), info.clone());
+                            let tex = Self::load_texture_from_bytes(ui.ctx(), &pkg_id, &info.icon_bytes);
+                            (tex.map(|t| t.id()), Some(info.label.clone()))
+                        } else {
+                            (None, None)
+                        }
+                    }
+                    #[cfg(not(target_os = "android"))]
+                    { (None, None) }
+                }
+            } else {
+                (None, None)
+            };
+
             // Prepare texture data
             let (fd_texture, fd_title, fd_developer) = if !is_system && fdroid_enabled {
                 if let Some(fd_app) = fd_cached {
@@ -1007,7 +1069,83 @@ impl TabDebloatControl {
                 let install_reason_clone = install_reason.clone();
                 let runtime_perms_clone = runtime_perms.clone();
                 
-                let mut row_builder = if let (Some(title), Some(developer)) = (fd_title.clone(), fd_developer.clone()) {
+                let ap_title_clone = ap_title.clone();
+                let ap_pkg_id_display = pkg_id.clone();
+                let mut row_builder = if let Some(title) = ap_title_clone {
+                    table_row.widget_cell(move |ui: &mut egui::Ui| {
+                        ui.horizontal(|ui| {
+                            if let Some(tex_id) = ap_texture {
+                                ui.image((tex_id, egui::vec2(38.0, 38.0)));
+                            }
+                            ui.vertical(|ui| {
+                                ui.style_mut().spacing.item_spacing.y = 0.1;
+                                ui.label(egui::RichText::new(&title).strong());
+                                ui.label(egui::RichText::new(&ap_pkg_id_display).small().color(egui::Color32::GRAY));
+
+                                if !is_desktop {
+                                    ui.add_space(4.0);
+                                    egui::ScrollArea::horizontal()
+                                        .id_salt(format!("debloat_ap_badge_scroll_{}", idx))
+                                        .auto_shrink([false, true])
+                                        .show(ui, |ui| {
+                                        ui.horizontal(|ui| {
+                                            egui::Frame::new()
+                                                .stroke(egui::Stroke::new(1.0, egui::Color32::from_rgb(158, 158, 158)))
+                                                .corner_radius(6.0)
+                                                .inner_margin(egui::Margin::symmetric(8, 3))
+                                                .show(ui, |ui| {
+                                                    ui.label(egui::RichText::new(format!("RP:{}", &runtime_perms_clone)).size(10.0));
+                                                });
+
+                                            let bg_color = match debloat_category_clone2.as_str() {
+                                                "Recommended" => egui::Color32::from_rgb(56, 142, 60),
+                                                "Advanced" => egui::Color32::from_rgb(33, 150, 243),
+                                                "Expert" => egui::Color32::from_rgb(255, 152, 0),
+                                                "Unsafe" => egui::Color32::from_rgb(255, 235, 59),
+                                                "Unknown" => egui::Color32::from_rgb(255, 255, 255),
+                                                _ => egui::Color32::from_rgb(158, 158, 158),
+                                            };
+                                            let text_color = match debloat_category_clone2.as_str() {
+                                                "Unknown" | "Unsafe" => egui::Color32::from_rgb(0, 0, 0),
+                                                _ => egui::Color32::WHITE,
+                                            };
+                                            let label_text = match debloat_category_clone2.as_str() {
+                                                "Recommended" => tr!("label-recommended"),
+                                                "Advanced" => tr!("label-advanced"),
+                                                "Expert" => tr!("label-expert"),
+                                                "Unsafe" => tr!("label-unsafe"),
+                                                "Unknown" => tr!("label-unknown"),
+                                                _ => debloat_category_clone2.clone(),
+                                            };
+                                            egui::Frame::new()
+                                                .fill(bg_color)
+                                                .corner_radius(6.0)
+                                                .inner_margin(egui::Margin::symmetric(8, 3))
+                                                .show(ui, |ui| {
+                                                    ui.label(egui::RichText::new(&label_text).color(text_color).size(10.0));
+                                                });
+
+                                            let enabled_bg_color = match enabled_text_clone2.as_str() {
+                                                "REMOVED_USER" | "DISABLED" | "DISABLED_USER" => egui::Color32::from_rgb(211, 47, 47),
+                                                "DEFAULT" | "ENABLED" | "UNKNOWN" => egui::Color32::from_rgb(56, 142, 60),
+                                                _ => egui::Color32::from_rgb(158, 158, 158),
+                                            };
+                                            egui::Frame::new()
+                                                .fill(enabled_bg_color)
+                                                .corner_radius(6.0)
+                                                .inner_margin(egui::Margin::symmetric(8, 3))
+                                                .show(ui, |ui| {
+                                                    ui.label(egui::RichText::new(&enabled_text_clone2).color(egui::Color32::WHITE).size(10.0));
+                                                });
+
+                                            ui.label(egui::RichText::new(&install_reason_clone).small().color(egui::Color32::GRAY).size(10.0));
+                                        });
+                                    });
+                                }
+                            });
+                        });
+                    })
+                } else if let (Some(title), Some(developer)) = (fd_title.clone(), fd_developer.clone()) {
                     table_row.widget_cell(move |ui: &mut egui::Ui| {
                         ui.horizontal(|ui| {
                             if let Some(tex_id) = fd_texture {
@@ -1017,7 +1155,7 @@ impl TabDebloatControl {
                                 ui.style_mut().spacing.item_spacing.y = 0.1;
                                 ui.label(egui::RichText::new(&title).strong());
                                 ui.label(egui::RichText::new(&developer).small().color(egui::Color32::GRAY));
-                                
+
                                 if !is_desktop {
                                     ui.add_space(4.0);
                                     ui.horizontal(|ui| {
