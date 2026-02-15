@@ -47,15 +47,16 @@ pub fn get_install_paths() -> InstallPaths {
 
     #[cfg(target_os = "windows")]
     {
+        let user_profile = dirs::home_dir().unwrap_or_else(|| PathBuf::from(std::env::var("USERPROFILE").unwrap_or_else(|_| "C:\\Users\\Default".to_string())));
         let local_app_data =
-            dirs::data_local_dir().unwrap_or_else(|| PathBuf::from("C:\\Users\\Public"));
+            dirs::data_local_dir().unwrap_or_else(|| user_profile.join("AppData").join("Local"));
         let start_menu = dirs::data_dir()
             .unwrap_or_else(|| local_app_data.clone())
             .join("Microsoft")
             .join("Windows")
             .join("Start Menu")
             .join("Programs");
-        let desktop = dirs::desktop_dir().unwrap_or_else(|| PathBuf::from("C:\\Users\\Public\\Desktop"));
+        let desktop = dirs::desktop_dir().unwrap_or_else(|| user_profile.join("Desktop"));
 
         InstallPaths {
             bin_dir: local_app_data.join("Programs").join(APP_NAME),
