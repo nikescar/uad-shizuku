@@ -4,6 +4,8 @@
 use eframe::egui;
 
 mod adb;
+#[cfg(not(target_os = "android"))]
+pub mod adb_cli;
 pub mod adb_stt;
 mod android_packagemanager;
 pub mod android_shizuku;
@@ -42,6 +44,7 @@ pub mod api_hybridanalysis;
 pub mod api_hybridanalysis_stt;
 mod api_virustotal;
 pub mod api_virustotal_stt;
+pub mod calc_androidpackage;
 mod calc_apkmirror;
 pub mod calc_apkmirror_stt;
 mod calc_fdroid;

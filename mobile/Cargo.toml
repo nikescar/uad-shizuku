@@ -98,6 +98,7 @@ winsafe = { version = "0.0.26", features = ["gui"] }
 # Non-Android specific dependencies
 [target.'cfg(not(target_os = "android"))'.dependencies]
 directories = { workspace = true }
+adb_client = "=2.1.14"
 
 # Wasm specific dependencies
 [target.'cfg(all(target_family = "wasm", target_os = "unknown"))'.dependencies]
