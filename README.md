@@ -101,12 +101,11 @@ Get list of FOSS apps, and install directly. github and fdroid auto-install supp
 
 ## Todos
 
+* separate malicious filter into non-ignored app and ignored app
 * match datatable color to theme.
 * windows app signing & attestation.
-* replace adb with https://github.com/cocool97/adb_client.git
 * web version through webusb on browser
 * usage history & netstats history
-* disable unsafe app delete from debloat & scan table
 * detach app installer from app table
 * logcat ?
 * android : add obtainium list https://apps.obtainium.imranr.dev/data.json?rand=6958.845712989482

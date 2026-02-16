@@ -1355,45 +1355,53 @@ impl UadShizukuApp {
     fn render_debloat_tab(&mut self, ui: &mut egui::Ui) {
         use crate::tab_debloat_control::AdbResult;
 
-        // Manage Google Play renderer state machine
-        self.google_play_renderer.is_enabled = self.settings.google_play_renderer;
+        // Platform-specific renderer flags
+        #[cfg(target_os = "android")]
+        let (google_play_enabled, fdroid_enabled, apkmirror_enabled, android_package_enabled) = {
+            (false, false, false, true)
+        };
 
-        // Manage F-Droid renderer state machine
-        self.fdroid_renderer.is_enabled = self.settings.fdroid_renderer;
+        #[cfg(not(target_os = "android"))]
+        let (google_play_enabled, fdroid_enabled, apkmirror_enabled, android_package_enabled) = {
+            self.google_play_renderer.is_enabled = self.settings.google_play_renderer;
+            self.fdroid_renderer.is_enabled = self.settings.fdroid_renderer;
+            self.apkmirror_renderer.is_enabled = self.settings.apkmirror_renderer;
+            (
+                self.google_play_renderer.is_enabled,
+                self.fdroid_renderer.is_enabled,
+                self.apkmirror_renderer.is_enabled,
+                false,
+            )
+        };
 
-        // Manage APKMirror renderer state machine
-        self.apkmirror_renderer.is_enabled = self.settings.apkmirror_renderer;
+        // Initialize and start worker queues if renderers are enabled (desktop only)
+        #[cfg(not(target_os = "android"))]
+        {
+            let db_path = self.config.as_ref().map(|c| c.db_dir.to_string_lossy().to_string()).unwrap_or_default();
 
-        // Get renderer enabled flags for UI
-        let google_play_enabled = self.google_play_renderer.is_enabled;
-        let fdroid_enabled = self.fdroid_renderer.is_enabled;
-        let apkmirror_enabled = self.apkmirror_renderer.is_enabled;
+            if google_play_enabled && self.google_play_queue.is_none() {
+                let queue = std::sync::Arc::new(crate::calc_googleplay::GooglePlayQueue::new());
+                queue.start_worker(db_path.clone());
+                self.google_play_queue = Some(queue);
+            }
+            if fdroid_enabled && self.fdroid_queue.is_none() {
+                let queue = std::sync::Arc::new(crate::calc_fdroid::FDroidQueue::new());
+                queue.start_worker(db_path.clone());
+                self.fdroid_queue = Some(queue);
+            }
+            if apkmirror_enabled && self.apkmirror_queue.is_none() {
+                let queue = std::sync::Arc::new(crate::calc_apkmirror::ApkMirrorQueue::new());
+                queue.set_email(self.settings.apkmirror_email.clone());
+                queue.start_worker(db_path.clone());
+                self.apkmirror_queue = Some(queue);
+            }
 
-        // Initialize and start worker queues if renderers are enabled
-        let db_path = self.config.as_ref().map(|c| c.db_dir.to_string_lossy().to_string()).unwrap_or_default();
-        
-        if google_play_enabled && self.google_play_queue.is_none() {
-            let queue = std::sync::Arc::new(crate::calc_googleplay::GooglePlayQueue::new());
-            queue.start_worker(db_path.clone());
-            self.google_play_queue = Some(queue);
+            // Enqueue visible packages for fetching
+            self.enqueue_visible_packages_for_debloat(google_play_enabled, fdroid_enabled, apkmirror_enabled);
+
+            // Load results from workers and populate caches
+            self.load_renderer_results_to_debloat_cache();
         }
-        if fdroid_enabled && self.fdroid_queue.is_none() {
-            let queue = std::sync::Arc::new(crate::calc_fdroid::FDroidQueue::new());
-            queue.start_worker(db_path.clone());
-            self.fdroid_queue = Some(queue);
-        }
-        if apkmirror_enabled && self.apkmirror_queue.is_none() {
-            let queue = std::sync::Arc::new(crate::calc_apkmirror::ApkMirrorQueue::new());
-            queue.set_email(self.settings.apkmirror_email.clone());
-            queue.start_worker(db_path.clone());
-            self.apkmirror_queue = Some(queue);
-        }
-
-        // Enqueue visible packages for fetching
-        self.enqueue_visible_packages_for_debloat(google_play_enabled, fdroid_enabled, apkmirror_enabled);
-
-        // Load results from workers and populate caches
-        self.load_renderer_results_to_debloat_cache();
 
         // Sync unsafe_app_remove setting
         self.tab_debloat_control.unsafe_app_remove = self.settings.unsafe_app_remove;
@@ -1403,6 +1411,7 @@ impl UadShizukuApp {
             google_play_enabled,
             fdroid_enabled,
             apkmirror_enabled,
+            android_package_enabled,
         ) {
             match result {
                 AdbResult::Success(_pkg_name) => {
@@ -1595,9 +1604,20 @@ impl UadShizukuApp {
 
     fn render_scan_tab(&mut self, ui: &mut egui::Ui) {
         // Sync renderer settings from Settings to TabScanControl
-        self.tab_scan_control.google_play_renderer_enabled = self.settings.google_play_renderer;
-        self.tab_scan_control.fdroid_renderer_enabled = self.settings.fdroid_renderer;
-        self.tab_scan_control.apkmirror_renderer_enabled = self.settings.apkmirror_renderer;
+        #[cfg(target_os = "android")]
+        {
+            self.tab_scan_control.google_play_renderer_enabled = false;
+            self.tab_scan_control.fdroid_renderer_enabled = false;
+            self.tab_scan_control.apkmirror_renderer_enabled = false;
+            self.tab_scan_control.android_package_renderer_enabled = true;
+        }
+        #[cfg(not(target_os = "android"))]
+        {
+            self.tab_scan_control.google_play_renderer_enabled = self.settings.google_play_renderer;
+            self.tab_scan_control.fdroid_renderer_enabled = self.settings.fdroid_renderer;
+            self.tab_scan_control.apkmirror_renderer_enabled = self.settings.apkmirror_renderer;
+            self.tab_scan_control.android_package_renderer_enabled = false;
+        }
         self.tab_scan_control.unsafe_app_remove = self.settings.unsafe_app_remove;
 
         self.tab_scan_control.ui(ui, &self.settings.hybridanalysis_tag_ignorelist);

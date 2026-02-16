@@ -213,6 +213,29 @@ disclaimer-title = ⚠ 경고
 disclaimer-no-user-data = • 이 앱은 사용자 파일이나 사용자 데이터를 조작하지 않습니다.
 disclaimer-uninstall-warning = • 앱 제거 시 해당 앱의 사용자 데이터도 함께 삭제됩니다. 앱 제거 시 주의하세요.
 
+# ADB/Shizuku Install Dialog
+install-dlg-shizuku-title = Shizuku를 찾을 수 없음 - 설치 안내
+install-dlg-adb-title = ADB를 찾을 수 없음 - 설치 안내
+install-dlg-platform-android = 감지된 플랫폼: Android
+install-dlg-shizuku-required = Android 기기에서 ADB 기능을 제공하려면 Shizuku가 필요합니다.
+install-dlg-follow-steps = 다음 단계를 따라주세요:
+install-dlg-step1 = 1. Google Play에서 Shizuku 앱 설치:
+install-dlg-open-play-store = Google Play 스토어 열기
+install-dlg-step2 = 2. 개발자 모드 활성화 (설정 > 휴대전화 정보 > 빌드 번호 7회 탭)
+install-dlg-open-build-number = 빌드 번호 설정 열기
+install-dlg-step3 = 3. 무선 디버깅 활성화 (설정 > 개발자 옵션)
+install-dlg-open-wireless-debug = 무선 디버깅 설정 열기
+install-dlg-step4 = 4. Shizuku 앱을 열고 서비스 시작
+install-dlg-open-shizuku = Shizuku 열기
+install-dlg-step5 = 5. UAD-Shizuku로 돌아가서 '재감지' 탭
+install-dlg-detailed-instructions = 자세한 설명:
+install-dlg-guide = 설치 가이드
+install-dlg-guide-url = https://uad-shizuku.pages.dev/docs/kr/docs/installation
+install-dlg-adb-not-found = ADB (Android Debug Bridge)가 시스템 PATH에서 찾을 수 없습니다.
+install-dlg-follow-guide = ADB를 설치하려면 설치 가이드를 따라주세요:
+install-dlg-retry = 재감지
+close = 닫기
+
 # About Dialog
 about = 정보
 about-description = 블로트웨어를 선택적으로 제거하고, 설치된 앱을 VirusTotal/HybridAnalysis로 검사하며, Obtainium을 통해 FOSS 앱을 설치합니다.

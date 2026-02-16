@@ -213,6 +213,29 @@ disclaimer-title = ⚠ Warning
 disclaimer-no-user-data = • This app does not operate over user files or any user data.
 disclaimer-uninstall-warning = • Uninstall action will delete app with userdata for the app. Make careful to uninstall app.
 
+# ADB/Shizuku Install Dialog
+install-dlg-shizuku-title = Shizuku Not Found - Installation Instructions
+install-dlg-adb-title = ADB Not Found - Installation Instructions
+install-dlg-platform-android = Detected platform: Android
+install-dlg-shizuku-required = Shizuku is required to provide ADB functionality on Android devices.
+install-dlg-follow-steps = Please follow these steps:
+install-dlg-step1 = 1. Install Shizuku app from Google Play:
+install-dlg-open-play-store = Open Google Play Store
+install-dlg-step2 = 2. Enable Developer Mode (Settings > About > tap Build number 7 times)
+install-dlg-open-build-number = Open Build Number Settings
+install-dlg-step3 = 3. Enable Wireless Debugging (Settings > Developer options)
+install-dlg-open-wireless-debug = Open Wireless Debugging Settings
+install-dlg-step4 = 4. Open Shizuku app and start the service
+install-dlg-open-shizuku = Open Shizuku
+install-dlg-step5 = 5. Return to UAD-Shizuku and tap 'Retry Detection'
+install-dlg-detailed-instructions = For detailed instructions:
+install-dlg-guide = Installation Guide
+install-dlg-guide-url = https://uad-shizuku.pages.dev/docs/installation
+install-dlg-adb-not-found = ADB (Android Debug Bridge) is required but not found in your system PATH.
+install-dlg-follow-guide = Please follow the installation guide to install ADB:
+install-dlg-retry = Retry Detection
+close = Close
+
 # About Dialog
 about = About
 about-description = Remove bloat apps selectively, scan installed apps with VirusTotal/HybridAnalysis, and install FOSS apps through Obtainium.

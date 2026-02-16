@@ -24,15 +24,15 @@ impl DlgAdbInstall {
         let os = std::env::consts::OS;
 
         #[cfg(target_os = "android")]
-        let title = "Shizuku Not Found - Installation Instructions";
+        let title = tr!("install-dlg-shizuku-title");
 
         #[cfg(not(target_os = "android"))]
-        let title = "ADB Not Found - Installation Instructions";
+        let title = tr!("install-dlg-adb-title");
 
         let mut close_clicked = false;
         let mut retry_clicked = false;
 
-        egui::Window::new(title)
+        egui::Window::new(&title)
             .id(egui::Id::new("adb_install_window"))
             .title_bar(false)
             .resizable(true)
@@ -45,7 +45,7 @@ impl DlgAdbInstall {
                     .max_size([ctx.screen_rect().width() - 40.0, ctx.screen_rect().height() - 40.0])
             })
             .show(ctx, |ui| {
-                ui.heading(title);
+                ui.heading(&title);
                 ui.add_space(8.0);
 
                 let max_height = ui.available_height() - 50.0;
@@ -56,47 +56,55 @@ impl DlgAdbInstall {
                     .show(ui, |ui| {
                         #[cfg(target_os = "android")]
                         {
-                            ui.label("Detected platform: Android");
+                            ui.label(tr!("install-dlg-platform-android"));
                             ui.add_space(8.0);
-                            ui.label("Shizuku is required to provide ADB functionality on Android devices.");
+                            ui.label(tr!("install-dlg-shizuku-required"));
                             ui.add_space(16.0);
 
-                            ui.label("Please follow these steps:");
+                            ui.label(tr!("install-dlg-follow-steps"));
                             ui.add_space(8.0);
 
-                            ui.label("1. Install Shizuku app from Google Play:");
+                            ui.label(tr!("install-dlg-step1"));
                             ui.add_space(4.0);
 
-                            if ui.button("Open Google Play Store").clicked() {
+                            if ui.button(tr!("install-dlg-open-play-store")).clicked() {
                                 if let Err(e) = webbrowser::open("https://play.google.com/store/apps/details?id=moe.shizuku.privileged.api") {
                                     log::error!("Failed to open Google Play Store URL: {}", e);
                                 }
                             }
 
                             ui.add_space(8.0);
-                            ui.add(egui::Label::new("2. Enable Developer Mode (Settings > About > tap Build number 7 times)").wrap());
+                            ui.add(egui::Label::new(tr!("install-dlg-step2")).wrap());
                             ui.add_space(4.0);
-                            ui.add(egui::Label::new("3. Enable Wireless Debugging (Settings > Developer options)").wrap());
+                            if ui.button(tr!("install-dlg-open-build-number")).clicked() {
+                                crate::android_activity::open_build_number_settings();
+                            }
                             ui.add_space(4.0);
-                            ui.add(egui::Label::new("4. Open Shizuku app and start the service").wrap());
+                            ui.add(egui::Label::new(tr!("install-dlg-step3")).wrap());
                             ui.add_space(4.0);
-                            ui.add(egui::Label::new("5. Return to UAD-Shizuku and tap 'Retry Detection'").wrap());
+                            if ui.button(tr!("install-dlg-open-wireless-debug")).clicked() {
+                                crate::android_activity::open_wireless_debugging_settings();
+                            }
+                            ui.add_space(4.0);
+                            ui.add(egui::Label::new(tr!("install-dlg-step4")).wrap());
+                            ui.add_space(4.0);
+                            if ui.button(tr!("install-dlg-open-shizuku")).clicked() {
+                                crate::android_activity::open_shizuku_app();
+                            }
+                            ui.add_space(4.0);
+                            ui.add(egui::Label::new(tr!("install-dlg-step5")).wrap());
                             ui.add_space(16.0);
 
-                            ui.label("For detailed instructions:");
+                            ui.label(tr!("install-dlg-detailed-instructions"));
                             ui.add_space(8.0);
 
-                            if ui.button("Installation Guide (English)").clicked() {
-                                if let Err(e) = webbrowser::open("https://uad-shizuku.pages.dev/docs/installation") {
+                            let guide_url = tr!("install-dlg-guide-url");
+                            if ui.button(tr!("install-dlg-guide")).clicked() {
+                                if let Err(e) = webbrowser::open(&guide_url) {
                                     log::error!("Failed to open installation guide URL: {}", e);
                                 }
                             }
 
-                            if ui.button("설치 가이드 (한국어)").clicked() {
-                                if let Err(e) = webbrowser::open("https://uad-shizuku.pages.dev/docs/kr/docs/installation") {
-                                    log::error!("Failed to open Korean installation guide URL: {}", e);
-                                }
-                            }
                         }
 
                         #[cfg(not(target_os = "android"))]
@@ -110,23 +118,19 @@ impl DlgAdbInstall {
 
                             ui.label(format!("Detected platform: {}", platform_name));
                             ui.add_space(8.0);
-                            ui.add(egui::Label::new("ADB (Android Debug Bridge) is required but not found in your system PATH.").wrap());
+                            ui.add(egui::Label::new(tr!("install-dlg-adb-not-found")).wrap());
                             ui.add_space(16.0);
 
-                            ui.label("Please follow the installation guide to install ADB:");
+                            ui.label(tr!("install-dlg-follow-guide"));
                             ui.add_space(8.0);
 
-                            if ui.button("Installation Guide (English)").clicked() {
-                                if let Err(e) = webbrowser::open("https://uad-shizuku.pages.dev/docs/installation") {
+                            let guide_url = tr!("install-dlg-guide-url");
+                            if ui.button(tr!("install-dlg-guide")).clicked() {
+                                if let Err(e) = webbrowser::open(&guide_url) {
                                     log::error!("Failed to open installation guide URL: {}", e);
                                 }
                             }
 
-                            if ui.button("설치 가이드 (한국어)").clicked() {
-                                if let Err(e) = webbrowser::open("https://uad-shizuku.pages.dev/docs/kr/docs/installation") {
-                                    log::error!("Failed to open Korean installation guide URL: {}", e);
-                                }
-                            }
                         }
                     });
 
@@ -135,7 +139,7 @@ impl DlgAdbInstall {
                 // Action buttons
                 ui.horizontal(|ui| {
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if ui.add(MaterialButton::filled("Retry Detection")).clicked() {
+                        if ui.add(MaterialButton::filled(tr!("install-dlg-retry"))).clicked() {
                             retry_clicked = true;
                         }
                         if ui.add(MaterialButton::outlined(tr!("close"))).clicked() {
