@@ -8,6 +8,7 @@ pub mod adb_stt;
 mod android_packagemanager;
 pub mod android_shizuku;
 mod android_inputmethod;
+mod android_activity;
 mod android_clipboard;
 mod android_contexttheme;
 mod clipboard_popup;
