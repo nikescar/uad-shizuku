@@ -2,6 +2,7 @@
 #![allow(clippy::manual_range_contains)]
 
 use eframe::egui;
+use sys_locale;
 
 mod adb;
 pub mod adb_stt;
@@ -349,7 +350,12 @@ pub fn init_i18n() {
     egui_i18n::load_translations_from_text("en-US", en_us).unwrap();
     egui_i18n::load_translations_from_text("ko-KR", ko_kr).unwrap();
 
-    egui_i18n::set_language("en-US");
+    // Detect system language instead of hardcoding en-US
+    let system_language = match sys_locale::get_locale().as_deref() {
+        Some("ko_KR") | Some("ko-KR") | Some("ko") => "ko-KR",
+        Some("en_US") | Some("en-US") | Some("en_GB") | Some("en-GB") | Some("en") | _ => "en-US",
+    };
+    egui_i18n::set_language(system_language);
     egui_i18n::set_fallback("en-US");
 }
 
