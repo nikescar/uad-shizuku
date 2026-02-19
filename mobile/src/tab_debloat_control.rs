@@ -549,7 +549,7 @@ impl TabDebloatControl {
     ) -> Option<AdbResult> {
 
         // Get viewport width for responsive design
-        let available_width = ui.ctx().screen_rect().width();
+        let available_width = ui.ctx().content_rect().width();
         let is_desktop = available_width >= DESKTOP_MIN_WIDTH;
         
         let mut result = None;

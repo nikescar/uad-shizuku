@@ -66,8 +66,8 @@ impl DlgPackageDetails {
             .min_width(700.0)
             .min_height(500.0)
             .resize(|r| {
-                r.default_size([ctx.screen_rect().width() - 40.0, ctx.screen_rect().height() - 40.0])
-                    .max_size([ctx.screen_rect().width() - 40.0, ctx.screen_rect().height() - 40.0])
+                r.default_size([ctx.content_rect().width() - 40.0, ctx.content_rect().height() - 40.0])
+                    .max_size([ctx.content_rect().width() - 40.0, ctx.content_rect().height() - 40.0])
             })
             .show(ctx, |ui| {
                 // Build tab labels dynamically

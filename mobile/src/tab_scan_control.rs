@@ -1315,7 +1315,7 @@ impl TabScanControl {
         // Note: vt_scanner_state and ha_scanner_state are already pre-fetched at the start of ui()
 
         // Get viewport width for responsive design
-        let available_width = ui.ctx().screen_rect().width();
+        let available_width = ui.ctx().content_rect().width();
         let is_desktop = available_width >= DESKTOP_MIN_WIDTH;
         let width_ratio = available_width / BASE_TABLE_WIDTH;
 

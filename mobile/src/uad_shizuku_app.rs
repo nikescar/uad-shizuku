@@ -637,7 +637,7 @@ impl UadShizukuApp {
     }
 
     pub fn ui(&mut self, ui: &mut egui::Ui) {
-        let available_width = ui.ctx().screen_rect().width();
+        let available_width = ui.ctx().content_rect().width();
         let is_desktop = available_width >= crate::DESKTOP_MIN_WIDTH;
         // Apply theme at the start of UI rendering
         self.apply_theme(ui.ctx());
