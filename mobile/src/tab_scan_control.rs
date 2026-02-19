@@ -1321,7 +1321,8 @@ impl TabScanControl {
 
         let mut interactive_table = data_table()
             .id(egui::Id::new("scan_data_table"))
-            .default_row_height(if is_desktop { 60.0 } else { 80.0 })
+            .default_row_height(if is_desktop { 56.0 } else { 80.0 })
+            // .auto_row_height(true)
             .sortable_column(tr!("col-package-name"), if is_desktop { 350.0 * width_ratio } else { available_width * 0.65 }, false);
         if is_desktop {
             interactive_table = interactive_table

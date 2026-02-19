@@ -878,7 +878,8 @@ impl TabDebloatControl {
                 "debloat_data_table_v{}",
                 self.table_version
             )))
-            .default_row_height(if is_desktop { 64.0 } else { 80.0 })
+            .default_row_height(if is_desktop { 56.0 } else { 80.0 })
+            // .auto_row_height(true)
             .sortable_column(tr!("col-package-name"), if is_desktop { 350.0 * width_ratio } else { available_width * 0.52 }, false);
         if is_desktop {
             debloat_table = debloat_table
