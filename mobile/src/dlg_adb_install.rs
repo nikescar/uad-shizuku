@@ -68,9 +68,7 @@ impl DlgAdbInstall {
                             ui.add_space(4.0);
 
                             if ui.button(tr!("install-dlg-open-play-store")).clicked() {
-                                if let Err(e) = webbrowser::open("https://play.google.com/store/apps/details?id=moe.shizuku.privileged.api") {
-                                    log::error!("Failed to open Google Play Store URL: {}", e);
-                                }
+                                crate::android_activity::open_android_vending("moe.shizuku.privileged.api");
                             }
 
                             ui.add_space(8.0);
@@ -82,8 +80,8 @@ impl DlgAdbInstall {
                             ui.add_space(4.0);
                             ui.add(egui::Label::new(tr!("install-dlg-step3")).wrap());
                             ui.add_space(4.0);
-                            if ui.button(tr!("install-dlg-open-wireless-debug")).clicked() {
-                                crate::android_activity::open_wireless_debugging_settings();
+                            if ui.button(tr!("install-dlg-open-shizuku")).clicked() {
+                                crate::android_activity::open_shizuku_app();
                             }
                             ui.add_space(4.0);
                             ui.add(egui::Label::new(tr!("install-dlg-step4")).wrap());
@@ -91,8 +89,6 @@ impl DlgAdbInstall {
                             if ui.button(tr!("install-dlg-open-shizuku")).clicked() {
                                 crate::android_activity::open_shizuku_app();
                             }
-                            ui.add_space(4.0);
-                            ui.add(egui::Label::new(tr!("install-dlg-step5")).wrap());
                             ui.add_space(16.0);
 
                             ui.label(tr!("install-dlg-detailed-instructions"));
