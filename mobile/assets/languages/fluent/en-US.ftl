@@ -89,6 +89,7 @@ enable-selected = Enable Selected ({ $count })
 virustotal-filter = VirusTotal Filter:
 scanning-packages = Scanning packages...
 malicious = Malicious ({ $enabled }/{ $total })
+malicious-ignored = Malicious-Ignored ({ $enabled }/{ $total })
 suspicious = Suspicious ({ $enabled }/{ $total })
 safe = Safe ({ $enabled }/{ $total })
 no-specific-threat = No Specific Threat ({ $enabled }/{ $total })

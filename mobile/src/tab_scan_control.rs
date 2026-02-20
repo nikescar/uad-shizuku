@@ -582,6 +582,7 @@ impl TabScanControl {
         installed_packages: &[PackageFingerprint],
         vt_scanner_state: &Option<calc_virustotal::ScannerState>,
         ha_scanner_state: &Option<calc_hybridanalysis::ScannerState>,
+        ha_tag_ignorelist: &str,
     ) {
         // Check if cache needs updating based on progress changes
         let vt_progress = self.vt_scan_state.progress;
@@ -611,7 +612,7 @@ impl TabScanControl {
         if let Some(ref scanner_state) = vt_scanner_state {
             let state = scanner_state.lock().unwrap();
             for package in installed_packages {
-                if !self.should_show_package_ha_with_state(package, ha_scanner_state) {
+                if !self.should_show_package_ha_with_state(package, ha_scanner_state, ha_tag_ignorelist) {
                     continue;
                 }
 
@@ -645,7 +646,7 @@ impl TabScanControl {
             }
         } else {
             for package in installed_packages {
-                if self.should_show_package_ha_with_state(package, ha_scanner_state) {
+                if self.should_show_package_ha_with_state(package, ha_scanner_state, ha_tag_ignorelist) {
                     let is_enabled = Self::is_package_enabled(package);
                     vt_all.1 += 1;
                     vt_not_scanned.1 += 1;
@@ -657,9 +658,27 @@ impl TabScanControl {
             }
         }
 
+        // Helper to check if all tags are ignored
+        let check_all_tags_ignored = |file_result: &calc_hybridanalysis::FileScanResult| -> bool {
+            let ignorelist_tags: Vec<String> = ha_tag_ignorelist
+                .split(',')
+                .map(|s| s.trim().to_lowercase())
+                .filter(|s| !s.is_empty())
+                .collect();
+
+            if file_result.classification_tags.is_empty() {
+                true
+            } else {
+                file_result.classification_tags.iter().all(|tag| {
+                    ignorelist_tags.contains(&tag.to_lowercase())
+                })
+            }
+        };
+
         // Compute HA counts with enabled/total pairs
         let mut ha_all = (0usize, 0usize);
         let mut ha_malicious = (0usize, 0usize);
+        let mut ha_malicious_ignored = (0usize, 0usize);
         let mut ha_suspicious = (0usize, 0usize);
         let mut ha_safe = (0usize, 0usize);
         let mut ha_not_scanned = (0usize, 0usize);
@@ -677,30 +696,27 @@ impl TabScanControl {
 
                 match state.get(&package.pkg) {
                     Some(calc_hybridanalysis::ScanStatus::Completed(result)) => {
-                        let max_severity = result
-                            .file_results
-                            .iter()
-                            .map(|fr| match fr.verdict.as_str() {
-                                "malicious" => 2,
-                                "suspicious" => 1,
-                                _ => 0,
-                            })
-                            .max()
-                            .unwrap_or(0);
+                        // Check if any file is malicious with/without ignored tags
+                        let has_malicious_ignored = result.file_results.iter()
+                            .any(|fr| fr.verdict == "malicious" && check_all_tags_ignored(fr));
+                        let has_malicious_normal = result.file_results.iter()
+                            .any(|fr| fr.verdict == "malicious" && !check_all_tags_ignored(fr));
+                        let has_suspicious = result.file_results.iter()
+                            .any(|fr| fr.verdict == "suspicious");
 
-                        match max_severity {
-                            2 => {
-                                ha_malicious.1 += 1;
-                                if is_enabled { ha_malicious.0 += 1; }
-                            }
-                            1 => {
-                                ha_suspicious.1 += 1;
-                                if is_enabled { ha_suspicious.0 += 1; }
-                            }
-                            _ => {
-                                ha_safe.1 += 1;
-                                if is_enabled { ha_safe.0 += 1; }
-                            }
+                        // Prioritize: malicious_normal > malicious_ignored > suspicious > safe
+                        if has_malicious_normal {
+                            ha_malicious.1 += 1;
+                            if is_enabled { ha_malicious.0 += 1; }
+                        } else if has_malicious_ignored {
+                            ha_malicious_ignored.1 += 1;
+                            if is_enabled { ha_malicious_ignored.0 += 1; }
+                        } else if has_suspicious {
+                            ha_suspicious.1 += 1;
+                            if is_enabled { ha_suspicious.0 += 1; }
+                        } else {
+                            ha_safe.1 += 1;
+                            if is_enabled { ha_safe.0 += 1; }
                         }
                     }
                     _ => {
@@ -725,7 +741,7 @@ impl TabScanControl {
 
         // Update cache with (enabled, total) tuples for each category
         self.cached_scan_counts.vt_counts = (vt_all, vt_malicious, vt_suspicious, vt_safe, vt_not_scanned);
-        self.cached_scan_counts.ha_counts = (ha_all, ha_malicious, ha_suspicious, ha_safe, ha_not_scanned);
+        self.cached_scan_counts.ha_counts = (ha_all, ha_malicious, ha_malicious_ignored, ha_suspicious, ha_safe, ha_not_scanned);
         self.cached_scan_counts.vt_progress = vt_progress;
         self.cached_scan_counts.ha_progress = ha_progress;
     }
@@ -735,8 +751,8 @@ impl TabScanControl {
         self.cached_scan_counts.vt_counts
     }
 
-    /// Returns ((all_enabled, all_total), (mal_enabled, mal_total), (sus_enabled, sus_total), (safe_enabled, safe_total), (not_scanned_enabled, not_scanned_total))
-    fn get_ha_counts(&self) -> ((usize, usize), (usize, usize), (usize, usize), (usize, usize), (usize, usize)) {
+    /// Returns ((all_enabled, all_total), (mal_enabled, mal_total), (mal_ignored_enabled, mal_ignored_total), (sus_enabled, sus_total), (safe_enabled, safe_total), (not_scanned_enabled, not_scanned_total))
+    fn get_ha_counts(&self) -> ((usize, usize), (usize, usize), (usize, usize), (usize, usize), (usize, usize), (usize, usize)) {
         self.cached_scan_counts.ha_counts
     }
 
@@ -808,7 +824,25 @@ impl TabScanControl {
         &self,
         package: &PackageFingerprint,
         ha_scanner_state: &Option<calc_hybridanalysis::ScannerState>,
+        ha_tag_ignorelist: &str,
     ) -> bool {
+        // Helper function to check if all tags are ignored
+        let check_all_tags_ignored = |file_result: &calc_hybridanalysis::FileScanResult| -> bool {
+            let ignorelist_tags: Vec<String> = ha_tag_ignorelist
+                .split(',')
+                .map(|s| s.trim().to_lowercase())
+                .filter(|s| !s.is_empty())
+                .collect();
+
+            if file_result.classification_tags.is_empty() {
+                true // No tags means we treat it as ignored
+            } else {
+                file_result.classification_tags.iter().all(|tag| {
+                    ignorelist_tags.contains(&tag.to_lowercase())
+                })
+            }
+        };
+
         match self.active_ha_filter {
             HaFilter::All => true,
             HaFilter::Malicious => {
@@ -818,7 +852,21 @@ impl TabScanControl {
                         Some(calc_hybridanalysis::ScanStatus::Completed(result)) => result
                             .file_results
                             .iter()
-                            .any(|fr| fr.verdict == "malicious"),
+                            .any(|fr| fr.verdict == "malicious" && !check_all_tags_ignored(fr)),
+                        _ => false,
+                    }
+                } else {
+                    false
+                }
+            }
+            HaFilter::MaliciousIgnored => {
+                if let Some(ref scanner_state) = ha_scanner_state {
+                    let state = scanner_state.lock().unwrap();
+                    match state.get(&package.pkg) {
+                        Some(calc_hybridanalysis::ScanStatus::Completed(result)) => result
+                            .file_results
+                            .iter()
+                            .any(|fr| fr.verdict == "malicious" && check_all_tags_ignored(fr)),
                         _ => false,
                     }
                 } else {
@@ -872,6 +920,7 @@ impl TabScanControl {
         package: &PackageFingerprint,
         vt_scanner_state: &Option<calc_virustotal::ScannerState>,
         ha_scanner_state: &Option<calc_hybridanalysis::ScannerState>,
+        ha_tag_ignorelist: &str,
     ) -> bool {
         if self.hide_system_app && package.flags.contains("SYSTEM") {
             return false;
@@ -900,7 +949,7 @@ impl TabScanControl {
         }
 
         self.should_show_package_vt_with_state(package, vt_scanner_state)
-            && self.should_show_package_ha_with_state(package, ha_scanner_state)
+            && self.should_show_package_ha_with_state(package, ha_scanner_state, ha_tag_ignorelist)
     }
 
     // Legacy methods that fetch from store (used by get_vt_counts/get_ha_counts)
@@ -913,14 +962,16 @@ impl TabScanControl {
     fn should_show_package_ha(&self, package: &PackageFingerprint) -> bool {
         let store = get_shared_store();
         let ha_scanner_state = store.get_ha_scanner_state();
-        self.should_show_package_ha_with_state(package, &ha_scanner_state)
+        // Legacy method - uses empty ignorelist for backward compatibility
+        self.should_show_package_ha_with_state(package, &ha_scanner_state, "")
     }
 
     fn should_show_package(&self, package: &PackageFingerprint) -> bool {
         let store = get_shared_store();
         let vt_scanner_state = store.get_vt_scanner_state();
         let ha_scanner_state = store.get_ha_scanner_state();
-        self.should_show_package_with_state(package, &vt_scanner_state, &ha_scanner_state)
+        // Legacy method - uses empty ignorelist for backward compatibility
+        self.should_show_package_with_state(package, &vt_scanner_state, &ha_scanner_state, "")
     }
 
     fn matches_text_filter_with_cache(
@@ -1023,16 +1074,17 @@ impl TabScanControl {
         let cached_apkmirror_apps = shared_store.get_cached_apkmirror_apps();
 
         // Update cached scan counts if needed (only recomputes when scanner progress changes)
-        self.update_cached_scan_counts(&installed_packages, &vt_scanner_state, &ha_scanner_state);
+        self.update_cached_scan_counts(&installed_packages, &vt_scanner_state, &ha_scanner_state, &hybridanalysis_tag_ignorelist);
 
         // Check if mobile view for filter button style
         let filter_is_mobile = ui.available_width() < DESKTOP_MIN_WIDTH;
-
-        // VirusTotal Filter Buttons
+        
         if !installed_packages.is_empty() {
+
+            // VirusTotal Filter Buttons
             ui.horizontal_wrapped(|ui| {
                 ui.vertical(|ui| {
-                    ui.set_width(150.0);
+                    ui.set_width(130.0);
                     ui.label(tr!("virustotal-filter"));
                 });
 
@@ -1061,49 +1113,49 @@ impl TabScanControl {
                         self.active_vt_filter = VtFilter::NotScanned;
                     }
                 } else {
-                    // Desktop: use MaterialButton
+                    // Desktop: use small MaterialButton with custom colors
                     let show_all_colors = self.active_vt_filter == VtFilter::All;
 
                     let button = if self.active_vt_filter == VtFilter::All {
-                        MaterialButton::filled(&all_text).fill(egui::Color32::from_rgb(158, 158, 158))
+                        MaterialButton::filled(&all_text).small().fill(egui::Color32::from_rgb(158, 158, 158))
                     } else {
-                        MaterialButton::outlined(&all_text)
+                        MaterialButton::outlined(&all_text).small()
                     };
                     if ui.add(button).clicked() {
                         self.active_vt_filter = VtFilter::All;
                     }
 
                     let button = if self.active_vt_filter == VtFilter::Malicious || show_all_colors {
-                        MaterialButton::filled(&mal_text).fill(egui::Color32::from_rgb(211, 47, 47))
+                        MaterialButton::filled(&mal_text).small().fill(egui::Color32::from_rgb(211, 47, 47))
                     } else {
-                        MaterialButton::outlined(&mal_text)
+                        MaterialButton::outlined(&mal_text).small()
                     };
                     if ui.add(button).clicked() {
                         self.active_vt_filter = VtFilter::Malicious;
                     }
 
                     let button = if self.active_vt_filter == VtFilter::Suspicious || show_all_colors {
-                        MaterialButton::filled(&sus_text).fill(egui::Color32::from_rgb(255, 152, 0))
+                        MaterialButton::filled(&sus_text).small().fill(egui::Color32::from_rgb(255, 152, 0))
                     } else {
-                        MaterialButton::outlined(&sus_text)
+                        MaterialButton::outlined(&sus_text).small()
                     };
                     if ui.add(button).clicked() {
                         self.active_vt_filter = VtFilter::Suspicious;
                     }
 
                     let button = if self.active_vt_filter == VtFilter::Safe || show_all_colors {
-                        MaterialButton::filled(&safe_text).fill(egui::Color32::from_rgb(56, 142, 60))
+                        MaterialButton::filled(&safe_text).small().fill(egui::Color32::from_rgb(56, 142, 60))
                     } else {
-                        MaterialButton::outlined(&safe_text)
+                        MaterialButton::outlined(&safe_text).small()
                     };
                     if ui.add(button).clicked() {
                         self.active_vt_filter = VtFilter::Safe;
                     }
 
                     let button = if self.active_vt_filter == VtFilter::NotScanned || show_all_colors {
-                        MaterialButton::filled(&not_scanned_text).fill(egui::Color32::from_rgb(128, 128, 128))
+                        MaterialButton::filled(&not_scanned_text).small().fill(egui::Color32::from_rgb(128, 128, 128))
                     } else {
-                        MaterialButton::outlined(&not_scanned_text)
+                        MaterialButton::outlined(&not_scanned_text).small()
                     };
                     if ui.add(button).clicked() {
                         self.active_vt_filter = VtFilter::NotScanned;
@@ -1115,13 +1167,14 @@ impl TabScanControl {
             // Hybrid Analysis Filter Buttons
             ui.horizontal_wrapped(|ui| {
                 ui.vertical(|ui| {
-                    ui.set_width(150.0);
+                    ui.set_width(130.0);
                     ui.label(tr!("hybrid-analysis-filter"));
                 });
 
-                let (all, malicious, suspicious, safe, not_scanned) = self.get_ha_counts();
+                let (all, malicious, malicious_ignored, suspicious, safe, not_scanned) = self.get_ha_counts();
                 let all_text = tr!("all", { enabled: all.0, total: all.1 });
                 let mal_text = tr!("malicious", { enabled: malicious.0, total: malicious.1 });
+                let mal_ignored_text = tr!("malicious-ignored", { enabled: malicious_ignored.0, total: malicious_ignored.1 });
                 let sus_text = tr!("suspicious", { enabled: suspicious.0, total: suspicious.1 });
                 let safe_text = tr!("no-specific-threat", { enabled: safe.0, total: safe.1 });
                 let not_scanned_text = tr!("not-scanned", { enabled: not_scanned.0, total: not_scanned.1 });
@@ -1134,6 +1187,9 @@ impl TabScanControl {
                     if ui.selectable_label(self.active_ha_filter == HaFilter::Malicious, &mal_text).clicked() {
                         self.active_ha_filter = HaFilter::Malicious;
                     }
+                    if ui.selectable_label(self.active_ha_filter == HaFilter::MaliciousIgnored, &mal_ignored_text).clicked() {
+                        self.active_ha_filter = HaFilter::MaliciousIgnored;
+                    }
                     if ui.selectable_label(self.active_ha_filter == HaFilter::Suspicious, &sus_text).clicked() {
                         self.active_ha_filter = HaFilter::Suspicious;
                     }
@@ -1144,49 +1200,58 @@ impl TabScanControl {
                         self.active_ha_filter = HaFilter::NotScanned;
                     }
                 } else {
-                    // Desktop: use MaterialButton
+                    // Desktop: use small MaterialButton with custom colors
                     let show_all_colors = self.active_ha_filter == HaFilter::All;
 
                     let button = if self.active_ha_filter == HaFilter::All {
-                        MaterialButton::filled(&all_text).fill(egui::Color32::from_rgb(158, 158, 158))
+                        MaterialButton::filled(&all_text).small().fill(egui::Color32::from_rgb(158, 158, 158))
                     } else {
-                        MaterialButton::outlined(&all_text)
+                        MaterialButton::outlined(&all_text).small()
                     };
                     if ui.add(button).clicked() {
                         self.active_ha_filter = HaFilter::All;
                     }
 
                     let button = if self.active_ha_filter == HaFilter::Malicious || show_all_colors {
-                        MaterialButton::filled(&mal_text).fill(egui::Color32::from_rgb(211, 47, 47))
+                        MaterialButton::filled(&mal_text).small().fill(egui::Color32::from_rgb(211, 47, 47))
                     } else {
-                        MaterialButton::outlined(&mal_text)
+                        MaterialButton::outlined(&mal_text).small()
                     };
                     if ui.add(button).clicked() {
                         self.active_ha_filter = HaFilter::Malicious;
                     }
 
-                    let button = if self.active_ha_filter == HaFilter::Suspicious || show_all_colors {
-                        MaterialButton::filled(&sus_text).fill(egui::Color32::from_rgb(255, 152, 0))
+                    let button = if self.active_ha_filter == HaFilter::MaliciousIgnored || show_all_colors {
+                        MaterialButton::filled(&mal_ignored_text).small().fill(egui::Color32::from_rgb(128, 128, 128))
                     } else {
-                        MaterialButton::outlined(&sus_text)
+                        MaterialButton::outlined(&mal_ignored_text).small()
+                    };
+                    if ui.add(button).clicked() {
+                        self.active_ha_filter = HaFilter::MaliciousIgnored;
+                    }
+
+                    let button = if self.active_ha_filter == HaFilter::Suspicious || show_all_colors {
+                        MaterialButton::filled(&sus_text).small().fill(egui::Color32::from_rgb(255, 152, 0))
+                    } else {
+                        MaterialButton::outlined(&sus_text).small()
                     };
                     if ui.add(button).clicked() {
                         self.active_ha_filter = HaFilter::Suspicious;
                     }
 
                     let button = if self.active_ha_filter == HaFilter::Safe || show_all_colors {
-                        MaterialButton::filled(&safe_text).fill(egui::Color32::from_rgb(0, 150, 136))
+                        MaterialButton::filled(&safe_text).small().fill(egui::Color32::from_rgb(0, 150, 136))
                     } else {
-                        MaterialButton::outlined(&safe_text)
+                        MaterialButton::outlined(&safe_text).small()
                     };
                     if ui.add(button).clicked() {
                         self.active_ha_filter = HaFilter::Safe;
                     }
 
                     let button = if self.active_ha_filter == HaFilter::NotScanned || show_all_colors {
-                        MaterialButton::filled(&not_scanned_text).fill(egui::Color32::from_rgb(128, 128, 128))
+                        MaterialButton::filled(&not_scanned_text).small().fill(egui::Color32::from_rgb(128, 128, 128))
                     } else {
-                        MaterialButton::outlined(&not_scanned_text)
+                        MaterialButton::outlined(&not_scanned_text).small()
                     };
                     if ui.add(button).clicked() {
                         self.active_ha_filter = HaFilter::NotScanned;
@@ -1298,7 +1363,7 @@ impl TabScanControl {
 
         let visible_package_ids: Vec<String> = installed_packages
             .iter()
-            .filter(|p| self.should_show_package_with_state(p, &vt_scanner_state, &ha_scanner_state))
+            .filter(|p| self.should_show_package_with_state(p, &vt_scanner_state, &ha_scanner_state, &hybridanalysis_tag_ignorelist))
             .filter(|p| self.matches_text_filter_with_cache(p, &cached_fdroid_apps, &cached_google_play_apps, &cached_apkmirror_apps))
             .map(|p| p.pkg.clone())
             .collect();
@@ -1335,7 +1400,7 @@ impl TabScanControl {
             .allow_selection(false);
 
         for (idx, package) in installed_packages.iter().enumerate() {
-            if !self.should_show_package_with_state(package, &vt_scanner_state, &ha_scanner_state)
+            if !self.should_show_package_with_state(package, &vt_scanner_state, &ha_scanner_state, &hybridanalysis_tag_ignorelist)
                 || !self.matches_text_filter_with_cache(package, &cached_fdroid_apps, &cached_google_play_apps, &cached_apkmirror_apps)
             {
                 continue;

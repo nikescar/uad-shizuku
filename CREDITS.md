@@ -90,3 +90,9 @@
 | Asset | Source | License |
 |-------|--------|---------|
 | Icons | [SVG Repo](https://www.svgrepo.com/) | CC Attribution |
+
+
+solar icon svg https://www.figma.com/community/file/1166831539721848736/solar-icons-set
+noto emoji svg https://github.com/googlefonts/noto-emoji
+twemoji svg https://github.com/twitter/twemoji
+

@@ -89,6 +89,7 @@ enable-selected = 선택 항목 활성화 ({ $count })
 virustotal-filter = VirusTotal 필터:
 scanning-packages = 패키지 검사 중...
 malicious = 악성 ({ $enabled }/{ $total })
+malicious-ignored = 악성-무시됨 ({ $enabled }/{ $total })
 suspicious = 의심 ({ $enabled }/{ $total })
 safe = 안전 ({ $enabled }/{ $total })
 no-specific-threat = 특정 위협 없음 ({ $enabled }/{ $total })

@@ -47,8 +47,8 @@ impl ScanStateMachine {
 pub struct CachedScanCounts {
     /// VT counts: ((all_enabled, all_total), (mal_enabled, mal_total), (sus_enabled, sus_total), (safe_enabled, safe_total), (not_scanned_enabled, not_scanned_total))
     pub vt_counts: ((usize, usize), (usize, usize), (usize, usize), (usize, usize), (usize, usize)),
-    /// HA counts: ((all_enabled, all_total), (mal_enabled, mal_total), (sus_enabled, sus_total), (safe_enabled, safe_total), (not_scanned_enabled, not_scanned_total))
-    pub ha_counts: ((usize, usize), (usize, usize), (usize, usize), (usize, usize), (usize, usize)),
+    /// HA counts: ((all_enabled, all_total), (mal_enabled, mal_total), (mal_ignored_enabled, mal_ignored_total), (sus_enabled, sus_total), (safe_enabled, safe_total), (not_scanned_enabled, not_scanned_total))
+    pub ha_counts: ((usize, usize), (usize, usize), (usize, usize), (usize, usize), (usize, usize), (usize, usize)),
     /// VT progress when cache was computed (to detect scanner state changes)
     pub vt_progress: Option<f32>,
     /// HA progress when cache was computed
@@ -153,6 +153,7 @@ pub enum VtFilter {
 pub enum HaFilter {
     All,
     Malicious,
+    MaliciousIgnored,
     Suspicious,
     Safe,
     NotScanned,
