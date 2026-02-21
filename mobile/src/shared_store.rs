@@ -1,12 +1,33 @@
+#[cfg(not(target_family = "wasm"))]
 use crate::adb::PackageFingerprint;
+#[cfg(not(target_family = "wasm"))]
 use crate::calc_androidpackage::AndroidPackageInfo;
+#[cfg(not(target_family = "wasm"))]
 use crate::calc_hybridanalysis::ScannerState as HaScannerState;
+#[cfg(not(target_family = "wasm"))]
 use crate::calc_virustotal::ScannerState as VtScannerState;
+#[cfg(not(target_family = "wasm"))]
 use crate::models::{ApkMirrorApp, FDroidApp, GooglePlayApp};
 use crate::shared_store_stt::{SharedStore, SharedStoreUpdate};
 use crate::uad_shizuku_app::UadNgLists;
 use eframe::egui;
 use std::collections::HashMap;
+
+// Wasm placeholder types
+#[cfg(target_family = "wasm")]
+type PackageFingerprint = String;
+#[cfg(target_family = "wasm")]
+type AndroidPackageInfo = String;
+#[cfg(target_family = "wasm")]
+type HaScannerState = String;
+#[cfg(target_family = "wasm")]
+type VtScannerState = String;
+#[cfg(target_family = "wasm")]
+type ApkMirrorApp = String;
+#[cfg(target_family = "wasm")]
+type FDroidApp = String;
+#[cfg(target_family = "wasm")]
+type GooglePlayApp = String;
 
 impl Default for SharedStore {
     fn default() -> Self {
@@ -16,6 +37,7 @@ impl Default for SharedStore {
 
 impl SharedStore {
     pub fn new() -> Self {
+        #[cfg(not(target_family = "wasm"))]
         use crossbeam_queue::SegQueue;
         use std::sync::Mutex;
 

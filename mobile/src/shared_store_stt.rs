@@ -1,13 +1,59 @@
+#[cfg(not(target_family = "wasm"))]
 use crate::adb::PackageFingerprint;
+#[cfg(not(target_family = "wasm"))]
 use crate::calc_androidpackage::AndroidPackageInfo;
+#[cfg(not(target_family = "wasm"))]
 use crate::calc_hybridanalysis::ScannerState as HaScannerState;
+#[cfg(not(target_family = "wasm"))]
 use crate::calc_virustotal::ScannerState as VtScannerState;
+#[cfg(not(target_family = "wasm"))]
 use crate::models::{ApkMirrorApp, FDroidApp, GooglePlayApp};
 use crate::uad_shizuku_app::UadNgLists;
+#[cfg(not(target_family = "wasm"))]
 use crossbeam_queue::SegQueue;
 use eframe::egui;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, OnceLock};
+
+// Wasm placeholder types
+#[cfg(target_family = "wasm")]
+type PackageFingerprint = String;
+#[cfg(target_family = "wasm")]
+type AndroidPackageInfo = String;
+#[cfg(target_family = "wasm")]
+type HaScannerState = String;
+#[cfg(target_family = "wasm")]
+type VtScannerState = String;
+#[cfg(target_family = "wasm")]
+type ApkMirrorApp = String;
+#[cfg(target_family = "wasm")]
+type FDroidApp = String;
+#[cfg(target_family = "wasm")]
+type GooglePlayApp = String;
+
+// Wasm placeholder for SegQueue using a simple Vec in Mutex
+#[cfg(target_family = "wasm")]
+pub struct SegQueue<T>(Mutex<Vec<T>>);
+#[cfg(target_family = "wasm")]
+impl<T> SegQueue<T> {
+    pub fn new() -> Self {
+        Self(Mutex::new(Vec::new()))
+    }
+    pub fn push(&self, item: T) {
+        if let Ok(mut queue) = self.0.lock() {
+            queue.push(item);
+        }
+    }
+    pub fn pop(&self) -> Option<T> {
+        self.0.lock().ok().and_then(|mut queue| {
+            if queue.is_empty() {
+                None
+            } else {
+                Some(queue.remove(0))
+            }
+        })
+    }
+}
 
 /// Update types for the shared store queue
 pub enum SharedStoreUpdate {

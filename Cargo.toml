@@ -34,3 +34,7 @@ strip = "symbols"
 [profile.release-with-symbols]
 inherits = "release"
 strip = false
+
+# Patch glow to fix wasm32 compilation issue with js-sys Array::of1 type inference
+[patch.crates-io]
+glow = { path = "/tmp/glow-fix" }

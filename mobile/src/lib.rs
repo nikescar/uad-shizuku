@@ -4,66 +4,126 @@
 use eframe::egui;
 use sys_locale;
 
+#[cfg(not(target_family = "wasm"))]
 mod adb;
+#[cfg(not(target_family = "wasm"))]
 pub mod adb_stt;
+#[cfg(not(target_family = "wasm"))]
 mod android_packagemanager;
+#[cfg(not(target_family = "wasm"))]
 pub mod android_shizuku;
+#[cfg(not(target_family = "wasm"))]
 mod android_inputmethod;
+#[cfg(not(target_family = "wasm"))]
 mod android_activity;
+#[cfg(not(target_family = "wasm"))]
 mod android_clipboard;
+#[cfg(not(target_family = "wasm"))]
 mod android_contexttheme;
+#[cfg(not(target_family = "wasm"))]
 mod clipboard_popup;
+#[cfg(not(target_family = "wasm"))]
 mod tab_apps_control;
+#[cfg(not(target_family = "wasm"))]
 pub mod tab_apps_control_stt;
+#[cfg(not(target_family = "wasm"))]
 mod tab_debloat_control;
+#[cfg(not(target_family = "wasm"))]
 pub mod tab_debloat_control_stt;
+#[cfg(not(target_family = "wasm"))]
 mod tab_scan_control;
+#[cfg(not(target_family = "wasm"))]
 pub mod tab_scan_control_stt;
+#[cfg(not(target_family = "wasm"))]
 mod tab_usage_control;
+#[cfg(not(target_family = "wasm"))]
 pub mod tab_usage_control_stt;
+#[cfg(not(target_family = "wasm"))]
 mod dlg_package_details;
+#[cfg(not(target_family = "wasm"))]
 pub mod dlg_package_details_stt;
+#[cfg(not(target_family = "wasm"))]
 mod dlg_uninstall_confirm;
+#[cfg(not(target_family = "wasm"))]
 pub mod dlg_uninstall_confirm_stt;
+#[cfg(not(target_family = "wasm"))]
 mod dlg_settings;
+#[cfg(not(target_family = "wasm"))]
 pub mod dlg_settings_stt;
+#[cfg(not(target_family = "wasm"))]
 mod dlg_adb_install;
+#[cfg(not(target_family = "wasm"))]
 pub mod dlg_adb_install_stt;
+#[cfg(not(target_family = "wasm"))]
 mod dlg_update;
+#[cfg(not(target_family = "wasm"))]
 pub mod dlg_update_stt;
+#[cfg(not(target_family = "wasm"))]
 mod dlg_about;
+#[cfg(not(target_family = "wasm"))]
 pub mod dlg_about_stt;
 
+#[cfg(not(target_family = "wasm"))]
 pub mod api_apkmirror;
+#[cfg(not(target_family = "wasm"))]
 pub mod api_apkmirror_stt;
+#[cfg(not(target_family = "wasm"))]
 pub mod api_fdroid;
+#[cfg(not(target_family = "wasm"))]
 pub mod api_fdroid_stt;
+#[cfg(not(target_family = "wasm"))]
 mod api_googleplay;
+#[cfg(not(target_family = "wasm"))]
 pub mod api_googleplay_stt;
+#[cfg(not(target_family = "wasm"))]
 pub mod api_hybridanalysis;
+#[cfg(not(target_family = "wasm"))]
 pub mod api_hybridanalysis_stt;
+#[cfg(not(target_family = "wasm"))]
 mod api_virustotal;
+#[cfg(not(target_family = "wasm"))]
 pub mod api_virustotal_stt;
+#[cfg(not(target_family = "wasm"))]
 pub mod calc_androidpackage;
+#[cfg(not(target_family = "wasm"))]
 mod calc_apkmirror;
+#[cfg(not(target_family = "wasm"))]
 pub mod calc_apkmirror_stt;
+#[cfg(not(target_family = "wasm"))]
 mod calc_fdroid;
+#[cfg(not(target_family = "wasm"))]
 pub mod calc_fdroid_stt;
+#[cfg(not(target_family = "wasm"))]
 mod calc_googleplay;
+#[cfg(not(target_family = "wasm"))]
 pub mod calc_googleplay_stt;
+#[cfg(not(target_family = "wasm"))]
 mod calc_hybridanalysis;
+#[cfg(not(target_family = "wasm"))]
 pub mod calc_hybridanalysis_stt;
+#[cfg(not(target_family = "wasm"))]
 mod calc_izzyrisk;
+#[cfg(not(target_family = "wasm"))]
 mod calc_virustotal;
+#[cfg(not(target_family = "wasm"))]
 pub mod calc_virustotal_stt;
+#[cfg(not(target_family = "wasm"))]
 pub mod db;
+#[cfg(not(target_family = "wasm"))]
 pub mod db_apkmirror;
+#[cfg(not(target_family = "wasm"))]
 pub mod db_fdroid;
+#[cfg(not(target_family = "wasm"))]
 pub mod db_googleplay;
+#[cfg(not(target_family = "wasm"))]
 pub mod db_hybridanalysis;
+#[cfg(not(target_family = "wasm"))]
 pub mod db_package_cache;
+#[cfg(not(target_family = "wasm"))]
 pub mod db_virustotal;
+#[cfg(not(target_family = "wasm"))]
 mod models;
+#[cfg(not(target_family = "wasm"))]
 mod schema;
 
 pub mod log_capture;
@@ -81,7 +141,9 @@ pub mod material_symbol_icons;
 
 // Installation management for desktop platforms
 // (check_update function is available on all platforms)
+#[cfg(not(target_family = "wasm"))]
 pub mod install;
+#[cfg(not(target_family = "wasm"))]
 pub mod install_stt;
 
 #[cfg(target_os = "android")]
