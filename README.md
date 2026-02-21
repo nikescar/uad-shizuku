@@ -101,7 +101,6 @@ Get list of FOSS apps, and install directly. github and fdroid auto-install supp
 
 ## Todos
 
-* separate malicious filter into non-ignored app and ignored app
 * windows app signing & attestation.
 * web version through webusb on browser
 * usage history & netstats history

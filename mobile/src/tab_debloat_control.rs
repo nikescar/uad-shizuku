@@ -599,23 +599,60 @@ impl TabDebloatControl {
                 let unknown_text = tr!("unknown", { enabled: unknown_enabled, total: unknown_total });
 
                 if filter_is_mobile {
-                    // Mobile: use compact selectable_label
-                    if ui.selectable_label(self.active_filter == DebloatFilter::All, &all_text).clicked() {
+                    // Mobile: use small MaterialButton with custom colors (same as desktop)
+                    let show_all_colors = self.active_filter == DebloatFilter::All;
+
+                    let button = if self.active_filter == DebloatFilter::All {
+                        MaterialButton::filled(&all_text).small().fill(egui::Color32::from_rgb(158, 158, 158))
+                    } else {
+                        MaterialButton::outlined(&all_text).small()
+                    };
+                    if ui.add(button).clicked() {
                         self.active_filter = DebloatFilter::All;
                     }
-                    if ui.selectable_label(self.active_filter == DebloatFilter::Recommended, &rec_text).clicked() {
+
+                    let button = if self.active_filter == DebloatFilter::Recommended || show_all_colors {
+                        MaterialButton::filled(&rec_text).small().fill(egui::Color32::from_rgb(56, 142, 60))
+                    } else {
+                        MaterialButton::outlined(&rec_text).small()
+                    };
+                    if ui.add(button).clicked() {
                         self.active_filter = DebloatFilter::Recommended;
                     }
-                    if ui.selectable_label(self.active_filter == DebloatFilter::Advanced, &adv_text).clicked() {
+
+                    let button = if self.active_filter == DebloatFilter::Advanced || show_all_colors {
+                        MaterialButton::filled(&adv_text).small().fill(egui::Color32::from_rgb(33, 150, 243))
+                    } else {
+                        MaterialButton::outlined(&adv_text).small()
+                    };
+                    if ui.add(button).clicked() {
                         self.active_filter = DebloatFilter::Advanced;
                     }
-                    if ui.selectable_label(self.active_filter == DebloatFilter::Expert, &exp_text).clicked() {
+
+                    let button = if self.active_filter == DebloatFilter::Expert || show_all_colors {
+                        MaterialButton::filled(&exp_text).small().fill(egui::Color32::from_rgb(255, 152, 0))
+                    } else {
+                        MaterialButton::outlined(&exp_text).small()
+                    };
+                    if ui.add(button).clicked() {
                         self.active_filter = DebloatFilter::Expert;
                     }
-                    if ui.selectable_label(self.active_filter == DebloatFilter::Unsafe, &unsafe_text).clicked() {
+
+                    let button = if self.active_filter == DebloatFilter::Unsafe || show_all_colors {
+                        MaterialButton::filled(&unsafe_text).small().fill(egui::Color32::from_rgb(255, 235, 59))
+                    } else {
+                        MaterialButton::outlined(&unsafe_text).small()
+                    };
+                    if ui.add(button).clicked() {
                         self.active_filter = DebloatFilter::Unsafe;
                     }
-                    if ui.selectable_label(self.active_filter == DebloatFilter::Unknown, &unknown_text).clicked() {
+
+                    let button = if self.active_filter == DebloatFilter::Unknown || show_all_colors {
+                        MaterialButton::filled(&unknown_text).small().fill(egui::Color32::from_rgb(255, 255, 255))
+                    } else {
+                        MaterialButton::outlined(&unknown_text).small()
+                    };
+                    if ui.add(button).clicked() {
                         self.active_filter = DebloatFilter::Unknown;
                     }
                 } else {

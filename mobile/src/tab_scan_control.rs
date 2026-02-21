@@ -1096,20 +1096,51 @@ impl TabScanControl {
                 let not_scanned_text = tr!("not-scanned", { enabled: not_scanned.0, total: not_scanned.1 });
 
                 if filter_is_mobile {
-                    // Mobile: use compact selectable_label
-                    if ui.selectable_label(self.active_vt_filter == VtFilter::All, &all_text).clicked() {
+                    // Mobile: use small MaterialButton with custom colors (same as desktop)
+                    let show_all_colors = self.active_vt_filter == VtFilter::All;
+
+                    let button = if self.active_vt_filter == VtFilter::All {
+                        MaterialButton::filled(&all_text).small().fill(egui::Color32::from_rgb(158, 158, 158))
+                    } else {
+                        MaterialButton::outlined(&all_text).small()
+                    };
+                    if ui.add(button).clicked() {
                         self.active_vt_filter = VtFilter::All;
                     }
-                    if ui.selectable_label(self.active_vt_filter == VtFilter::Malicious, &mal_text).clicked() {
+
+                    let button = if self.active_vt_filter == VtFilter::Malicious || show_all_colors {
+                        MaterialButton::filled(&mal_text).small().fill(egui::Color32::from_rgb(211, 47, 47))
+                    } else {
+                        MaterialButton::outlined(&mal_text).small()
+                    };
+                    if ui.add(button).clicked() {
                         self.active_vt_filter = VtFilter::Malicious;
                     }
-                    if ui.selectable_label(self.active_vt_filter == VtFilter::Suspicious, &sus_text).clicked() {
+
+                    let button = if self.active_vt_filter == VtFilter::Suspicious || show_all_colors {
+                        MaterialButton::filled(&sus_text).small().fill(egui::Color32::from_rgb(255, 152, 0))
+                    } else {
+                        MaterialButton::outlined(&sus_text).small()
+                    };
+                    if ui.add(button).clicked() {
                         self.active_vt_filter = VtFilter::Suspicious;
                     }
-                    if ui.selectable_label(self.active_vt_filter == VtFilter::Safe, &safe_text).clicked() {
+
+                    let button = if self.active_vt_filter == VtFilter::Safe || show_all_colors {
+                        MaterialButton::filled(&safe_text).small().fill(egui::Color32::from_rgb(56, 142, 60))
+                    } else {
+                        MaterialButton::outlined(&safe_text).small()
+                    };
+                    if ui.add(button).clicked() {
                         self.active_vt_filter = VtFilter::Safe;
                     }
-                    if ui.selectable_label(self.active_vt_filter == VtFilter::NotScanned, &not_scanned_text).clicked() {
+
+                    let button = if self.active_vt_filter == VtFilter::NotScanned || show_all_colors {
+                        MaterialButton::filled(&not_scanned_text).small().fill(egui::Color32::from_rgb(128, 128, 128))
+                    } else {
+                        MaterialButton::outlined(&not_scanned_text).small()
+                    };
+                    if ui.add(button).clicked() {
                         self.active_vt_filter = VtFilter::NotScanned;
                     }
                 } else {
@@ -1180,23 +1211,60 @@ impl TabScanControl {
                 let not_scanned_text = tr!("not-scanned", { enabled: not_scanned.0, total: not_scanned.1 });
 
                 if filter_is_mobile {
-                    // Mobile: use compact selectable_label
-                    if ui.selectable_label(self.active_ha_filter == HaFilter::All, &all_text).clicked() {
+                    // Mobile: use small MaterialButton with custom colors (same as desktop)
+                    let show_all_colors = self.active_ha_filter == HaFilter::All;
+
+                    let button = if self.active_ha_filter == HaFilter::All {
+                        MaterialButton::filled(&all_text).small().fill(egui::Color32::from_rgb(158, 158, 158))
+                    } else {
+                        MaterialButton::outlined(&all_text).small()
+                    };
+                    if ui.add(button).clicked() {
                         self.active_ha_filter = HaFilter::All;
                     }
-                    if ui.selectable_label(self.active_ha_filter == HaFilter::Malicious, &mal_text).clicked() {
+
+                    let button = if self.active_ha_filter == HaFilter::Malicious || show_all_colors {
+                        MaterialButton::filled(&mal_text).small().fill(egui::Color32::from_rgb(211, 47, 47))
+                    } else {
+                        MaterialButton::outlined(&mal_text).small()
+                    };
+                    if ui.add(button).clicked() {
                         self.active_ha_filter = HaFilter::Malicious;
                     }
-                    if ui.selectable_label(self.active_ha_filter == HaFilter::MaliciousIgnored, &mal_ignored_text).clicked() {
+
+                    let button = if self.active_ha_filter == HaFilter::MaliciousIgnored || show_all_colors {
+                        MaterialButton::filled(&mal_ignored_text).small().fill(egui::Color32::from_rgb(128, 128, 128))
+                    } else {
+                        MaterialButton::outlined(&mal_ignored_text).small()
+                    };
+                    if ui.add(button).clicked() {
                         self.active_ha_filter = HaFilter::MaliciousIgnored;
                     }
-                    if ui.selectable_label(self.active_ha_filter == HaFilter::Suspicious, &sus_text).clicked() {
+
+                    let button = if self.active_ha_filter == HaFilter::Suspicious || show_all_colors {
+                        MaterialButton::filled(&sus_text).small().fill(egui::Color32::from_rgb(255, 152, 0))
+                    } else {
+                        MaterialButton::outlined(&sus_text).small()
+                    };
+                    if ui.add(button).clicked() {
                         self.active_ha_filter = HaFilter::Suspicious;
                     }
-                    if ui.selectable_label(self.active_ha_filter == HaFilter::Safe, &safe_text).clicked() {
+
+                    let button = if self.active_ha_filter == HaFilter::Safe || show_all_colors {
+                        MaterialButton::filled(&safe_text).small().fill(egui::Color32::from_rgb(0, 150, 136))
+                    } else {
+                        MaterialButton::outlined(&safe_text).small()
+                    };
+                    if ui.add(button).clicked() {
                         self.active_ha_filter = HaFilter::Safe;
                     }
-                    if ui.selectable_label(self.active_ha_filter == HaFilter::NotScanned, &not_scanned_text).clicked() {
+
+                    let button = if self.active_ha_filter == HaFilter::NotScanned || show_all_colors {
+                        MaterialButton::filled(&not_scanned_text).small().fill(egui::Color32::from_rgb(128, 128, 128))
+                    } else {
+                        MaterialButton::outlined(&not_scanned_text).small()
+                    };
+                    if ui.add(button).clicked() {
                         self.active_ha_filter = HaFilter::NotScanned;
                     }
                 } else {
