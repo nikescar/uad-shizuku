@@ -100,15 +100,17 @@ jobs:
     steps:
       - name: Linux - Install Build Dependencies
         if: contains(matrix.platform.target, 'linux')
-        run: | 
-          sudo apt install musl-tools libgtk-3-dev libxdo-dev libappindicator3-dev libglib2.0-dev libgdk-pixbuf-2.0-dev libwayland-dev libcairo2-dev libpixman-1-dev libpango1.0-dev libxdo-dev librust-glib-sys-dev librust-gio-sys-dev librust-gobject-sys-dev librust-gdk-sys-dev libwebkit2gtk-4.1-dev librust-gdk-pixbuf-sys-dev librust-cairo-sys-rs-dev librust-pango-sys-dev librust-atk-sys-dev libgdk-pixbuf2.0-dev libatk1.0-dev musl-dev
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y musl-tools libgtk-3-dev libxdo-dev libappindicator3-dev libglib2.0-dev libgdk-pixbuf-2.0-dev libwayland-dev libcairo2-dev libpixman-1-dev libpango1.0-dev libxdo-dev librust-glib-sys-dev librust-gio-sys-dev librust-gobject-sys-dev librust-gdk-sys-dev libwebkit2gtk-4.1-dev librust-gdk-pixbuf-sys-dev librust-cairo-sys-rs-dev librust-pango-sys-dev librust-atk-sys-dev libgdk-pixbuf2.0-dev libatk1.0-dev musl-dev
           export PKG_CONFIG_ALLOW_CROSS=1
           export PKG_CONFIG_PATH="/usr/lib/x86_64-linux-musl/pkgconfig"
           
       - name: Android - Install Build Dependencies
         if: contains(matrix.platform.target, 'android')
         run: |
-          sudo apt install android-libunwind android-libunwind-dev libunwind-dev musl-tools llvm-14 clang llvm
+          sudo apt-get update
+          sudo apt-get install -y android-libunwind android-libunwind-dev libunwind-dev musl-tools llvm-14 clang llvm
 
       - name: Checkout Repository
         uses: actions/checkout@v3
