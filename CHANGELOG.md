@@ -1,4 +1,30 @@
 ## What's Changed
+* fix. slower refresh rates for performance. by @nikescar
+* fix. qeueing app install in apps tab. by @nikescar
+* fix. disable apps tab on installed from google play. by @nikescar
+* fix. replace enable/disable button with toggle ui. by @nikescar
+* fix. scrollarea for mobile ui. by @nikescar
+* chore. add windows code signing. by @nikescar
+* fix. small filter buttons. by @nikescar
+* fix. small filter button. by @nikescar
+* fix. change android adb shizuku instruction. by @nikescar
+* fix. language detection apply for android. by @nikescar
+* fix. datatable height. by @nikescar
+* fix. update egui to 0.33 by @nikescar
+* docs. update apk file path. by @nikescar
+* chore. virustotal scan on github workflow on release. by @nikescar
+* fix. lastwork by @nikescar in [#42](https://github.com/nikescar/uad-shizuku/pull/42)
+* docs. update todos. by @nikescar
+* fix. add link for shizuku instructions. by @nikescar
+* feat. android package label, icon renderer jni on android. by @nikescar
+* fix. change enable/disable color. by @nikescar
+* fix. windows user directory. by @nikescar in [#37](https://github.com/nikescar/uad-shizuku/pull/37)
+* fix. windows user directory. by @nikescar
+* fix. change windows download link. by @nikescar in [#36](https://github.com/nikescar/uad-shizuku/pull/36)
+* fix. change windows download link. by @nikescar
+
+## What's Changed in 0.0.8
+* release. v0.0.8 by @nikescar
 * fix. skip google play push failed. by @nikescar
 * fix. settings dlg error. by @nikescar
 * fix. do not archive exe file. by @nikescar
@@ -85,6 +111,8 @@
 * docs. fix link. by @nikescar
 * docs. adds description on install, dev docs. by @nikescar
 * docs. add usage. by @nikescar
+
+**Full Changelog**: https://github.com/nikescar/uad-shizuku/compare/v0.0.7...v0.0.8
 
 ## What's Changed in 0.0.7
 * release. v0.0.7 by @nikescar
