@@ -40,6 +40,8 @@ pub mod api_fdroid;
 pub mod api_fdroid_stt;
 mod api_googleplay;
 pub mod api_googleplay_stt;
+mod app_operations_queue;
+pub mod app_operations_queue_stt;
 pub mod api_hybridanalysis;
 pub mod api_hybridanalysis_stt;
 mod api_virustotal;

@@ -37,6 +37,8 @@ pub struct TabAppsControl {
     pub text_filter: String, // Text filter for searching all visible text in the table
     pub sort_column: Option<usize>, // Sort column for mobile view
     pub sort_ascending: bool, // Sort direction
+    // Background operations queue
+    pub operations_queue: Option<std::sync::Arc<crate::app_operations_queue::AppOperationsQueue>>,
     // Dialogs
     pub package_details_dialog: DlgPackageDetails,
     pub uninstall_confirm_dialog: DlgUninstallConfirm,

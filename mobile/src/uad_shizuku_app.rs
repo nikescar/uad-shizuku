@@ -1012,6 +1012,31 @@ impl UadShizukuApp {
                         });
                     }
 
+                    // App operations progress (install/uninstall)
+                    if let Some(queue) = &self.tab_apps_control.operations_queue {
+                        if let Ok(progress) = queue.progress.lock() {
+                            if let Some(p) = *progress {
+                                let pending = queue.queue_size();
+                                let completed = queue.completed_count();
+                                let total = pending + completed;
+
+                                let progress_bar = egui::ProgressBar::new(p)
+                                    .show_percentage()
+                                    .desired_width(100.0)
+                                    .animate(true);
+                                ui.label("App Operations");
+                                ui.horizontal(|ui| {
+                                    ui.add(progress_bar).on_hover_text(format!("{}/{} operations", completed, total));
+
+                                    if ui.button(tr!("stop")).clicked() {
+                                        log::info!("Stop app operations clicked");
+                                        queue.clear_queue();
+                                    }
+                                });
+                            }
+                        }
+                    }
+
                 });
         });
         // === notification render progress area end
@@ -1745,11 +1770,44 @@ impl UadShizukuApp {
     }
 
     fn render_apps_tab(&mut self, ui: &mut egui::Ui) {
+        // Check if operations queue has completed and trigger refresh
+        if let Some(ref queue) = self.tab_apps_control.operations_queue {
+            let was_running = {
+                let is_running = queue.is_running.lock().unwrap();
+                *is_running
+            };
+
+            // If queue was running and is now done, trigger refresh
+            if !was_running {
+                let has_completed_ops = queue.completed_count() > 0;
+                if has_completed_ops {
+                    // Check if any operation completed successfully
+                    if let Ok(results) = queue.results.lock() {
+                        let has_success = results.values().any(|status| {
+                            matches!(status, crate::app_operations_queue_stt::OperationStatus::Success(_))
+                        });
+                        if has_success && !self.tab_apps_control.refresh_pending {
+                            self.tab_apps_control.refresh_pending = true;
+                        }
+                    }
+                }
+            }
+        }
+
         // Check if packages need to be refreshed (e.g., after install)
         // Only refresh tab_apps_control, not other tabs (to avoid triggering scans)
         if self.tab_apps_control.refresh_pending {
             self.tab_apps_control.refresh_pending = false;
             self.refresh_apps_tab_packages();
+
+            // Clear operation results after refresh (so progress notification disappears)
+            if let Some(ref queue) = self.tab_apps_control.operations_queue {
+                let is_running = queue.is_running.lock().unwrap();
+                if !*is_running && queue.completed_count() > 0 {
+                    drop(is_running);
+                    queue.clear_results();
+                }
+            }
         }
         let has_error = self.tab_apps_control.ui(ui);
 

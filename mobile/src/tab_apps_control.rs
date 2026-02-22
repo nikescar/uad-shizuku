@@ -43,6 +43,7 @@ impl Default for TabAppsControl {
             text_filter: String::new(),
             sort_column: None,
             sort_ascending: true,
+            operations_queue: Some(std::sync::Arc::new(crate::app_operations_queue::AppOperationsQueue::new())),
             package_details_dialog: DlgPackageDetails::default(),
             uninstall_confirm_dialog: DlgUninstallConfirm::default(),
         }
@@ -1249,16 +1250,68 @@ impl TabAppsControl {
 
         // Perform installation if an app was clicked
         if let Some(app) = install_clicked_app {
+            #[cfg(not(target_os = "android"))]
             {
-                match self.install_app(&app) {
-                    Ok(()) => {
-                        log::info!("Successfully installed: {}", app.name);
-                    }
-                    Err(e) => {
-                        log::error!("Failed to install {}: {}", app.name, e);
+                // Queue the install operation
+                if let Some(ref queue) = self.operations_queue {
+                    // Get the downloadable link
+                    if let Some((url, link_type)) = self.get_downloadable_link(&app) {
+                        // Check if GitHub installs are disabled
+                        if link_type == "github-downloadable" && self.disable_github_install {
+                            log::error!("GitHub installations are disabled");
+                            has_error = true;
+                        } else if let Some(ref device) = self.selected_device {
+                            // Get the actual download URL
+                            let download_url = match link_type.as_str() {
+                                "github-downloadable" => {
+                                    self.get_github_download_url(&url)
+                                }
+                                "fdroid-downloadable" => {
+                                    if let Some(pkg) = self.extract_package_from_url(&url) {
+                                        self.get_fdroid_download_url(&pkg)
+                                    } else {
+                                        None
+                                    }
+                                }
+                                _ => None,
+                            };
+
+                            if let Some(download_url) = download_url {
+                                log::info!("Queuing install for: {} from {}", app.name, download_url);
+                                queue.enqueue(crate::app_operations_queue_stt::OperationType::Install {
+                                    app_name: app.name.clone(),
+                                    download_url,
+                                    link_type,
+                                });
+
+                                // Start worker if not running
+                                let is_running = queue.is_running.lock().unwrap();
+                                if !*is_running {
+                                    drop(is_running);
+                                    queue.start_worker(
+                                        device.clone(),
+                                        self.cache_dir.clone(),
+                                        self.tmp_dir.clone(),
+                                    );
+                                }
+                            } else {
+                                log::error!("Failed to get download URL for {}", app.name);
+                                has_error = true;
+                            }
+                        } else {
+                            log::error!("No device selected for install");
+                            has_error = true;
+                        }
+                    } else {
+                        log::error!("No downloadable link found for {}", app.name);
                         has_error = true;
                     }
                 }
+            }
+            #[cfg(target_os = "android")]
+            {
+                log::error!("Direct install not supported on Android");
+                has_error = true;
             }
         }
 
@@ -1315,29 +1368,60 @@ impl TabAppsControl {
         if self.uninstall_confirm_dialog.show(ui.ctx()) {
             let pkgs = std::mem::take(&mut self.uninstall_confirm_dialog.packages);
             let sys_flags = std::mem::take(&mut self.uninstall_confirm_dialog.is_system);
-            let app_names = std::mem::take(&mut self.uninstall_confirm_dialog.app_names);
+            let _app_names = std::mem::take(&mut self.uninstall_confirm_dialog.app_names);
             self.uninstall_confirm_dialog.reset();
 
             if let Some(ref device) = self.selected_device {
-                for (i, pkg_name) in pkgs.into_iter().enumerate() {
-                    let is_system = sys_flags.get(i).copied().unwrap_or(false);
-                    let uninstall_result = if is_system {
-                        crate::adb::uninstall_app_user(&pkg_name, device, None)
-                    } else {
-                        crate::adb::uninstall_app(&pkg_name, device)
-                    };
+                #[cfg(not(target_os = "android"))]
+                if let Some(ref queue) = self.operations_queue {
+                    // Queue uninstall operations
+                    for (i, pkg_name) in pkgs.iter().enumerate() {
+                        let is_system = sys_flags.get(i).copied().unwrap_or(false);
+                        log::info!("Queuing uninstall for: {}", pkg_name);
+                        queue.enqueue(crate::app_operations_queue_stt::OperationType::Uninstall {
+                            package_name: pkg_name.clone(),
+                            is_system,
+                        });
+                    }
 
-                    match uninstall_result {
-                        Ok(output) => {
-                            log::info!("App uninstalled successfully: {}", output);
-                            if let Some(Some(app_name)) = app_names.get(i) {
-                                self.recently_installed_apps.remove(app_name);
+                    // Start worker if not running
+                    let is_running = queue.is_running.lock().unwrap();
+                    if !*is_running {
+                        drop(is_running);
+                        queue.start_worker(
+                            device.clone(),
+                            self.cache_dir.clone(),
+                            self.tmp_dir.clone(),
+                        );
+                    }
+
+                    // Mark for UI refresh
+                    self.refresh_pending = true;
+                }
+
+                #[cfg(target_os = "android")]
+                {
+                    // Direct execution on Android (no queue)
+                    for (i, pkg_name) in pkgs.into_iter().enumerate() {
+                        let is_system = sys_flags.get(i).copied().unwrap_or(false);
+                        let uninstall_result = if is_system {
+                            crate::adb::uninstall_app_user(&pkg_name, device, None)
+                        } else {
+                            crate::adb::uninstall_app(&pkg_name, device)
+                        };
+
+                        match uninstall_result {
+                            Ok(output) => {
+                                log::info!("App uninstalled successfully: {}", output);
+                                if let Some(Some(app_name)) = app_names.get(i) {
+                                    self.recently_installed_apps.remove(app_name);
+                                }
+                                self.refresh_pending = true;
                             }
-                            self.refresh_pending = true;
-                        }
-                        Err(e) => {
-                            log::error!("Failed to uninstall app({}): {}", pkg_name, e);
-                            has_error = true;
+                            Err(e) => {
+                                log::error!("Failed to uninstall app({}): {}", pkg_name, e);
+                                has_error = true;
+                            }
                         }
                     }
                 }
