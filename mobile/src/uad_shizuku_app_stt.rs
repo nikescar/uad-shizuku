@@ -154,6 +154,10 @@ pub struct UadShizukuApp {
 
     // Installer package name (Android) - cached for UI decisions
     pub installer_package_name: Option<String>,
+
+    // Debloat tab performance optimization
+    pub debloat_last_enqueued_version: u64,
+    pub debloat_last_result_load_time: std::time::Instant,
 }
 
 pub enum AppView {

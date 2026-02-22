@@ -103,8 +103,6 @@ Get list of FOSS apps, and install directly. github and fdroid auto-install supp
 
 * web version through webusb on browser.(stuck diesel, ureq not available on wasm)
 * usage history & netstats history
-* refresh app list after operation
-* detach app installer from app table (put in queue for actions)
 * logcat ?
 * android : add obtainium list https://apps.obtainium.imranr.dev/data.json?rand=6958.845712989482
 * izzy auto install

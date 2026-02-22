@@ -340,6 +340,10 @@ impl Default for UadShizukuApp {
             ).ok().flatten(),
             #[cfg(not(target_os = "android"))]
             installer_package_name: None,
+
+            // Debloat tab performance optimization
+            debloat_last_enqueued_version: 0,
+            debloat_last_result_load_time: std::time::Instant::now(),
         };
 
         // Apply persisted theme preferences
@@ -1542,11 +1546,19 @@ impl UadShizukuApp {
                 self.apkmirror_queue = Some(queue);
             }
 
-            // Enqueue visible packages for fetching
-            self.enqueue_visible_packages_for_debloat(google_play_enabled, fdroid_enabled, apkmirror_enabled);
+            // Only enqueue packages when the table version changes (packages updated)
+            let current_version = self.tab_debloat_control.table_version;
+            if current_version != self.debloat_last_enqueued_version {
+                self.enqueue_visible_packages_for_debloat(google_play_enabled, fdroid_enabled, apkmirror_enabled);
+                self.debloat_last_enqueued_version = current_version;
+            }
 
-            // Load results from workers and populate caches
-            self.load_renderer_results_to_debloat_cache();
+            // Only load results periodically (every 500ms) instead of every frame
+            let now = std::time::Instant::now();
+            if now.duration_since(self.debloat_last_result_load_time).as_millis() >= 500 {
+                self.load_renderer_results_to_debloat_cache();
+                self.debloat_last_result_load_time = now;
+            }
         }
 
         // Sync unsafe_app_remove setting
@@ -2669,5 +2681,10 @@ impl eframe::App for UadShizukuApp {
             }
             self.ui(ui);
         });
+
+        // Use reactive mode: only repaint when needed
+        // Request repaint after 500ms to check for background task updates
+        // This reduces CPU usage while still updating worker results periodically
+        ctx.request_repaint_after(std::time::Duration::from_millis(500));
     }
 }
