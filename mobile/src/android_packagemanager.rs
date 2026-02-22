@@ -489,3 +489,82 @@ pub fn get_application_icon(package_id: &str) -> std::io::Result<Vec<u8>> {
 
     Ok(bytes)
 }
+
+#[cfg(target_os = "android")]
+pub fn get_installer_package_name(package_id: &str) -> std::io::Result<Option<String>> {
+    let ctx = ndk_context::android_context();
+    let vm = unsafe { jni::JavaVM::from_raw(ctx.vm() as _) }.map_err(|_| {
+        std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            "Expected to find JVM via ndk_context crate",
+        )
+    })?;
+
+    let activity = unsafe { jni::objects::JObject::from_raw(ctx.context() as _) };
+    let mut env = vm.attach_current_thread().map_err(|_| {
+        std::io::Error::new(std::io::ErrorKind::Other, "Failed to attach current thread")
+    })?;
+
+    // Get PackageManager
+    let package_manager = env
+        .call_method(
+            &activity,
+            "getPackageManager",
+            "()Landroid/content/pm/PackageManager;",
+            &[],
+        )
+        .and_then(|v| v.l())
+        .map_err(|e| {
+            std::io::Error::new(
+                std::io::ErrorKind::Other,
+                format!("Failed to get PackageManager: {}", e),
+            )
+        })?;
+
+    // Create Java string for package name
+    let j_package_id = env.new_string(package_id).map_err(|e| {
+        std::io::Error::new(
+            std::io::ErrorKind::Other,
+            format!("Failed to create Java string: {}", e),
+        )
+    })?;
+
+    // Call getInstallerPackageName
+    let installer_result = env
+        .call_method(
+            &package_manager,
+            "getInstallerPackageName",
+            "(Ljava/lang/String;)Ljava/lang/String;",
+            &[JValue::Object(&j_package_id)],
+        );
+
+    // Clear pending JNI exception (may throw if package not found)
+    let _ = env.exception_clear();
+
+    match installer_result {
+        Ok(result) => {
+            match result.l() {
+                Ok(installer_obj) => {
+                    if installer_obj.is_null() {
+                        // null means developer install (sideloaded)
+                        Ok(None)
+                    } else {
+                        // Convert to Rust string
+                        let installer_str: String = env
+                            .get_string(&jni::objects::JString::from(installer_obj))
+                            .map_err(|e| {
+                                std::io::Error::new(
+                                    std::io::ErrorKind::Other,
+                                    format!("Failed to convert installer name to Rust string: {}", e),
+                                )
+                            })?
+                            .into();
+                        Ok(Some(installer_str))
+                    }
+                }
+                Err(_) => Ok(None),
+            }
+        }
+        Err(_) => Ok(None),
+    }
+}

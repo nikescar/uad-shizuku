@@ -332,6 +332,14 @@ impl Default for UadShizukuApp {
 
             // Pinch-to-zoom state
             zoom_factor: 1.0,
+
+            // Installer package name - detect on Android
+            #[cfg(target_os = "android")]
+            installer_package_name: crate::android_packagemanager::get_installer_package_name(
+                "pe.nikescar.uad_shizuku"
+            ).ok().flatten(),
+            #[cfg(not(target_os = "android"))]
+            installer_package_name: None,
         };
 
         // Apply persisted theme preferences
@@ -1361,12 +1369,27 @@ impl UadShizukuApp {
     fn render_custom_tabs(&mut self, ui: &mut egui::Ui) {
         // Custom themed tabs — compact when content is scrolled down
         let _previous_tab = self.custom_selected;
+
+        // On Android: hide apps tab if installed from Google Play Store
+        // On other platforms: always show apps tab
+        #[cfg(target_os = "android")]
+        let show_apps_tab = !matches!(
+            self.installer_package_name.as_deref(),
+            Some("com.android.vending")
+        );
+        #[cfg(not(target_os = "android"))]
+        let show_apps_tab = true;
+
         let mut tabs = tabs_primary(&mut self.custom_selected)
             .id_salt("custom_primary")
             .tab(tr!("debloat"))
-            .tab(tr!("scan"))
-            .tab(tr!("apps"));
-            //.tab(tr!("usage"));
+            .tab(tr!("scan"));
+
+        if show_apps_tab {
+            tabs = tabs.tab(tr!("apps"));
+        }
+        //.tab(tr!("usage"));
+
         if self.is_scrolled {
             tabs = tabs.height(24.0);
         }
@@ -1379,8 +1402,10 @@ impl UadShizukuApp {
         let reserved_space = if self.settings.show_logs { 200.0 } else { 0.0 };
         let max_height = ui.available_height() - reserved_space;
 
+        // Tab content rendering - adjust indices based on whether apps tab is shown
         match self.custom_selected {
             0 => {
+                // Debloat tab
                 ui.label(tr!("debloat-description"));
 
                 ui.add_space(8.0);
@@ -1394,6 +1419,7 @@ impl UadShizukuApp {
                 self.is_scrolled = scroll_output.state.offset.y > 0.0;
             }
             1 => {
+                // Scan tab
                 ui.horizontal(|ui| {
                     ui.label(tr!("scan-description"));
                     ui.add_space(8.0);
@@ -1413,7 +1439,8 @@ impl UadShizukuApp {
                     });
                 self.is_scrolled = scroll_output.state.offset.y > 0.0;
             }
-            2 => {
+            2 if show_apps_tab => {
+                // Apps tab (only shown if not installed from Google Play on Android)
                 // ui.colored_label(egui::Color32::from_rgb(103, 80, 164), "Apps");
                 ui.label(tr!("apps-description"));
                 ui.add_space(8.0);
@@ -1427,6 +1454,7 @@ impl UadShizukuApp {
                 self.is_scrolled = scroll_output.state.offset.y > 0.0;
             }
             3 => {
+                // Usage tab (currently commented out in tab list)
                 // ui.colored_label(egui::Color32::from_rgb(103, 80, 164), "Usage");
                 ui.label(tr!("usage-description"));
                 ui.add_space(8.0);

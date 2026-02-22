@@ -151,6 +151,9 @@ pub struct UadShizukuApp {
 
     // Pinch-to-zoom state (Android)
     pub zoom_factor: f32,
+
+    // Installer package name (Android) - cached for UI decisions
+    pub installer_package_name: Option<String>,
 }
 
 pub enum AppView {
