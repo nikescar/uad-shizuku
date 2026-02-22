@@ -634,6 +634,30 @@ impl UadShizukuApp {
                 self.tab_scan_control.izzyrisk_scan_state.complete();
             }
         }
+        // Sync batch uninstall progress
+        if let Ok(progress) = self.tab_debloat_control.batch_uninstall_progress.lock() {
+            if let Some(p) = *progress {
+                self.tab_debloat_control.batch_uninstall_state.update_progress(p);
+            } else if self.tab_debloat_control.batch_uninstall_state.is_running {
+                self.tab_debloat_control.batch_uninstall_state.complete();
+            }
+        }
+        // Sync batch disable progress
+        if let Ok(progress) = self.tab_debloat_control.batch_disable_progress.lock() {
+            if let Some(p) = *progress {
+                self.tab_debloat_control.batch_disable_state.update_progress(p);
+            } else if self.tab_debloat_control.batch_disable_state.is_running {
+                self.tab_debloat_control.batch_disable_state.complete();
+            }
+        }
+        // Sync batch enable progress
+        if let Ok(progress) = self.tab_debloat_control.batch_enable_progress.lock() {
+            if let Some(p) = *progress {
+                self.tab_debloat_control.batch_enable_state.update_progress(p);
+            } else if self.tab_debloat_control.batch_enable_state.is_running {
+                self.tab_debloat_control.batch_enable_state.complete();
+            }
+        }
     }
 
     pub fn ui(&mut self, ui: &mut egui::Ui) {
@@ -905,6 +929,75 @@ impl UadShizukuApp {
                                     *cancelled = true;
                                 }
                                 if let Ok(mut progress) = self.tab_scan_control.izzyrisk_scan_progress.lock() {
+                                    *progress = None;
+                                }
+                            }
+                        });
+                    }
+
+                    // Batch uninstall progress
+                    if let Some(p) = self.tab_debloat_control.batch_uninstall_state.progress {
+                        let progress_bar = egui::ProgressBar::new(p)
+                            .show_percentage()
+                            .desired_width(100.0)
+                            .animate(true);
+                        ui.label(tr!("batch-uninstall"));
+                        ui.horizontal(|ui| {
+                            ui.add(progress_bar).on_hover_text(tr!("uninstalling-packages"));
+
+                            if ui.button(tr!("stop")).clicked() {
+                                log::info!("Stop batch uninstall clicked");
+                                self.tab_debloat_control.batch_uninstall_state.cancel();
+                                if let Ok(mut cancelled) = self.tab_debloat_control.batch_uninstall_cancelled.lock() {
+                                    *cancelled = true;
+                                }
+                                if let Ok(mut progress) = self.tab_debloat_control.batch_uninstall_progress.lock() {
+                                    *progress = None;
+                                }
+                            }
+                        });
+                    }
+
+                    // Batch disable progress
+                    if let Some(p) = self.tab_debloat_control.batch_disable_state.progress {
+                        let progress_bar = egui::ProgressBar::new(p)
+                            .show_percentage()
+                            .desired_width(100.0)
+                            .animate(true);
+                        ui.label(tr!("batch-disable"));
+                        ui.horizontal(|ui| {
+                            ui.add(progress_bar).on_hover_text(tr!("disabling-packages"));
+
+                            if ui.button(tr!("stop")).clicked() {
+                                log::info!("Stop batch disable clicked");
+                                self.tab_debloat_control.batch_disable_state.cancel();
+                                if let Ok(mut cancelled) = self.tab_debloat_control.batch_disable_cancelled.lock() {
+                                    *cancelled = true;
+                                }
+                                if let Ok(mut progress) = self.tab_debloat_control.batch_disable_progress.lock() {
+                                    *progress = None;
+                                }
+                            }
+                        });
+                    }
+
+                    // Batch enable progress
+                    if let Some(p) = self.tab_debloat_control.batch_enable_state.progress {
+                        let progress_bar = egui::ProgressBar::new(p)
+                            .show_percentage()
+                            .desired_width(100.0)
+                            .animate(true);
+                        ui.label(tr!("batch-enable"));
+                        ui.horizontal(|ui| {
+                            ui.add(progress_bar).on_hover_text(tr!("enabling-packages"));
+
+                            if ui.button(tr!("stop")).clicked() {
+                                log::info!("Stop batch enable clicked");
+                                self.tab_debloat_control.batch_enable_state.cancel();
+                                if let Ok(mut cancelled) = self.tab_debloat_control.batch_enable_cancelled.lock() {
+                                    *cancelled = true;
+                                }
+                                if let Ok(mut progress) = self.tab_debloat_control.batch_enable_progress.lock() {
                                     *progress = None;
                                 }
                             }

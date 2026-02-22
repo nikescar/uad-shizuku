@@ -1148,19 +1148,18 @@ impl TabAppsControl {
 
 
                             if let Some((ref pkg_name, is_system, ref enabled_state)) = installed_pkg_info {
-                                if enabled_state == "DISABLED" || enabled_state == "DISABLED_USER" {
-                                    if ui.add(icon_button_standard(ICON_TOGGLE_ON.to_string()).icon_color(egui::Color32::from_rgb(211, 47, 47))).on_hover_text(tr!("enable")).clicked() {
+                                // Enable/disable toggle
+                                let pkg_enabled = enabled_state == "DEFAULT" || enabled_state == "ENABLED";
+                                let mut enabled = pkg_enabled;
+                                if toggle_ui(ui, &mut enabled).clicked() {
+                                    if enabled {
                                         ui.data_mut(|data| {
                                             data.insert_temp(
                                                 egui::Id::new("apps_enable_clicked_package"),
                                                 pkg_name.clone(),
                                             );
                                         });
-                                    }
-                                }
-
-                                if enabled_state == "DEFAULT" || enabled_state == "ENABLED" {
-                                    if ui.add(icon_button_standard(ICON_TOGGLE_OFF.to_string()).icon_color(egui::Color32::from_rgb(56, 142, 60))).on_hover_text(tr!("disable")).clicked() {
+                                    } else {
                                         ui.data_mut(|data| {
                                             data.insert_temp(
                                                 egui::Id::new("apps_disable_clicked_package"),

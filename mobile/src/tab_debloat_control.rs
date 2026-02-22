@@ -8,6 +8,7 @@ use crate::dlg_uninstall_confirm::DlgUninstallConfirm;
 use eframe::egui;
 use egui_i18n::tr;
 use egui_material3::{data_table, icon_button_standard, theme::get_global_color, MaterialButton};
+use std::sync::{Arc, Mutex};
 
 use crate::material_symbol_icons::{ICON_INFO, ICON_DELETE, ICON_TOGGLE_OFF, ICON_TOGGLE_ON};
 use crate::{DESKTOP_MIN_WIDTH, BASE_TABLE_WIDTH};
@@ -30,6 +31,15 @@ impl Default for TabDebloatControl {
             text_filter: String::new(),
             unsafe_app_remove: false,
             uninstall_confirm_dialog: DlgUninstallConfirm::default(),
+            batch_uninstall_state: BatchUninstallState::default(),
+            batch_uninstall_progress: Arc::new(Mutex::new(None)),
+            batch_uninstall_cancelled: Arc::new(Mutex::new(false)),
+            batch_disable_state: BatchUninstallState::default(),
+            batch_disable_progress: Arc::new(Mutex::new(None)),
+            batch_disable_cancelled: Arc::new(Mutex::new(false)),
+            batch_enable_state: BatchUninstallState::default(),
+            batch_enable_progress: Arc::new(Mutex::new(None)),
+            batch_enable_cancelled: Arc::new(Mutex::new(false)),
         }
     }
 }
@@ -98,6 +108,277 @@ impl TabDebloatControl {
     pub fn update_cached_apkmirror(&mut self, pkg_id: String, app: ApkMirrorApp) {
         let store = get_shared_store();
         store.set_cached_apkmirror_app(pkg_id, app);
+    }
+
+    /// Start batch uninstall in background thread
+    fn start_batch_uninstall(
+        &mut self,
+        pkgs: Vec<String>,
+        sys_flags: Vec<bool>,
+        device: String,
+        uad_ng_lists: Option<&UadNgLists>,
+    ) {
+        // Start state machine
+        self.batch_uninstall_state.start();
+
+        // Initialize progress
+        if let Ok(mut p) = self.batch_uninstall_progress.lock() {
+            *p = Some(0.0);
+        }
+        if let Ok(mut cancelled) = self.batch_uninstall_cancelled.lock() {
+            *cancelled = false;
+        }
+
+        log::info!(
+            "Starting batch uninstall for {} packages in background",
+            pkgs.len()
+        );
+
+        // Clone data needed for background thread
+        let progress_clone = self.batch_uninstall_progress.clone();
+        let cancelled_clone = self.batch_uninstall_cancelled.clone();
+        let unsafe_app_remove = self.unsafe_app_remove;
+
+        // Build unsafe app set from uad_ng_lists
+        let unsafe_apps: std::collections::HashSet<String> = uad_ng_lists
+            .map(|lists| {
+                lists
+                    .apps
+                    .iter()
+                    .filter(|(_, app)| app.removal == "Unsafe")
+                    .map(|(name, _)| name.clone())
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        // Spawn background thread
+        std::thread::spawn(move || {
+            let total = pkgs.len();
+            let mut success_count = 0;
+            let mut failure_count = 0;
+
+            for (i, (pkg_name, is_system)) in pkgs.into_iter().zip(sys_flags.into_iter()).enumerate() {
+                // Check if cancelled
+                if let Ok(cancelled) = cancelled_clone.lock() {
+                    if *cancelled {
+                        log::info!("Batch uninstall cancelled by user");
+                        break;
+                    }
+                }
+
+                // Update progress
+                if let Ok(mut p) = progress_clone.lock() {
+                    *p = Some(i as f32 / total as f32);
+                }
+
+                // Skip unsafe apps when unsafe_app_remove is disabled
+                if unsafe_apps.contains(&pkg_name) && !unsafe_app_remove {
+                    log::warn!("Skipping uninstall of unsafe app: {}", pkg_name);
+                    continue;
+                }
+
+                // Execute uninstall
+                let uninstall_result = if is_system {
+                    crate::adb::uninstall_app_user(&pkg_name, &device, None)
+                } else {
+                    crate::adb::uninstall_app(&pkg_name, &device)
+                };
+
+                match uninstall_result {
+                    Ok(output) => {
+                        log::info!("App uninstalled successfully: {}", output);
+                        success_count += 1;
+
+                        // Update package state in shared store
+                        let store = get_shared_store();
+                        let mut packages = store.get_installed_packages();
+                        if is_system {
+                            if let Some(pkg) = packages.iter_mut().find(|p| p.pkg == pkg_name) {
+                                for user in pkg.users.iter_mut() {
+                                    user.installed = false;
+                                    user.enabled = 0;
+                                }
+                            }
+                        } else {
+                            packages.retain(|pkg| pkg.pkg != pkg_name);
+                        }
+                        store.set_installed_packages(packages);
+                    }
+                    Err(e) => {
+                        log::error!("Failed to uninstall app({}): {}", pkg_name, e);
+                        failure_count += 1;
+                    }
+                }
+            }
+
+            // Set final progress
+            if let Ok(mut p) = progress_clone.lock() {
+                *p = Some(1.0);
+            }
+
+            log::info!(
+                "Batch uninstall completed: {} succeeded, {} failed",
+                success_count,
+                failure_count
+            );
+        });
+    }
+
+    /// Start batch disable in background thread
+    fn start_batch_disable(&mut self, pkgs: Vec<String>, device: String) {
+        // Start state machine
+        self.batch_disable_state.start();
+
+        // Initialize progress
+        if let Ok(mut p) = self.batch_disable_progress.lock() {
+            *p = Some(0.0);
+        }
+        if let Ok(mut cancelled) = self.batch_disable_cancelled.lock() {
+            *cancelled = false;
+        }
+
+        log::info!(
+            "Starting batch disable for {} packages in background",
+            pkgs.len()
+        );
+
+        // Clone data needed for background thread
+        let progress_clone = self.batch_disable_progress.clone();
+        let cancelled_clone = self.batch_disable_cancelled.clone();
+
+        // Spawn background thread
+        std::thread::spawn(move || {
+            let total = pkgs.len();
+            let mut success_count = 0;
+            let mut failure_count = 0;
+
+            for (i, pkg_name) in pkgs.into_iter().enumerate() {
+                // Check if cancelled
+                if let Ok(cancelled) = cancelled_clone.lock() {
+                    if *cancelled {
+                        log::info!("Batch disable cancelled by user");
+                        break;
+                    }
+                }
+
+                // Update progress
+                if let Ok(mut p) = progress_clone.lock() {
+                    *p = Some(i as f32 / total as f32);
+                }
+
+                // Execute disable
+                match crate::adb::disable_app_current_user(&pkg_name, &device, None) {
+                    Ok(output) => {
+                        log::info!("App disabled successfully: {}", output);
+                        success_count += 1;
+
+                        // Update package state in shared store
+                        let store = get_shared_store();
+                        let mut packages = store.get_installed_packages();
+                        if let Some(pkg) = packages.iter_mut().find(|p| p.pkg == pkg_name) {
+                            for user in pkg.users.iter_mut() {
+                                user.enabled = 3;
+                            }
+                        }
+                        store.set_installed_packages(packages);
+                    }
+                    Err(e) => {
+                        log::error!("Failed to disable app({}): {}", pkg_name, e);
+                        failure_count += 1;
+                    }
+                }
+            }
+
+            // Set final progress
+            if let Ok(mut p) = progress_clone.lock() {
+                *p = Some(1.0);
+            }
+
+            log::info!(
+                "Batch disable completed: {} succeeded, {} failed",
+                success_count,
+                failure_count
+            );
+        });
+    }
+
+    /// Start batch enable in background thread
+    fn start_batch_enable(&mut self, pkgs: Vec<String>, device: String) {
+        // Start state machine
+        self.batch_enable_state.start();
+
+        // Initialize progress
+        if let Ok(mut p) = self.batch_enable_progress.lock() {
+            *p = Some(0.0);
+        }
+        if let Ok(mut cancelled) = self.batch_enable_cancelled.lock() {
+            *cancelled = false;
+        }
+
+        log::info!(
+            "Starting batch enable for {} packages in background",
+            pkgs.len()
+        );
+
+        // Clone data needed for background thread
+        let progress_clone = self.batch_enable_progress.clone();
+        let cancelled_clone = self.batch_enable_cancelled.clone();
+
+        // Spawn background thread
+        std::thread::spawn(move || {
+            let total = pkgs.len();
+            let mut success_count = 0;
+            let mut failure_count = 0;
+
+            for (i, pkg_name) in pkgs.into_iter().enumerate() {
+                // Check if cancelled
+                if let Ok(cancelled) = cancelled_clone.lock() {
+                    if *cancelled {
+                        log::info!("Batch enable cancelled by user");
+                        break;
+                    }
+                }
+
+                // Update progress
+                if let Ok(mut p) = progress_clone.lock() {
+                    *p = Some(i as f32 / total as f32);
+                }
+
+                // Execute enable
+                match crate::adb::enable_app(&pkg_name, &device) {
+                    Ok(output) => {
+                        log::info!("App enabled successfully: {}", output);
+                        success_count += 1;
+
+                        // Update package state in shared store
+                        let store = get_shared_store();
+                        let mut packages = store.get_installed_packages();
+                        if let Some(pkg) = packages.iter_mut().find(|p| p.pkg == pkg_name) {
+                            for user in pkg.users.iter_mut() {
+                                user.enabled = 1;
+                                user.installed = true;
+                            }
+                        }
+                        store.set_installed_packages(packages);
+                    }
+                    Err(e) => {
+                        log::error!("Failed to enable app({}): {}", pkg_name, e);
+                        failure_count += 1;
+                    }
+                }
+            }
+
+            // Set final progress
+            if let Ok(mut p) = progress_clone.lock() {
+                *p = Some(1.0);
+            }
+
+            log::info!(
+                "Batch enable completed: {} succeeded, {} failed",
+                success_count,
+                failure_count
+            );
+        });
     }
 
     /// Update cached category counts if version has changed
@@ -1580,19 +1861,22 @@ impl TabDebloatControl {
                                 }
                             }
                             
-                            if (enabled_str.contains("DEFAULT") || enabled_str.contains("ENABLED")) && !is_unsafe_blocked {
-                                if ui.add(icon_button_standard(ICON_TOGGLE_OFF.to_string()).icon_color(egui::Color32::from_rgb(56, 142, 60))).on_hover_text(tr!("disable")).clicked() {
-                                    ui.data_mut(|data| {
-                                        data.insert_temp(egui::Id::new("disable_clicked_package"), pkg_id_for_buttons.clone());
-                                    });
-                                }
-                            }
+                            // Enable/disable toggle
+                            let pkg_enabled = enabled_str.contains("DEFAULT") || enabled_str.contains("ENABLED");
+                            let can_show_toggle = !is_unsafe_blocked || !pkg_enabled;
 
-                            if enabled_str.contains("REMOVED_USER") || enabled_str.contains("DISABLED_USER") || enabled_str.contains("DISABLED") {
-                                if ui.add(icon_button_standard(ICON_TOGGLE_ON.to_string()).icon_color(egui::Color32::from_rgb(211, 47, 47))).on_hover_text(tr!("enable")).clicked() {
-                                    ui.data_mut(|data| {
-                                        data.insert_temp(egui::Id::new("enable_clicked_package"), pkg_id_for_buttons.clone());
-                                    });
+                            if can_show_toggle {
+                                let mut enabled = pkg_enabled;
+                                if toggle_ui(ui, &mut enabled).clicked() {
+                                    if enabled {
+                                        ui.data_mut(|data| {
+                                            data.insert_temp(egui::Id::new("enable_clicked_package"), pkg_id_for_buttons.clone());
+                                        });
+                                    } else {
+                                        ui.data_mut(|data| {
+                                            data.insert_temp(egui::Id::new("disable_clicked_package"), pkg_id_for_buttons.clone());
+                                        });
+                                    }
                                 }
                             }
 
@@ -1782,25 +2066,8 @@ impl TabDebloatControl {
         if batch_disable {
             if let Some(ref device) = self.selected_device {
                 let packages_to_disable: Vec<String> = self.selected_packages.iter().cloned().collect();
-                let mut packages = store.get_installed_packages();
-                for pkg_name in packages_to_disable {
-                    match crate::adb::disable_app_current_user(&pkg_name, device, None) {
-                        Ok(output) => {
-                            log::info!("App disabled successfully: {}", output);
-                            if let Some(pkg) = packages.iter_mut().find(|p| p.pkg == pkg_name) {
-                                for user in pkg.users.iter_mut() {
-                                    user.enabled = 3;
-                                }
-                            }
-                            result = Some(AdbResult::Success(pkg_name.clone()));
-                        }
-                        Err(e) => {
-                            log::error!("Failed to disable app {}: {}", pkg_name, e);
-                            result = Some(AdbResult::Failure);
-                        }
-                    }
-                }
-                store.set_installed_packages(packages);
+                // Start background batch disable
+                self.start_batch_disable(packages_to_disable, device.clone());
             } else {
                 log::error!("No device selected for batch disable");
                 result = Some(AdbResult::Failure);
@@ -1811,26 +2078,8 @@ impl TabDebloatControl {
         if batch_enable {
             if let Some(ref device) = self.selected_device {
                 let packages_to_enable: Vec<String> = self.selected_packages.iter().cloned().collect();
-                let mut packages = store.get_installed_packages();
-                for pkg_name in packages_to_enable {
-                    match crate::adb::enable_app(&pkg_name, device) {
-                        Ok(output) => {
-                            log::info!("App enabled successfully: {}", output);
-                            if let Some(pkg) = packages.iter_mut().find(|p| p.pkg == pkg_name) {
-                                for user in pkg.users.iter_mut() {
-                                    user.enabled = 1;
-                                    user.installed = true;
-                                }
-                            }
-                            result = Some(AdbResult::Success(pkg_name.clone()));
-                        }
-                        Err(e) => {
-                            log::error!("Failed to enable app {}: {}", pkg_name, e);
-                            result = Some(AdbResult::Failure);
-                        }
-                    }
-                }
-                store.set_installed_packages(packages);
+                // Start background batch enable
+                self.start_batch_enable(packages_to_enable, device.clone());
             } else {
                 log::error!("No device selected for batch enable");
                 result = Some(AdbResult::Failure);
@@ -1844,46 +2093,8 @@ impl TabDebloatControl {
             self.uninstall_confirm_dialog.reset();
 
             if let Some(ref device) = self.selected_device {
-                let mut packages = store.get_installed_packages();
-                for (pkg_name, is_system) in pkgs.into_iter().zip(sys_flags.into_iter()) {
-                    // Skip unsafe apps when unsafe_app_remove is disabled
-                    let is_unsafe = uad_ng_lists_ref
-                        .and_then(|lists| lists.apps.get(&pkg_name))
-                        .map(|app| app.removal == "Unsafe")
-                        .unwrap_or(false);
-                    if is_unsafe && !self.unsafe_app_remove {
-                        log::warn!("Skipping uninstall of unsafe app: {}", pkg_name);
-                        continue;
-                    }
-                    let uninstall_result = if is_system {
-                        crate::adb::uninstall_app_user(&pkg_name, device, None)
-                    } else {
-                        crate::adb::uninstall_app(&pkg_name, device)
-                    };
-
-                    match uninstall_result {
-                        Ok(output) => {
-                            log::info!("App uninstalled successfully: {}", output);
-                            if is_system {
-                                if let Some(pkg) = packages.iter_mut().find(|p| p.pkg == pkg_name) {
-                                    for user in pkg.users.iter_mut() {
-                                        user.installed = false;
-                                        user.enabled = 0;
-                                    }
-                                }
-                            } else {
-                                packages.retain(|pkg| pkg.pkg != pkg_name);
-                                self.selected_packages.remove(&pkg_name);
-                            }
-                            result = Some(AdbResult::Success(pkg_name.clone()));
-                        }
-                        Err(e) => {
-                            log::error!("Failed to uninstall app({}): {}", pkg_name, e);
-                            result = Some(AdbResult::Failure);
-                        }
-                    }
-                }
-                store.set_installed_packages(packages);
+                // Start background batch uninstall
+                self.start_batch_uninstall(pkgs, sys_flags, device.clone(), uad_ng_lists_ref);
             } else {
                 log::error!("No device selected for uninstall");
                 result = Some(AdbResult::Failure);

@@ -1,6 +1,7 @@
 use crate::dlg_package_details::DlgPackageDetails;
 use crate::dlg_uninstall_confirm::DlgUninstallConfirm;
 use std::collections::HashSet;
+use std::sync::{Arc, Mutex};
 
 pub enum AdbResult {
     Success(String), // package name
@@ -26,6 +27,41 @@ pub struct CachedCategoryCounts {
     pub unsafe_count: (usize, usize),
     pub unknown: (usize, usize),
     pub version: u64, // tracks when cache was computed
+}
+
+/// State machine for batch uninstall operations
+/// Uses the same pattern as ScanStateMachine for tracking async operation state
+#[derive(Default)]
+pub struct BatchUninstallState {
+    /// Progress value (0.0 - 1.0) for batch uninstalls
+    pub progress: Option<f32>,
+    /// Whether uninstall is currently running
+    pub is_running: bool,
+    /// Whether uninstall was cancelled
+    pub is_cancelled: bool,
+}
+
+impl BatchUninstallState {
+    pub fn start(&mut self) {
+        self.is_running = true;
+        self.is_cancelled = false;
+        self.progress = Some(0.0);
+    }
+
+    pub fn cancel(&mut self) {
+        self.is_cancelled = true;
+        self.is_running = false;
+        self.progress = None;
+    }
+
+    pub fn complete(&mut self) {
+        self.is_running = false;
+        self.progress = None;
+    }
+
+    pub fn update_progress(&mut self, value: f32) {
+        self.progress = Some(value);
+    }
 }
 
 pub struct TabDebloatControl {
@@ -62,4 +98,25 @@ pub struct TabDebloatControl {
 
     // Uninstall confirmation dialog
     pub uninstall_confirm_dialog: DlgUninstallConfirm,
+
+    // Batch uninstall state machine
+    pub batch_uninstall_state: BatchUninstallState,
+    // Progress for batch uninstall background task (for thread communication)
+    pub batch_uninstall_progress: Arc<Mutex<Option<f32>>>,
+    // Cancellation flag for batch uninstall
+    pub batch_uninstall_cancelled: Arc<Mutex<bool>>,
+
+    // Batch disable state machine
+    pub batch_disable_state: BatchUninstallState,
+    // Progress for batch disable background task (for thread communication)
+    pub batch_disable_progress: Arc<Mutex<Option<f32>>>,
+    // Cancellation flag for batch disable
+    pub batch_disable_cancelled: Arc<Mutex<bool>>,
+
+    // Batch enable state machine
+    pub batch_enable_state: BatchUninstallState,
+    // Progress for batch enable background task (for thread communication)
+    pub batch_enable_progress: Arc<Mutex<Option<f32>>>,
+    // Cancellation flag for batch enable
+    pub batch_enable_cancelled: Arc<Mutex<bool>>,
 }
