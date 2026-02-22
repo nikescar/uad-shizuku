@@ -52,6 +52,9 @@ jsonpath_lib = "0.3"
 base64 = "0.22"
 tokio = { version = "1", features = ["rt-multi-thread"] }
 image = "0.25"
+# Force compatible versions to fix macOS build error in resvg 0.42.0
+usvg = "0.45"
+resvg = "0.45"
 md5 = "0.7"
 crossbeam-queue = "0.3"
 # html2md = "0.2"

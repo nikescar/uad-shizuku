@@ -33,4 +33,4 @@ strip = "symbols"
 
 [profile.release-with-symbols]
 inherits = "release"
-strip = false
+strip = false   
