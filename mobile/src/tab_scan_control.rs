@@ -1819,8 +1819,12 @@ impl TabScanControl {
                             ui.add_space(8.0);
                         }
                         ui.vertical(|ui| {
-                            ui.add(egui::Label::new(&package_name_for_cell).wrap());
-                            
+                            egui::ScrollArea::horizontal()
+                                .id_salt(format!("scan_title_scroll2_{}", idx))
+                                .auto_shrink([false, true])
+                                .show(ui, |ui| {
+                                    ui.add(egui::Label::new(&package_name_for_cell).wrap());
+                                });
                             if !is_desktop {
                                 ui.add_space(4.0);
                                 egui::ScrollArea::horizontal()

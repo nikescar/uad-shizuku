@@ -1122,7 +1122,7 @@ impl TabDebloatControl {
 
                                 if !is_desktop {
                                     ui.add_space(4.0);
-                                    egui::ScrollArea::horizontal()
+                                    egui::ScrollArea::vertical()
                                         .id_salt(format!("debloat_ap_badge_scroll_{}", idx))
                                         .auto_shrink([false, true])
                                         .show(ui, |ui| {
