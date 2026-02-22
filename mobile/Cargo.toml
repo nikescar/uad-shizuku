@@ -23,7 +23,7 @@ path = "src/main.rs"
 log = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
-lazy_static = "1.4"
+lazy_static = "1.5"
 dark-light = "1.1"
 # egui related dependencies
 egui = { workspace = true }
@@ -39,35 +39,32 @@ which = "8.0.0"
 ehttp = "0.5.0"
 zip = "4.2.0"
 tar = "0.4"
-flate2 = "1.0"
+flate2 = "1.1"
 dirs = "5.0"
 anyhow = "1.0"
 sys-locale = "0.3"
-ureq = "2.9"
+ureq = "2.12"
 ureq_multipart = "1.1"
-regex = "1.10"
+regex = "1.12"
 chrono = "0.4"
 # jsonpath for parsing google play data
 jsonpath_lib = "0.3"
 base64 = "0.22"
 tokio = { version = "1", features = ["rt-multi-thread"] }
 image = "0.25"
-# Force compatible versions to fix macOS build error in resvg 0.42.0
-usvg = "0.45"
-resvg = "0.45"
 md5 = "0.7"
 crossbeam-queue = "0.3"
 # html2md = "0.2"
 xee-xpath = "0.1.5"
-webbrowser = "1.0"
+webbrowser = "1.1"
 # diesel related dependencies
 diesel = { version = "2.3.0", features = ["sqlite", "returning_clauses_for_sqlite_3_35"] }
 diesel_migrations = "2.3.0"
 libsqlite3-sys = { version = "0.30", features = ["bundled"] }
 # wasm-specific dependencies | cargo build --target wasm32-unknown-unknown --release
 serde-wasm-bindgen = "0.6.5"
-wasm-bindgen = "0.2.99"
-wasm-bindgen-futures = "0.4.49"
+wasm-bindgen = "0.2.111"
+wasm-bindgen-futures = "0.4.61"
 
 [dev-dependencies]
 diesel_migrations = { version = "2.3.0" }
@@ -85,7 +82,7 @@ eframe = { workspace = true, default-features = false, features = ["default_font
 [target.'cfg(target_os = "ios")'.dependencies]
 bevy = { version = "0.16.0", default-features = false, features = ["bevy_render", "bevy_core_pipeline", "bevy_sprite", "bevy_text", "bevy_ui", "bevy_winit"], optional = true }
 bevy_egui = { version = "0.35.1", default-features = false, optional = true }
-objc2-avf-audio = { version = "0.3.0", features = ["AVAudioSession", "AVAudioSessionTypes"] }
+objc2-avf-audio = { version = "0.3.2", features = ["AVAudioSession", "AVAudioSessionTypes"] }
 
 # Linux-specific dependencies for proper windowing support
 [target.'cfg(target_os = "linux")'.dependencies]
