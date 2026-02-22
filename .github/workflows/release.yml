@@ -177,7 +177,7 @@ jobs:
           echo "AAB file verified:"
           ls -lh mobile/app/build/outputs/bundle/release/app-release.aab
       
-      - name: Android, Publish to google play # https://github.com/marketplace/actions/upload-android-release-to-play-store
+      - name: Android - Publish to google play # https://github.com/marketplace/actions/upload-android-release-to-play-store
         if: (contains(matrix.platform.name, 'Android APK arm64'))
         continue-on-error: true
         uses: r0adkll/upload-google-play@v1
@@ -195,6 +195,34 @@ jobs:
         with:
           command: build
           args: ${{ matrix.platform.build-args }} --package uad-shizuku
+
+      - name: Windows - Code Signing
+        if: (contains(matrix.platform.target, 'windows') && env.WINDOWS_CERT_P12_BASE64 != '' && env.WINDOWS_CERT_PASSWORD != '')
+        id: sign_exe
+        env:
+          WINDOWS_CERT_P12_BASE64: ${{ secrets.WINDOWS_CERT_P12_BASE64 }}
+          WINDOWS_CERT_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}
+        shell: pwsh
+        run: |
+          # Decode the certificate
+          [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($env:WINDOWS_CERT_P12_BASE64)) | Out-File -FilePath windows.pfx -Encoding OEM
+
+          $EXE_PATH = "target/release-windows-with-symbols/uad-shizuku.exe"
+          echo "Signing $EXE_PATH..."
+
+          # Find signtool.exe (it's part of the Windows SDK)
+          $SIGNTOOL_PATH = (Get-ChildItem -Path "C:\Program Files (x86)\Windows Kits\10\bin" -Filter "signtool.exe" -Recurse | Sort-Object VersionInfo -Descending | Select-Object -First 1).FullName
+          if ($null -eq $SIGNTOOL_PATH) {
+            echo "::error:: signtool.exe not found."
+            exit 1
+          }
+          echo "Using signtool at $SIGNTOOL_PATH"
+
+          # Sign the file
+          & $SIGNTOOL_PATH sign /f "windows.pfx" /p $env:WINDOWS_CERT_PASSWORD /tr http://timestamp.acs.microsoft.com /td SHA256 $EXE_PATH
+
+          # Clean up
+          Remove-Item windows.pfx
 
       - name: Upload Binary Artifact
         if: (!contains(matrix.platform.name, 'Android APK arm64'))
