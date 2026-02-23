@@ -221,7 +221,7 @@ jobs:
           echo "Using signtool at $SIGNTOOL_PATH"
 
           # Sign the file
-          & $SIGNTOOL_PATH sign /f "windows.pfx" /p $env:WINDOWS_CERT_PASSWORD /tr http://timestamp.acs.microsoft.com /td SHA256 $EXE_PATH
+          & $SIGNTOOL_PATH sign /f "windows.pfx" /p $env:WINDOWS_CERT_PASSWORD /fd SHA256 /tr http://timestamp.acs.microsoft.com /td SHA256 $EXE_PATH
 
           # Clean up
           Remove-Item windows.pfx
