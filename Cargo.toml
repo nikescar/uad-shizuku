@@ -24,6 +24,10 @@ eframe = { version = "0.33", default-features = false, features = [
 egui_extras = { version = "0.33", default-features = false, features = ["image", "all_loaders"] }
 egui-material3 = { git = "https://github.com/nikescar/egui-material3/", default-features = false }
 
+[patch.crates-io]
+resvg = { git = "https://github.com/nikescar/resvg" }
+usvg = { git = "https://github.com/nikescar/resvg" }
+
 [profile.release]
 lto = true # "fat"
 codegen-units = 1

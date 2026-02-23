@@ -1368,7 +1368,7 @@ impl TabAppsControl {
         if self.uninstall_confirm_dialog.show(ui.ctx()) {
             let pkgs = std::mem::take(&mut self.uninstall_confirm_dialog.packages);
             let sys_flags = std::mem::take(&mut self.uninstall_confirm_dialog.is_system);
-            let _app_names = std::mem::take(&mut self.uninstall_confirm_dialog.app_names);
+            let app_names = std::mem::take(&mut self.uninstall_confirm_dialog.app_names);
             self.uninstall_confirm_dialog.reset();
 
             if let Some(ref device) = self.selected_device {
