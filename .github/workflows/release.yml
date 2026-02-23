@@ -214,7 +214,7 @@ jobs:
           echo "Checking for build output..."
           Get-ChildItem -Path target -Recurse -Filter "*.exe" | Format-Table FullName
 
-          $EXE_PATH = "target/release-windows-with-symbols/uad-shizuku.exe"
+          $EXE_PATH = "target/release-with-symbols/uad-shizuku.exe"
           if (-Not (Test-Path $EXE_PATH)) {
             echo "::error:: Executable not found at $EXE_PATH"
             echo "Listing target directory contents:"
