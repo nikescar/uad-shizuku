@@ -210,7 +210,17 @@ jobs:
           $certBytes = [System.Convert]::FromBase64String($env:WINDOWS_CERT_P12_BASE64)
           [System.IO.File]::WriteAllBytes("windows.pfx", $certBytes)
 
+          # Verify the executable exists
+          echo "Checking for build output..."
+          Get-ChildItem -Path target -Recurse -Filter "*.exe" | Format-Table FullName
+
           $EXE_PATH = "target/release-windows-with-symbols/uad-shizuku.exe"
+          if (-Not (Test-Path $EXE_PATH)) {
+            echo "::error:: Executable not found at $EXE_PATH"
+            echo "Listing target directory contents:"
+            Get-ChildItem -Path target -Recurse | Format-Table FullName
+            exit 1
+          }
           echo "Signing $EXE_PATH..."
 
           # Find signtool.exe (it's part of the Windows SDK)
