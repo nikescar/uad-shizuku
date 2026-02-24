@@ -3,7 +3,7 @@ use crate::LogLevel;
 pub use crate::dlg_settings_stt::*;
 use eframe::egui;
 use egui_i18n::tr;
-use egui_material3::{get_global_theme, ThemeMode, MaterialButton};
+use egui_material3::{get_global_theme, ThemeMode, MaterialButton, MaterialCheckbox};
 use sys_locale::get_locale;
 
 impl DlgSettings {
@@ -366,13 +366,15 @@ impl DlgSettings {
                         ui.add_space(8.0);
 
                         ui.horizontal_wrapped(|ui| {
-                            ui.checkbox(&mut self.unsafe_app_remove, tr!("allow-unsafe-app-remove"));
+                            ui.add(MaterialCheckbox::new(&mut self.unsafe_app_remove, tr!("allow-unsafe-app-remove")));
                         });
 
                         ui.add_space(8.0);
 
                         ui.horizontal_wrapped(|ui| {
-                            ui.checkbox(&mut self.autoupdate, tr!("autoupdate"));
+                            ui.spacing_mut().item_spacing.x = 4.0;
+                            ui.add(MaterialCheckbox::new(&mut self.autoupdate, tr!("autoupdate")));
+                            ui.add_space(8.0);
                             ui.label(tr!("autoupdate-desc"));
                         });
 
@@ -401,9 +403,11 @@ impl DlgSettings {
                         ui.add_space(8.0);
 
                         ui.horizontal_wrapped(|ui| {
-                            ui.checkbox(&mut self.virustotal_submit, tr!("allow-virustotal-upload"));
+                            ui.spacing_mut().item_spacing.x = 4.0;
+                            ui.add(MaterialCheckbox::new(&mut self.virustotal_submit, tr!("allow-virustotal-upload")));
+                            ui.add_space(8.0);
                             ui.label(tr!("virustotal-upload-desc"));
-                            ui.checkbox(&mut self.flush_virustotal, tr!("flush"));
+                            ui.add(MaterialCheckbox::new(&mut self.flush_virustotal, tr!("flush")));
                         });
 
                         ui.add_space(8.0);
@@ -431,9 +435,11 @@ impl DlgSettings {
                         ui.add_space(8.0);
 
                         ui.horizontal_wrapped(|ui| {
-                            ui.checkbox(&mut self.hybridanalysis_submit, tr!("allow-hybridanalysis-upload"));
+                            ui.spacing_mut().item_spacing.x = 4.0;
+                            ui.add(MaterialCheckbox::new(&mut self.hybridanalysis_submit, tr!("allow-hybridanalysis-upload")));
+                            ui.add_space(8.0);
                             ui.label(tr!("hybridanalysis-upload-desc"));
-                            ui.checkbox(&mut self.flush_hybridanalysis, tr!("flush"));
+                            ui.add(MaterialCheckbox::new(&mut self.flush_hybridanalysis, tr!("flush")));
                         });
 
                         ui.add_space(8.0);
@@ -458,31 +464,39 @@ impl DlgSettings {
                         #[cfg(not(target_os = "android"))]
                         {
                             ui.horizontal_wrapped(|ui| {
-                                ui.checkbox(&mut self.google_play_renderer, tr!("google-play-renderer"));
+                                ui.spacing_mut().item_spacing.x = 4.0;
+                                ui.add(MaterialCheckbox::new(&mut self.google_play_renderer, tr!("google-play-renderer")));
+                                ui.add_space(8.0);
                                 ui.label(tr!("google-play-renderer-desc"));
-                                ui.checkbox(&mut self.flush_googleplay, tr!("flush"));
+                                ui.add(MaterialCheckbox::new(&mut self.flush_googleplay, tr!("flush")));
                             });
 
                             ui.add_space(8.0);
 
                             ui.horizontal_wrapped(|ui| {
-                                ui.checkbox(&mut self.fdroid_renderer, tr!("fdroid-renderer"));
+                                ui.spacing_mut().item_spacing.x = 4.0;
+                                ui.add(MaterialCheckbox::new(&mut self.fdroid_renderer, tr!("fdroid-renderer")));
+                                ui.add_space(8.0);
                                 ui.label(tr!("fdroid-renderer-desc"));
-                                ui.checkbox(&mut self.flush_fdroid, tr!("flush"));
+                                ui.add(MaterialCheckbox::new(&mut self.flush_fdroid, tr!("flush")));
                             });
 
                             ui.add_space(8.0);
 
                             ui.horizontal_wrapped(|ui| {
-                                ui.checkbox(&mut self.apkmirror_renderer, tr!("apkmirror-renderer"));
+                                ui.spacing_mut().item_spacing.x = 4.0;
+                                ui.add(MaterialCheckbox::new(&mut self.apkmirror_renderer, tr!("apkmirror-renderer")));
+                                ui.add_space(8.0);
                                 ui.label(tr!("apkmirror-renderer-desc"));
-                                ui.checkbox(&mut self.flush_apkmirror, tr!("flush"));
+                                ui.add(MaterialCheckbox::new(&mut self.flush_apkmirror, tr!("flush")));
                             });
 
                             ui.add_space(8.0);
 
                             ui.horizontal_wrapped(|ui| {
-                                ui.checkbox(&mut settings.apkmirror_auto_upload, tr!("apkmirror-auto-upload"));
+                                ui.spacing_mut().item_spacing.x = 4.0;
+                                ui.add(MaterialCheckbox::new(&mut settings.apkmirror_auto_upload, tr!("apkmirror-auto-upload")));
+                                ui.add_space(8.0);
                                 ui.label(tr!("apkmirror-auto-upload-desc"));
                             });
 
@@ -514,7 +528,9 @@ impl DlgSettings {
                         }
 
                         ui.horizontal_wrapped(|ui| {
-                            ui.checkbox(&mut self.invalidate_cache, tr!("invalidate-cache"));
+                            ui.spacing_mut().item_spacing.x = 4.0;
+                            ui.add(MaterialCheckbox::new(&mut self.invalidate_cache, tr!("invalidate-cache")));
+                            ui.add_space(8.0);
                             ui.label(tr!("invalidate-cache-desc"));
                         });
 
@@ -522,7 +538,7 @@ impl DlgSettings {
 
                         ui.horizontal_wrapped(|ui| {
                             ui.label(tr!("show-logs"));
-                            ui.checkbox(&mut settings.show_logs, tr!("show"));
+                            ui.add(MaterialCheckbox::new(&mut settings.show_logs, tr!("show")));
 
                             let current_level = Self::string_to_log_level(&settings.log_level);
 
