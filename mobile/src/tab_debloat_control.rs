@@ -1110,7 +1110,7 @@ impl TabDebloatControl {
             }
         }); 
 
-        ui.horizontal(|ui| { 
+        ui.horizontal_wrapped(|ui| { 
             // Sort buttons for hidden columns in mobile view
             if !filter_is_mobile {
                 return;
@@ -1381,408 +1381,124 @@ impl TabDebloatControl {
                 (None, None, None)
             };
 
+            // Helper closure to render badges
+            let render_badges = |ui: &mut egui::Ui,
+                                  runtime_perms: &str,
+                                  debloat_category: &str,
+                                  enabled_text: &str,
+                                  install_reason: &str| {
+                // Runtime permissions badge
+                egui::Frame::new()
+                    .stroke(egui::Stroke::new(1.0, egui::Color32::from_rgb(158, 158, 158)))
+                    .corner_radius(6.0)
+                    .inner_margin(egui::Margin::symmetric(8, 3))
+                    .show(ui, |ui| {
+                        ui.label(egui::RichText::new(format!("RP:{}", runtime_perms)).size(10.0));
+                    });
+
+                // Debloat category badge
+                let (bg_color, text_color, label_text) = match debloat_category {
+                    "Recommended" => (egui::Color32::from_rgb(56, 142, 60), egui::Color32::WHITE, tr!("label-recommended")),
+                    "Advanced" => (egui::Color32::from_rgb(33, 150, 243), egui::Color32::WHITE, tr!("label-advanced")),
+                    "Expert" => (egui::Color32::from_rgb(255, 152, 0), egui::Color32::WHITE, tr!("label-expert")),
+                    "Unsafe" => (egui::Color32::from_rgb(255, 235, 59), egui::Color32::from_rgb(0, 0, 0), tr!("label-unsafe")),
+                    "Unknown" => (egui::Color32::from_rgb(255, 255, 255), egui::Color32::from_rgb(0, 0, 0), tr!("label-unknown")),
+                    _ => (egui::Color32::from_rgb(158, 158, 158), egui::Color32::WHITE, debloat_category.to_string()),
+                };
+                egui::Frame::new()
+                    .fill(bg_color)
+                    .corner_radius(6.0)
+                    .inner_margin(egui::Margin::symmetric(8, 3))
+                    .show(ui, |ui| {
+                        ui.label(egui::RichText::new(&label_text).color(text_color).size(10.0));
+                    });
+
+                // Enabled status badge
+                let enabled_bg_color = match enabled_text {
+                    "REMOVED_USER" | "DISABLED" | "DISABLED_USER" => egui::Color32::from_rgb(211, 47, 47),
+                    "DEFAULT" | "ENABLED" | "UNKNOWN" => egui::Color32::from_rgb(56, 142, 60),
+                    _ => egui::Color32::from_rgb(158, 158, 158),
+                };
+                egui::Frame::new()
+                    .fill(enabled_bg_color)
+                    .corner_radius(6.0)
+                    .inner_margin(egui::Margin::symmetric(8, 3))
+                    .show(ui, |ui| {
+                        ui.label(egui::RichText::new(enabled_text).color(egui::Color32::WHITE).size(10.0));
+                    });
+
+                // Install reason badge
+                ui.label(egui::RichText::new(install_reason).small().color(egui::Color32::GRAY).size(10.0));
+            };
+
             debloat_table = debloat_table.row(|table_row| {
-                // Package name column - show app info if available, otherwise show plain package name
+                // Determine app info to display
+                let (texture, title_text, subtitle_text, use_scrollable_title) =
+                    if let Some(title) = ap_title.as_ref() {
+                        (ap_texture, title.clone(), pkg_id.clone(), false)
+                    } else if let (Some(title), Some(dev)) = (fd_title.as_ref(), fd_developer.as_ref()) {
+                        (fd_texture, title.clone(), dev.clone(), false)
+                    } else if let (Some(title), Some(dev)) = (gp_title.as_ref(), gp_developer.as_ref()) {
+                        (gp_texture, title.clone(), dev.clone(), true)
+                    } else if let (Some(title), Some(dev)) = (am_title.as_ref(), am_developer.as_ref()) {
+                        (am_texture, title.clone(), dev.clone(), true)
+                    } else {
+                        (None, package_name_clone.clone(), String::new(), true)
+                    };
+
                 let debloat_category_clone2 = debloat_category.clone();
                 let enabled_text_clone2 = enabled_text.clone();
                 let install_reason_clone = install_reason.clone();
                 let runtime_perms_clone = runtime_perms.clone();
-                
-                let ap_title_clone = ap_title.clone();
-                let ap_pkg_id_display = pkg_id.clone();
-                let mut row_builder = if let Some(title) = ap_title_clone {
-                    table_row.widget_cell(move |ui: &mut egui::Ui| {
+
+                let mut row_builder = table_row.widget_cell(move |ui: &mut egui::Ui| {
+                    ui.vertical(|ui| {
                         ui.horizontal(|ui| {
-                            if let Some(tex_id) = ap_texture {
+                            // App icon
+                            if let Some(tex_id) = texture {
                                 ui.image((tex_id, egui::vec2(38.0, 38.0)));
                             }
+
                             ui.vertical(|ui| {
                                 ui.style_mut().spacing.item_spacing.y = 0.1;
-                                ui.label(egui::RichText::new(&title).strong());
-                                ui.label(egui::RichText::new(&ap_pkg_id_display).small().color(egui::Color32::GRAY));
 
-                                if !is_desktop {
-                                    ui.add_space(4.0);
-                                    egui::ScrollArea::vertical()
-                                        .id_salt(format!("debloat_ap_badge_scroll_{}", idx))
-                                        .auto_shrink([false, true])
-                                        .show(ui, |ui| {
-                                        ui.horizontal(|ui| {
-                                            egui::Frame::new()
-                                                .stroke(egui::Stroke::new(1.0, egui::Color32::from_rgb(158, 158, 158)))
-                                                .corner_radius(6.0)
-                                                .inner_margin(egui::Margin::symmetric(8, 3))
-                                                .show(ui, |ui| {
-                                                    ui.label(egui::RichText::new(format!("RP:{}", &runtime_perms_clone)).size(10.0));
-                                                });
-
-                                            let bg_color = match debloat_category_clone2.as_str() {
-                                                "Recommended" => egui::Color32::from_rgb(56, 142, 60),
-                                                "Advanced" => egui::Color32::from_rgb(33, 150, 243),
-                                                "Expert" => egui::Color32::from_rgb(255, 152, 0),
-                                                "Unsafe" => egui::Color32::from_rgb(255, 235, 59),
-                                                "Unknown" => egui::Color32::from_rgb(255, 255, 255),
-                                                _ => egui::Color32::from_rgb(158, 158, 158),
-                                            };
-                                            let text_color = match debloat_category_clone2.as_str() {
-                                                "Unknown" | "Unsafe" => egui::Color32::from_rgb(0, 0, 0),
-                                                _ => egui::Color32::WHITE,
-                                            };
-                                            let label_text = match debloat_category_clone2.as_str() {
-                                                "Recommended" => tr!("label-recommended"),
-                                                "Advanced" => tr!("label-advanced"),
-                                                "Expert" => tr!("label-expert"),
-                                                "Unsafe" => tr!("label-unsafe"),
-                                                "Unknown" => tr!("label-unknown"),
-                                                _ => debloat_category_clone2.clone(),
-                                            };
-                                            egui::Frame::new()
-                                                .fill(bg_color)
-                                                .corner_radius(6.0)
-                                                .inner_margin(egui::Margin::symmetric(8, 3))
-                                                .show(ui, |ui| {
-                                                    ui.label(egui::RichText::new(&label_text).color(text_color).size(10.0));
-                                                });
-
-                                            let enabled_bg_color = match enabled_text_clone2.as_str() {
-                                                "REMOVED_USER" | "DISABLED" | "DISABLED_USER" => egui::Color32::from_rgb(211, 47, 47),
-                                                "DEFAULT" | "ENABLED" | "UNKNOWN" => egui::Color32::from_rgb(56, 142, 60),
-                                                _ => egui::Color32::from_rgb(158, 158, 158),
-                                            };
-                                            egui::Frame::new()
-                                                .fill(enabled_bg_color)
-                                                .corner_radius(6.0)
-                                                .inner_margin(egui::Margin::symmetric(8, 3))
-                                                .show(ui, |ui| {
-                                                    ui.label(egui::RichText::new(&enabled_text_clone2).color(egui::Color32::WHITE).size(10.0));
-                                                });
-
-                                            ui.label(egui::RichText::new(&install_reason_clone).small().color(egui::Color32::GRAY).size(10.0));
-                                        });
-                                    });
-                                }
-                            });
-                        });
-                    })
-                } else if let (Some(title), Some(developer)) = (fd_title.clone(), fd_developer.clone()) {
-                    table_row.widget_cell(move |ui: &mut egui::Ui| {
-                        ui.horizontal(|ui| {
-                            if let Some(tex_id) = fd_texture {
-                                ui.image((tex_id, egui::vec2(38.0, 38.0)));
-                            }
-                            ui.vertical(|ui| {
-                                ui.style_mut().spacing.item_spacing.y = 0.1;
-                                ui.label(egui::RichText::new(&title).strong());
-                                ui.label(egui::RichText::new(&developer).small().color(egui::Color32::GRAY));
-
-                                if !is_desktop {
-                                    ui.add_space(4.0);
-                                    ui.horizontal(|ui| {
-                                        // Runtime permissions badge
-                                        egui::Frame::new()
-                                            .stroke(egui::Stroke::new(1.0, egui::Color32::from_rgb(158, 158, 158)))
-                                            .corner_radius(6.0)
-                                            .inner_margin(egui::Margin::symmetric(8, 3))
-                                            .show(ui, |ui| {
-                                                ui.label(egui::RichText::new(format!("RP:{}", &runtime_perms_clone)).size(10.0));
-                                            });
-                                        
-                                        // Debloat category badge
-                                        let bg_color = match debloat_category_clone2.as_str() {
-                                            "Recommended" => egui::Color32::from_rgb(56, 142, 60),
-                                            "Advanced" => egui::Color32::from_rgb(33, 150, 243),
-                                            "Expert" => egui::Color32::from_rgb(255, 152, 0),
-                                            "Unsafe" => egui::Color32::from_rgb(255, 235, 59),
-                                            "Unknown" => egui::Color32::from_rgb(255, 255, 255),
-                                            _ => egui::Color32::from_rgb(158, 158, 158),
-                                        };
-                                        let text_color = match debloat_category_clone2.as_str() {
-                                            "Unknown" | "Unsafe" => egui::Color32::from_rgb(0, 0, 0),
-                                            _ => egui::Color32::WHITE,
-                                        };
-                                        let label_text = match debloat_category_clone2.as_str() {
-                                            "Recommended" => tr!("label-recommended"),
-                                            "Advanced" => tr!("label-advanced"),
-                                            "Expert" => tr!("label-expert"),
-                                            "Unsafe" => tr!("label-unsafe"),
-                                            "Unknown" => tr!("label-unknown"),
-                                            _ => debloat_category_clone2.clone(),
-                                        };
-                                        egui::Frame::new()
-                                            .fill(bg_color)
-                                            .corner_radius(6.0)
-                                            .inner_margin(egui::Margin::symmetric(8, 3))
-                                            .show(ui, |ui| {
-                                                ui.label(egui::RichText::new(&label_text).color(text_color).size(10.0));
-                                            });
-                                        
-                                        // Enabled status badge
-                                        let enabled_bg_color = match enabled_text_clone2.as_str() {
-                                            "REMOVED_USER" | "DISABLED" | "DISABLED_USER" => egui::Color32::from_rgb(211, 47, 47),
-                                            "DEFAULT" | "ENABLED" | "UNKNOWN" => egui::Color32::from_rgb(56, 142, 60),
-                                            _ => egui::Color32::from_rgb(158, 158, 158),
-                                        };
-                                        egui::Frame::new()
-                                            .fill(enabled_bg_color)
-                                            .corner_radius(6.0)
-                                            .inner_margin(egui::Margin::symmetric(8, 3))
-                                            .show(ui, |ui| {
-                                                ui.label(egui::RichText::new(&enabled_text_clone2).color(egui::Color32::WHITE).size(10.0));
-                                            });
-                                        
-                                        // Install reason badge
-                                        ui.label(egui::RichText::new(&install_reason_clone).small().color(egui::Color32::GRAY).size(10.0));
-                                    });
-                                }
-                            });
-                        });
-                    })
-                } else if let (Some(title), Some(developer)) = (gp_title.clone(), gp_developer.clone()) {
-                    table_row.widget_cell(move |ui: &mut egui::Ui| {
-                        ui.horizontal(|ui| {
-                            if let Some(tex_id) = gp_texture {
-                                ui.image((tex_id, egui::vec2(38.0, 38.0)));
-                            }
-                            ui.vertical(|ui| {
-                                ui.style_mut().spacing.item_spacing.y = 0.1;
-                                egui::ScrollArea::horizontal()
-                                    .id_salt(format!("debloat_title_scroll_{}", idx))
-                                    .auto_shrink([false, true])
-                                    .show(ui, |ui| {
-                                        ui.add(egui::Label::new(egui::RichText::new(&title).strong()).wrap_mode(egui::TextWrapMode::Extend));
-                                    });
-                                ui.label(egui::RichText::new(&developer).small().color(egui::Color32::GRAY));
-
-                                if !is_desktop {
-                                    ui.add_space(4.0);
+                                // Title (with optional scroll area)
+                                if use_scrollable_title {
                                     egui::ScrollArea::horizontal()
-                                        .id_salt(format!("debloat_badge_scroll_{}", idx))
+                                        .id_salt(format!("debloat_title_scroll_{}", idx))
                                         .auto_shrink([false, true])
                                         .show(ui, |ui| {
-                                        ui.horizontal(|ui| {
-                                            // Runtime permissions badge
-                                            egui::Frame::new()
-                                                .stroke(egui::Stroke::new(1.0, egui::Color32::from_rgb(158, 158, 158)))
-                                                .corner_radius(6.0)
-                                                .inner_margin(egui::Margin::symmetric(8, 3))
-                                                .show(ui, |ui| {
-                                                    ui.label(egui::RichText::new(format!("RP:{}", &runtime_perms_clone)).size(10.0));
-                                                });
-
-                                            // Debloat category badge
-                                            let bg_color = match debloat_category_clone2.as_str() {
-                                                "Recommended" => egui::Color32::from_rgb(56, 142, 60),
-                                                "Advanced" => egui::Color32::from_rgb(33, 150, 243),
-                                                "Expert" => egui::Color32::from_rgb(255, 152, 0),
-                                                "Unsafe" => egui::Color32::from_rgb(255, 235, 59),
-                                                "Unknown" => egui::Color32::from_rgb(255, 255, 255),
-                                                _ => egui::Color32::from_rgb(158, 158, 158),
-                                            };
-                                            let text_color = match debloat_category_clone2.as_str() {
-                                                "Unknown" | "Unsafe" => egui::Color32::from_rgb(0, 0, 0),
-                                                _ => egui::Color32::WHITE,
-                                            };
-                                            let label_text = match debloat_category_clone2.as_str() {
-                                                "Recommended" => tr!("label-recommended"),
-                                                "Advanced" => tr!("label-advanced"),
-                                                "Expert" => tr!("label-expert"),
-                                                "Unsafe" => tr!("label-unsafe"),
-                                                "Unknown" => tr!("label-unknown"),
-                                                _ => debloat_category_clone2.clone(),
-                                            };
-                                            egui::Frame::new()
-                                                .fill(bg_color)
-                                                .corner_radius(6.0)
-                                                .inner_margin(egui::Margin::symmetric(8, 3))
-                                                .show(ui, |ui| {
-                                                    ui.label(egui::RichText::new(&label_text).color(text_color).size(10.0));
-                                                });
-
-                                            // Enabled status badge
-                                            let enabled_bg_color = match enabled_text_clone2.as_str() {
-                                                "REMOVED_USER" | "DISABLED" | "DISABLED_USER" => egui::Color32::from_rgb(211, 47, 47),
-                                                "DEFAULT" | "ENABLED" | "UNKNOWN" => egui::Color32::from_rgb(56, 142, 60),
-                                                _ => egui::Color32::from_rgb(158, 158, 158),
-                                            };
-                                            egui::Frame::new()
-                                                .fill(enabled_bg_color)
-                                                .corner_radius(6.0)
-                                                .inner_margin(egui::Margin::symmetric(8, 3))
-                                                .show(ui, |ui| {
-                                                    ui.label(egui::RichText::new(&enabled_text_clone2).color(egui::Color32::WHITE).size(10.0));
-                                                });
-
-                                            // Install reason badge
-                                            ui.label(egui::RichText::new(&install_reason_clone).small().color(egui::Color32::GRAY).size(10.0));
+                                            ui.add(egui::Label::new(egui::RichText::new(&title_text).strong()).wrap_mode(egui::TextWrapMode::Extend));
                                         });
-                                    });
+                                } else {
+                                    ui.label(egui::RichText::new(&title_text).strong());
+                                }
+
+                                // Subtitle (package ID or developer)
+                                if !subtitle_text.is_empty() {
+                                    ui.label(egui::RichText::new(&subtitle_text).small().color(egui::Color32::GRAY));
                                 }
                             });
                         });
-                    })
-                } else if let (Some(title), Some(developer)) = (am_title.clone(), am_developer.clone()) {
-                    table_row.widget_cell(move |ui: &mut egui::Ui| {
-                        ui.horizontal(|ui| {
-                            if let Some(tex_id) = am_texture {
-                                ui.image((tex_id, egui::vec2(38.0, 38.0)));
-                            }
-                            ui.vertical(|ui| {
-                                ui.style_mut().spacing.item_spacing.y = 0.1;
-                                egui::ScrollArea::horizontal()
-                                    .id_salt(format!("debloat_am_title_scroll_{}", idx))
-                                    .auto_shrink([false, true])
-                                    .show(ui, |ui| {
-                                        ui.add(egui::Label::new(egui::RichText::new(&title).strong()).wrap_mode(egui::TextWrapMode::Extend));
-                                    });
-                                ui.label(egui::RichText::new(&developer).small().color(egui::Color32::GRAY));
 
-                                if !is_desktop {
-                                    ui.add_space(4.0);
-                                    egui::ScrollArea::horizontal()
-                                        .id_salt(format!("debloat_am_badge_scroll_{}", idx))
-                                        .auto_shrink([false, true])
-                                        .show(ui, |ui| {
-                                        ui.horizontal(|ui| {
-                                            // Runtime permissions badge
-                                            egui::Frame::new()
-                                                .stroke(egui::Stroke::new(1.0, egui::Color32::from_rgb(158, 158, 158)))
-                                                .corner_radius(6.0)
-                                                .inner_margin(egui::Margin::symmetric(8, 3))
-                                                .show(ui, |ui| {
-                                                    ui.label(egui::RichText::new(format!("RP:{}", &runtime_perms_clone)).size(10.0));
-                                                });
+                        // Badges (mobile only)
+                        if !is_desktop {
+                            ui.horizontal(|ui| {
 
-                                            // Debloat category badge
-                                            let bg_color = match debloat_category_clone2.as_str() {
-                                                "Recommended" => egui::Color32::from_rgb(56, 142, 60),
-                                                "Advanced" => egui::Color32::from_rgb(33, 150, 243),
-                                                "Expert" => egui::Color32::from_rgb(255, 152, 0),
-                                                "Unsafe" => egui::Color32::from_rgb(255, 235, 59),
-                                                "Unknown" => egui::Color32::from_rgb(255, 255, 255),
-                                                _ => egui::Color32::from_rgb(158, 158, 158),
-                                            };
-                                            let text_color = match debloat_category_clone2.as_str() {
-                                                "Unknown" | "Unsafe" => egui::Color32::from_rgb(0, 0, 0),
-                                                _ => egui::Color32::WHITE,
-                                            };
-                                            let label_text = match debloat_category_clone2.as_str() {
-                                                "Recommended" => tr!("label-recommended"),
-                                                "Advanced" => tr!("label-advanced"),
-                                                "Expert" => tr!("label-expert"),
-                                                "Unsafe" => tr!("label-unsafe"),
-                                                "Unknown" => tr!("label-unknown"),
-                                                _ => debloat_category_clone2.clone(),
-                                            };
-                                            egui::Frame::new()
-                                                .fill(bg_color)
-                                                .corner_radius(6.0)
-                                                .inner_margin(egui::Margin::symmetric(8, 3))
-                                                .show(ui, |ui| {
-                                                    ui.label(egui::RichText::new(&label_text).color(text_color).size(10.0));
-                                                });
-
-                                            // Enabled status badge
-                                            let enabled_bg_color = match enabled_text_clone2.as_str() {
-                                                "REMOVED_USER" | "DISABLED" | "DISABLED_USER" => egui::Color32::from_rgb(211, 47, 47),
-                                                "DEFAULT" | "ENABLED" | "UNKNOWN" => egui::Color32::from_rgb(56, 142, 60),
-                                                _ => egui::Color32::from_rgb(158, 158, 158),
-                                            };
-                                            egui::Frame::new()
-                                                .fill(enabled_bg_color)
-                                                .corner_radius(6.0)
-                                                .inner_margin(egui::Margin::symmetric(8, 3))
-                                                .show(ui, |ui| {
-                                                    ui.label(egui::RichText::new(&enabled_text_clone2).color(egui::Color32::WHITE).size(10.0));
-                                                });
-
-                                            // Install reason badge
-                                            ui.label(egui::RichText::new(&install_reason_clone).small().color(egui::Color32::GRAY).size(10.0));
-                                        });
-                                    });
-                                }
-                            });
-                        });
-                    })
-                } else {
-                    // No app info available, show plain package name (no spinner)
-                    let pkg_name = package_name_clone.clone();
-                    table_row.widget_cell(move |ui: &mut egui::Ui| {
-                        ui.vertical(|ui| {
-                            egui::ScrollArea::horizontal()
-                                .id_salt(format!("debloat_pkg_scroll_{}", idx))
-                                .auto_shrink([false, true])
-                                .show(ui, |ui| {
-                                    ui.add(egui::Label::new(&pkg_name).wrap_mode(egui::TextWrapMode::Extend));
-                                });
-                            
-                            if !is_desktop {
                                 ui.add_space(4.0);
                                 egui::ScrollArea::horizontal()
-                                    .id_salt(format!("debloat_pkg_badge_scroll_{}", idx))
+                                    .id_salt(format!("debloat_badge_scroll_{}", idx))
                                     .auto_shrink([false, true])
                                     .show(ui, |ui| {
-                                    ui.horizontal(|ui| {
-                                        // Runtime permissions badge
-                                        egui::Frame::new()
-                                            .stroke(egui::Stroke::new(1.0, egui::Color32::from_rgb(158, 158, 158)))
-                                            .corner_radius(6.0)
-                                            .inner_margin(egui::Margin::symmetric(8, 3))
-                                            .show(ui, |ui| {
-                                                ui.label(egui::RichText::new(format!("RP:{}", &runtime_perms_clone)).size(10.0));
-                                            });
-
-                                        // Debloat category badge
-                                        let bg_color = match debloat_category_clone2.as_str() {
-                                            "Recommended" => egui::Color32::from_rgb(56, 142, 60),
-                                            "Advanced" => egui::Color32::from_rgb(33, 150, 243),
-                                            "Expert" => egui::Color32::from_rgb(255, 152, 0),
-                                            "Unsafe" => egui::Color32::from_rgb(255, 235, 59),
-                                            "Unknown" => egui::Color32::from_rgb(255, 255, 255),
-                                            _ => egui::Color32::from_rgb(158, 158, 158),
-                                        };
-                                        let text_color = match debloat_category_clone2.as_str() {
-                                            "Unknown" | "Unsafe" => egui::Color32::from_rgb(0, 0, 0),
-                                            _ => egui::Color32::WHITE,
-                                        };
-                                        let label_text = match debloat_category_clone2.as_str() {
-                                            "Recommended" => tr!("label-recommended"),
-                                            "Advanced" => tr!("label-advanced"),
-                                            "Expert" => tr!("label-expert"),
-                                            "Unsafe" => tr!("label-unsafe"),
-                                            "Unknown" => tr!("label-unknown"),
-                                            _ => debloat_category_clone2.clone(),
-                                        };
-                                        egui::Frame::new()
-                                            .fill(bg_color)
-                                            .corner_radius(6.0)
-                                            .inner_margin(egui::Margin::symmetric(8, 3))
-                                            .show(ui, |ui| {
-                                                ui.label(egui::RichText::new(&label_text).color(text_color).size(10.0));
-                                            });
-
-                                        // Enabled status badge
-                                        let enabled_bg_color = match enabled_text_clone2.as_str() {
-                                            "REMOVED_USER" | "DISABLED" | "DISABLED_USER" => egui::Color32::from_rgb(211, 47, 47),
-                                            "DEFAULT" | "ENABLED" | "UNKNOWN" => egui::Color32::from_rgb(56, 142, 60),
-                                            _ => egui::Color32::from_rgb(158, 158, 158),
-                                        };
-                                        egui::Frame::new()
-                                            .fill(enabled_bg_color)
-                                            .corner_radius(6.0)
-                                            .inner_margin(egui::Margin::symmetric(8, 3))
-                                            .show(ui, |ui| {
-                                                ui.label(egui::RichText::new(&enabled_text_clone2).color(egui::Color32::WHITE).size(10.0));
-                                            });
-
-                                        // Install reason badge
-                                        ui.label(egui::RichText::new(&install_reason_clone).small().color(egui::Color32::GRAY).size(10.0));
+                                        ui.horizontal(|ui| {
+                                            render_badges(ui, &runtime_perms_clone, &debloat_category_clone2, &enabled_text_clone2, &install_reason_clone);
+                                        });
                                     });
-                                });
-                            }
-                        });
-                    })
-                };
-                
+                            });
+                        }
+                    });
+                });
+
                 // Desktop-only columns
                 if is_desktop {
                     // Debloat category column

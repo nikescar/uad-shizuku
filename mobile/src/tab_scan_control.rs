@@ -1537,32 +1537,52 @@ impl TabScanControl {
                 let ha_result_for_cell = ha_scan_result.clone();
                 let izzyrisk_for_cell = izzyrisk.clone();
                 let ha_tag_ignorelist_for_cell = hybridanalysis_tag_ignorelist.clone();
-                let row_builder = if let (Some(title), Some(developer)) =
-                    (app_title.clone(), app_developer.clone())
-                {
-                    table_row.widget_cell(move |ui: &mut egui::Ui| {
+
+                // Determine display content (app info or package name)
+                let (has_app_info, app_icon, display_title, display_subtitle) =
+                    if let (Some(title), Some(developer)) = (app_title.as_ref(), app_developer.as_ref()) {
+                        (true, app_texture_id, title.clone(), developer.clone())
+                    } else {
+                        (false, None, package_name_for_cell.clone(), String::new())
+                    };
+
+                let row_builder = table_row.widget_cell(move |ui: &mut egui::Ui| {
                         if !is_desktop {
                             ui.add_space(8.0);
                         }
-                        ui.horizontal(|ui| {
-                            if let Some(tex_id) = app_texture_id {
-                                ui.image((tex_id, egui::vec2(38.0, 38.0)));
-                            }
-                            ui.vertical(|ui| {
-                                ui.style_mut().spacing.item_spacing.y = 0.1;
-                                egui::ScrollArea::horizontal()
-                                    .id_salt(format!("scan_title_scroll_{}", idx))
-                                    .auto_shrink([false, true])
-                                    .show(ui, |ui| {
-                                        ui.add(egui::Label::new(egui::RichText::new(&title).strong()).wrap_mode(egui::TextWrapMode::Extend));
-                                    });
-                                ui.label(
-                                    egui::RichText::new(&developer)
-                                        .small()
-                                        .color(egui::Color32::GRAY),
-                                );
+                        ui.vertical(|ui| {
+                            ui.horizontal(|ui| {
+                                // App icon (if available)
+                                if let Some(tex_id) = app_icon {
+                                    ui.image((tex_id, egui::vec2(38.0, 38.0)));
+                                }
+                                ui.vertical(|ui| {
+                                    ui.style_mut().spacing.item_spacing.y = 0.1;
+                                    // Title with scroll area
+                                    egui::ScrollArea::horizontal()
+                                        .id_salt(format!("scan_title_scroll_{}", idx))
+                                        .auto_shrink([false, true])
+                                        .show(ui, |ui| {
+                                            if has_app_info {
+                                                ui.add(egui::Label::new(egui::RichText::new(&display_title).strong()).wrap_mode(egui::TextWrapMode::Extend));
+                                            } else {
+                                                ui.add(egui::Label::new(&display_title).wrap());
+                                            }
+                                        });
+                                    // Subtitle (developer or empty)
+                                    if !display_subtitle.is_empty() {
+                                        ui.label(
+                                            egui::RichText::new(&display_subtitle)
+                                                .small()
+                                                .color(egui::Color32::GRAY),
+                                        );
+                                    }
+                                    
+                                });
+                            });
+                            if !is_desktop {
+                                ui.horizontal(|ui| {
                                 
-                                if !is_desktop {
                                     ui.add_space(4.0);
                                     egui::ScrollArea::horizontal()
                                         .id_salt(format!("scan_badge_scroll_{}", idx))
@@ -1806,276 +1826,12 @@ impl TabScanControl {
                                             }
                                         });
                                     });
-                                }
-                            });
-                        });
-                        if !is_desktop {
-                            ui.add_space(8.0);
-                        }
-                    })
-                } else {
-                    table_row.widget_cell(move |ui: &mut egui::Ui| {
-                        if !is_desktop {
-                            ui.add_space(8.0);
-                        }
-                        ui.vertical(|ui| {
-                            egui::ScrollArea::horizontal()
-                                .id_salt(format!("scan_title_scroll2_{}", idx))
-                                .auto_shrink([false, true])
-                                .show(ui, |ui| {
-                                    ui.add(egui::Label::new(&package_name_for_cell).wrap());
-                                });
-                            if !is_desktop {
-                                ui.add_space(4.0);
-                                egui::ScrollArea::horizontal()
-                                    .id_salt(format!("scan_badge_scroll2_{}", idx))
-                                    .auto_shrink([false, true])
-                                    .show(ui, |ui| {
-                                    ui.horizontal(|ui| {
-                                        ui.spacing_mut().item_spacing.x = 4.0;
-
-                                        // Show IzzyRisk in mobile view
-                                        egui::Frame::new()
-                                            .stroke(egui::Stroke::new(1.0, egui::Color32::from_rgb(158, 158, 158)))
-                                            .corner_radius(6.0)
-                                            .inner_margin(egui::Margin::symmetric(8, 3))
-                                            .show(ui, |ui| {
-                                                ui.label(egui::RichText::new(format!("Risk:{}", &izzyrisk_for_cell)).size(10.0));
-                                            });
-
-                                        // Show VT results in mobile view
-                                        match &vt_result_for_cell {
-                                            Some(calc_virustotal::ScanStatus::Completed(result)) => {
-                                                for (i, file_result) in result.file_results.iter().enumerate() {
-                                                    let (text, bg_color) = if file_result.error.is_some() {
-                                                        (tr!("scan-error"), egui::Color32::from_rgb(211, 47, 47))
-                                                    } else if file_result.skipped {
-                                                        (tr!("scan-skip"), egui::Color32::from_rgb(128, 128, 128))
-                                                    } else if file_result.not_found {
-                                                        (tr!("scan-404"), egui::Color32::from_rgb(128, 128, 128))
-                                                    } else if file_result.malicious > 0 {
-                                                        (tr!("scan-malicious", { count: file_result.malicious + file_result.suspicious, total: file_result.total() }), egui::Color32::from_rgb(211, 47, 47))
-                                                    } else if file_result.suspicious > 0 {
-                                                        (tr!("scan-suspicious", { count: file_result.suspicious, total: file_result.total() }), egui::Color32::from_rgb(255, 152, 0))
-                                                    } else {
-                                                        (tr!("scan-clean", { count: file_result.total(), total: file_result.total() }), egui::Color32::from_rgb(56, 142, 60))
-                                                    };
-
-                                                    let inner_response = egui::Frame::new()
-                                                        .fill(bg_color)
-                                                        .corner_radius(6.0)
-                                                        .inner_margin(egui::Margin::symmetric(8, 3))
-                                                        .show(ui, |ui| {
-                                                            ui.label(egui::RichText::new(&text).color(egui::Color32::WHITE).size(10.0));
-                                                        });
-
-                                                    let response = ui.interact(
-                                                        inner_response.response.rect,
-                                                        ui.id().with(format!("m2_vt_chip_{}_{}", idx, i)),
-                                                        egui::Sense::click()
-                                                    );
-
-                                                    if let Some(ref err) = file_result.error {
-                                                        response.on_hover_text(format!("{}\n{}", file_result.file_path, err));
-                                                    } else {
-                                                        if response.clicked() {
-                                                            if let Err(err) = webbrowser::open(&file_result.vt_link) {
-                                                                log::error!("Failed to open VirusTotal link: {}", err);
-                                                            }
-                                                        }
-                                                        response.on_hover_text(&file_result.file_path);
-                                                    }
-                                                }
-                                            }
-                                            _ => {}
-                                        }
-
-                                        // Show HA results in mobile view
-                                        match &ha_result_for_cell {
-                                            Some(calc_hybridanalysis::ScanStatus::Completed(result)) => {
-                                                for (i, file_result) in result.file_results.iter().enumerate() {
-                                                    let text = {
-                                                        if file_result.verdict == "upload_error" || file_result.verdict == "analysis_error" {
-                                                            if let Some(ref error_msg) = file_result.error_message {
-                                                                if error_msg.contains("File too large") {
-                                                                    if let Some(mb_pos) = error_msg.find(" MB ") {
-                                                                        if let Some(start) = error_msg[..mb_pos].rfind(|c: char| !c.is_numeric() && c != '.') {
-                                                                            let size = &error_msg[start+1..mb_pos+3];
-                                                                            tr!("ha-file-too-large", { size: size.to_string() })
-                                                                        } else {
-                                                                            tr!("ha-file-too-large-default")
-                                                                        }
-                                                                    } else {
-                                                                        tr!("ha-file-too-large-default")
-                                                                    }
-                                                                } else if error_msg.contains("No such file or directory") {
-                                                                    tr!("ha-pull-failed")
-                                                                } else if error_msg.contains("Failed to create tmp directory") {
-                                                                    tr!("ha-temp-dir-error")
-                                                                } else {
-                                                                    if file_result.verdict == "upload_error" {
-                                                                        tr!("ha-upload-error")
-                                                                    } else {
-                                                                        tr!("ha-analysis-error")
-                                                                    }
-                                                                }
-                                                            } else if file_result.verdict == "upload_error" {
-                                                                tr!("ha-upload-error")
-                                                            } else {
-                                                                tr!("ha-analysis-error")
-                                                            }
-                                                        } else {
-                                                            let has_tags = !file_result.classification_tags.is_empty();
-                                                            let base_text = if has_tags {
-                                                                let tags_str = file_result.classification_tags.join(", ");
-                                                                match file_result.verdict.as_str() {
-                                                                    "malicious" => tr!("ha-malicious-tags", { tags: tags_str }),
-                                                                    "suspicious" => tr!("ha-suspicious-tags", { tags: tags_str }),
-                                                                    "whitelisted" => tr!("ha-whitelisted-tags", { tags: tags_str }),
-                                                                    "no specific threat" => tr!("ha-no-specific-threat-tags", { tags: tags_str }),
-                                                                    _ => match file_result.verdict.as_str() {
-                                                                        "no-result" => tr!("ha-no-result"),
-                                                                        "rate_limited" => tr!("ha-rate-limited"),
-                                                                        "submitted" => tr!("ha-submitted"),
-                                                                        "pending_analysis" => tr!("ha-pending-analysis"),
-                                                                        "404 Not Found" => tr!("ha-404"),
-                                                                        "" => tr!("ha-skipped"),
-                                                                        _ => file_result.verdict.clone(),
-                                                                    },
-                                                                }
-                                                            } else if let Some(score) = file_result.threat_score {
-                                                                match file_result.verdict.as_str() {
-                                                                    "malicious" => tr!("ha-malicious-score", { score: score }),
-                                                                    "suspicious" => tr!("ha-suspicious-score", { score: score }),
-                                                                    "whitelisted" => tr!("ha-whitelisted-score", { score: score }),
-                                                                    "no specific threat" => tr!("ha-no-specific-threat-score", { score: score }),
-                                                                    _ => match file_result.verdict.as_str() {
-                                                                        "no-result" => tr!("ha-no-result"),
-                                                                        "rate_limited" => tr!("ha-rate-limited"),
-                                                                        "submitted" => tr!("ha-submitted"),
-                                                                        "pending_analysis" => tr!("ha-pending-analysis"),
-                                                                        "404 Not Found" => tr!("ha-404"),
-                                                                        "" => tr!("ha-skipped"),
-                                                                        _ => file_result.verdict.clone(),
-                                                                    },
-                                                                }
-                                                            } else {
-                                                                match file_result.verdict.as_str() {
-                                                                    "malicious" => tr!("ha-malicious"),
-                                                                    "suspicious" => tr!("ha-suspicious"),
-                                                                    "whitelisted" => tr!("ha-whitelisted"),
-                                                                    "no specific threat" => tr!("ha-no-specific-threat"),
-                                                                    "no-result" => tr!("ha-no-result"),
-                                                                    "rate_limited" => tr!("ha-rate-limited"),
-                                                                    "submitted" => tr!("ha-submitted"),
-                                                                    "pending_analysis" => {
-                                                                        if let Some(ref job_id) = file_result.job_id {
-                                                                            let short_id = if job_id.len() > 8 { &job_id[..8] } else { job_id };
-                                                                            tr!("ha-pending", { jobid: short_id.to_string() })
-                                                                        } else {
-                                                                            tr!("ha-pending-analysis")
-                                                                        }
-                                                                    },
-                                                                    "404 Not Found" => tr!("ha-404"),
-                                                                    "" => tr!("ha-skipped"),
-                                                                    _ => file_result.verdict.clone(),
-                                                                }
-                                                            };
-
-                                                            if let Some(wait_until) = file_result.wait_until {
-                                                                use std::time::{SystemTime, UNIX_EPOCH};
-                                                                let now = SystemTime::now()
-                                                                    .duration_since(UNIX_EPOCH)
-                                                                    .unwrap()
-                                                                    .as_secs();
-                                                                if wait_until > now {
-                                                                    let remaining_secs = wait_until - now;
-                                                                    let hours = remaining_secs / 3600;
-                                                                    let mins = (remaining_secs % 3600) / 60;
-                                                                    if hours > 0 {
-                                                                        tr!("ha-wait-hours", { text: base_text, hours: hours, mins: mins })
-                                                                    } else if mins > 0 {
-                                                                        tr!("ha-wait-mins", { text: base_text, mins: mins })
-                                                                    } else {
-                                                                        tr!("ha-wait-less-than-min", { text: base_text })
-                                                                    }
-                                                                } else {
-                                                                    base_text
-                                                                }
-                                                            } else {
-                                                                base_text
-                                                            }
-                                                        }
-                                                    };
-
-                                                    let ignorelist_tags: Vec<String> = ha_tag_ignorelist_for_cell
-                                                        .split(',')
-                                                        .map(|s| s.trim().to_lowercase())
-                                                        .filter(|s| !s.is_empty())
-                                                        .collect();
-
-                                                    let all_tags_ignored = if file_result.classification_tags.is_empty() {
-                                                        true
-                                                    } else {
-                                                        file_result.classification_tags.iter().all(|tag| {
-                                                            ignorelist_tags.contains(&tag.to_lowercase())
-                                                        })
-                                                    };
-
-                                                    let bg_color = match file_result.verdict.as_str() {
-                                                        "malicious" => {
-                                                            if all_tags_ignored {
-                                                                egui::Color32::from_rgb(128, 128, 128)
-                                                            } else {
-                                                                egui::Color32::from_rgb(211, 47, 47)
-                                                            }
-                                                        },
-                                                        "suspicious" => egui::Color32::from_rgb(255, 152, 0),
-                                                        "whitelisted" => egui::Color32::from_rgb(56, 142, 60),
-                                                        "no specific threat" => egui::Color32::from_rgb(0, 150, 136),
-                                                        "no-result" => egui::Color32::from_rgb(158, 158, 158),
-                                                        "rate_limited" => egui::Color32::from_rgb(156, 39, 176),
-                                                        "submitted" => egui::Color32::from_rgb(33, 150, 243),
-                                                        "pending_analysis" => egui::Color32::from_rgb(255, 193, 7),
-                                                        "analysis_error" | "upload_error" => egui::Color32::from_rgb(211, 47, 47),
-                                                        "404 Not Found" | "" => egui::Color32::from_rgb(128, 128, 128),
-                                                        _ => egui::Color32::from_rgb(158, 158, 158),
-                                                    };
-
-                                                    let inner_response = egui::Frame::new()
-                                                        .fill(bg_color)
-                                                        .corner_radius(6.0)
-                                                        .inner_margin(egui::Margin::symmetric(8, 3))
-                                                        .show(ui, |ui| {
-                                                            ui.label(egui::RichText::new(&text).color(egui::Color32::WHITE).size(10.0));
-                                                        });
-
-                                                    let response = ui.interact(
-                                                        inner_response.response.rect,
-                                                        ui.id().with(format!("m2_ha_chip_{}_{}", idx, i)),
-                                                        egui::Sense::click()
-                                                    );
-
-                                                    if response.clicked() {
-                                                        if let Err(err) = webbrowser::open(&file_result.ha_link) {
-                                                            log::error!("Failed to open Hybrid Analysis link: {}", err);
-                                                        }
-                                                    }
-
-                                                    response.on_hover_text(&file_result.file_path);
-                                                }
-                                            }
-                                            _ => {}
-                                        }
-                                    });
                                 });
                             }
                         });
-                        if !is_desktop {
-                            ui.add_space(8.0);
-                        }
-                    })
-                };
+                    });
+
+                    
 
                 // IzzyRisk column (desktop only)
                 let row_builder = if is_desktop {
