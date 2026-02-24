@@ -1,0 +1,120 @@
+name: VirusTotal Scan on Release
+
+on:
+  release:
+    types:
+      - published
+  workflow_dispatch:
+
+jobs:
+  virustotal:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Download Release Assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Download all assets from the release using patterns
+          gh release download ${{ github.event.release.tag_name }} \
+            --dir ./release-assets \
+            --pattern '*.tar.gz' \
+            --pattern '*.apk' \
+            --pattern '*.exe'
+          # List downloaded files for verification
+          echo "Downloaded files:"
+          ls -lh ./release-assets/
+          
+      - name: VirusTotal Scan
+        id: vt_scan
+        continue-on-error: true
+        uses: crazy-max/ghaction-virustotal@v4
+        with:
+          vt_api_key: ${{ secrets.VT_API_KEY }}
+          update_release_body: false
+          request_rate: 4
+          files: |
+            ./release-assets/uad-shizuku-aarch64-apple-darwin.tar.gz
+            ./release-assets/uad-shizuku-aarch64-linux-android.tar.gz
+            ./release-assets/uad-shizuku-aarch64-unknown-linux-musl.tar.gz
+            ./release-assets/uad-shizuku-all-signed.apk
+            ./release-assets/uad-shizuku-armv7-linux-androideabi.tar.gz
+            ./release-assets/uad-shizuku-armv7-unknown-linux-musleabihf.tar.gz
+            ./release-assets/uad-shizuku-x86_64-apple-darwin.tar.gz
+            ./release-assets/uad-shizuku-x86_64-unknown-linux-musl.tar.gz
+            ./release-assets/uad-shizuku.exe
+
+      - name: Parse Analysis Results
+        id: parse_results
+        run: |
+          # Get the analysis output from previous step
+          ANALYSIS="${{ steps.vt_scan.outputs.analysis }}"
+
+          echo "Raw analysis output:"
+          echo "$ANALYSIS"
+
+          # Check if we have any results
+          if [ -z "$ANALYSIS" ]; then
+            echo "Warning: No analysis output from VirusTotal scan"
+            echo "formatted_results<<EOF" >> $GITHUB_OUTPUT
+            echo "⚠️ VirusTotal scan encountered errors. Some files may have been scanned previously (409 error)." >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          # Parse the analysis output and format for release notes
+          # Format: file1=url1,file2=url2,...
+
+          FORMATTED_RESULTS=""
+
+          # Split by comma and process each entry
+          IFS=',' read -ra ENTRIES <<< "$ANALYSIS"
+          for entry in "${ENTRIES[@]}"; do
+            # Skip empty entries
+            if [ -z "$entry" ]; then
+              continue
+            fi
+
+            # Split by = to get file and URL
+            IFS='=' read -r file url <<< "$entry"
+
+            # Skip if file or url is empty
+            if [ -z "$file" ] || [ -z "$url" ]; then
+              continue
+            fi
+
+            # Extract filename from path
+            filename=$(basename "$file")
+
+            # Build markdown link
+            FORMATTED_RESULTS="${FORMATTED_RESULTS}- **${filename}**: [View VirusTotal Report](${url})\n"
+          done
+
+          # Check if we have formatted results
+          if [ -z "$FORMATTED_RESULTS" ]; then
+            echo "Warning: No valid results to format"
+            FORMATTED_RESULTS="⚠️ No scan results available. Files may have been scanned recently."
+          fi
+
+          # Save to output (escape for GitHub Actions)
+          echo "formatted_results<<EOF" >> $GITHUB_OUTPUT
+          echo -e "$FORMATTED_RESULTS" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+          echo "Formatted results:"
+          echo -e "$FORMATTED_RESULTS"
+
+      - name: Update Release Notes
+        id: update_release
+        env:
+          FORMATTED_RESULTS: ${{ steps.parse_results.outputs.formatted_results }}
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+        run: |
+          # Get the tag name of the latest release
+          LATEST_TAG=$(gh release view --json tagName --jq .tagName)
+          echo "Latest Release Tag: $LATEST_TAG"
+
+          # Update the release body using the tag name
+          gh release edit "$LATEST_TAG" --notes "$FORMATTED_RESULTS"

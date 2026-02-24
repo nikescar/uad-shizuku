@@ -323,20 +323,3 @@ jobs:
           make_latest: true
           files: distbin/*
           token: ${{ secrets.RELEASE_TOKEN }}
-
-  virustotal:
-    runs-on: ubuntu-latest
-    permissions:
-      # required to write GitHub Release body
-      contents: write
-    steps:
-      -
-        name: VirusTotal Scan
-        uses: crazy-max/ghaction-virustotal@v4
-        with:
-          vt_api_key: ${{ secrets.VT_API_KEY }}
-          update_release_body: true
-          files: |
-            .exe$
-            .apk$
-            .tar.gz$
