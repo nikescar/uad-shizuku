@@ -285,6 +285,85 @@ jobs:
         with:
           path: artifacts
 
+      - name: VirusTotal Scan
+        id: vt_scan
+        continue-on-error: true
+        uses: crazy-max/ghaction-virustotal@v4
+        with:
+          vt_api_key: ${{ secrets.VT_API_KEY }}
+          update_release_body: false
+          request_rate: 4
+          files: |
+            ./artifacts/uad-shizuku-aarch64-apple-darwin/uad-shizuku
+            ./artifacts/uad-shizuku-aarch64-linux-android/uad-shizuku
+            ./artifacts/uad-shizuku-aarch64-unknown-linux-musl/uad-shizuku
+            ./artifacts/uad-shizuku-all-signed.apk/uad-shizuku-all-signed.apk
+            ./artifacts/uad-shizuku-armv7-linux-androideabi/uad-shizuku
+            ./artifacts/uad-shizuku-armv7-unknown-linux-musleabihf/uad-shizuku
+            ./artifacts/uad-shizuku-x86_64-apple-darwin/uad-shizuku
+            ./artifacts/uad-shizuku-x86_64-unknown-linux-musl/uad-shizuku
+            ./artifacts/uad-shizuku-x86_64-pc-windows-msvc/uad-shizuku.exe
+
+      - name: Parse Analysis Results
+        id: parse_results
+        run: |
+          # Get the analysis output from previous step
+          ANALYSIS="${{ steps.vt_scan.outputs.analysis }}"
+
+          echo "Raw analysis output:"
+          echo "$ANALYSIS"
+
+          # Check if we have any results
+          if [ -z "$ANALYSIS" ]; then
+            echo "Warning: No analysis output from VirusTotal scan"
+            echo "formatted_results<<EOF" >> $GITHUB_OUTPUT
+            echo "⚠️ VirusTotal scan encountered errors. Some files may have been scanned previously (409 error)." >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          # Parse the analysis output and format for release notes
+          # Format: file1=url1,file2=url2,...
+
+          FORMATTED_RESULTS=""
+
+          # Split by comma and process each entry
+          IFS=',' read -ra ENTRIES <<< "$ANALYSIS"
+          for entry in "${ENTRIES[@]}"; do
+            # Skip empty entries
+            if [ -z "$entry" ]; then
+              continue
+            fi
+
+            # Split by = to get file and URL
+            IFS='=' read -r file url <<< "$entry"
+
+            # Skip if file or url is empty
+            if [ -z "$file" ] || [ -z "$url" ]; then
+              continue
+            fi
+
+            # Extract filename from path
+            filename=$(basename "$file")
+
+            # Build markdown link
+            FORMATTED_RESULTS="${FORMATTED_RESULTS}- **${filename}**: [View VirusTotal Report](${url})\n"
+          done
+
+          # Check if we have formatted results
+          if [ -z "$FORMATTED_RESULTS" ]; then
+            echo "Warning: No valid results to format"
+            FORMATTED_RESULTS="⚠️ No scan results available. Files may have been scanned recently."
+          fi
+
+          # Save to output (escape for GitHub Actions)
+          echo "formatted_results<<EOF" >> $GITHUB_OUTPUT
+          echo -e "$FORMATTED_RESULTS" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+          echo "Formatted results:"
+          echo -e "$FORMATTED_RESULTS"
+
       - name: Prepare Release Artifacts
         run: |
           find artifacts/
@@ -322,4 +401,5 @@ jobs:
           # draft: true
           make_latest: true
           files: distbin/*
+          body: ${{ steps.parse_results.outputs.formatted_results }}
           token: ${{ secrets.RELEASE_TOKEN }}
