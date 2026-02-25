@@ -2042,6 +2042,9 @@ impl UadShizukuApp {
         // Load uad_ng_lists after struct is constructed
         self.retrieve_uad_ng_lists();
 
+        // Load stalkerware indicators
+        self.retrieve_stalkerware_indicators();
+
         let Some(device) = self.selected_device.clone() else {
             log::debug!("No device selected, skipping package retrieval");
             return;
@@ -2379,6 +2382,104 @@ impl UadShizukuApp {
             },
             Err(e) => {
                 log::error!("Failed to read UAD lists from cache: {}", e);
+            }
+        }
+    }
+
+    fn retrieve_stalkerware_indicators(&mut self) {
+        const IOC_URL: &str = "https://raw.githubusercontent.com/AssoEchap/stalkerware-indicators/master/ioc.yaml";
+        const IOC_FILENAME: &str = "stalkerware_ioc.yaml";
+
+        // Get cache directory from config
+        let cache_dir = match &self.config {
+            Some(config) => config.cache_dir.clone(),
+            None => {
+                log::error!("Config not available, cannot retrieve stalkerware indicators");
+                return;
+            }
+        };
+
+        let cache_file_path = cache_dir.join(IOC_FILENAME);
+
+        // Check if file exists in cache or is older than 7 days
+        let should_download = !cache_file_path.exists() || {
+            cache_file_path
+                .metadata()
+                .and_then(|m| m.modified())
+                .map(|modified| {
+                    modified
+                        .elapsed()
+                        .map(|elapsed| elapsed.as_secs() > 7 * 24 * 60 * 60)
+                        .unwrap_or(false)
+                })
+                .unwrap_or(false)
+        };
+
+        if should_download {
+            log::info!(
+                "Stalkerware IoC not found in cache or older than 7 days, downloading from {}",
+                IOC_URL
+            );
+
+            // Download the file
+            let request = ehttp::Request::get(IOC_URL);
+            let (sender, receiver) = std::sync::mpsc::channel();
+
+            ehttp::fetch(request, move |result| {
+                sender.send(result).ok();
+            });
+
+            // Wait for the response (blocking)
+            match receiver.recv() {
+                Ok(Ok(response)) => {
+                    if response.ok {
+                        // Save to cache
+                        match std::fs::write(&cache_file_path, &response.bytes) {
+                            Ok(_) => {
+                                log::info!(
+                                    "Successfully downloaded and cached stalkerware IoC to {:?}",
+                                    cache_file_path
+                                );
+                            }
+                            Err(e) => {
+                                log::error!("Failed to write stalkerware IoC to cache: {}", e);
+                                return;
+                            }
+                        }
+                    } else {
+                        log::error!("Failed to download stalkerware IoC: HTTP {}", response.status);
+                        return;
+                    }
+                }
+                Ok(Err(e)) => {
+                    log::error!("Failed to download stalkerware IoC: {}", e);
+                    return;
+                }
+                Err(e) => {
+                    log::error!("Failed to receive download response: {}", e);
+                    return;
+                }
+            }
+        } else {
+            log::info!("Stalkerware IoC found in cache at {:?}", cache_file_path);
+        }
+
+        // Load and parse the YAML file
+        match std::fs::read_to_string(&cache_file_path) {
+            Ok(yaml_content) => {
+                match crate::calc_stalkerware::parse_stalkerware_yaml(&yaml_content) {
+                    Ok(indicators) => {
+                        log::info!("Successfully parsed stalkerware IoC");
+                        let shared_store = crate::shared_store_stt::get_shared_store();
+                        shared_store.set_stalkerware_indicators(Some(indicators));
+                    }
+                    Err(e) => {
+                        log::error!("Failed to parse stalkerware IoC YAML: {}", e);
+                    }
+                }
+            }
+            Err(e) => {
+                log::error!("Failed to read stalkerware IoC from cache: {}", e);
             }
         }
     }

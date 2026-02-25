@@ -1,6 +1,7 @@
 use crate::adb::PackageFingerprint;
 use crate::calc_androidpackage::AndroidPackageInfo;
 use crate::calc_hybridanalysis::ScannerState as HaScannerState;
+use crate::calc_stalkerware_stt::StalkerwareIndicators;
 use crate::calc_virustotal::ScannerState as VtScannerState;
 use crate::models::{ApkMirrorApp, FDroidApp, GooglePlayApp};
 use crate::uad_shizuku_app::UadNgLists;
@@ -15,6 +16,8 @@ pub enum SharedStoreUpdate {
     InstalledPackages(Vec<PackageFingerprint>),
     /// Update UAD-NG lists
     UadNgLists(Option<UadNgLists>),
+    /// Update stalkerware indicators
+    StalkerwareIndicators(Option<StalkerwareIndicators>),
     /// Update cached Google Play app
     CachedGooglePlayApp { pkg_id: String, app: GooglePlayApp },
     /// Update cached F-Droid app
@@ -31,6 +34,8 @@ pub struct SharedStore {
     pub installed_packages: Mutex<Vec<PackageFingerprint>>,
     /// UAD-NG bloat lists
     pub uad_ng_lists: Mutex<Option<UadNgLists>>,
+    /// Stalkerware indicators for package detection
+    pub stalkerware_indicators: Mutex<Option<StalkerwareIndicators>>,
     /// Texture cache for Google Play icons
     pub google_play_textures: Mutex<HashMap<String, egui::TextureHandle>>,
     /// Texture cache for F-Droid icons

@@ -628,6 +628,7 @@ impl TabDebloatControl {
         if let Some(col_idx) = self.sort_column {
             let store = get_shared_store();
             let uad_ng_lists = store.get_uad_ng_lists();
+            let stalkerware_indicators = store.get_stalkerware_indicators();
             let mut installed_packages = store.get_installed_packages();
 
             installed_packages.sort_by(|a, b| {
@@ -664,19 +665,16 @@ impl TabDebloatControl {
                         perms_a.cmp(&perms_b)
                     }
                     3 => {
-                        let is_system_a = a.flags.contains("SYSTEM");
-                        let is_system_b = b.flags.contains("SYSTEM");
-                        let enabled_a = a
-                            .users
-                            .first()
-                            .map(|u| Self::enabled_to_display_string(u.enabled, u.installed, is_system_a))
-                            .unwrap_or("DEFAULT");
-                        let enabled_b = b
-                            .users
-                            .first()
-                            .map(|u| Self::enabled_to_display_string(u.enabled, u.installed, is_system_b))
-                            .unwrap_or("DEFAULT");
-                        enabled_a.cmp(enabled_b)
+                        // Stalkerware column - sort by boolean (true = stalkerware detected)
+                        let is_stalkerware_a = stalkerware_indicators
+                            .as_ref()
+                            .map(|ind| ind.is_stalkerware(&a.pkg))
+                            .unwrap_or(false);
+                        let is_stalkerware_b = stalkerware_indicators
+                            .as_ref()
+                            .map(|ind| ind.is_stalkerware(&b.pkg))
+                            .unwrap_or(false);
+                        is_stalkerware_a.cmp(&is_stalkerware_b)
                     }
                     4 => {
                         let is_system_a = a.flags.contains("SYSTEM");
@@ -1197,7 +1195,7 @@ impl TabDebloatControl {
             debloat_table = debloat_table
                 .sortable_column(tr!("col-debloat-category"), 130.0 * width_ratio, false)
                 .sortable_column(tr!("col-runtime-permissions"), 80.0 * width_ratio, true)
-                //.sortable_column(tr!("col-enabled"), 120.0 * width_ratio, false)
+                .sortable_column(tr!("col-stalkerware"), 120.0 * width_ratio, false)
                 .sortable_column(tr!("col-install-reason"), 110.0 * width_ratio, false);
         }
         debloat_table = debloat_table
@@ -1205,7 +1203,7 @@ impl TabDebloatControl {
             .allow_selection(true);
 
         // Sort column index mapping: self.sort_column uses logical (desktop) indices
-        // Desktop: [0=PackageName, 1=DebloatCategory, 2=RP, 3=Enabled, 4=InstallReason, 5=Tasks]
+        // Desktop: [0=PackageName, 1=DebloatCategory, 2=RP, 3=Stalkerware, 4=InstallReason, 5=Tasks]
         // Mobile:  [0=PackageName, 1=Tasks]
         let to_physical = |logical: usize| -> usize {
             if is_desktop { logical } else { match logical { 0 => 0, _ => 1 } }
@@ -1228,9 +1226,13 @@ impl TabDebloatControl {
 
         let mut filtered_package_names = Vec::new();
 
+        // Get stalkerware indicators from shared store
+        let shared_store = crate::shared_store_stt::get_shared_store();
+        let stalkerware_indicators = shared_store.get_stalkerware_indicators();
+
         // Collect filtered packages info first to avoid borrow issues
         // Note: uad_ng_lists_ref is pre-fetched at the start of ui()
-        let filtered_packages: Vec<(usize, String, String, bool, String, String, String, String, bool)> = installed_packages
+        let filtered_packages: Vec<(usize, String, String, bool, String, String, bool, String, String, bool)> = installed_packages
             .iter()
             .enumerate()
             .filter(|(_, p)| self.should_show_package(p, uad_ng_lists_ref))
@@ -1253,6 +1255,10 @@ impl TabDebloatControl {
                     .map(|u| u.runtimePermissions.len())
                     .unwrap_or(0)
                     .to_string();
+                let is_stalkerware = stalkerware_indicators
+                    .as_ref()
+                    .map(|ind| ind.is_stalkerware(&package.pkg))
+                    .unwrap_or(false);
                 let enabled = package
                     .users
                     .first()
@@ -1270,7 +1276,7 @@ impl TabDebloatControl {
                     Self::install_reason_to_string(install_reason_value).to_string()
                 };
                 let is_selected = self.selected_packages.contains(&package.pkg);
-                (idx, package.pkg.clone(), package_name, is_system, debloat_category, runtime_perms, enabled, install_reason, is_selected)
+                (idx, package.pkg.clone(), package_name, is_system, debloat_category, runtime_perms, is_stalkerware, enabled, install_reason, is_selected)
             })
             .collect();
 
@@ -1284,11 +1290,11 @@ impl TabDebloatControl {
         );
 
         // Collect filtered package names for both views
-        for (_, pkg_id, _, _, _, _, _, _, _) in &filtered_packages {
+        for (_, pkg_id, _, _, _, _, _, _, _, _) in &filtered_packages {
             filtered_package_names.push(pkg_id.clone());
         }
 
-        for (idx, pkg_id, package_name, is_system, debloat_category, runtime_perms, enabled_text, install_reason, is_selected) in filtered_packages {
+        for (idx, pkg_id, package_name, is_system, debloat_category, runtime_perms, is_stalkerware, enabled_text, install_reason, is_selected) in filtered_packages {
             let clicked_idx_clone = clicked_package_idx.clone();
             let pkg_id_clone = pkg_id.clone();
             let package_name_clone = package_name.clone();
@@ -1379,6 +1385,7 @@ impl TabDebloatControl {
             let render_badges = |ui: &mut egui::Ui,
                                   runtime_perms: &str,
                                   debloat_category: &str,
+                                  is_stalkerware: bool,
                                   enabled_text: &str,
                                   install_reason: &str| {
                 // Runtime permissions badge
@@ -1407,19 +1414,23 @@ impl TabDebloatControl {
                         ui.label(egui::RichText::new(&label_text).color(text_color).size(10.0));
                     });
 
-                // Enabled status badge
-                // let enabled_bg_color = match enabled_text {
-                //     "REMOVED_USER" | "DISABLED" | "DISABLED_USER" => egui::Color32::from_rgb(211, 47, 47),
-                //     "DEFAULT" | "ENABLED" | "UNKNOWN" => egui::Color32::from_rgb(56, 142, 60),
-                //     _ => egui::Color32::from_rgb(158, 158, 158),
-                // };
-                // egui::Frame::new()
-                //     .fill(enabled_bg_color)
-                //     .corner_radius(6.0)
-                //     .inner_margin(egui::Margin::symmetric(8, 3))
-                //     .show(ui, |ui| {
-                //         ui.label(egui::RichText::new(enabled_text).color(egui::Color32::WHITE).size(10.0));
-                //     });
+                // Stalkerware badge
+                let (stalkerware_bg_color, stalkerware_text) = if is_stalkerware {
+                    (egui::Color32::from_rgb(211, 47, 47), tr!("stalkerware")) // Red warning
+                } else {
+                    (egui::Color32::from_rgb(76, 175, 80), tr!("not-listed")) // Green safe
+                };
+                egui::Frame::new()
+                    .fill(stalkerware_bg_color)
+                    .corner_radius(6.0)
+                    .inner_margin(egui::Margin::symmetric(8, 3))
+                    .show(ui, |ui| {
+                        ui.label(
+                            egui::RichText::new(stalkerware_text)
+                                .color(egui::Color32::WHITE)
+                                .size(10.0),
+                        );
+                    });
 
                 // Install reason badge
                 ui.label(egui::RichText::new(install_reason).small().color(egui::Color32::GRAY).size(10.0));
@@ -1441,6 +1452,7 @@ impl TabDebloatControl {
                     };
 
                 let debloat_category_clone2 = debloat_category.clone();
+                let is_stalkerware_clone = is_stalkerware;
                 let enabled_text_clone2 = enabled_text.clone();
                 let install_reason_clone = install_reason.clone();
                 let runtime_perms_clone = runtime_perms.clone();
@@ -1485,7 +1497,7 @@ impl TabDebloatControl {
                                     .auto_shrink([false, true])
                                     .show(ui, |ui| {
                                         ui.horizontal(|ui| {
-                                            render_badges(ui, &runtime_perms_clone, &debloat_category_clone2, &enabled_text_clone2, &install_reason_clone);
+                                            render_badges(ui, &runtime_perms_clone, &debloat_category_clone2, is_stalkerware_clone, &enabled_text_clone2, &install_reason_clone);
                                         });
                                     });
                             });
@@ -1531,24 +1543,27 @@ impl TabDebloatControl {
                     // Runtime permissions column
                     row_builder = row_builder.cell(&runtime_perms);
 
-                    // Enabled column
-                    // let enabled_text_clone = enabled_text.clone();
-                    // row_builder = row_builder.widget_cell(move |ui: &mut egui::Ui| {
-                    //     let bg_color = match enabled_text_clone.as_str() {
-                    //         "REMOVED_USER" | "DISABLED" | "DISABLED_USER" => egui::Color32::from_rgb(211, 47, 47),
-                    //         "DEFAULT" | "ENABLED" | "UNKNOWN" => egui::Color32::from_rgb(56, 142, 60),
-                    //         _ => egui::Color32::from_rgb(158, 158, 158),
-                    //     };
-                    //     ui.horizontal(|ui| {
-                    //         egui::Frame::new()
-                    //             .fill(bg_color)
-                    //             .corner_radius(8.0)
-                    //             .inner_margin(egui::Margin::symmetric(12, 6))
-                    //             .show(ui, |ui| {
-                    //                 ui.label(egui::RichText::new(&enabled_text_clone).color(egui::Color32::WHITE).size(12.0));
-                    //             });
-                    //     });
-                    // });
+                    // Stalkerware column
+                    row_builder = row_builder.widget_cell(move |ui: &mut egui::Ui| {
+                        ui.horizontal(|ui| {
+                            let (bg_color, text) = if is_stalkerware {
+                                (egui::Color32::from_rgb(211, 47, 47), tr!("stalkerware")) // Red warning
+                            } else {
+                                (egui::Color32::from_rgb(76, 175, 80), tr!("not-listed")) // Green safe
+                            };
+                            egui::Frame::new()
+                                .fill(bg_color)
+                                .corner_radius(8.0)
+                                .inner_margin(egui::Margin::symmetric(12, 6))
+                                .show(ui, |ui| {
+                                    ui.label(
+                                        egui::RichText::new(text)
+                                            .color(egui::Color32::WHITE)
+                                            .size(12.0),
+                                    );
+                                });
+                        });
+                    });
 
                     // Install reason column
                     row_builder = row_builder.cell(install_reason);
