@@ -1,4 +1,27 @@
 ## What's Changed
+* fix.UI enhancement by @nikescar in [#44](https://github.com/nikescar/uad-shizuku/pull/44)
+* feat. add uad info text on drawer in debloat table. by @nikescar
+* fix. add prefix to mobile badges in scantable. by @nikescar
+* fix. add prefix to mobile badges in debloat table. by @nikescar
+* fix. add badges to install reason. by @nikescar
+* feat.stalkerware indication by @nikescar in [#43](https://github.com/nikescar/uad-shizuku/pull/43)
+* feat. add stalkerware column on debloat table. by @nikescar
+* fix. remove enabled/disabled column from debloat table. by @nikescar
+* refactor. app info on debloat,scan table. by @nikescar
+* fix. change checkbox ui in settings. by @nikescar
+* chore. change vt scan workflow to upload binary not tar archive. by @nikescar
+* chore. separate virustotal github workflow. by @nikescar
+
+## What's Changed in 0.0.9
+* fix. github workflow code signing error (4). by @nikescar
+* fix. github workflow code signing error (3). by @nikescar
+* fix. github workflow code signing error (2). by @nikescar
+* fix. github workflow code signing error. by @nikescar
+* fix. build error. by @nikescar
+* chore. cargo dependency updates. by @nikescar
+* fix. resvg crates error on osx. by @nikescar
+* fix. error on github workflow. by @nikescar
+* release. v0.0.9 by @nikescar
 * fix. slower refresh rates for performance. by @nikescar
 * fix. qeueing app install in apps tab. by @nikescar
 * fix. disable apps tab on installed from google play. by @nikescar
@@ -22,6 +45,8 @@
 * fix. windows user directory. by @nikescar
 * fix. change windows download link. by @nikescar in [#36](https://github.com/nikescar/uad-shizuku/pull/36)
 * fix. change windows download link. by @nikescar
+
+**Full Changelog**: https://github.com/nikescar/uad-shizuku/compare/v0.0.8...v0.0.9
 
 ## What's Changed in 0.0.8
 * release. v0.0.8 by @nikescar
