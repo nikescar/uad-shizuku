@@ -1411,7 +1411,7 @@ impl TabDebloatControl {
                     .corner_radius(6.0)
                     .inner_margin(egui::Margin::symmetric(8, 3))
                     .show(ui, |ui| {
-                        ui.label(egui::RichText::new(&label_text).color(text_color).size(10.0));
+                        ui.label(egui::RichText::new(format!("D:{}", &label_text)).color(text_color).size(10.0));
                     });
 
                 // Stalkerware badge
@@ -1426,7 +1426,7 @@ impl TabDebloatControl {
                     .inner_margin(egui::Margin::symmetric(8, 3))
                     .show(ui, |ui| {
                         ui.label(
-                            egui::RichText::new(stalkerware_text)
+                            egui::RichText::new(format!("S:{}", stalkerware_text))
                                 .color(egui::Color32::WHITE)
                                 .size(10.0),
                         );
@@ -1438,7 +1438,7 @@ impl TabDebloatControl {
                     .corner_radius(6.0)
                     .inner_margin(egui::Margin::symmetric(8, 3))
                     .show(ui, |ui| {
-                        ui.label(egui::RichText::new(install_reason).size(10.0));
+                        ui.label(egui::RichText::new(format!("I:{}", install_reason)).size(10.0));
                     });
             };
 
