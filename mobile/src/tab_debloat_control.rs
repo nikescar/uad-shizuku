@@ -1001,7 +1001,7 @@ impl TabDebloatControl {
         }
 
         // Batch action buttons
-        ui.horizontal(|ui| {
+        ui.horizontal_wrapped(|ui| {
             let selected_count = self.selected_packages.len();
 
             if filter_is_mobile {
@@ -1189,8 +1189,9 @@ impl TabDebloatControl {
                 self.table_version
             )))
             .default_row_height(if is_desktop { 56.0 } else { 80.0 })
+            .allow_drawer(true)
             // .auto_row_height(true)
-            .sortable_column(tr!("col-package-name"), if is_desktop { 350.0 * width_ratio } else { available_width * 0.52 }, false);
+            .sortable_column(tr!("col-package-name"), if is_desktop { 350.0 * width_ratio } else { (available_width * 0.59 + (50.0/available_width) * 0.59) }, false);
         if is_desktop {
             debloat_table = debloat_table
                 .sortable_column(tr!("col-debloat-category"), 130.0 * width_ratio, false)
@@ -1199,7 +1200,7 @@ impl TabDebloatControl {
                 .sortable_column(tr!("col-install-reason"), 110.0 * width_ratio, false);
         }
         debloat_table = debloat_table
-            .sortable_column(tr!("col-tasks"), if is_desktop { 160.0 * width_ratio } else { available_width * 0.3  }, false)
+            .sortable_column(tr!("col-tasks"), if is_desktop { 160.0 * width_ratio } else { (available_width * 0.3 + (50.0/available_width) * 0.3)  }, false)
             .allow_selection(true);
 
         // Sort column index mapping: self.sort_column uses logical (desktop) indices
@@ -1637,6 +1638,16 @@ impl TabDebloatControl {
                         });
                     });
                 });
+
+                // Add drawer for UAD description
+                if let Some(uad_entry) = uad_ng_lists_ref.and_then(|lists| lists.apps.get(&pkg_id_clone)) {
+                    let description = uad_entry.description.clone();
+                    row_builder = row_builder.drawer(move |ui| {
+                        ui.add_space(8.0);
+                        ui.label("Description:");
+                        ui.add(egui::Label::new(&description).wrap());
+                    });
+                }
 
                 row_builder = row_builder.id(format!("debloat_table_row_{}", idx));
 

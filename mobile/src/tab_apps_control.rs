@@ -1030,8 +1030,8 @@ impl TabAppsControl {
                 .column(tr!("install"), 300.0 * width_ratio, false);
         } else {
             interactive_table = interactive_table
-                .column(tr!("app-name"), available_width * 0.65 , false)
-                .column(tr!("install"), available_width * 0.3 , false);
+                .column(tr!("app-name"), (available_width * 0.65 + (50.0/available_width) * 0.65) , false)
+                .column(tr!("install"), (available_width * 0.3 + (50.0/available_width) * 0.3) , false);
         }
         interactive_table = interactive_table.allow_selection(false);
 

@@ -378,14 +378,14 @@ impl TabScanControl {
         let store = get_shared_store();
         let device_serial = self.device_serial.clone();
         let installed_packages = store.get_installed_packages();
-        
+
         // Don't start calculation if no device is selected or no packages exist
         if device_serial.is_none() || installed_packages.is_empty() {
-            log::debug!("Skipping IzzyRisk calculation: device_serial={:?}, packages_count={}", 
+            log::debug!("Skipping IzzyRisk calculation: device_serial={:?}, packages_count={}",
                 device_serial, installed_packages.len());
             return;
         }
-        
+
         let shared_scores = self.shared_package_risk_scores.clone();
         let progress_clone = self.izzyrisk_scan_progress.clone();
         let cancelled_clone = self.izzyrisk_scan_cancelled.clone();
@@ -593,7 +593,7 @@ impl TabScanControl {
         let both_none = vt_progress.is_none() && ha_progress.is_none();
         let has_scanner_state = vt_scanner_state.is_some() || ha_scanner_state.is_some();
         let cache_needs_init = both_none && has_scanner_state && self.cached_scan_counts.vt_counts.0.1 == 0;
-        
+
         let cache_valid = self.cached_scan_counts.vt_progress == vt_progress
             && self.cached_scan_counts.ha_progress == ha_progress
             && !cache_needs_init;
@@ -1056,7 +1056,7 @@ impl TabScanControl {
     pub fn ui(&mut self, ui: &mut egui::Ui, hybridanalysis_tag_ignorelist: &str) {
         // Note: Progress sync is now done in uad_shizuku_app.sync_scan_progress() before rendering
         // to ensure progress bars hide immediately when background tasks complete
-        
+
         // Sync risk scores from background thread
         self.sync_risk_scores();
 
@@ -1078,7 +1078,7 @@ impl TabScanControl {
 
         // Check if mobile view for filter button style
         let filter_is_mobile = ui.available_width() < DESKTOP_MIN_WIDTH;
-        
+
         if !installed_packages.is_empty() {
 
             // VirusTotal Filter Buttons
@@ -1363,14 +1363,14 @@ impl TabScanControl {
             }
         });
 
-        ui.horizontal(|ui| { 
+        ui.horizontal(|ui| {
             // Sort buttons for hidden columns in mobile view
             if !filter_is_mobile {
                 return;
             }
-            
+
             ui.label(tr!("sort-by"));
-            
+
             // IzzyRisk sort button
             let izzy_selected = self.sort_column == Some(1);
             let izzy_label = if izzy_selected {
@@ -1387,7 +1387,7 @@ impl TabScanControl {
                 }
                 self.sort_packages();
             }
-            
+
             // VirusTotal sort button
             let vt_selected = self.sort_column == Some(2);
             let vt_label = if vt_selected {
@@ -1404,7 +1404,7 @@ impl TabScanControl {
                 }
                 self.sort_packages();
             }
-            
+
             // HybridAnalysis sort button
             let ha_selected = self.sort_column == Some(3);
             let ha_label = if ha_selected {
@@ -1421,7 +1421,7 @@ impl TabScanControl {
                 }
                 self.sort_packages();
             }
-        }); 
+        });
 
         if self.sort_column.is_some() {
             self.sort_packages();
@@ -1456,7 +1456,7 @@ impl TabScanControl {
             .id(egui::Id::new("scan_data_table"))
             .default_row_height(if is_desktop { 56.0 } else { 80.0 })
             // .auto_row_height(true)
-            .sortable_column(tr!("col-package-name"), if is_desktop { 350.0 * width_ratio } else { available_width * 0.65 }, false);
+            .sortable_column(tr!("col-package-name"), if is_desktop { 350.0 * width_ratio } else { (available_width * 0.65 + (50.0/available_width) * 0.65) }, false);
         if is_desktop {
             interactive_table = interactive_table
                 .sortable_column(tr!("col-izzy-risk"), 80.0 * width_ratio, true)
@@ -1464,7 +1464,7 @@ impl TabScanControl {
                 .sortable_column(tr!("col-hybrid-analysis"), 200.0 * width_ratio, false);
         }
         interactive_table = interactive_table
-            .sortable_column(tr!("col-tasks"), if is_desktop { 170.0 * width_ratio } else { available_width * 0.3 }, false)
+            .sortable_column(tr!("col-tasks"), if is_desktop { 170.0 * width_ratio } else { (available_width * 0.3 + (50.0/available_width) * 0.3) }, false)
             .allow_selection(false);
 
         for (idx, package) in installed_packages.iter().enumerate() {
@@ -1577,12 +1577,12 @@ impl TabScanControl {
                                                 .color(egui::Color32::GRAY),
                                         );
                                     }
-                                    
+
                                 });
                             });
                             if !is_desktop {
                                 ui.horizontal(|ui| {
-                                
+
                                     ui.add_space(4.0);
                                     egui::ScrollArea::horizontal()
                                         .id_salt(format!("scan_badge_scroll_{}", idx))
@@ -1831,7 +1831,7 @@ impl TabScanControl {
                         });
                     });
 
-                    
+
 
                 // IzzyRisk column (desktop only)
                 let row_builder = if is_desktop {
@@ -2063,14 +2063,14 @@ impl TabScanControl {
                                                     }
                                                 }
                                             };
-                                        
+
                                             // Check if all tags are ignored
                                             let ignorelist_tags: Vec<String> = ha_tag_ignorelist
                                                 .split(',')
                                                 .map(|s| s.trim().to_lowercase())
                                                 .filter(|s| !s.is_empty())
                                                 .collect();
-                                        
+
                                             let all_tags_ignored = if file_result.classification_tags.is_empty() {
                                                 // No tags means we should treat it as ignored
                                                 true
@@ -2080,7 +2080,7 @@ impl TabScanControl {
                                                     ignorelist_tags.contains(&tag.to_lowercase())
                                                 })
                                             };
-                                        
+
                                             let bg_color = match file_result.verdict.as_str() {
                                                 "malicious" => {
                                                     if all_tags_ignored {
@@ -2144,7 +2144,7 @@ impl TabScanControl {
                         .show(ui, |ui| {
                         ui.horizontal(|ui| {
                             ui.spacing_mut().item_spacing.x = 0.0;
-                            
+
                             // Info button - open package details dialog
                             if ui.add(icon_button_standard(ICON_INFO.to_string())).on_hover_text(tr!("package-info")).clicked() {
                                 if let Ok(mut clicked) = clicked_idx_clone.lock() {
@@ -2255,7 +2255,7 @@ impl TabScanControl {
         if table_response.selected_rows.len() == self.selected_packages.len() {
             self.selected_packages = table_response.selected_rows;
         }
-    
+
 
         // Handle package info button click
         if let Ok(clicked) = clicked_package_idx.lock() {
