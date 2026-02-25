@@ -150,6 +150,7 @@ adb_sumpsys_usagestats_history
 .config
 
 .claude
+.zed
 
 # AI Rules - Generated Files
 **/.agents/commands/*-ai-rules.md

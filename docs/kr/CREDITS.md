@@ -10,6 +10,7 @@
 | [android-activity](https://github.com/rust-mobile/android-activity) | Android activity 글루 크레이트 | MIT/Apache-2.0 |
 | [ai-rules](https://github.com/block/ai-rules) | AI 규칙 설정 | Apache-2.0 |
 | [aShell](https://gitlab.com/sunilpaulmathew/ashell) | Shizuku 기반 Android 기기용 로컬 ADB 셸 | GPL-3.0 |
+| [Stalkerware Indicators](https://github.com/AssoEchap/stalkerware-indicators) | 커뮤니티 기반 스토커웨어 침해 지표 데이터베이스 | CC0-1.0 |
 
 ## Rust 라이브러리
 

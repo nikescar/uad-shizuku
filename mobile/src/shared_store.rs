@@ -1,6 +1,7 @@
 use crate::adb::PackageFingerprint;
 use crate::calc_androidpackage::AndroidPackageInfo;
 use crate::calc_hybridanalysis::ScannerState as HaScannerState;
+use crate::calc_stalkerware_stt::StalkerwareIndicators;
 use crate::calc_virustotal::ScannerState as VtScannerState;
 use crate::models::{ApkMirrorApp, FDroidApp, GooglePlayApp};
 use crate::shared_store_stt::{SharedStore, SharedStoreUpdate};
@@ -22,6 +23,7 @@ impl SharedStore {
         Self {
             installed_packages: Mutex::new(Vec::new()),
             uad_ng_lists: Mutex::new(None),
+            stalkerware_indicators: Mutex::new(None),
             google_play_textures: Mutex::new(HashMap::new()),
             fdroid_textures: Mutex::new(HashMap::new()),
             apkmirror_textures: Mutex::new(HashMap::new()),
@@ -48,6 +50,11 @@ impl SharedStore {
                 SharedStoreUpdate::UadNgLists(lists) => {
                     if let Ok(mut uad) = self.uad_ng_lists.lock() {
                         *uad = lists;
+                    }
+                }
+                SharedStoreUpdate::StalkerwareIndicators(indicators) => {
+                    if let Ok(mut stalkerware) = self.stalkerware_indicators.lock() {
+                        *stalkerware = indicators;
                     }
                 }
                 SharedStoreUpdate::CachedGooglePlayApp { pkg_id, app } => {
@@ -109,6 +116,26 @@ impl SharedStore {
     pub fn queue_uad_ng_lists(&self, lists: Option<UadNgLists>) {
         self.update_queue
             .push(SharedStoreUpdate::UadNgLists(lists));
+    }
+
+    // === Stalkerware indicators ===
+
+    pub fn get_stalkerware_indicators(&self) -> Option<StalkerwareIndicators> {
+        self.stalkerware_indicators
+            .lock()
+            .ok()
+            .and_then(|g| g.clone())
+    }
+
+    pub fn set_stalkerware_indicators(&self, indicators: Option<StalkerwareIndicators>) {
+        if let Ok(mut stalkerware) = self.stalkerware_indicators.lock() {
+            *stalkerware = indicators;
+        }
+    }
+
+    pub fn queue_stalkerware_indicators(&self, indicators: Option<StalkerwareIndicators>) {
+        self.update_queue
+            .push(SharedStoreUpdate::StalkerwareIndicators(indicators));
     }
 
     // === Texture caches ===
