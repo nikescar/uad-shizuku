@@ -1433,7 +1433,13 @@ impl TabDebloatControl {
                     });
 
                 // Install reason badge
-                ui.label(egui::RichText::new(install_reason).small().color(egui::Color32::GRAY).size(10.0));
+                egui::Frame::new()
+                    .stroke(egui::Stroke::new(1.0, egui::Color32::from_rgb(158, 158, 158)))
+                    .corner_radius(6.0)
+                    .inner_margin(egui::Margin::symmetric(8, 3))
+                    .show(ui, |ui| {
+                        ui.label(egui::RichText::new(install_reason).size(10.0));
+                    });
             };
 
             debloat_table = debloat_table.row(|table_row| {
@@ -1566,7 +1572,21 @@ impl TabDebloatControl {
                     });
 
                     // Install reason column
-                    row_builder = row_builder.cell(install_reason);
+                    let install_reason_clone2 = install_reason.clone();
+                    row_builder = row_builder.widget_cell(move |ui: &mut egui::Ui| {
+                        ui.horizontal(|ui| {
+                            egui::Frame::new()
+                                .stroke(egui::Stroke::new(1.0, egui::Color32::from_rgb(158, 158, 158)))
+                                .corner_radius(8.0)
+                                .inner_margin(egui::Margin::symmetric(12, 6))
+                                .show(ui, |ui| {
+                                    ui.label(
+                                        egui::RichText::new(&install_reason_clone2)
+                                            .size(12.0),
+                                    );
+                                });
+                        });
+                    });
                 }
 
                 // Tasks column
