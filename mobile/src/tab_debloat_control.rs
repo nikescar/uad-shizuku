@@ -832,7 +832,7 @@ impl TabDebloatControl {
         // Get viewport width for responsive design
         let available_width = ui.ctx().content_rect().width();
         let is_desktop = available_width >= DESKTOP_MIN_WIDTH;
-        
+
         let mut result = None;
         let store = get_shared_store();
 
@@ -859,7 +859,7 @@ impl TabDebloatControl {
 
         // Filter Buttons
         if !installed_packages.is_empty() {
-            ui.horizontal_wrapped(|ui| { 
+            ui.horizontal_wrapped(|ui| {
                 let all_total = installed_packages.len();
                 let all_enabled = installed_packages.iter().filter(|p| self.is_package_enabled(p)).count();
                 let all_text = tr!("all", { enabled: all_enabled, total: all_total });
@@ -994,7 +994,7 @@ impl TabDebloatControl {
                         self.active_filter = DebloatFilter::Unknown;
                     }
                 }
-            }); 
+            });
         }
 
         if installed_packages.is_empty() {
@@ -1003,7 +1003,7 @@ impl TabDebloatControl {
         }
 
         // Batch action buttons
-        ui.horizontal(|ui| { 
+        ui.horizontal(|ui| {
             let selected_count = self.selected_packages.len();
 
             if filter_is_mobile {
@@ -1074,11 +1074,11 @@ impl TabDebloatControl {
                     }
                 }
             }
-        }); 
+        });
         ui.add_space(10.0);
 
         // Show only enabled toggle
-        ui.horizontal_wrapped(|ui| { 
+        ui.horizontal_wrapped(|ui| {
             ui.label(tr!("show-only-enabled"));
             toggle_ui(ui, &mut self.show_only_enabled);
             ui.add_space(10.0);
@@ -1102,22 +1102,16 @@ impl TabDebloatControl {
             if !self.text_filter.is_empty() && ui.button("X").clicked() {
                 self.text_filter.clear();
             }
+        });
 
-            if is_desktop {
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    ui.label(format!("* RP: {}", tr!("col-runtime-permissions")));
-                });
-            }
-        }); 
-
-        ui.horizontal_wrapped(|ui| { 
+        ui.horizontal_wrapped(|ui| {
             // Sort buttons for hidden columns in mobile view
             if !filter_is_mobile {
                 return;
             }
-            
+
             ui.label(tr!("sort-by"));
-            
+
             // Debloat Category sort button
             let category_selected = self.sort_column == Some(1);
             let category_label = if category_selected {
@@ -1134,13 +1128,13 @@ impl TabDebloatControl {
                 }
                 self.sort_packages();
             }
-            
+
             // Runtime Permissions sort button
             let rp_selected = self.sort_column == Some(2);
             let rp_label = if rp_selected {
-                format!("RP {}", if self.sort_ascending { "▲" } else { "▼" })
+                format!("{} {}", tr!("col-runtime-permissions"), if self.sort_ascending { "▲" } else { "▼" })
             } else {
-                "RP ▼".to_string() // Default descending
+                format!("{} {}", tr!("col-runtime-permissions"), "▼") // Default descending
             };
             if ui.selectable_label(rp_selected, rp_label).clicked() {
                 if self.sort_column == Some(2) {
@@ -1151,7 +1145,7 @@ impl TabDebloatControl {
                 }
                 self.sort_packages();
             }
-            
+
             // Enabled sort button
             let enabled_selected = self.sort_column == Some(3);
             let enabled_label = if enabled_selected {
@@ -1168,7 +1162,7 @@ impl TabDebloatControl {
                 }
                 self.sort_packages();
             }
-            
+
             // Install Reason sort button
             let reason_selected = self.sort_column == Some(4);
             let reason_label = if reason_selected {
@@ -1185,7 +1179,7 @@ impl TabDebloatControl {
                 }
                 self.sort_packages();
             }
-        }); 
+        });
 
         let clicked_package_idx = std::sync::Arc::new(std::sync::Mutex::new(None::<usize>));
 
@@ -1202,8 +1196,8 @@ impl TabDebloatControl {
         if is_desktop {
             debloat_table = debloat_table
                 .sortable_column(tr!("col-debloat-category"), 130.0 * width_ratio, false)
-                .sortable_column("RP", 80.0 * width_ratio, true)
-                .sortable_column(tr!("col-enabled"), 120.0 * width_ratio, false)
+                .sortable_column(tr!("col-runtime-permissions"), 80.0 * width_ratio, true)
+                //.sortable_column(tr!("col-enabled"), 120.0 * width_ratio, false)
                 .sortable_column(tr!("col-install-reason"), 110.0 * width_ratio, false);
         }
         debloat_table = debloat_table
@@ -1414,18 +1408,18 @@ impl TabDebloatControl {
                     });
 
                 // Enabled status badge
-                let enabled_bg_color = match enabled_text {
-                    "REMOVED_USER" | "DISABLED" | "DISABLED_USER" => egui::Color32::from_rgb(211, 47, 47),
-                    "DEFAULT" | "ENABLED" | "UNKNOWN" => egui::Color32::from_rgb(56, 142, 60),
-                    _ => egui::Color32::from_rgb(158, 158, 158),
-                };
-                egui::Frame::new()
-                    .fill(enabled_bg_color)
-                    .corner_radius(6.0)
-                    .inner_margin(egui::Margin::symmetric(8, 3))
-                    .show(ui, |ui| {
-                        ui.label(egui::RichText::new(enabled_text).color(egui::Color32::WHITE).size(10.0));
-                    });
+                // let enabled_bg_color = match enabled_text {
+                //     "REMOVED_USER" | "DISABLED" | "DISABLED_USER" => egui::Color32::from_rgb(211, 47, 47),
+                //     "DEFAULT" | "ENABLED" | "UNKNOWN" => egui::Color32::from_rgb(56, 142, 60),
+                //     _ => egui::Color32::from_rgb(158, 158, 158),
+                // };
+                // egui::Frame::new()
+                //     .fill(enabled_bg_color)
+                //     .corner_radius(6.0)
+                //     .inner_margin(egui::Margin::symmetric(8, 3))
+                //     .show(ui, |ui| {
+                //         ui.label(egui::RichText::new(enabled_text).color(egui::Color32::WHITE).size(10.0));
+                //     });
 
                 // Install reason badge
                 ui.label(egui::RichText::new(install_reason).small().color(egui::Color32::GRAY).size(10.0));
@@ -1538,23 +1532,23 @@ impl TabDebloatControl {
                     row_builder = row_builder.cell(&runtime_perms);
 
                     // Enabled column
-                    let enabled_text_clone = enabled_text.clone();
-                    row_builder = row_builder.widget_cell(move |ui: &mut egui::Ui| {
-                        let bg_color = match enabled_text_clone.as_str() {
-                            "REMOVED_USER" | "DISABLED" | "DISABLED_USER" => egui::Color32::from_rgb(211, 47, 47),
-                            "DEFAULT" | "ENABLED" | "UNKNOWN" => egui::Color32::from_rgb(56, 142, 60),
-                            _ => egui::Color32::from_rgb(158, 158, 158),
-                        };
-                        ui.horizontal(|ui| {
-                            egui::Frame::new()
-                                .fill(bg_color)
-                                .corner_radius(8.0)
-                                .inner_margin(egui::Margin::symmetric(12, 6))
-                                .show(ui, |ui| {
-                                    ui.label(egui::RichText::new(&enabled_text_clone).color(egui::Color32::WHITE).size(12.0));
-                                });
-                        });
-                    });
+                    // let enabled_text_clone = enabled_text.clone();
+                    // row_builder = row_builder.widget_cell(move |ui: &mut egui::Ui| {
+                    //     let bg_color = match enabled_text_clone.as_str() {
+                    //         "REMOVED_USER" | "DISABLED" | "DISABLED_USER" => egui::Color32::from_rgb(211, 47, 47),
+                    //         "DEFAULT" | "ENABLED" | "UNKNOWN" => egui::Color32::from_rgb(56, 142, 60),
+                    //         _ => egui::Color32::from_rgb(158, 158, 158),
+                    //     };
+                    //     ui.horizontal(|ui| {
+                    //         egui::Frame::new()
+                    //             .fill(bg_color)
+                    //             .corner_radius(8.0)
+                    //             .inner_margin(egui::Margin::symmetric(12, 6))
+                    //             .show(ui, |ui| {
+                    //                 ui.label(egui::RichText::new(&enabled_text_clone).color(egui::Color32::WHITE).size(12.0));
+                    //             });
+                    //     });
+                    // });
 
                     // Install reason column
                     row_builder = row_builder.cell(install_reason);
@@ -1576,7 +1570,7 @@ impl TabDebloatControl {
                                     *clicked = Some(idx);
                                 }
                             }
-                            
+
                             // Enable/disable toggle
                             let pkg_enabled = enabled_str.contains("DEFAULT") || enabled_str.contains("ENABLED");
                             let can_show_toggle = !is_unsafe_blocked || !pkg_enabled;
