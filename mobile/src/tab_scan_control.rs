@@ -1623,7 +1623,7 @@ impl TabScanControl {
                                                             .corner_radius(6.0)
                                                             .inner_margin(egui::Margin::symmetric(8, 3))
                                                             .show(ui, |ui| {
-                                                                ui.label(egui::RichText::new(&text).color(egui::Color32::WHITE).size(10.0));
+                                                                ui.label(egui::RichText::new(format!("VT:{}", &text)).color(egui::Color32::WHITE).size(10.0));
                                                             });
 
                                                         let response = ui.interact(
@@ -1804,7 +1804,7 @@ impl TabScanControl {
                                                             .corner_radius(6.0)
                                                             .inner_margin(egui::Margin::symmetric(8, 3))
                                                             .show(ui, |ui| {
-                                                                ui.label(egui::RichText::new(&text).color(egui::Color32::WHITE).size(10.0));
+                                                                ui.label(egui::RichText::new(format!("HA:{}", &text)).color(egui::Color32::WHITE).size(10.0));
                                                             });
 
                                                         let response = ui.interact(
