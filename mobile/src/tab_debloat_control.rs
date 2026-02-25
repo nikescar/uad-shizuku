@@ -1001,7 +1001,7 @@ impl TabDebloatControl {
         }
 
         // Batch action buttons
-        ui.horizontal(|ui| {
+        ui.horizontal_wrapped(|ui| {
             let selected_count = self.selected_packages.len();
 
             if filter_is_mobile {
@@ -1189,8 +1189,9 @@ impl TabDebloatControl {
                 self.table_version
             )))
             .default_row_height(if is_desktop { 56.0 } else { 80.0 })
+            .allow_drawer(true)
             // .auto_row_height(true)
-            .sortable_column(tr!("col-package-name"), if is_desktop { 350.0 * width_ratio } else { available_width * 0.52 }, false);
+            .sortable_column(tr!("col-package-name"), if is_desktop { 350.0 * width_ratio } else { (available_width * 0.59 + (50.0/available_width) * 0.59) }, false);
         if is_desktop {
             debloat_table = debloat_table
                 .sortable_column(tr!("col-debloat-category"), 130.0 * width_ratio, false)
@@ -1199,7 +1200,7 @@ impl TabDebloatControl {
                 .sortable_column(tr!("col-install-reason"), 110.0 * width_ratio, false);
         }
         debloat_table = debloat_table
-            .sortable_column(tr!("col-tasks"), if is_desktop { 160.0 * width_ratio } else { available_width * 0.3  }, false)
+            .sortable_column(tr!("col-tasks"), if is_desktop { 160.0 * width_ratio } else { (available_width * 0.3 + (50.0/available_width) * 0.3)  }, false)
             .allow_selection(true);
 
         // Sort column index mapping: self.sort_column uses logical (desktop) indices
@@ -1411,7 +1412,7 @@ impl TabDebloatControl {
                     .corner_radius(6.0)
                     .inner_margin(egui::Margin::symmetric(8, 3))
                     .show(ui, |ui| {
-                        ui.label(egui::RichText::new(&label_text).color(text_color).size(10.0));
+                        ui.label(egui::RichText::new(format!("D:{}", &label_text)).color(text_color).size(10.0));
                     });
 
                 // Stalkerware badge
@@ -1426,14 +1427,20 @@ impl TabDebloatControl {
                     .inner_margin(egui::Margin::symmetric(8, 3))
                     .show(ui, |ui| {
                         ui.label(
-                            egui::RichText::new(stalkerware_text)
+                            egui::RichText::new(format!("S:{}", stalkerware_text))
                                 .color(egui::Color32::WHITE)
                                 .size(10.0),
                         );
                     });
 
                 // Install reason badge
-                ui.label(egui::RichText::new(install_reason).small().color(egui::Color32::GRAY).size(10.0));
+                egui::Frame::new()
+                    .stroke(egui::Stroke::new(1.0, egui::Color32::from_rgb(158, 158, 158)))
+                    .corner_radius(6.0)
+                    .inner_margin(egui::Margin::symmetric(8, 3))
+                    .show(ui, |ui| {
+                        ui.label(egui::RichText::new(format!("I:{}", install_reason)).size(10.0));
+                    });
             };
 
             debloat_table = debloat_table.row(|table_row| {
@@ -1566,7 +1573,21 @@ impl TabDebloatControl {
                     });
 
                     // Install reason column
-                    row_builder = row_builder.cell(install_reason);
+                    let install_reason_clone2 = install_reason.clone();
+                    row_builder = row_builder.widget_cell(move |ui: &mut egui::Ui| {
+                        ui.horizontal(|ui| {
+                            egui::Frame::new()
+                                .stroke(egui::Stroke::new(1.0, egui::Color32::from_rgb(158, 158, 158)))
+                                .corner_radius(8.0)
+                                .inner_margin(egui::Margin::symmetric(12, 6))
+                                .show(ui, |ui| {
+                                    ui.label(
+                                        egui::RichText::new(&install_reason_clone2)
+                                            .size(12.0),
+                                    );
+                                });
+                        });
+                    });
                 }
 
                 // Tasks column
@@ -1617,6 +1638,16 @@ impl TabDebloatControl {
                         });
                     });
                 });
+
+                // Add drawer for UAD description
+                if let Some(uad_entry) = uad_ng_lists_ref.and_then(|lists| lists.apps.get(&pkg_id_clone)) {
+                    let description = uad_entry.description.clone();
+                    row_builder = row_builder.drawer(move |ui| {
+                        ui.add_space(8.0);
+                        ui.label("Description:");
+                        ui.add(egui::Label::new(&description).wrap());
+                    });
+                }
 
                 row_builder = row_builder.id(format!("debloat_table_row_{}", idx));
 
