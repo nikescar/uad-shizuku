@@ -343,11 +343,17 @@ jobs:
               continue
             fi
 
-            # Extract filename from path
-            filename=$(basename "$file")
+            # Extract identifier from path
+            # For .exe and .apk files, use the filename
+            # For other files (binaries), use the parent directory name which contains platform info
+            if [[ "$file" == *.exe ]] || [[ "$file" == *.apk ]]; then
+              identifier=$(basename "$file")
+            else
+              identifier=$(basename "$(dirname "$file")")
+            fi
 
             # Build markdown link
-            FORMATTED_RESULTS="${FORMATTED_RESULTS}- **${filename}**: [View VirusTotal Report](${url})\n"
+            FORMATTED_RESULTS="${FORMATTED_RESULTS}- **${identifier}**: [View VirusTotal Report](${url})\n"
           done
 
           # Check if we have formatted results
