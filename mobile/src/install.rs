@@ -16,6 +16,11 @@ const APP_NAME: &str = "uad-shizuku";
 const GITHUB_REPO: &str = "nikescar/uad-shizuku";
 const CURRENT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
+/// Get versioned app name (e.g., "uad-shizuku-1.0.0")
+fn get_versioned_app_name() -> String {
+    format!("{}-{}", APP_NAME, CURRENT_VERSION)
+}
+
 /// Get platform-specific installation paths
 pub fn get_install_paths() -> InstallPaths {
     #[cfg(target_os = "linux")]
@@ -86,7 +91,7 @@ pub fn check_install() -> InstallStatus {
 
     #[cfg(target_os = "linux")]
     {
-        let binary_path = paths.bin_dir.join(APP_NAME);
+        let binary_path = paths.bin_dir.join(get_versioned_app_name());
         let desktop_file_exists = paths
             .start_menu_entry
             .as_ref()
@@ -99,7 +104,7 @@ pub fn check_install() -> InstallStatus {
 
     #[cfg(target_os = "macos")]
     {
-        let app_bundle = paths.bin_dir.join(format!("{}.app", APP_NAME));
+        let app_bundle = paths.bin_dir.join(format!("{}.app", get_versioned_app_name()));
         if app_bundle.exists() {
             return InstallStatus::Installed;
         }
@@ -107,7 +112,7 @@ pub fn check_install() -> InstallStatus {
 
     #[cfg(target_os = "windows")]
     {
-        let binary_path = paths.bin_dir.join(format!("{}.exe", APP_NAME));
+        let binary_path = paths.bin_dir.join(format!("{}.exe", get_versioned_app_name()));
         if binary_path.exists() {
             // Also check registry
             if check_windows_registry(&paths) {
@@ -187,7 +192,7 @@ pub fn do_install() -> InstallResult {
 
 #[cfg(target_os = "linux")]
 fn install_linux(paths: &InstallPaths, current_exe: &PathBuf) -> Result<String, String> {
-    let binary_dest = paths.bin_dir.join(APP_NAME);
+    let binary_dest = paths.bin_dir.join(get_versioned_app_name());
 
     // Copy binary
     fs::copy(current_exe, &binary_dest)
@@ -216,7 +221,7 @@ fn install_linux(paths: &InstallPaths, current_exe: &PathBuf) -> Result<String, 
     // Create .desktop file for applications menu
     let desktop_content = format!(
         r#"[Desktop Entry]
-Name=UAD-Shizuku
+Name=UAD-Shizuku {}
 Comment=Universal Android Debloater with Shizuku support
 Exec={}
 Icon={}
@@ -225,6 +230,7 @@ Type=Application
 Categories=Utility;Development;
 Keywords=android;debloat;shizuku;adb;
 "#,
+        CURRENT_VERSION,
         binary_dest.display(),
         binary_dest.display() // TODO: Add proper icon path
     );
@@ -246,7 +252,7 @@ Keywords=android;debloat;shizuku;adb;
 
 #[cfg(target_os = "macos")]
 fn install_macos(paths: &InstallPaths, current_exe: &PathBuf) -> Result<String, String> {
-    let app_bundle = paths.bin_dir.join(format!("{}.app", APP_NAME));
+    let app_bundle = paths.bin_dir.join(format!("{}.app", get_versioned_app_name()));
     let contents_dir = app_bundle.join("Contents");
     let macos_dir = contents_dir.join("MacOS");
 
@@ -255,7 +261,7 @@ fn install_macos(paths: &InstallPaths, current_exe: &PathBuf) -> Result<String, 
         .map_err(|e| format!("Failed to create app bundle: {}", e))?;
 
     // Copy binary
-    let binary_dest = macos_dir.join(APP_NAME);
+    let binary_dest = macos_dir.join(get_versioned_app_name());
     fs::copy(current_exe, &binary_dest)
         .map_err(|e| format!("Failed to copy binary: {}", e))?;
 
@@ -272,6 +278,7 @@ fn install_macos(paths: &InstallPaths, current_exe: &PathBuf) -> Result<String, 
     }
 
     // Create Info.plist
+    let versioned_name = get_versioned_app_name();
     let info_plist = format!(
         r#"<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -282,7 +289,7 @@ fn install_macos(paths: &InstallPaths, current_exe: &PathBuf) -> Result<String, 
     <key>CFBundleIdentifier</key>
     <string>pe.nikescar.uad-shizuku</string>
     <key>CFBundleName</key>
-    <string>UAD-Shizuku</string>
+    <string>UAD-Shizuku {}</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
@@ -296,7 +303,7 @@ fn install_macos(paths: &InstallPaths, current_exe: &PathBuf) -> Result<String, 
 </dict>
 </plist>
 "#,
-        APP_NAME, CURRENT_VERSION, CURRENT_VERSION
+        versioned_name, CURRENT_VERSION, CURRENT_VERSION, CURRENT_VERSION
     );
 
     fs::write(contents_dir.join("Info.plist"), info_plist)
@@ -309,7 +316,7 @@ fn install_macos(paths: &InstallPaths, current_exe: &PathBuf) -> Result<String, 
 fn install_windows(paths: &InstallPaths, current_exe: &PathBuf) -> Result<String, String> {
     use std::process::Command;
 
-    let binary_dest = paths.bin_dir.join(format!("{}.exe", APP_NAME));
+    let binary_dest = paths.bin_dir.join(format!("{}.exe", get_versioned_app_name()));
 
     // Copy binary
     fs::copy(current_exe, &binary_dest)
@@ -405,7 +412,7 @@ pub fn do_uninstall() -> InstallResult {
 
 #[cfg(target_os = "linux")]
 fn uninstall_linux(paths: &InstallPaths) -> Result<String, String> {
-    let binary_path = paths.bin_dir.join(APP_NAME);
+    let binary_path = paths.bin_dir.join(get_versioned_app_name());
 
     // Remove binary
     if binary_path.exists() {
@@ -426,7 +433,7 @@ fn uninstall_linux(paths: &InstallPaths) -> Result<String, String> {
 
 #[cfg(target_os = "macos")]
 fn uninstall_macos(paths: &InstallPaths) -> Result<String, String> {
-    let app_bundle = paths.bin_dir.join(format!("{}.app", APP_NAME));
+    let app_bundle = paths.bin_dir.join(format!("{}.app", get_versioned_app_name()));
 
     if app_bundle.exists() {
         fs::remove_dir_all(&app_bundle)
@@ -440,7 +447,7 @@ fn uninstall_macos(paths: &InstallPaths) -> Result<String, String> {
 fn uninstall_windows(paths: &InstallPaths) -> Result<String, String> {
     use std::process::Command;
 
-    let binary_path = paths.bin_dir.join(format!("{}.exe", APP_NAME));
+    let binary_path = paths.bin_dir.join(format!("{}.exe", get_versioned_app_name()));
 
     // Remove shortcuts
     if let Some(ref start_menu) = paths.start_menu_entry {
@@ -656,9 +663,9 @@ fn extract_zip(archive_path: &PathBuf, dest_dir: &PathBuf) -> Result<PathBuf, St
 
 fn find_binary_in_dir(dir: &PathBuf) -> Result<PathBuf, String> {
     #[cfg(target_os = "windows")]
-    let binary_name = format!("{}.exe", APP_NAME);
+    let binary_name = format!("{}.exe", get_versioned_app_name());
     #[cfg(not(target_os = "windows"))]
-    let binary_name = APP_NAME.to_string();
+    let binary_name = get_versioned_app_name();
 
     for entry in walkdir(dir) {
         if let Ok(entry) = entry {
@@ -693,9 +700,9 @@ fn walkdir(dir: &PathBuf) -> impl Iterator<Item = Result<fs::DirEntry, io::Error
 
 fn replace_binary(new_binary: &PathBuf, paths: &InstallPaths) -> Result<String, String> {
     #[cfg(target_os = "windows")]
-    let dest = paths.bin_dir.join(format!("{}.exe", APP_NAME));
+    let dest = paths.bin_dir.join(format!("{}.exe", get_versioned_app_name()));
     #[cfg(not(target_os = "windows"))]
-    let dest = paths.bin_dir.join(APP_NAME);
+    let dest = paths.bin_dir.join(get_versioned_app_name());
 
     // On Windows, rename current binary before replacing
     #[cfg(target_os = "windows")]
