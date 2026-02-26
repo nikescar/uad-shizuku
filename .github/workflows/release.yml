@@ -307,60 +307,91 @@ jobs:
       - name: Parse Analysis Results
         id: parse_results
         run: |
+          # Extract changelog from CHANGELOG.md (first "What's Changed" section only)
+          CHANGELOG_CONTENT=""
+          if [ -f "CHANGELOG.md" ]; then
+            echo "Extracting changelog from CHANGELOG.md..."
+
+            # Read the first "What's Changed" section
+            # Stop at the next "##" heading or end of file
+            CHANGELOG_RAW=$(awk '
+              /^## What'\''s Changed$/ { in_section=1; next }
+              in_section && /^##/ { exit }
+              in_section && NF { print }
+            ' CHANGELOG.md)
+
+            # Process changelog: remove "by @username" and deduplicate
+            if [ -n "$CHANGELOG_RAW" ]; then
+              # Remove "by @username" pattern and deduplicate lines
+              CHANGELOG_CONTENT=$(echo "$CHANGELOG_RAW" | \
+                sed -E 's/ by @[a-zA-Z0-9_-]+//g' | \
+                awk '!seen[$0]++')
+
+              echo "Processed changelog:"
+              echo "$CHANGELOG_CONTENT"
+            fi
+          fi
+
           # Get the analysis output from previous step
           ANALYSIS="${{ steps.vt_scan.outputs.analysis }}"
 
           echo "Raw analysis output:"
           echo "$ANALYSIS"
 
-          # Check if we have any results
-          if [ -z "$ANALYSIS" ]; then
-            echo "Warning: No analysis output from VirusTotal scan"
-            echo "formatted_results<<EOF" >> $GITHUB_OUTPUT
-            echo "⚠️ VirusTotal scan encountered errors. Some files may have been scanned previously (409 error)." >> $GITHUB_OUTPUT
-            echo "EOF" >> $GITHUB_OUTPUT
-            exit 0
-          fi
-
           # Parse the analysis output and format for release notes
           # Format: file1=url1,file2=url2,...
 
+          VT_RESULTS=""
+
+          # Check if we have any results
+          if [ -z "$ANALYSIS" ]; then
+            echo "Warning: No analysis output from VirusTotal scan"
+            VT_RESULTS="⚠️ VirusTotal scan encountered errors. Some files may have been scanned previously (409 error)."
+          else
+            # Split by comma and process each entry
+            IFS=',' read -ra ENTRIES <<< "$ANALYSIS"
+            for entry in "${ENTRIES[@]}"; do
+              # Skip empty entries
+              if [ -z "$entry" ]; then
+                continue
+              fi
+
+              # Split by = to get file and URL
+              IFS='=' read -r file url <<< "$entry"
+
+              # Skip if file or url is empty
+              if [ -z "$file" ] || [ -z "$url" ]; then
+                continue
+              fi
+
+              # Extract identifier from path
+              # For .exe and .apk files, use the filename
+              # For other files (binaries), use the parent directory name which contains platform info
+              if [[ "$file" == *.exe ]] || [[ "$file" == *.apk ]]; then
+                identifier=$(basename "$file")
+              else
+                identifier=$(basename "$(dirname "$file")")
+              fi
+
+              # Build markdown link
+              VT_RESULTS="${VT_RESULTS}- **${identifier}**: [View VirusTotal Report](${url})\n"
+            done
+
+            # Check if we have formatted results
+            if [ -z "$VT_RESULTS" ]; then
+              echo "Warning: No valid results to format"
+              VT_RESULTS="⚠️ No scan results available. Files may have been scanned recently."
+            fi
+          fi
+
+          # Combine changelog and VirusTotal results
           FORMATTED_RESULTS=""
 
-          # Split by comma and process each entry
-          IFS=',' read -ra ENTRIES <<< "$ANALYSIS"
-          for entry in "${ENTRIES[@]}"; do
-            # Skip empty entries
-            if [ -z "$entry" ]; then
-              continue
-            fi
-
-            # Split by = to get file and URL
-            IFS='=' read -r file url <<< "$entry"
-
-            # Skip if file or url is empty
-            if [ -z "$file" ] || [ -z "$url" ]; then
-              continue
-            fi
-
-            # Extract identifier from path
-            # For .exe and .apk files, use the filename
-            # For other files (binaries), use the parent directory name which contains platform info
-            if [[ "$file" == *.exe ]] || [[ "$file" == *.apk ]]; then
-              identifier=$(basename "$file")
-            else
-              identifier=$(basename "$(dirname "$file")")
-            fi
-
-            # Build markdown link
-            FORMATTED_RESULTS="${FORMATTED_RESULTS}- **${identifier}**: [View VirusTotal Report](${url})\n"
-          done
-
-          # Check if we have formatted results
-          if [ -z "$FORMATTED_RESULTS" ]; then
-            echo "Warning: No valid results to format"
-            FORMATTED_RESULTS="⚠️ No scan results available. Files may have been scanned recently."
+          if [ -n "$CHANGELOG_CONTENT" ]; then
+            FORMATTED_RESULTS="${FORMATTED_RESULTS}## What's Changed\n${CHANGELOG_CONTENT}\n\n"
           fi
+
+          FORMATTED_RESULTS="${FORMATTED_RESULTS}## VirusTotal Scan Results\n${VT_RESULTS}"
 
           # Save to output (escape for GitHub Actions)
           echo "formatted_results<<EOF" >> $GITHUB_OUTPUT
