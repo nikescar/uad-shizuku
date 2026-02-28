@@ -1,4 +1,12 @@
 ## What's Changed
+* chore. add versioncode field to Cargo.toml for fdroid release. by @nikescar
+* chore. add recent changelog to release notes. by @nikescar
+* chore. change release notes to have proper vt filename. by @nikescar
+* chore. fdroid build script. by @nikescar
+* fix. change install bin name and shortcut path. by @nikescar
+
+## What's Changed in 0.0.10
+* release. v0.0.10 by @nikescar
 * fix.UI enhancement by @nikescar in [#44](https://github.com/nikescar/uad-shizuku/pull/44)
 * feat. add uad info text on drawer in debloat table. by @nikescar
 * fix. add prefix to mobile badges in scantable. by @nikescar
@@ -11,6 +19,8 @@
 * fix. change checkbox ui in settings. by @nikescar
 * chore. change vt scan workflow to upload binary not tar archive. by @nikescar
 * chore. separate virustotal github workflow. by @nikescar
+
+**Full Changelog**: https://github.com/nikescar/uad-shizuku/compare/v0.0.9...v0.0.10
 
 ## What's Changed in 0.0.9
 * fix. github workflow code signing error (4). by @nikescar
