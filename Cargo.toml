@@ -28,6 +28,7 @@ egui-material3 = { git = "https://github.com/nikescar/egui-material3/", default-
 [patch.crates-io]
 resvg = { git = "https://github.com/nikescar/resvg" }
 usvg = { git = "https://github.com/nikescar/resvg" }
+android-activity = { git = "https://github.com/nikescar/android-activity.git" }
 
 [profile.release]
 lto = true # "fat"
