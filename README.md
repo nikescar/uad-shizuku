@@ -101,7 +101,8 @@ Get list of FOSS apps, and install directly. github and fdroid auto-install supp
 
 ## Todos
 
-* stalkerware indicator - https://github.com/AssoEchap/stalkerware-indicators
+* android lifecycle adaptation. freeze after recover from sleep.
+* daily scan alert.
 * web version through webusb on browser.(stuck diesel, ureq not available on wasm)
 * usage history & netstats history
 * logcat ?

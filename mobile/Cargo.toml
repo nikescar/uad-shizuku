@@ -64,8 +64,8 @@ diesel_migrations = "2.3.0"
 libsqlite3-sys = { version = "0.30", features = ["bundled"] }
 # wasm-specific dependencies | cargo build --target wasm32-unknown-unknown --release
 serde-wasm-bindgen = "0.6.5"
-wasm-bindgen = "0.2.111"
-wasm-bindgen-futures = "0.4.61"
+wasm-bindgen = "0.2.114"
+wasm-bindgen-futures = "0.4.64"
 
 [dev-dependencies]
 diesel_migrations = { version = "2.3.0" }
@@ -75,7 +75,7 @@ diesel_migrations = { version = "2.3.0" }
 ndk-context = { version = "0.1", default-features = false }
 jni = { version = "0.21", default-features = false }
 android_logger = { version = "0.15", default-features = false }
-android-activity = { version = "0.6", default-features = false, features = ["native-activity"] }
+android-activity = { git = "https://github.com/nikescar/android-activity.git", default-features = false, features = ["native-activity"] }
 ndk-sys = { version = "0.6.0", default-features = false }
 eframe = { workspace = true, default-features = false, features = ["default_fonts","glow","android-native-activity"] }
 
