@@ -1195,7 +1195,8 @@ impl TabDebloatControl {
         if is_desktop {
             debloat_table = debloat_table
                 .sortable_column(tr!("col-debloat-category"), 130.0 * width_ratio, false)
-                .sortable_column(tr!("col-runtime-permissions"), 80.0 * width_ratio, true)
+                .sortable_column("RP", 80.0 * width_ratio, true)
+                .column_tooltip(tr!("col-runtime-permissions"))
                 .sortable_column(tr!("col-stalkerware"), 120.0 * width_ratio, false)
                 .sortable_column(tr!("col-install-reason"), 110.0 * width_ratio, false);
         }
