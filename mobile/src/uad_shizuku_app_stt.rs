@@ -111,6 +111,7 @@ pub struct UadShizukuApp {
 
     pub dlg_about: crate::dlg_about_stt::DlgAbout,
     pub dlg_update: crate::dlg_update_stt::DlgUpdate,
+    pub dlg_dashcounter_details: crate::dlg_dashcounter_details_stt::DlgDashCounterDetails,
 
     // Installation status (desktop only)
     #[cfg(not(target_os = "android"))]
@@ -152,12 +153,22 @@ pub struct UadShizukuApp {
     // Pinch-to-zoom state (Android)
     pub zoom_factor: f32,
 
+    // Dashboard counter scroll offsets
+    pub dash_scroll_debloat: f32,
+    pub dash_scroll_stalkerware: f32,
+    pub dash_scroll_izzyrisk: f32,
+    pub dash_scroll_virustotal: f32,
+    pub dash_scroll_hybridanalysis: f32,
+
     // Installer package name (Android) - cached for UI decisions
     pub installer_package_name: Option<String>,
 
     // Debloat tab performance optimization
     pub debloat_last_enqueued_version: u64,
     pub debloat_last_result_load_time: std::time::Instant,
+
+    // Tab controller state (shared between mobile and desktop UI)
+    pub show_apps_tab: bool,
 }
 
 pub enum AppView {

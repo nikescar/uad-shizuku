@@ -10,7 +10,7 @@ use sys_locale::get_locale;
 use eframe::egui;
 use egui_i18n::tr;
 use egui_material3::menu::{Corner, FocusState, Positioning};
-use egui_material3::{dialog, menu, menu_item, tabs_primary, MaterialButton};
+use egui_material3::{dialog, menu, menu_item, tabs_primary, MaterialButton, dashcounter, icon_button_standard};
 use egui_material3::{get_global_theme, ContrastLevel, MaterialThemeContext, ThemeMode};
 
 use crate::db::{
@@ -18,7 +18,7 @@ use crate::db::{
     invalidate_cache,
 };
 use crate::db_package_cache::get_cached_packages_with_apk;
-use crate::material_symbol_icons::ICON_REFRESH;
+use crate::material_symbol_icons::{ICON_INFO, ICON_REFRESH};
 use crate::models::PackageInfoCache;
 
 #[cfg(not(target_os = "android"))]
@@ -29,10 +29,11 @@ use crate::tab_apps_control::TabAppsControl;
 use crate::tab_debloat_control::TabDebloatControl;
 use crate::tab_scan_control::TabScanControl;
 use crate::tab_usage_control::TabUsageControl;
+use crate::dlg_dashcounter_details::DlgDashCounterDetails;
 use crate::LogLevel;
 
 pub use crate::uad_shizuku_app_stt::*;
-use crate::{Config, Settings};
+use crate::{Config, Settings, DESKTOP_MIN_WIDTH, BASE_TABLE_WIDTH};
 
 use crate::install;
 #[cfg(not(target_os = "android"))]
@@ -294,6 +295,7 @@ impl Default for UadShizukuApp {
 
             dlg_about: crate::dlg_about_stt::DlgAbout::default(),
             dlg_update: crate::dlg_update_stt::DlgUpdate::default(),
+            dlg_dashcounter_details: DlgDashCounterDetails::default(),
 
             // Installation status (desktop only)
             #[cfg(not(target_os = "android"))]
@@ -333,6 +335,13 @@ impl Default for UadShizukuApp {
             // Pinch-to-zoom state
             zoom_factor: 1.0,
 
+            // Dashboard counter scroll offsets
+            dash_scroll_debloat: 0.0,
+            dash_scroll_stalkerware: 0.0,
+            dash_scroll_izzyrisk: 0.0,
+            dash_scroll_virustotal: 0.0,
+            dash_scroll_hybridanalysis: 0.0,
+
             // Installer package name - detect on Android
             #[cfg(target_os = "android")]
             installer_package_name: crate::android_packagemanager::get_installer_package_name(
@@ -344,6 +353,9 @@ impl Default for UadShizukuApp {
             // Debloat tab performance optimization
             debloat_last_enqueued_version: 0,
             debloat_last_result_load_time: std::time::Instant::now(),
+
+            // Tab controller state (shared between mobile and desktop UI)
+            show_apps_tab: true,
         };
 
         // Apply persisted theme preferences
@@ -1045,8 +1057,16 @@ impl UadShizukuApp {
         });
         // === notification render progress area end
 
+        // === tab controller (shared logic for mobile and desktop)
+        self.prepare_tabs_controller();
+
         // === tab area start
-        self.render_custom_tabs(ui);
+        let is_desktop = available_width >= DESKTOP_MIN_WIDTH;
+        if is_desktop {
+            self.render_desktop_tabs(ui);
+        } else { // mobile
+            self.render_mobile_dashboards(ui);
+        }
         // === tab area end
 
         // === logs area start
@@ -1136,7 +1156,509 @@ impl UadShizukuApp {
         self.handle_package_loading_result();
         // === Package loading dialog end
 
-        
+        // === Dashcounter details dialog
+        // Check if a dashcounter was clicked
+        if let Some((dashboard_type, index)) = ui.ctx().data(|data| {
+            data.get_temp::<(&str, usize)>(egui::Id::new("dashcounter_clicked"))
+        }) {
+            use crate::dlg_dashcounter_details_stt::DashCounterCategory;
+
+            // Update cached counts before using them (needed when viewing from dashboard)
+            let shared_store = crate::shared_store_stt::get_shared_store();
+            let installed_packages = shared_store.get_installed_packages();
+            let uad_ng_lists = shared_store.get_uad_ng_lists();
+            self.tab_debloat_control.update_cached_counts(&installed_packages, uad_ng_lists.as_ref());
+
+            // Get counts from the dashboard
+            let cached_counts = &self.tab_debloat_control.cached_counts;
+            let cached_scan_counts = &self.tab_scan_control.cached_scan_counts;
+
+            let (category, count_enabled, count_total) = match (dashboard_type, index) {
+                ("debloat", 0) => (Some(DashCounterCategory::DebloatRecommend), cached_counts.recommended.0, cached_counts.recommended.1),
+                ("debloat", 1) => (Some(DashCounterCategory::DebloatAdvanced), cached_counts.advanced.0, cached_counts.advanced.1),
+                ("debloat", 2) => (Some(DashCounterCategory::DebloatExpert), cached_counts.expert.0, cached_counts.expert.1),
+                ("debloat", 3) => (Some(DashCounterCategory::DebloatUnsafe), cached_counts.unsafe_count.0, cached_counts.unsafe_count.1),
+                ("debloat", 4) => (Some(DashCounterCategory::DebloatUnknown), cached_counts.unknown.0, cached_counts.unknown.1),
+                ("stalkerware", 0) => {
+                    let shared_store = crate::shared_store_stt::get_shared_store();
+                    let installed_packages = shared_store.get_installed_packages();
+                    let stalkerware_indicators = shared_store.get_stalkerware_indicators();
+
+                    let is_pkg_enabled = |pkg: &crate::adb::PackageFingerprint| -> bool {
+                        let is_system = pkg.flags.contains("SYSTEM");
+                        pkg.users.first().map(|u| {
+                            let enabled_str = match u.enabled {
+                                0 => if !u.installed && is_system { "REMOVED_USER" } else { "DEFAULT" },
+                                1 => "ENABLED",
+                                2 => "DISABLED",
+                                3 => "DISABLED_USER",
+                                _ => "UNKNOWN",
+                            };
+                            enabled_str == "ENABLED" || enabled_str == "DEFAULT" || enabled_str == "UNKNOWN"
+                        }).unwrap_or(false)
+                    };
+
+                    let (enabled, total) = if let Some(indicators) = &stalkerware_indicators {
+                        let detected = installed_packages.iter().filter(|pkg| indicators.is_stalkerware(&pkg.pkg)).count();
+                        let enabled_detected = installed_packages.iter().filter(|pkg| indicators.is_stalkerware(&pkg.pkg) && is_pkg_enabled(pkg)).count();
+                        (enabled_detected, detected)
+                    } else {
+                        (0, 0)
+                    };
+                    (Some(DashCounterCategory::StalkerwareDetected), enabled, total)
+                },
+                ("stalkerware", 1) => {
+                    let shared_store = crate::shared_store_stt::get_shared_store();
+                    let installed_packages = shared_store.get_installed_packages();
+                    let stalkerware_indicators = shared_store.get_stalkerware_indicators();
+
+                    let is_pkg_enabled = |pkg: &crate::adb::PackageFingerprint| -> bool {
+                        let is_system = pkg.flags.contains("SYSTEM");
+                        pkg.users.first().map(|u| {
+                            let enabled_str = match u.enabled {
+                                0 => if !u.installed && is_system { "REMOVED_USER" } else { "DEFAULT" },
+                                1 => "ENABLED",
+                                2 => "DISABLED",
+                                3 => "DISABLED_USER",
+                                _ => "UNKNOWN",
+                            };
+                            enabled_str == "ENABLED" || enabled_str == "DEFAULT" || enabled_str == "UNKNOWN"
+                        }).unwrap_or(false)
+                    };
+
+                    let (enabled, total) = if let Some(indicators) = &stalkerware_indicators {
+                        let undetected = installed_packages.iter().filter(|pkg| !indicators.is_stalkerware(&pkg.pkg)).count();
+                        let enabled_undetected = installed_packages.iter().filter(|pkg| !indicators.is_stalkerware(&pkg.pkg) && is_pkg_enabled(pkg)).count();
+                        (enabled_undetected, undetected)
+                    } else {
+                        (installed_packages.len(), installed_packages.len())
+                    };
+                    (Some(DashCounterCategory::StalkerwareUndetected), enabled, total)
+                },
+                ("izzyrisk", 0) => {
+                    let shared_store = crate::shared_store_stt::get_shared_store();
+                    let installed_packages = shared_store.get_installed_packages();
+                    let package_risk_scores = &self.tab_scan_control.package_risk_scores;
+
+                    let is_pkg_enabled = |pkg: &crate::adb::PackageFingerprint| -> bool {
+                        let is_system = pkg.flags.contains("SYSTEM");
+                        pkg.users.first().map(|u| {
+                            let enabled_str = match u.enabled {
+                                0 => if !u.installed && is_system { "REMOVED_USER" } else { "DEFAULT" },
+                                1 => "ENABLED",
+                                2 => "DISABLED",
+                                3 => "DISABLED_USER",
+                                _ => "UNKNOWN",
+                            };
+                            enabled_str == "ENABLED" || enabled_str == "DEFAULT" || enabled_str == "UNKNOWN"
+                        }).unwrap_or(false)
+                    };
+
+                    let total = installed_packages.iter().filter(|pkg| {
+                        package_risk_scores.get(&pkg.pkg).map_or(false, |&score| score == 0)
+                    }).count();
+                    let enabled = installed_packages.iter().filter(|pkg| {
+                        package_risk_scores.get(&pkg.pkg).map_or(false, |&score| score == 0) && is_pkg_enabled(pkg)
+                    }).count();
+                    (Some(DashCounterCategory::IzzyRiskSafe), enabled, total)
+                },
+                ("izzyrisk", 1) => {
+                    let shared_store = crate::shared_store_stt::get_shared_store();
+                    let installed_packages = shared_store.get_installed_packages();
+                    let package_risk_scores = &self.tab_scan_control.package_risk_scores;
+
+                    let is_pkg_enabled = |pkg: &crate::adb::PackageFingerprint| -> bool {
+                        let is_system = pkg.flags.contains("SYSTEM");
+                        pkg.users.first().map(|u| {
+                            let enabled_str = match u.enabled {
+                                0 => if !u.installed && is_system { "REMOVED_USER" } else { "DEFAULT" },
+                                1 => "ENABLED",
+                                2 => "DISABLED",
+                                3 => "DISABLED_USER",
+                                _ => "UNKNOWN",
+                            };
+                            enabled_str == "ENABLED" || enabled_str == "DEFAULT" || enabled_str == "UNKNOWN"
+                        }).unwrap_or(false)
+                    };
+
+                    let total = installed_packages.iter().filter(|pkg| {
+                        package_risk_scores.get(&pkg.pkg).map_or(false, |&score| score >= 1 && score <= 10)
+                    }).count();
+                    let enabled = installed_packages.iter().filter(|pkg| {
+                        package_risk_scores.get(&pkg.pkg).map_or(false, |&score| score >= 1 && score <= 10) && is_pkg_enabled(pkg)
+                    }).count();
+                    (Some(DashCounterCategory::IzzyRiskNormal), enabled, total)
+                },
+                ("izzyrisk", 2) => {
+                    let shared_store = crate::shared_store_stt::get_shared_store();
+                    let installed_packages = shared_store.get_installed_packages();
+                    let package_risk_scores = &self.tab_scan_control.package_risk_scores;
+
+                    let is_pkg_enabled = |pkg: &crate::adb::PackageFingerprint| -> bool {
+                        let is_system = pkg.flags.contains("SYSTEM");
+                        pkg.users.first().map(|u| {
+                            let enabled_str = match u.enabled {
+                                0 => if !u.installed && is_system { "REMOVED_USER" } else { "DEFAULT" },
+                                1 => "ENABLED",
+                                2 => "DISABLED",
+                                3 => "DISABLED_USER",
+                                _ => "UNKNOWN",
+                            };
+                            enabled_str == "ENABLED" || enabled_str == "DEFAULT" || enabled_str == "UNKNOWN"
+                        }).unwrap_or(false)
+                    };
+
+                    let total = installed_packages.iter().filter(|pkg| {
+                        package_risk_scores.get(&pkg.pkg).map_or(false, |&score| score >= 11 && score <= 20)
+                    }).count();
+                    let enabled = installed_packages.iter().filter(|pkg| {
+                        package_risk_scores.get(&pkg.pkg).map_or(false, |&score| score >= 11 && score <= 20) && is_pkg_enabled(pkg)
+                    }).count();
+                    (Some(DashCounterCategory::IzzyRiskModerate), enabled, total)
+                },
+                ("izzyrisk", 3) => {
+                    let shared_store = crate::shared_store_stt::get_shared_store();
+                    let installed_packages = shared_store.get_installed_packages();
+                    let package_risk_scores = &self.tab_scan_control.package_risk_scores;
+
+                    let is_pkg_enabled = |pkg: &crate::adb::PackageFingerprint| -> bool {
+                        let is_system = pkg.flags.contains("SYSTEM");
+                        pkg.users.first().map(|u| {
+                            let enabled_str = match u.enabled {
+                                0 => if !u.installed && is_system { "REMOVED_USER" } else { "DEFAULT" },
+                                1 => "ENABLED",
+                                2 => "DISABLED",
+                                3 => "DISABLED_USER",
+                                _ => "UNKNOWN",
+                            };
+                            enabled_str == "ENABLED" || enabled_str == "DEFAULT" || enabled_str == "UNKNOWN"
+                        }).unwrap_or(false)
+                    };
+
+                    let total = installed_packages.iter().filter(|pkg| {
+                        package_risk_scores.get(&pkg.pkg).map_or(false, |&score| score > 20)
+                    }).count();
+                    let enabled = installed_packages.iter().filter(|pkg| {
+                        package_risk_scores.get(&pkg.pkg).map_or(false, |&score| score > 20) && is_pkg_enabled(pkg)
+                    }).count();
+                    (Some(DashCounterCategory::IzzyRiskHigh), enabled, total)
+                },
+                ("virustotal", 0) => (Some(DashCounterCategory::VirusTotalMalicious), cached_scan_counts.vt_counts.1.0, cached_scan_counts.vt_counts.1.1),
+                ("virustotal", 1) => (Some(DashCounterCategory::VirusTotalSuspicious), cached_scan_counts.vt_counts.2.0, cached_scan_counts.vt_counts.2.1),
+                ("virustotal", 2) => (Some(DashCounterCategory::VirusTotalSafe), cached_scan_counts.vt_counts.3.0, cached_scan_counts.vt_counts.3.1),
+                ("virustotal", 3) => (Some(DashCounterCategory::VirusTotalNotScanned), cached_scan_counts.vt_counts.4.0, cached_scan_counts.vt_counts.4.1),
+                ("hybridanalysis", 0) => (Some(DashCounterCategory::HybridAnalysisMalicious), cached_scan_counts.ha_counts.1.0, cached_scan_counts.ha_counts.1.1),
+                ("hybridanalysis", 1) => (Some(DashCounterCategory::HybridAnalysisMaliciousIgnored), cached_scan_counts.ha_counts.2.0, cached_scan_counts.ha_counts.2.1),
+                ("hybridanalysis", 2) => (Some(DashCounterCategory::HybridAnalysisSuspicious), cached_scan_counts.ha_counts.3.0, cached_scan_counts.ha_counts.3.1),
+                ("hybridanalysis", 3) => (Some(DashCounterCategory::HybridAnalysisSafe), cached_scan_counts.ha_counts.4.0, cached_scan_counts.ha_counts.4.1),
+                ("hybridanalysis", 4) => (Some(DashCounterCategory::HybridAnalysisNotScanned), cached_scan_counts.ha_counts.5.0, cached_scan_counts.ha_counts.5.1),
+                _ => (None, 0, 0),
+            };
+            if let Some(cat) = category {
+                self.dlg_dashcounter_details.open(cat, count_enabled, count_total);
+            }
+            // Clear the temp data
+            ui.ctx().data_mut(|data| {
+                data.remove::<(&str, usize)>(egui::Id::new("dashcounter_clicked"));
+            });
+        }
+
+        // Show dashcounter details dialog
+        let shared_store = crate::shared_store_stt::get_shared_store();
+        let installed_packages = shared_store.get_installed_packages();
+        let uad_ng_lists = shared_store.get_uad_ng_lists();
+        let stalkerware_indicators = shared_store.get_stalkerware_indicators();
+        let package_risk_scores = &self.tab_scan_control.package_risk_scores;
+
+        self.dlg_dashcounter_details.show(
+            ui.ctx(),
+            &installed_packages,
+            &uad_ng_lists,
+            &stalkerware_indicators,
+            package_risk_scores,
+            self.tab_debloat_control.unsafe_app_remove,
+            &self.settings.hybridanalysis_tag_ignorelist,
+        );
+
+        // Handle action button events from dashcounter details dialog
+        // These need to be handled here because the tabs may not be rendered when viewing dashboard
+
+        // Handle info button - open package details dialog
+        if let Some(pkg_id) = ui.ctx().data(|data| {
+            data.get_temp::<String>(egui::Id::new("info_clicked_package"))
+        }) {
+            ui.ctx().data_mut(|data| {
+                data.remove::<String>(egui::Id::new("info_clicked_package"));
+            });
+
+            if let Some(idx) = installed_packages.iter().position(|p| p.pkg == pkg_id) {
+                // Use debloat control dialog by default (works from any view)
+                match self.custom_selected {
+                    1 => self.tab_debloat_control.package_details_dialog.open(idx),
+                    2 => self.tab_scan_control.package_details_dialog.open(idx),
+                    3 => self.tab_apps_control.package_details_dialog.open(idx),
+                    _ => self.tab_debloat_control.package_details_dialog.open(idx), // Dashboard or other views
+                }
+            }
+        }
+
+        // Handle enable/disable/uninstall/refresh actions from dialog
+        let mut enable_package: Option<String> = None;
+        let mut disable_package: Option<String> = None;
+        let mut uninstall_package: Option<String> = None;
+        let mut uninstall_is_system = false;
+        let mut refresh_package: Option<String> = None;
+
+        ui.ctx().data_mut(|data| {
+            if let Some(pkg) = data.get_temp::<String>(egui::Id::new("enable_clicked_package")) {
+                enable_package = Some(pkg);
+                data.remove::<String>(egui::Id::new("enable_clicked_package"));
+            }
+            if let Some(pkg) = data.get_temp::<String>(egui::Id::new("disable_clicked_package")) {
+                disable_package = Some(pkg);
+                data.remove::<String>(egui::Id::new("disable_clicked_package"));
+            }
+            if let Some(pkg) = data.get_temp::<String>(egui::Id::new("uninstall_clicked_package")) {
+                uninstall_package = Some(pkg);
+                uninstall_is_system = data.get_temp::<bool>(egui::Id::new("uninstall_clicked_is_system")).unwrap_or(false);
+                data.remove::<String>(egui::Id::new("uninstall_clicked_package"));
+                data.remove::<bool>(egui::Id::new("uninstall_clicked_is_system"));
+            }
+            if let Some(pkg) = data.get_temp::<String>(egui::Id::new("refresh_clicked_package")) {
+                refresh_package = Some(pkg);
+                data.remove::<String>(egui::Id::new("refresh_clicked_package"));
+            }
+        });
+
+        // Perform enable action
+        if let Some(pkg_name) = enable_package {
+            if let Some(ref device) = self.tab_debloat_control.selected_device {
+                match crate::adb::enable_app(&pkg_name, device) {
+                    Ok(output) => {
+                        log::info!("App enabled successfully: {}", output);
+                        let mut packages = shared_store.get_installed_packages();
+                        if let Some(pkg) = packages.iter_mut().find(|p| p.pkg == pkg_name) {
+                            for user in pkg.users.iter_mut() {
+                                user.enabled = 1;
+                                user.installed = true;
+                            }
+                        }
+                        shared_store.set_installed_packages(packages);
+                        self.tab_debloat_control.table_version += 1;
+                    }
+                    Err(e) => {
+                        log::error!("Failed to enable app: {}", e);
+                    }
+                }
+            }
+        }
+
+        // Perform disable action
+        if let Some(pkg_name) = disable_package {
+            if let Some(ref device) = self.tab_debloat_control.selected_device {
+                match crate::adb::disable_app_current_user(&pkg_name, device, None) {
+                    Ok(output) => {
+                        log::info!("App disabled successfully: {}", output);
+                        let mut packages = shared_store.get_installed_packages();
+                        if let Some(pkg) = packages.iter_mut().find(|p| p.pkg == pkg_name) {
+                            for user in pkg.users.iter_mut() {
+                                user.enabled = 3;
+                            }
+                        }
+                        shared_store.set_installed_packages(packages);
+                        self.tab_debloat_control.table_version += 1;
+                    }
+                    Err(e) => {
+                        log::error!("Failed to disable app: {}", e);
+                    }
+                }
+            }
+        }
+
+        // Open uninstall confirmation dialog
+        if let Some(pkg_name) = uninstall_package {
+            self.tab_debloat_control.uninstall_confirm_dialog.open_single(pkg_name, uninstall_is_system);
+        }
+
+        // Show uninstall confirm dialog (needed when viewing from dashboard)
+        if self.tab_debloat_control.uninstall_confirm_dialog.show(ui.ctx()) {
+            let pkgs = std::mem::take(&mut self.tab_debloat_control.uninstall_confirm_dialog.packages);
+            let sys_flags = std::mem::take(&mut self.tab_debloat_control.uninstall_confirm_dialog.is_system);
+            self.tab_debloat_control.uninstall_confirm_dialog.reset();
+
+            if let Some(ref device) = self.tab_debloat_control.selected_device {
+                // Use tab's batch uninstall to handle the operation properly
+                self.tab_debloat_control.start_batch_uninstall(pkgs, sys_flags, device.clone(), uad_ng_lists.as_ref());
+            } else {
+                log::error!("No device selected for uninstall");
+            }
+        }
+
+        // Perform refresh (delete scan results and re-scan)
+        if let Some(pkg_name) = refresh_package {
+            log::info!("Refreshing scan results for: {}", pkg_name);
+
+            // Delete from database
+            let mut conn = crate::db::establish_connection();
+            if let Err(e) = crate::db_virustotal::delete_results_by_package(&mut conn, &pkg_name) {
+                log::error!("Failed to delete VirusTotal results for {}: {}", pkg_name, e);
+            } else {
+                log::info!("Deleted VirusTotal results for: {}", pkg_name);
+            }
+
+            if let Err(e) = crate::db_hybridanalysis::delete_results_by_package(&mut conn, &pkg_name) {
+                log::error!("Failed to delete HybridAnalysis results for {}: {}", pkg_name, e);
+            } else {
+                log::info!("Deleted HybridAnalysis results for: {}", pkg_name);
+            }
+
+            // Get package info for scanning
+            let installed_packages = shared_store.installed_packages.lock().unwrap();
+            let package_info = installed_packages.iter().find(|p| p.pkg == pkg_name).cloned();
+
+            if let Some(package) = package_info {
+                // Get hashes for the package
+                let device_serial = self.tab_scan_control.device_serial.clone();
+                let cached_packages = if let Some(ref serial) = device_serial {
+                    crate::db_package_cache::get_cached_packages_with_apk(serial)
+                } else {
+                    vec![]
+                };
+                let cached_pkg = cached_packages.iter().find(|cp| cp.pkg_id == pkg_name);
+
+                let mut paths_str = String::new();
+                let mut sha256sums_str = String::new();
+
+                if let Some(cp) = cached_pkg {
+                    if let (Some(path), Some(sha256)) = (&cp.apk_path, &cp.apk_sha256sum) {
+                        paths_str = path.clone();
+                        sha256sums_str = sha256.clone();
+                    }
+                }
+
+                if paths_str.is_empty() || sha256sums_str.is_empty() {
+                    paths_str = package.codePath.clone();
+                    sha256sums_str = package.pkgChecksum.clone();
+                }
+
+                // Get proper hashes if needed
+                if let Some(ref serial) = device_serial {
+                    let paths: Vec<&str> = paths_str.split(' ').collect();
+                    let sha256sums: Vec<&str> = sha256sums_str.split(' ').collect();
+                    let needs_directory_scan = paths.iter().any(|p| !p.ends_with(".apk"));
+                    let has_invalid_hashes = sha256sums.iter().any(|s| s.len() != 64);
+
+                    if needs_directory_scan || has_invalid_hashes {
+                        if let Ok((new_paths, new_sha256sums)) = crate::adb::get_single_package_sha256sum(serial, &pkg_name) {
+                            if !new_paths.is_empty() && !new_sha256sums.is_empty() {
+                                paths_str = new_paths;
+                                sha256sums_str = new_sha256sums;
+                            }
+                        }
+                    }
+                }
+
+                let final_paths: Vec<&str> = paths_str.split(' ').collect();
+                let final_sha256sums: Vec<&str> = sha256sums_str.split(' ').collect();
+                let hashes: Vec<(String, String)> = final_paths
+                    .iter()
+                    .zip(final_sha256sums.iter())
+                    .filter(|(p, s)| !p.is_empty() && s.len() == 64)
+                    .map(|(p, s)| (p.to_string(), s.to_string()))
+                    .collect();
+
+                // Start VirusTotal scan in background
+                let vt_scanner_state = shared_store.vt_scanner_state.lock().unwrap().clone();
+                if let (Some(ref vt_state), Some(ref vt_limiter), Some(ref api_key), Some(ref serial)) = (
+                    &vt_scanner_state,
+                    &self.tab_scan_control.vt_rate_limiter,
+                    &self.tab_scan_control.vt_api_key,
+                    &self.tab_scan_control.device_serial,
+                ) {
+                    let vt_state_clone = vt_state.clone();
+                    let vt_limiter_clone = vt_limiter.clone();
+                    let api_key_clone = api_key.clone();
+                    let serial_clone = serial.clone();
+                    let pkg_name_clone = pkg_name.clone();
+                    let hashes_clone = hashes.clone();
+                    let vt_submit = self.tab_scan_control.virustotal_submit_enabled;
+
+                    // Reset state to Pending first
+                    if let Ok(mut state) = vt_state.lock() {
+                        state.insert(pkg_name.clone(), crate::calc_virustotal_stt::ScanStatus::Pending);
+                    }
+
+                    std::thread::spawn(move || {
+                        log::info!("Starting VT re-scan for: {}", pkg_name_clone);
+                        if let Err(e) = crate::calc_virustotal::analyze_package(
+                            &pkg_name_clone,
+                            hashes_clone,
+                            &vt_state_clone,
+                            &vt_limiter_clone,
+                            &api_key_clone,
+                            &serial_clone,
+                            vt_submit,
+                            &None,
+                        ) {
+                            log::error!("Error re-scanning VT for {}: {}", pkg_name_clone, e);
+                        }
+                    });
+                }
+
+                // Start HybridAnalysis scan in background
+                let ha_scanner_state = shared_store.ha_scanner_state.lock().unwrap().clone();
+                if let (Some(ref ha_state), Some(ref ha_limiter), Some(ref api_key), Some(ref serial)) = (
+                    &ha_scanner_state,
+                    &self.tab_scan_control.ha_rate_limiter,
+                    &self.tab_scan_control.ha_api_key,
+                    &self.tab_scan_control.device_serial,
+                ) {
+                    let ha_state_clone = ha_state.clone();
+                    let ha_limiter_clone = ha_limiter.clone();
+                    let api_key_clone = api_key.clone();
+                    let serial_clone = serial.clone();
+                    let pkg_name_clone = pkg_name.clone();
+                    let hashes_clone = hashes.clone();
+                    let ha_submit = self.tab_scan_control.hybridanalysis_submit_enabled;
+
+                    // Reset state to Pending first
+                    if let Ok(mut state) = ha_state.lock() {
+                        state.insert(pkg_name.clone(), crate::calc_hybridanalysis_stt::ScanStatus::Pending);
+                    }
+
+                    std::thread::spawn(move || {
+                        log::info!("Starting HA re-scan for: {}", pkg_name_clone);
+                        if let Err(e) = crate::calc_hybridanalysis::analyze_package(
+                            &pkg_name_clone,
+                            hashes_clone,
+                            &ha_state_clone,
+                            &ha_limiter_clone,
+                            &api_key_clone,
+                            &serial_clone,
+                            ha_submit,
+                            &None,
+                        ) {
+                            log::error!("Error re-scanning HA for {}: {}", pkg_name_clone, e);
+                        }
+                    });
+                }
+            }
+        }
+
+        // Show package details dialogs (needed when viewing from dashboard)
+        let packages_for_dialog = shared_store.get_installed_packages();
+        let uad_lists_for_dialog = shared_store.get_uad_ng_lists();
+
+        match self.custom_selected {
+            1 => self.tab_debloat_control.package_details_dialog.show(ui.ctx(), &packages_for_dialog, &uad_lists_for_dialog),
+            2 => self.tab_scan_control.package_details_dialog.show(ui.ctx(), &packages_for_dialog, &uad_lists_for_dialog),
+            3 => self.tab_apps_control.package_details_dialog.show(ui.ctx(), &packages_for_dialog, &uad_lists_for_dialog),
+            _ => self.tab_debloat_control.package_details_dialog.show(ui.ctx(), &packages_for_dialog, &uad_lists_for_dialog), // Dashboard or other views
+        };
+
+        // === Dashcounter details dialog end
+
+
     }
 
     fn show_menus(&mut self, ctx: &egui::Context) {
@@ -1395,19 +1917,150 @@ impl UadShizukuApp {
         }
     }
 
-    fn render_custom_tabs(&mut self, ui: &mut egui::Ui) {
-        // Custom themed tabs — compact when content is scrolled down
-        let _previous_tab = self.custom_selected;
-
+    // Controller method: prepare tab state (shared by both mobile and desktop UI)
+    fn prepare_tabs_controller(&mut self) {
         // On Android: hide apps tab if installed from Google Play Store
         // On other platforms: always show apps tab
         #[cfg(target_os = "android")]
-        let show_apps_tab = !matches!(
-            self.installer_package_name.as_deref(),
-            Some("com.android.vending")
-        );
+        {
+            self.show_apps_tab = !matches!(
+                self.installer_package_name.as_deref(),
+                Some("com.android.vending")
+            );
+        }
         #[cfg(not(target_os = "android"))]
-        let show_apps_tab = true;
+        {
+            self.show_apps_tab = true;
+        }
+
+        // Prepare debloat tab controller state
+        self.prepare_debloat_tab_controller();
+
+        // Prepare scan tab controller state
+        self.prepare_scan_tab_controller();
+
+        // Prepare apps tab controller state
+        self.prepare_apps_tab_controller();
+    }
+
+    fn prepare_debloat_tab_controller(&mut self) {
+        // Platform-specific renderer flags
+        #[cfg(not(target_os = "android"))]
+        {
+            self.google_play_renderer.is_enabled = self.settings.google_play_renderer;
+            self.fdroid_renderer.is_enabled = self.settings.fdroid_renderer;
+            self.apkmirror_renderer.is_enabled = self.settings.apkmirror_renderer;
+
+            let google_play_enabled = self.google_play_renderer.is_enabled;
+            let fdroid_enabled = self.fdroid_renderer.is_enabled;
+            let apkmirror_enabled = self.apkmirror_renderer.is_enabled;
+
+            // Initialize and start worker queues if renderers are enabled (desktop only)
+            let db_path = self.config.as_ref().map(|c| c.db_dir.to_string_lossy().to_string()).unwrap_or_default();
+
+            if google_play_enabled && self.google_play_queue.is_none() {
+                let queue = std::sync::Arc::new(crate::calc_googleplay::GooglePlayQueue::new());
+                queue.start_worker(db_path.clone());
+                self.google_play_queue = Some(queue);
+            }
+            if fdroid_enabled && self.fdroid_queue.is_none() {
+                let queue = std::sync::Arc::new(crate::calc_fdroid::FDroidQueue::new());
+                queue.start_worker(db_path.clone());
+                self.fdroid_queue = Some(queue);
+            }
+            if apkmirror_enabled && self.apkmirror_queue.is_none() {
+                let queue = std::sync::Arc::new(crate::calc_apkmirror::ApkMirrorQueue::new());
+                queue.set_email(self.settings.apkmirror_email.clone());
+                queue.start_worker(db_path.clone());
+                self.apkmirror_queue = Some(queue);
+            }
+
+            // Only enqueue packages when the table version changes (packages updated)
+            let current_version = self.tab_debloat_control.table_version;
+            if current_version != self.debloat_last_enqueued_version {
+                self.enqueue_visible_packages_for_debloat(google_play_enabled, fdroid_enabled, apkmirror_enabled);
+                self.debloat_last_enqueued_version = current_version;
+            }
+
+            // Only load results periodically (every 500ms) instead of every frame
+            let now = std::time::Instant::now();
+            if now.duration_since(self.debloat_last_result_load_time).as_millis() >= 500 {
+                self.load_renderer_results_to_debloat_cache();
+                self.debloat_last_result_load_time = now;
+            }
+        }
+
+        // Sync unsafe_app_remove setting
+        self.tab_debloat_control.unsafe_app_remove = self.settings.unsafe_app_remove;
+    }
+
+    fn prepare_scan_tab_controller(&mut self) {
+        // Sync renderer settings from Settings to TabScanControl
+        #[cfg(target_os = "android")]
+        {
+            self.tab_scan_control.google_play_renderer_enabled = false;
+            self.tab_scan_control.fdroid_renderer_enabled = false;
+            self.tab_scan_control.apkmirror_renderer_enabled = false;
+            self.tab_scan_control.android_package_renderer_enabled = true;
+        }
+        #[cfg(not(target_os = "android"))]
+        {
+            self.tab_scan_control.google_play_renderer_enabled = self.settings.google_play_renderer;
+            self.tab_scan_control.fdroid_renderer_enabled = self.settings.fdroid_renderer;
+            self.tab_scan_control.apkmirror_renderer_enabled = self.settings.apkmirror_renderer;
+            self.tab_scan_control.android_package_renderer_enabled = false;
+        }
+        self.tab_scan_control.unsafe_app_remove = self.settings.unsafe_app_remove;
+    }
+
+    fn prepare_apps_tab_controller(&mut self) {
+        // Check if operations queue has completed and trigger refresh
+        if let Some(ref queue) = self.tab_apps_control.operations_queue {
+            let was_running = {
+                let is_running = queue.is_running.lock().unwrap();
+                *is_running
+            };
+
+            // If queue was running and is now done, trigger refresh
+            if !was_running {
+                let has_completed_ops = queue.completed_count() > 0;
+                if has_completed_ops {
+                    // Check if any operation completed successfully
+                    if let Ok(results) = queue.results.lock() {
+                        let has_success = results.values().any(|status| {
+                            matches!(status, crate::app_operations_queue_stt::OperationStatus::Success(_))
+                        });
+                        if has_success && !self.tab_apps_control.refresh_pending {
+                            self.tab_apps_control.refresh_pending = true;
+                        }
+                    }
+                }
+            }
+        }
+
+        // Check if packages need to be refreshed (e.g., after install)
+        // Only refresh tab_apps_control, not other tabs (to avoid triggering scans)
+        if self.tab_apps_control.refresh_pending {
+            self.tab_apps_control.refresh_pending = false;
+            self.refresh_apps_tab_packages();
+
+            // Clear operation results after refresh (so progress notification disappears)
+            if let Some(ref queue) = self.tab_apps_control.operations_queue {
+                let is_running = queue.is_running.lock().unwrap();
+                if !*is_running && queue.completed_count() > 0 {
+                    drop(is_running);
+                    queue.clear_results();
+                }
+            }
+        }
+    }
+
+    fn render_desktop_tabs(&mut self, ui: &mut egui::Ui) {
+        // Custom themed tabs — compact when content is scrolled down
+        let _previous_tab = self.custom_selected;
+
+        // Use pre-calculated show_apps_tab from controller
+        let show_apps_tab = self.show_apps_tab;
 
         let mut tabs = tabs_primary(&mut self.custom_selected)
             .id_salt("custom_primary")
@@ -1502,10 +2155,389 @@ impl UadShizukuApp {
         }
     }
 
+    fn render_mobile_dashboards(&mut self, ui: &mut egui::Ui) {
+        use crate::shared_store_stt::get_shared_store;
+
+        // Sync risk scores from background thread before displaying
+        self.tab_scan_control.sync_risk_scores();
+
+        let shared_store = get_shared_store();
+        let installed_packages = shared_store.get_installed_packages();
+
+        // Update cached scan counts for VT and HA
+        let vt_scanner_state = shared_store.get_vt_scanner_state();
+        let ha_scanner_state = shared_store.get_ha_scanner_state();
+        let ha_tag_ignorelist = &self.settings.hybridanalysis_tag_ignorelist;
+        self.tab_scan_control.update_cached_scan_counts(
+            &installed_packages,
+            &vt_scanner_state,
+            &ha_scanner_state,
+            ha_tag_ignorelist,
+        );
+
+        // Calculate reserved space for logs
+        let reserved_space = if self.settings.show_logs { 200.0 } else { 0.0 };
+        let max_height = ui.available_height() - reserved_space;
+
+        egui::ScrollArea::vertical()
+            .id_salt("mobile_dashboards_scroll")
+            .max_height(max_height)
+            .show(ui, |ui| {
+                // 1. Debloat Dashboard
+                let cached_counts = &self.tab_debloat_control.cached_counts;
+                let ctx_clone = ui.ctx().clone();
+                ui.add(
+                    dashcounter("Debloat", &mut self.dash_scroll_debloat)
+                        .id_salt("dash_debloat")
+                        .title_ui(|ui| {
+                            if ui.add(icon_button_standard(ICON_INFO.to_string())).clicked() {
+                                let _ = webbrowser::open("https://github.com/Universal-Debloater-Alliance/universal-android-debloater-next-generation");
+                            }
+                        })
+                        .card_with_description(
+                            "Recommend",
+                            cached_counts.recommended.0,
+                            cached_counts.recommended.1,
+                            "enabled",
+                            "all"
+                        )
+                        .card_with_description(
+                            "Advanced",
+                            cached_counts.advanced.0,
+                            cached_counts.advanced.1,
+                            "enabled",
+                            "all"
+                        )
+                        .card_with_description(
+                            "Expert",
+                            cached_counts.expert.0,
+                            cached_counts.expert.1,
+                            "enabled",
+                            "all"
+                        )
+                        .card_with_description(
+                            "Unsafe",
+                            cached_counts.unsafe_count.0,
+                            cached_counts.unsafe_count.1,
+                            "enabled",
+                            "all"
+                        )
+                        .card_with_description(
+                            "Unknown",
+                            cached_counts.unknown.0,
+                            cached_counts.unknown.1,
+                            "enabled",
+                            "all"
+                        )
+                        .on_click(move |index| {
+                            ctx_clone.data_mut(|data| {
+                                data.insert_temp(egui::Id::new("dashcounter_clicked"), ("debloat", index));
+                            });
+                        })
+                );
+                ui.add_space(20.0);
+
+                // 2. Stalkerware Dashboard
+                let stalkerware_indicators = shared_store.get_stalkerware_indicators();
+                let ctx_clone = ui.ctx().clone();
+
+                // Helper closure to check if a package is enabled (matches tab_debloat_control logic)
+                let is_pkg_enabled = |pkg: &crate::adb::PackageFingerprint| -> bool {
+                    let is_system = pkg.flags.contains("SYSTEM");
+                    pkg.users.first().map(|u| {
+                        let enabled_str = match u.enabled {
+                            0 => if !u.installed && is_system { "REMOVED_USER" } else { "DEFAULT" },
+                            1 => "ENABLED",
+                            2 => "DISABLED",
+                            3 => "DISABLED_USER",
+                            _ => "UNKNOWN",
+                        };
+                        enabled_str == "ENABLED" || enabled_str == "DEFAULT" || enabled_str == "UNKNOWN"
+                    }).unwrap_or(false)
+                };
+
+                let (stalkerware_detected, stalkerware_undetected) = if let Some(indicators) = &stalkerware_indicators {
+                    let detected = installed_packages.iter()
+                        .filter(|pkg| indicators.is_stalkerware(&pkg.pkg))
+                        .count();
+                    let enabled_detected = installed_packages.iter()
+                        .filter(|pkg| {
+                            indicators.is_stalkerware(&pkg.pkg) && is_pkg_enabled(pkg)
+                        })
+                        .count();
+                    let undetected = installed_packages.len() - detected;
+                    let enabled_undetected = installed_packages.iter()
+                        .filter(|pkg| {
+                            !indicators.is_stalkerware(&pkg.pkg) && is_pkg_enabled(pkg)
+                        })
+                        .count();
+                    ((enabled_detected, detected), (enabled_undetected, undetected))
+                } else {
+                    ((0, 0), (0, installed_packages.len()))
+                };
+
+                ui.add(
+                    dashcounter("Stalkerware", &mut self.dash_scroll_stalkerware)
+                        .id_salt("dash_stalkerware")
+                        .title_ui(|ui| {
+                            if ui.add(icon_button_standard(ICON_INFO.to_string())).clicked() {
+                                let _ = webbrowser::open("https://github.com/AssoEchap/stalkerware-indicators");
+                            }
+                        })
+                        .card_with_description(
+                            "Detected",
+                            stalkerware_detected.0,
+                            stalkerware_detected.1,
+                            "enabled",
+                            "all"
+                        )
+                        .card_with_description(
+                            "Undetected",
+                            stalkerware_undetected.0,
+                            stalkerware_undetected.1,
+                            "enabled",
+                            "all"
+                        )
+                        .category_color(egui::Color32::from_rgb(244, 67, 54))
+                        .counter_color(egui::Color32::from_rgb(183, 28, 28))
+                        .description_color(egui::Color32::from_rgb(239, 154, 154))
+                        .on_click(move |index| {
+                            ctx_clone.data_mut(|data| {
+                                data.insert_temp(egui::Id::new("dashcounter_clicked"), ("stalkerware", index));
+                            });
+                        })
+                );
+                ui.add_space(20.0);
+
+                // 3. IzzyRisk Dashboard
+                let ctx_clone = ui.ctx().clone();
+                let package_risk_scores = &self.tab_scan_control.package_risk_scores;
+
+                // Helper closure to check if a package is enabled (matches tab_debloat_control logic)
+                let is_pkg_enabled = |pkg: &crate::adb::PackageFingerprint| -> bool {
+                    let is_system = pkg.flags.contains("SYSTEM");
+                    pkg.users.first().map(|u| {
+                        let enabled_str = match u.enabled {
+                            0 => if !u.installed && is_system { "REMOVED_USER" } else { "DEFAULT" },
+                            1 => "ENABLED",
+                            2 => "DISABLED",
+                            3 => "DISABLED_USER",
+                            _ => "UNKNOWN",
+                        };
+                        enabled_str == "ENABLED" || enabled_str == "DEFAULT" || enabled_str == "UNKNOWN"
+                    }).unwrap_or(false)
+                };
+
+                // Count total packages in each risk category
+                let risk_0 = installed_packages.iter()
+                    .filter(|pkg| {
+                        if let Some(&score) = package_risk_scores.get(&pkg.pkg) {
+                            score == 0
+                        } else {
+                            false
+                        }
+                    })
+                    .count();
+                let risk_1_10 = installed_packages.iter()
+                    .filter(|pkg| {
+                        if let Some(&score) = package_risk_scores.get(&pkg.pkg) {
+                            score >= 1 && score <= 10
+                        } else {
+                            false
+                        }
+                    })
+                    .count();
+                let risk_11_20 = installed_packages.iter()
+                    .filter(|pkg| {
+                        if let Some(&score) = package_risk_scores.get(&pkg.pkg) {
+                            score >= 11 && score <= 20
+                        } else {
+                            false
+                        }
+                    })
+                    .count();
+                let risk_20_plus = installed_packages.iter()
+                    .filter(|pkg| {
+                        if let Some(&score) = package_risk_scores.get(&pkg.pkg) {
+                            score > 20
+                        } else {
+                            false
+                        }
+                    })
+                    .count();
+
+                // Count enabled packages in each risk category
+                let enabled_risk_0 = installed_packages.iter()
+                    .filter(|pkg| {
+                        if let Some(&score) = package_risk_scores.get(&pkg.pkg) {
+                            score == 0 && is_pkg_enabled(pkg)
+                        } else {
+                            false
+                        }
+                    })
+                    .count();
+                let enabled_risk_1_10 = installed_packages.iter()
+                    .filter(|pkg| {
+                        if let Some(&score) = package_risk_scores.get(&pkg.pkg) {
+                            score >= 1 && score <= 10 && is_pkg_enabled(pkg)
+                        } else {
+                            false
+                        }
+                    })
+                    .count();
+                let enabled_risk_11_20 = installed_packages.iter()
+                    .filter(|pkg| {
+                        if let Some(&score) = package_risk_scores.get(&pkg.pkg) {
+                            score >= 11 && score <= 20 && is_pkg_enabled(pkg)
+                        } else {
+                            false
+                        }
+                    })
+                    .count();
+                let enabled_risk_20_plus = installed_packages.iter()
+                    .filter(|pkg| {
+                        if let Some(&score) = package_risk_scores.get(&pkg.pkg) {
+                            score > 20 && is_pkg_enabled(pkg)
+                        } else {
+                            false
+                        }
+                    })
+                    .count();
+
+                ui.add(
+                    dashcounter("IzzyRisk", &mut self.dash_scroll_izzyrisk)
+                        .id_salt("dash_izzyrisk")
+                        .title_ui(|ui| {
+                            if ui.add(icon_button_standard(ICON_INFO.to_string())).clicked() {
+                                let _ = webbrowser::open("https://android.izzysoft.de/applists.php?lang=en;topic=perms");
+                            }
+                        })
+                        .card_with_description("0(safe)", enabled_risk_0, risk_0, "enabled", "all")
+                        .card_with_description("1-10(normal)", enabled_risk_1_10, risk_1_10, "enabled", "all")
+                        .card_with_description("11-20(moderate)", enabled_risk_11_20, risk_11_20, "enabled", "all")
+                        .card_with_description("20+(high)", enabled_risk_20_plus, risk_20_plus, "enabled", "all")
+                        .category_color(egui::Color32::from_rgb(255, 152, 0))
+                        .counter_color(egui::Color32::from_rgb(230, 81, 0))
+                        .description_color(egui::Color32::from_rgb(255, 183, 77))
+                        .on_click(move |index| {
+                            ctx_clone.data_mut(|data| {
+                                data.insert_temp(egui::Id::new("dashcounter_clicked"), ("izzyrisk", index));
+                            });
+                        })
+                );
+                ui.add_space(20.0);
+
+                // 4. VirusTotal Dashboard
+                let ctx_clone = ui.ctx().clone();
+                let vt_counts = &self.tab_scan_control.cached_scan_counts.vt_counts;
+                ui.add(
+                    dashcounter("VirusTotal", &mut self.dash_scroll_virustotal)
+                        .id_salt("dash_virustotal")
+                        .title_ui(|ui| {
+                            if ui.add(icon_button_standard(ICON_INFO.to_string())).clicked() {
+                                let _ = webbrowser::open("https://www.virustotal.com/gui/my-apikey");
+                            }
+                        })
+                        .card_with_description(
+                            "Malicious",
+                            vt_counts.1.0,
+                            vt_counts.1.1,
+                            "enabled",
+                            "all"
+                        )
+                        .card_with_description(
+                            "Suspicious",
+                            vt_counts.2.0,
+                            vt_counts.2.1,
+                            "enabled",
+                            "all"
+                        )
+                        .card_with_description(
+                            "Safe",
+                            vt_counts.3.0,
+                            vt_counts.3.1,
+                            "enabled",
+                            "all"
+                        )
+                        .card_with_description(
+                            "Unscan",
+                            vt_counts.4.0,
+                            vt_counts.4.1,
+                            "enabled",
+                            "all"
+                        )
+                        .on_click(move |index| {
+                            ctx_clone.data_mut(|data| {
+                                data.insert_temp(egui::Id::new("dashcounter_clicked"), ("virustotal", index));
+                            });
+                        })
+                );
+                ui.add_space(20.0);
+
+                // 5. HybridAnalysis Dashboard
+                let ctx_clone = ui.ctx().clone();
+                let ha_counts = &self.tab_scan_control.cached_scan_counts.ha_counts;
+                ui.add(
+                    dashcounter("HybridAnalysis", &mut self.dash_scroll_hybridanalysis)
+                        .id_salt("dash_hybridanalysis")
+                        .title_ui(|ui| {
+                            if ui.add(icon_button_standard(ICON_INFO.to_string())).clicked() {
+                                let _ = webbrowser::open("https://hybrid-analysis.com/my-account");
+                            }
+                        })
+                        .card_with_description(
+                            "Malicious",
+                            ha_counts.1.0,
+                            ha_counts.1.1,
+                            "enabled",
+                            "all"
+                        )
+                        .card_with_description(
+                            "Mal-Ignored",
+                            ha_counts.2.0,
+                            ha_counts.2.1,
+                            "enabled",
+                            "all"
+                        )
+                        .card_with_description(
+                            "Suspicious",
+                            ha_counts.3.0,
+                            ha_counts.3.1,
+                            "enabled",
+                            "all"
+                        )
+                        .card_with_description(
+                            "Undetected",
+                            ha_counts.4.0,
+                            ha_counts.4.1,
+                            "enabled",
+                            "all"
+                        )
+                        .card_with_description(
+                            "Unscan",
+                            ha_counts.5.0,
+                            ha_counts.5.1,
+                            "enabled",
+                            "all"
+                        )
+                        .on_click(move |index| {
+                            ctx_clone.data_mut(|data| {
+                                data.insert_temp(egui::Id::new("dashcounter_clicked"), ("hybridanalysis", index));
+                            });
+                        })
+                );
+                ui.add_space(20.0);
+
+                // Note: FOSS/OFFA and FOSS/FMHY dashboards are not yet implemented
+                // as the underlying data structures don't exist in the codebase
+                ui.label("📝 FOSS/OFFA and FOSS/FMHY dashboards coming soon...");
+            });
+    }
+
     fn render_debloat_tab(&mut self, ui: &mut egui::Ui) {
         use crate::tab_debloat_control::AdbResult;
 
-        // Platform-specific renderer flags
+        // Use pre-calculated renderer flags from controller
         #[cfg(target_os = "android")]
         let (google_play_enabled, fdroid_enabled, apkmirror_enabled, android_package_enabled) = {
             (false, false, false, true)
@@ -1513,9 +2545,6 @@ impl UadShizukuApp {
 
         #[cfg(not(target_os = "android"))]
         let (google_play_enabled, fdroid_enabled, apkmirror_enabled, android_package_enabled) = {
-            self.google_play_renderer.is_enabled = self.settings.google_play_renderer;
-            self.fdroid_renderer.is_enabled = self.settings.fdroid_renderer;
-            self.apkmirror_renderer.is_enabled = self.settings.apkmirror_renderer;
             (
                 self.google_play_renderer.is_enabled,
                 self.fdroid_renderer.is_enabled,
@@ -1523,46 +2552,6 @@ impl UadShizukuApp {
                 false,
             )
         };
-
-        // Initialize and start worker queues if renderers are enabled (desktop only)
-        #[cfg(not(target_os = "android"))]
-        {
-            let db_path = self.config.as_ref().map(|c| c.db_dir.to_string_lossy().to_string()).unwrap_or_default();
-
-            if google_play_enabled && self.google_play_queue.is_none() {
-                let queue = std::sync::Arc::new(crate::calc_googleplay::GooglePlayQueue::new());
-                queue.start_worker(db_path.clone());
-                self.google_play_queue = Some(queue);
-            }
-            if fdroid_enabled && self.fdroid_queue.is_none() {
-                let queue = std::sync::Arc::new(crate::calc_fdroid::FDroidQueue::new());
-                queue.start_worker(db_path.clone());
-                self.fdroid_queue = Some(queue);
-            }
-            if apkmirror_enabled && self.apkmirror_queue.is_none() {
-                let queue = std::sync::Arc::new(crate::calc_apkmirror::ApkMirrorQueue::new());
-                queue.set_email(self.settings.apkmirror_email.clone());
-                queue.start_worker(db_path.clone());
-                self.apkmirror_queue = Some(queue);
-            }
-
-            // Only enqueue packages when the table version changes (packages updated)
-            let current_version = self.tab_debloat_control.table_version;
-            if current_version != self.debloat_last_enqueued_version {
-                self.enqueue_visible_packages_for_debloat(google_play_enabled, fdroid_enabled, apkmirror_enabled);
-                self.debloat_last_enqueued_version = current_version;
-            }
-
-            // Only load results periodically (every 500ms) instead of every frame
-            let now = std::time::Instant::now();
-            if now.duration_since(self.debloat_last_result_load_time).as_millis() >= 500 {
-                self.load_renderer_results_to_debloat_cache();
-                self.debloat_last_result_load_time = now;
-            }
-        }
-
-        // Sync unsafe_app_remove setting
-        self.tab_debloat_control.unsafe_app_remove = self.settings.unsafe_app_remove;
 
         if let Some(result) = self.tab_debloat_control.ui(
             ui,
@@ -1761,66 +2750,12 @@ impl UadShizukuApp {
     }
 
     fn render_scan_tab(&mut self, ui: &mut egui::Ui) {
-        // Sync renderer settings from Settings to TabScanControl
-        #[cfg(target_os = "android")]
-        {
-            self.tab_scan_control.google_play_renderer_enabled = false;
-            self.tab_scan_control.fdroid_renderer_enabled = false;
-            self.tab_scan_control.apkmirror_renderer_enabled = false;
-            self.tab_scan_control.android_package_renderer_enabled = true;
-        }
-        #[cfg(not(target_os = "android"))]
-        {
-            self.tab_scan_control.google_play_renderer_enabled = self.settings.google_play_renderer;
-            self.tab_scan_control.fdroid_renderer_enabled = self.settings.fdroid_renderer;
-            self.tab_scan_control.apkmirror_renderer_enabled = self.settings.apkmirror_renderer;
-            self.tab_scan_control.android_package_renderer_enabled = false;
-        }
-        self.tab_scan_control.unsafe_app_remove = self.settings.unsafe_app_remove;
-
+        // Renderer settings already synced in controller
         self.tab_scan_control.ui(ui, &self.settings.hybridanalysis_tag_ignorelist);
     }
 
     fn render_apps_tab(&mut self, ui: &mut egui::Ui) {
-        // Check if operations queue has completed and trigger refresh
-        if let Some(ref queue) = self.tab_apps_control.operations_queue {
-            let was_running = {
-                let is_running = queue.is_running.lock().unwrap();
-                *is_running
-            };
-
-            // If queue was running and is now done, trigger refresh
-            if !was_running {
-                let has_completed_ops = queue.completed_count() > 0;
-                if has_completed_ops {
-                    // Check if any operation completed successfully
-                    if let Ok(results) = queue.results.lock() {
-                        let has_success = results.values().any(|status| {
-                            matches!(status, crate::app_operations_queue_stt::OperationStatus::Success(_))
-                        });
-                        if has_success && !self.tab_apps_control.refresh_pending {
-                            self.tab_apps_control.refresh_pending = true;
-                        }
-                    }
-                }
-            }
-        }
-
-        // Check if packages need to be refreshed (e.g., after install)
-        // Only refresh tab_apps_control, not other tabs (to avoid triggering scans)
-        if self.tab_apps_control.refresh_pending {
-            self.tab_apps_control.refresh_pending = false;
-            self.refresh_apps_tab_packages();
-
-            // Clear operation results after refresh (so progress notification disappears)
-            if let Some(ref queue) = self.tab_apps_control.operations_queue {
-                let is_running = queue.is_running.lock().unwrap();
-                if !*is_running && queue.completed_count() > 0 {
-                    drop(is_running);
-                    queue.clear_results();
-                }
-            }
-        }
+        // Operations queue and refresh already handled in controller
         let has_error = self.tab_apps_control.ui(ui);
 
         // Open log window automatically if an error occurred

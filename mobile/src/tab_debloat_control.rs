@@ -111,7 +111,7 @@ impl TabDebloatControl {
     }
 
     /// Start batch uninstall in background thread
-    fn start_batch_uninstall(
+    pub fn start_batch_uninstall(
         &mut self,
         pkgs: Vec<String>,
         sys_flags: Vec<bool>,
@@ -382,7 +382,7 @@ impl TabDebloatControl {
     }
 
     /// Update cached category counts if version has changed
-    fn update_cached_counts(&mut self, installed_packages: &[PackageFingerprint], uad_ng_lists: Option<&UadNgLists>) {
+    pub fn update_cached_counts(&mut self, installed_packages: &[PackageFingerprint], uad_ng_lists: Option<&UadNgLists>) {
         if self.cached_counts.version == self.table_version {
             return; // Cache is still valid
         }

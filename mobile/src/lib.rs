@@ -33,6 +33,8 @@ mod dlg_update;
 pub mod dlg_update_stt;
 mod dlg_about;
 pub mod dlg_about_stt;
+mod dlg_dashcounter_details;
+pub mod dlg_dashcounter_details_stt;
 
 pub mod api_apkmirror;
 pub mod api_apkmirror_stt;
@@ -46,6 +48,7 @@ pub mod api_hybridanalysis;
 pub mod api_hybridanalysis_stt;
 mod api_virustotal;
 pub mod api_virustotal_stt;
+pub mod calc;
 pub mod calc_androidpackage;
 mod calc_apkmirror;
 pub mod calc_apkmirror_stt;

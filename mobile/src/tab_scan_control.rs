@@ -431,7 +431,7 @@ impl TabScanControl {
     }
 
     /// Sync shared risk scores from background thread to local cache
-    fn sync_risk_scores(&mut self) {
+    pub fn sync_risk_scores(&mut self) {
         if let Ok(shared) = self.shared_package_risk_scores.lock() {
             for (pkg, score) in shared.iter() {
                 self.package_risk_scores.insert(pkg.clone(), *score);
@@ -577,7 +577,7 @@ impl TabScanControl {
     }
 
     /// Update cached VT/HA counts if scanner state has changed
-    fn update_cached_scan_counts(
+    pub fn update_cached_scan_counts(
         &mut self,
         installed_packages: &[PackageFingerprint],
         vt_scanner_state: &Option<calc_virustotal::ScannerState>,
