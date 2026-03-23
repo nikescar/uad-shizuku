@@ -1,0 +1,57 @@
+#[derive(Debug, Clone, PartialEq)]
+pub enum DashCounterCategory {
+    /// Debloat categories
+    DebloatRecommend,
+    DebloatAdvanced,
+    DebloatExpert,
+    DebloatUnsafe,
+    DebloatUnknown,
+    /// Stalkerware categories
+    StalkerwareDetected,
+    StalkerwareUndetected,
+    /// IzzyRisk categories
+    IzzyRiskSafe,       // 0
+    IzzyRiskNormal,     // 1-10
+    IzzyRiskModerate,   // 11-20
+    IzzyRiskHigh,       // 20+
+    /// VirusTotal categories
+    VirusTotalMalicious,
+    VirusTotalSuspicious,
+    VirusTotalSafe,
+    VirusTotalNotScanned,
+    /// HybridAnalysis categories
+    HybridAnalysisMalicious,
+    HybridAnalysisMaliciousIgnored,
+    HybridAnalysisSuspicious,
+    HybridAnalysisSafe,
+    HybridAnalysisNotScanned,
+}
+
+#[derive(Debug, Clone)]
+pub struct DlgDashCounterDetails {
+    pub open: bool,
+    pub category: Option<DashCounterCategory>,
+    pub count_enabled: usize,
+    pub count_total: usize,
+    pub sort_column: Option<usize>,
+    pub sort_ascending: bool,
+    pub show_only_enabled: bool,
+    pub hide_system_app: bool,
+    pub text_filter: String,
+}
+
+impl Default for DlgDashCounterDetails {
+    fn default() -> Self {
+        Self {
+            open: false,
+            category: None,
+            count_enabled: 0,
+            count_total: 0,
+            sort_column: None,
+            sort_ascending: true,
+            show_only_enabled: false,
+            hide_system_app: false,
+            text_filter: String::new(),
+        }
+    }
+}

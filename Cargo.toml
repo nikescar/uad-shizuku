@@ -36,6 +36,7 @@ codegen-units = 1
 opt-level = "z"
 debug = 0
 strip = "symbols"
+panic = "abort"
 
 [profile.release-with-symbols]
 inherits = "release"
