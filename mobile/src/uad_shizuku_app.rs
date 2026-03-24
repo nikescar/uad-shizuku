@@ -1888,7 +1888,7 @@ impl UadShizukuApp {
                 std::path::PathBuf::from("./tmp")
             };
 
-            match install::do_update(&self.dlg_update.download_url, &tmp_dir) {
+            match install::do_update(&self.dlg_update.download_url, &self.dlg_update.latest_version, &tmp_dir) {
                 InstallResult::Success(msg) => {
                     self.install_message = msg;
                     self.update_available = false;
