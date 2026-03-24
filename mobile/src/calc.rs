@@ -128,51 +128,55 @@ pub fn render_app_description_cell(ctx: &egui::Context, pkg_id: &str) -> DataTab
         }
     }
 
-    // Priority 2: FDroid
-    if texture.is_none() {
-        if let Some(fdroid_app) = store.get_cached_fdroid_app(pkg_id) {
-            if let Some(icon) = &fdroid_app.icon_base64 {
-                if let Some(tex) = load_texture_from_base64(ctx, "fd", pkg_id, icon) {
-                    texture = Some(tex.id());
-                    if !fdroid_app.title.is_empty() {
-                        title_text = fdroid_app.title.clone();
-                    }
-                    if !fdroid_app.developer.is_empty() {
-                        subtitle_text = fdroid_app.developer.clone();
-                    }
-                }
-            }
-        }
-    }
-
-    // Priority 3: GooglePlay
-    if texture.is_none() {
-        if let Some(gp_app) = store.get_cached_google_play_app(pkg_id) {
-            if let Some(icon) = &gp_app.icon_base64 {
-                if let Some(tex) = load_texture_from_base64(ctx, "gp", pkg_id, icon) {
-                    texture = Some(tex.id());
-                    if !gp_app.title.is_empty() {
-                        title_text = gp_app.title.clone();
-                    }
-                    if !gp_app.developer.is_empty() {
-                        subtitle_text = gp_app.developer.clone();
+    // Priority 2-4: External sources (disabled on Android)
+    #[cfg(not(target_os = "android"))]
+    {
+        // Priority 2: FDroid
+        if texture.is_none() {
+            if let Some(fdroid_app) = store.get_cached_fdroid_app(pkg_id) {
+                if let Some(icon) = &fdroid_app.icon_base64 {
+                    if let Some(tex) = load_texture_from_base64(ctx, "fd", pkg_id, icon) {
+                        texture = Some(tex.id());
+                        if !fdroid_app.title.is_empty() {
+                            title_text = fdroid_app.title.clone();
+                        }
+                        if !fdroid_app.developer.is_empty() {
+                            subtitle_text = fdroid_app.developer.clone();
+                        }
                     }
                 }
             }
         }
-    }
 
-    // Priority 4: APKMirror
-    if texture.is_none() {
-        if let Some(am_app) = store.get_cached_apkmirror_app(pkg_id) {
-            if let Some(icon) = &am_app.icon_base64 {
-                if let Some(tex) = load_texture_from_base64(ctx, "am", pkg_id, icon) {
-                    texture = Some(tex.id());
-                    if !am_app.title.is_empty() {
-                        title_text = am_app.title.clone();
+        // Priority 3: GooglePlay
+        if texture.is_none() {
+            if let Some(gp_app) = store.get_cached_google_play_app(pkg_id) {
+                if let Some(icon) = &gp_app.icon_base64 {
+                    if let Some(tex) = load_texture_from_base64(ctx, "gp", pkg_id, icon) {
+                        texture = Some(tex.id());
+                        if !gp_app.title.is_empty() {
+                            title_text = gp_app.title.clone();
+                        }
+                        if !gp_app.developer.is_empty() {
+                            subtitle_text = gp_app.developer.clone();
+                        }
                     }
-                    if !am_app.developer.is_empty() {
-                        subtitle_text = am_app.developer.clone();
+                }
+            }
+        }
+
+        // Priority 4: APKMirror
+        if texture.is_none() {
+            if let Some(am_app) = store.get_cached_apkmirror_app(pkg_id) {
+                if let Some(icon) = &am_app.icon_base64 {
+                    if let Some(tex) = load_texture_from_base64(ctx, "am", pkg_id, icon) {
+                        texture = Some(tex.id());
+                        if !am_app.title.is_empty() {
+                            title_text = am_app.title.clone();
+                        }
+                        if !am_app.developer.is_empty() {
+                            subtitle_text = am_app.developer.clone();
+                        }
                     }
                 }
             }
@@ -185,10 +189,15 @@ pub fn render_app_description_cell(ctx: &egui::Context, pkg_id: &str) -> DataTab
     }
 
     // Determine if we need scrollable title (for GooglePlay and APKMirror sources)
+    #[cfg(not(target_os = "android"))]
     let use_scrollable_title = texture.is_some() && (
         store.get_cached_google_play_app(pkg_id).is_some() ||
         store.get_cached_apkmirror_app(pkg_id).is_some()
     );
+
+    // On Android, never use scrollable title
+    #[cfg(target_os = "android")]
+    let use_scrollable_title = false;
 
     // Clone pkg_id for use in closure (unique identifier for ScrollArea)
     let pkg_id_for_scroll = pkg_id.to_string();
