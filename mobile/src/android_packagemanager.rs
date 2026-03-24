@@ -160,13 +160,15 @@ pub fn get_application_label(package_id: &str) -> std::io::Result<String> {
         )
     })?;
 
-    // Get ApplicationInfo: pm.getApplicationInfo(packageName, 0)
+    // Get ApplicationInfo: pm.getApplicationInfo(packageName, flags)
+    // Flags: GET_DISABLED_COMPONENTS (0x200) | GET_UNINSTALLED_PACKAGES (0x2000) = 0x2200
+    // This allows retrieving info for disabled system apps
     let app_info = env
         .call_method(
             &package_manager,
             "getApplicationInfo",
             "(Ljava/lang/String;I)Landroid/content/pm/ApplicationInfo;",
-            &[JValue::Object(&j_package_id), JValue::Int(0)],
+            &[JValue::Object(&j_package_id), JValue::Int(0x2200)],
         )
         .and_then(|v| v.l());
     // Clear pending JNI exception (getApplicationInfo throws NameNotFoundException for uninstalled packages)
@@ -257,13 +259,15 @@ pub fn get_application_icon(package_id: &str) -> std::io::Result<Vec<u8>> {
         )
     })?;
 
-    // Get ApplicationInfo
+    // Get ApplicationInfo with flags for disabled/uninstalled packages
+    // Flags: GET_DISABLED_COMPONENTS (0x200) | GET_UNINSTALLED_PACKAGES (0x2000) = 0x2200
+    // This allows retrieving info for disabled system apps
     let app_info = env
         .call_method(
             &package_manager,
             "getApplicationInfo",
             "(Ljava/lang/String;I)Landroid/content/pm/ApplicationInfo;",
-            &[JValue::Object(&j_package_id), JValue::Int(0)],
+            &[JValue::Object(&j_package_id), JValue::Int(0x2200)],
         )
         .and_then(|v| v.l());
     // Clear pending JNI exception (getApplicationInfo throws NameNotFoundException for uninstalled packages)

@@ -632,6 +632,20 @@ impl DlgDashCounterDetails {
             self.sort_debloat_packages(&mut filtered_packages, col, uad_lists);
         }
 
+        // Fetch Android package info for all filtered packages (on Android only)
+        #[cfg(target_os = "android")]
+        {
+            let store = get_shared_store();
+            for pkg in &filtered_packages {
+                // Check if not already cached
+                if store.get_cached_android_package_app(&pkg.pkg).is_none() {
+                    if let Some(info) = crate::calc_androidpackage::fetch_android_package_info(&pkg.pkg) {
+                        store.set_cached_android_package_app(pkg.pkg.clone(), info);
+                    }
+                }
+            }
+        }
+
         // Build datatable
         let mut table = data_table()
             .id(egui::Id::new("debloat_details_table"))
@@ -731,6 +745,20 @@ impl DlgDashCounterDetails {
             self.sort_stalkerware_packages(&mut filtered_packages, col);
         }
 
+        // Fetch Android package info for all filtered packages (on Android only)
+        #[cfg(target_os = "android")]
+        {
+            let store = get_shared_store();
+            for pkg in &filtered_packages {
+                // Check if not already cached
+                if store.get_cached_android_package_app(&pkg.pkg).is_none() {
+                    if let Some(info) = crate::calc_androidpackage::fetch_android_package_info(&pkg.pkg) {
+                        store.set_cached_android_package_app(pkg.pkg.clone(), info);
+                    }
+                }
+            }
+        }
+
         // Build datatable
         let mut table = data_table()
             .id(egui::Id::new("stalkerware_details_table"))
@@ -823,6 +851,20 @@ impl DlgDashCounterDetails {
         // Sort if needed
         if let Some(col) = self.sort_column {
             self.sort_izzyrisk_packages(&mut filtered_packages, col, package_risk_scores);
+        }
+
+        // Fetch Android package info for all filtered packages (on Android only)
+        #[cfg(target_os = "android")]
+        {
+            let store = get_shared_store();
+            for pkg in &filtered_packages {
+                // Check if not already cached
+                if store.get_cached_android_package_app(&pkg.pkg).is_none() {
+                    if let Some(info) = crate::calc_androidpackage::fetch_android_package_info(&pkg.pkg) {
+                        store.set_cached_android_package_app(pkg.pkg.clone(), info);
+                    }
+                }
+            }
         }
 
         // Build datatable
@@ -948,6 +990,20 @@ impl DlgDashCounterDetails {
         // Sort if needed
         if let Some(col) = self.sort_column {
             self.sort_virustotal_packages(&mut filtered_packages, col);
+        }
+
+        // Fetch Android package info for all filtered packages (on Android only)
+        #[cfg(target_os = "android")]
+        {
+            let store = get_shared_store();
+            for pkg in &filtered_packages {
+                // Check if not already cached
+                if store.get_cached_android_package_app(&pkg.pkg).is_none() {
+                    if let Some(info) = crate::calc_androidpackage::fetch_android_package_info(&pkg.pkg) {
+                        store.set_cached_android_package_app(pkg.pkg.clone(), info);
+                    }
+                }
+            }
         }
 
         // Build datatable
@@ -1098,6 +1154,20 @@ impl DlgDashCounterDetails {
             self.sort_hybridanalysis_packages(&mut filtered_packages, col);
         }
 
+        // Fetch Android package info for all filtered packages (on Android only)
+        #[cfg(target_os = "android")]
+        {
+            let store = get_shared_store();
+            for pkg in &filtered_packages {
+                // Check if not already cached
+                if store.get_cached_android_package_app(&pkg.pkg).is_none() {
+                    if let Some(info) = crate::calc_androidpackage::fetch_android_package_info(&pkg.pkg) {
+                        store.set_cached_android_package_app(pkg.pkg.clone(), info);
+                    }
+                }
+            }
+        }
+
         // Build datatable
         let mut table = data_table()
             .id(egui::Id::new("hybridanalysis_details_table"))
@@ -1178,24 +1248,28 @@ impl DlgDashCounterDetails {
             }
         }
 
-        // Priority 2: FDroid
-        if let Some(fdroid_app) = store.get_cached_fdroid_app(pkg_id) {
-            if !fdroid_app.title.is_empty() {
-                return fdroid_app.title.to_lowercase();
+        // Priority 2-4: External sources (disabled on Android)
+        #[cfg(not(target_os = "android"))]
+        {
+            // Priority 2: FDroid
+            if let Some(fdroid_app) = store.get_cached_fdroid_app(pkg_id) {
+                if !fdroid_app.title.is_empty() {
+                    return fdroid_app.title.to_lowercase();
+                }
             }
-        }
 
-        // Priority 3: GooglePlay
-        if let Some(gp_app) = store.get_cached_google_play_app(pkg_id) {
-            if !gp_app.title.is_empty() {
-                return gp_app.title.to_lowercase();
+            // Priority 3: GooglePlay
+            if let Some(gp_app) = store.get_cached_google_play_app(pkg_id) {
+                if !gp_app.title.is_empty() {
+                    return gp_app.title.to_lowercase();
+                }
             }
-        }
 
-        // Priority 4: APKMirror
-        if let Some(am_app) = store.get_cached_apkmirror_app(pkg_id) {
-            if !am_app.title.is_empty() {
-                return am_app.title.to_lowercase();
+            // Priority 4: APKMirror
+            if let Some(am_app) = store.get_cached_apkmirror_app(pkg_id) {
+                if !am_app.title.is_empty() {
+                    return am_app.title.to_lowercase();
+                }
             }
         }
 
