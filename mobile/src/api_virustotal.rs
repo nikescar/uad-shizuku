@@ -4,6 +4,19 @@ use std::fs::File;
 use std::io::Read;
 use std::path::Path;
 
+/// Shared HTTP agent for connection pooling and DNS caching
+fn get_agent() -> ureq::Agent {
+    use std::sync::OnceLock;
+    static AGENT: OnceLock<ureq::Agent> = OnceLock::new();
+
+    AGENT.get_or_init(|| {
+        ureq::AgentBuilder::new()
+            .max_idle_connections(10)
+            .max_idle_connections_per_host(5)
+            .build()
+    }).clone()
+}
+
 /// Error types for VirusTotal API
 #[derive(Debug)]
 pub enum VtError {
@@ -42,7 +55,8 @@ impl From<std::io::Error> for VtError {
 pub fn get_file_report(sha256: &str, api_key: &str) -> Result<VirusTotalResponse, VtError> {
     let url = format!("https://www.virustotal.com/api/v3/files/{}", sha256);
 
-    let response = ureq::get(&url)
+    let response = get_agent()
+        .get(&url)
         .timeout(std::time::Duration::from_secs(60))
         .set("accept", "application/json")
         .set("x-apikey", api_key)
@@ -115,7 +129,8 @@ pub fn upload_file(file_path: &Path, api_key: &str) -> Result<VirusTotalUploadRe
         .finish()
         .map_err(|e| VtError::HttpError(Box::new(e)))?;
 
-    let response = ureq::post(url)
+    let response = get_agent()
+        .post(url)
         .timeout(std::time::Duration::from_secs(60))
         .set("accept", "application/json")
         .set("x-apikey", api_key)
@@ -164,7 +179,8 @@ const MAX_STANDARD_UPLOAD_SIZE: u64 = 32 * 1024 * 1024;
 pub fn get_upload_url(api_key: &str) -> Result<String, VtError> {
     let url = "https://www.virustotal.com/api/v3/files/upload_url";
 
-    let response = ureq::get(url)
+    let response = get_agent()
+        .get(url)
         .timeout(std::time::Duration::from_secs(60))
         .set("accept", "application/json")
         .set("x-apikey", api_key)
@@ -222,7 +238,8 @@ fn upload_file_to_url(
         .map_err(|e| VtError::HttpError(Box::new(e)))?;
 
     // Use a longer timeout for large files (10 minutes)
-    let response = ureq::post(upload_url)
+    let response = get_agent()
+        .post(upload_url)
         .timeout(std::time::Duration::from_secs(600))
         .set("accept", "application/json")
         .set("x-apikey", api_key)
@@ -306,7 +323,8 @@ pub fn upload_file_smart(
 pub fn get_analysis(analysis_id: &str, api_key: &str) -> Result<VirusTotalResponse, VtError> {
     let url = format!("https://www.virustotal.com/api/v3/analyses/{}", analysis_id);
 
-    let response = ureq::get(&url)
+    let response = get_agent()
+        .get(&url)
         .timeout(std::time::Duration::from_secs(60))
         .set("accept", "application/json")
         .set("x-apikey", api_key)

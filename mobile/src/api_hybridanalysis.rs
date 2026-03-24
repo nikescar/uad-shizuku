@@ -4,6 +4,19 @@ use std::path::Path;
 
 const USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"));
 
+/// Shared HTTP agent for connection pooling and DNS caching
+fn get_agent() -> ureq::Agent {
+    use std::sync::OnceLock;
+    static AGENT: OnceLock<ureq::Agent> = OnceLock::new();
+
+    AGENT.get_or_init(|| {
+        ureq::AgentBuilder::new()
+            .max_idle_connections(10)
+            .max_idle_connections_per_host(5)
+            .build()
+    }).clone()
+}
+
 /// Error types for Hybrid Analysis API
 #[derive(Debug)]
 pub enum HaError {
@@ -45,7 +58,8 @@ pub fn search_hash(sha256: &str, api_key: &str) -> Result<HybridAnalysisHashResp
         sha256
     );
 
-    let response = ureq::get(&url)
+    let response = get_agent()
+        .get(&url)
         .timeout(std::time::Duration::from_secs(60))
         .set("accept", "application/json")
         .set("api-key", api_key)
@@ -96,7 +110,8 @@ pub fn get_report_summary(
         report_id
     );
 
-    let response = ureq::get(&url)
+    let response = get_agent()
+        .get(&url)
         .timeout(std::time::Duration::from_secs(60))
         .set("accept", "application/json")
         .set("api-key", api_key)
@@ -139,7 +154,8 @@ pub fn get_report_summary(
 pub fn check_quota(api_key: &str) -> Result<HybridAnalysisQuotaResponse, HaError> {
     let url = "https://hybrid-analysis.com/api/v2/key/submission-quota";
 
-    let response = ureq::get(&url)
+    let response = get_agent()
+        .get(&url)
         .timeout(std::time::Duration::from_secs(60))
         .set("accept", "application/json")
         .set("api-key", api_key)
@@ -183,7 +199,8 @@ pub fn get_job_state(
 ) -> Result<HybridAnalysisJobStateResponse, HaError> {
     let url = format!("https://hybrid-analysis.com/api/v2/report/{}/state", job_id);
 
-    let response = ureq::get(&url)
+    let response = get_agent()
+        .get(&url)
         .timeout(std::time::Duration::from_secs(60))
         .set("accept", "application/json")
         .set("api-key", api_key)
@@ -289,7 +306,8 @@ pub fn ha_submit_file(
     log::info!("Sending HTTP POST request to {}", url);
     log::debug!("Request headers: accept=application/json, api-key=<redacted>, User-Agent={}, Content-Type={}", USER_AGENT, content_type);
 
-    let response = ureq::post(url)
+    let response = get_agent()
+        .post(url)
         .timeout(std::time::Duration::from_secs(timeout_secs))
         .set("accept", "application/json")
         .set("api-key", api_key)
