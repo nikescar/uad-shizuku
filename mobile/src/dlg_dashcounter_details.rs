@@ -652,11 +652,13 @@ impl DlgDashCounterDetails {
             }
         }
 
-        // Build datatable
+        // Build datatable with responsive column widths
+        let available_width = ui.available_width();
+        // Columns: Apps (66.67%) + Actions (33.33%) = 100%
         let mut table = data_table()
             .id(egui::Id::new("debloat_details_table"))
-            .sortable_column("Apps", 400.0, false)
-            .sortable_column("", 200.0, false);
+            .sortable_column("Apps", available_width * 0.6667, false)
+            .sortable_column("", available_width * 0.3333, false);
 
         // Set initial sort state
         if let Some(sort_col) = self.sort_column {
@@ -767,11 +769,13 @@ impl DlgDashCounterDetails {
             }
         }
 
-        // Build datatable
+        // Build datatable with responsive column widths
+        let available_width = ui.available_width();
+        // Columns: Apps (66.67%) + Actions (33.33%) = 100%
         let mut table = data_table()
             .id(egui::Id::new("stalkerware_details_table"))
-            .sortable_column("Apps", 400.0, false)
-            .sortable_column("", 200.0, false);
+            .sortable_column("Apps", available_width * 0.6667, false)
+            .sortable_column("", available_width * 0.3333, false);
 
         // Set initial sort state
         if let Some(sort_col) = self.sort_column {
@@ -877,13 +881,15 @@ impl DlgDashCounterDetails {
             }
         }
 
-        // Build datatable
+        // Build datatable with responsive column widths
+        let available_width = ui.available_width();
+        // Columns: Apps (37.5%) + Risk Score (12.5%) + Permissions (25%) + Actions (25%) = 100%
         let mut table = data_table()
             .id(egui::Id::new("izzyrisk_details_table"))
-            .sortable_column("Apps", 300.0, false)
-            .sortable_column("Risk Score", 100.0, true)
-            .sortable_column("Caused Permissions", 200.0, false)
-            .sortable_column("", 200.0, false);
+            .sortable_column("Apps", available_width * 0.375, false)
+            .sortable_column("Risk Score", available_width * 0.125, true)
+            .sortable_column("Caused Permissions", available_width * 0.25, false)
+            .sortable_column("", available_width * 0.25, false);
 
         // Set initial sort state
         if let Some(sort_col) = self.sort_column {
@@ -1028,12 +1034,14 @@ impl DlgDashCounterDetails {
             }
         }
 
-        // Build datatable
+        // Build datatable with responsive column widths
+        let available_width = ui.available_width();
+        // Columns: Apps (42.86%) + VirusTotal (28.57%) + Actions (28.57%) = 100%
         let mut table = data_table()
             .id(egui::Id::new("virustotal_details_table"))
-            .sortable_column("Apps", 300.0, false)
-            .sortable_column(tr!("col-virustotal"), 200.0, false)
-            .sortable_column("", 200.0, false);
+            .sortable_column("Apps", available_width * 0.4286, false)
+            .sortable_column(tr!("col-virustotal"), available_width * 0.2857, false)
+            .sortable_column("", available_width * 0.2857, false);
 
         // Set initial sort state
         if let Some(sort_col) = self.sort_column {
@@ -1205,12 +1213,14 @@ impl DlgDashCounterDetails {
             }
         }
 
-        // Build datatable
+        // Build datatable with responsive column widths
+        let available_width = ui.available_width();
+        // Columns: Apps (42.86%) + HybridAnalysis (28.57%) + Actions (28.57%) = 100%
         let mut table = data_table()
             .id(egui::Id::new("hybridanalysis_details_table"))
-            .sortable_column("Apps", 300.0, false)
-            .sortable_column(tr!("col-hybrid-analysis"), 200.0, false)
-            .sortable_column("", 200.0, false);
+            .sortable_column("Apps", available_width * 0.4286, false)
+            .sortable_column(tr!("col-hybrid-analysis"), available_width * 0.2857, false)
+            .sortable_column("", available_width * 0.2857, false);
 
         // Set initial sort state
         if let Some(sort_col) = self.sort_column {
