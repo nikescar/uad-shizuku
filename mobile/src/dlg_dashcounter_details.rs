@@ -342,6 +342,7 @@ impl DlgDashCounterDetails {
         debloat_category: Option<&str>,
         unsafe_app_remove: bool,
         show_refresh_button: bool,
+        uad_ng_lists: &Option<UadNgLists>,
     ) {
         let pkg_id_clone = pkg_id.to_string();
 
@@ -365,7 +366,12 @@ impl DlgDashCounterDetails {
         };
 
         let is_system = package.flags.contains("SYSTEM");
-        let is_unsafe_blocked = debloat_category == Some("Unsafe") && !unsafe_app_remove;
+
+        // Check if app is classified as "Unsafe" in debloat lists, regardless of current view
+        let actual_debloat_category = uad_ng_lists.as_ref()
+            .and_then(|lists| lists.apps.get(pkg_id))
+            .map(|entry| entry.removal.as_str());
+        let is_unsafe_blocked = actual_debloat_category == Some("Unsafe") && !unsafe_app_remove;
 
         ui.horizontal(|ui| {
             ui.spacing_mut().item_spacing.x = 0.0;
@@ -507,26 +513,26 @@ impl DlgDashCounterDetails {
                             }
                             DashCounterCategory::StalkerwareDetected
                             | DashCounterCategory::StalkerwareUndetected => {
-                                self.render_stalkerware_table(ui, ctx, installed_packages, stalkerware_indicators, &category, clicked_package_idx.clone(), unsafe_app_remove);
+                                self.render_stalkerware_table(ui, ctx, installed_packages, stalkerware_indicators, &category, clicked_package_idx.clone(), unsafe_app_remove, uad_ng_lists);
                             }
                             DashCounterCategory::IzzyRiskSafe
                             | DashCounterCategory::IzzyRiskNormal
                             | DashCounterCategory::IzzyRiskModerate
                             | DashCounterCategory::IzzyRiskHigh => {
-                                self.render_izzyrisk_table(ui, ctx, installed_packages, package_risk_scores, &category, clicked_package_idx.clone(), unsafe_app_remove);
+                                self.render_izzyrisk_table(ui, ctx, installed_packages, package_risk_scores, &category, clicked_package_idx.clone(), unsafe_app_remove, uad_ng_lists);
                             }
                             DashCounterCategory::VirusTotalMalicious
                             | DashCounterCategory::VirusTotalSuspicious
                             | DashCounterCategory::VirusTotalSafe
                             | DashCounterCategory::VirusTotalNotScanned => {
-                                self.render_virustotal_table(ui, ctx, installed_packages, &category, clicked_package_idx.clone(), unsafe_app_remove);
+                                self.render_virustotal_table(ui, ctx, installed_packages, &category, clicked_package_idx.clone(), unsafe_app_remove, uad_ng_lists);
                             }
                             DashCounterCategory::HybridAnalysisMalicious
                             | DashCounterCategory::HybridAnalysisMaliciousIgnored
                             | DashCounterCategory::HybridAnalysisSuspicious
                             | DashCounterCategory::HybridAnalysisSafe
                             | DashCounterCategory::HybridAnalysisNotScanned => {
-                                self.render_hybridanalysis_table(ui, ctx, installed_packages, &category, clicked_package_idx.clone(), hybridanalysis_tag_ignorelist, unsafe_app_remove);
+                                self.render_hybridanalysis_table(ui, ctx, installed_packages, &category, clicked_package_idx.clone(), hybridanalysis_tag_ignorelist, unsafe_app_remove, uad_ng_lists);
                             }
                         }
                     });
@@ -673,10 +679,11 @@ impl DlgDashCounterDetails {
             // Find the actual index in installed_packages
             let actual_idx = installed_packages.iter().position(|p| p.pkg == pkg.pkg).unwrap_or(idx);
 
+            let uad_lists_clone = uad_ng_lists.clone();
             table = table.row(|row| {
                 row.custom_cell(app_desc_cell)
                     .custom_cell(DataTableCell::widget(move |ui: &mut egui::Ui| {
-                        Self::render_action_buttons_static(ui, &pkg_id, &pkg_clone, clicked_idx_clone.clone(), actual_idx, Some(debloat_cat), unsafe_app_remove, false);
+                        Self::render_action_buttons_static(ui, &pkg_id, &pkg_clone, clicked_idx_clone.clone(), actual_idx, Some(debloat_cat), unsafe_app_remove, false, &uad_lists_clone);
                     }))
             });
         }
@@ -714,6 +721,7 @@ impl DlgDashCounterDetails {
         category: &DashCounterCategory,
         clicked_package_idx: Arc<Mutex<Option<usize>>>,
         unsafe_app_remove: bool,
+        uad_ng_lists: &Option<UadNgLists>,
     ) {
         let Some(indicators) = stalkerware_indicators else {
             ui.label("Stalkerware indicators not loaded");
@@ -782,11 +790,12 @@ impl DlgDashCounterDetails {
             let pkg_clone = (*pkg).clone();
             let clicked_idx_clone = clicked_package_idx.clone();
             let actual_idx = installed_packages.iter().position(|p| p.pkg == pkg.pkg).unwrap_or(idx);
+            let uad_lists_clone = uad_ng_lists.clone();
 
             table = table.row(|row| {
                 row.custom_cell(app_desc_cell)
                     .custom_cell(DataTableCell::widget(move |ui: &mut egui::Ui| {
-                        Self::render_action_buttons_static(ui, &pkg_id, &pkg_clone, clicked_idx_clone.clone(), actual_idx, None, unsafe_app_remove, false);
+                        Self::render_action_buttons_static(ui, &pkg_id, &pkg_clone, clicked_idx_clone.clone(), actual_idx, None, unsafe_app_remove, false, &uad_lists_clone);
                     }))
             });
         }
@@ -824,6 +833,7 @@ impl DlgDashCounterDetails {
         category: &DashCounterCategory,
         clicked_package_idx: Arc<Mutex<Option<usize>>>,
         unsafe_app_remove: bool,
+        uad_ng_lists: &Option<UadNgLists>,
     ) {
         // Filter packages by risk level and filters
         let mut filtered_packages: Vec<&PackageFingerprint> = installed_packages
@@ -901,13 +911,14 @@ impl DlgDashCounterDetails {
             let pkg_clone = (*pkg).clone();
             let clicked_idx_clone = clicked_package_idx.clone();
             let actual_idx = installed_packages.iter().position(|p| p.pkg == pkg.pkg).unwrap_or(idx);
+            let uad_lists_clone = uad_ng_lists.clone();
 
             table = table.row(|row| {
                 row.custom_cell(app_desc_cell)
                     .cell(&risk_score.to_string())
                     .cell(&permissions_text)
                     .custom_cell(DataTableCell::widget(move |ui: &mut egui::Ui| {
-                        Self::render_action_buttons_static(ui, &pkg_id, &pkg_clone, clicked_idx_clone.clone(), actual_idx, None, unsafe_app_remove, false);
+                        Self::render_action_buttons_static(ui, &pkg_id, &pkg_clone, clicked_idx_clone.clone(), actual_idx, None, unsafe_app_remove, false, &uad_lists_clone);
                     }))
             });
         }
@@ -944,6 +955,7 @@ impl DlgDashCounterDetails {
         category: &DashCounterCategory,
         clicked_package_idx: Arc<Mutex<Option<usize>>>,
         unsafe_app_remove: bool,
+        uad_ng_lists: &Option<UadNgLists>,
     ) {
         let store = get_shared_store();
         let vt_state = store.get_vt_scanner_state();
@@ -1048,11 +1060,12 @@ impl DlgDashCounterDetails {
                 })
             });
 
+            let uad_lists_clone = uad_ng_lists.clone();
             table = table.row(|row| {
                 row.custom_cell(app_desc_cell)
                     .custom_cell(Self::render_vt_cell(vt_scan_result, idx))
                     .custom_cell(DataTableCell::widget(move |ui: &mut egui::Ui| {
-                        Self::render_action_buttons_static(ui, &pkg_id, &pkg_clone, clicked_idx_clone.clone(), actual_idx, None, unsafe_app_remove, true);
+                        Self::render_action_buttons_static(ui, &pkg_id, &pkg_clone, clicked_idx_clone.clone(), actual_idx, None, unsafe_app_remove, true, &uad_lists_clone);
                     }))
             });
         }
@@ -1090,6 +1103,7 @@ impl DlgDashCounterDetails {
         clicked_package_idx: Arc<Mutex<Option<usize>>>,
         hybridanalysis_tag_ignorelist: &str,
         unsafe_app_remove: bool,
+        uad_ng_lists: &Option<UadNgLists>,
     ) {
         let store = get_shared_store();
         let ha_state = store.get_ha_scanner_state();
@@ -1224,12 +1238,13 @@ impl DlgDashCounterDetails {
             });
 
             let ha_tag_ignorelist_clone = hybridanalysis_tag_ignorelist.to_string();
+            let uad_lists_clone = uad_ng_lists.clone();
 
             table = table.row(|row| {
                 row.custom_cell(app_desc_cell)
                     .custom_cell(Self::render_ha_cell(ha_scan_result, idx, ha_tag_ignorelist_clone))
                     .custom_cell(DataTableCell::widget(move |ui: &mut egui::Ui| {
-                        Self::render_action_buttons_static(ui, &pkg_id, &pkg_clone, clicked_idx_clone.clone(), actual_idx, None, unsafe_app_remove, true);
+                        Self::render_action_buttons_static(ui, &pkg_id, &pkg_clone, clicked_idx_clone.clone(), actual_idx, None, unsafe_app_remove, true, &uad_lists_clone);
                     }))
             });
         }
