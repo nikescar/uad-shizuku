@@ -6,7 +6,7 @@ use crate::calc;
 use crate::calc_stalkerware_stt::StalkerwareIndicators;
 use crate::material_symbol_icons::{ICON_INFO, ICON_DELETE, ICON_REFRESH};
 use eframe::egui;
-use egui_material3::{data_table, MaterialButton, DataTableCell, icon_button_standard};
+use egui_material3::{data_table, MaterialButton, DataTableCell, icon_button_standard, show_tooltip_on_hover, TooltipPosition};
 use egui_i18n::tr;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -883,13 +883,37 @@ impl DlgDashCounterDetails {
 
         // Build datatable with responsive column widths
         let available_width = ui.available_width();
+        let screen_width = ctx.screen_rect().width();
+        let is_narrow_screen = screen_width < 600.0;
+
+        // Use abbreviated headers for narrow screens
+        let risk_score_header = if is_narrow_screen { "RS" } else { "Risk Score" };
+        let permissions_header = if is_narrow_screen { "Perm" } else { "Caused Permissions" };
+
         // Columns: Apps (37.5%) + Risk Score (12.5%) + Permissions (25%) + Actions (25%) = 100%
         let mut table = data_table()
             .id(egui::Id::new("izzyrisk_details_table"))
-            .sortable_column("Apps", available_width * 0.375, false)
-            .sortable_column("Risk Score", available_width * 0.125, true)
-            .sortable_column("Caused Permissions", available_width * 0.25, false)
-            .sortable_column("", available_width * 0.25, false);
+            .sortable_column("Apps", available_width * 0.375, false);
+
+        // Add Risk Score column with tooltip if abbreviated
+        if is_narrow_screen {
+            table = table
+                .sortable_column(risk_score_header, available_width * 0.125, true)
+                .column_tooltip("Risk Score");
+        } else {
+            table = table.sortable_column(risk_score_header, available_width * 0.125, true);
+        }
+
+        // Add Permissions column with tooltip if abbreviated
+        if is_narrow_screen {
+            table = table
+                .sortable_column(permissions_header, available_width * 0.25, false)
+                .column_tooltip("Caused Permissions");
+        } else {
+            table = table.sortable_column(permissions_header, available_width * 0.25, false);
+        }
+
+        table = table.sortable_column("", available_width * 0.25, false);
 
         // Set initial sort state
         if let Some(sort_col) = self.sort_column {
@@ -908,9 +932,9 @@ impl DlgDashCounterDetails {
 
             // Get caused permissions (install permissions)
             let permissions_text = if pkg.installPermissions.is_empty() {
-                "None".to_string()
+                "0".to_string()
             } else {
-                format!("{} permissions", pkg.installPermissions.len())
+                pkg.installPermissions.len().to_string()
             };
 
             let pkg_id = pkg.pkg.clone();
