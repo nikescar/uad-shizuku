@@ -1289,6 +1289,28 @@ impl UadShizukuApp {
             }
         }
 
+        // Handle settings button - open settings dialog
+        if ui.ctx().data(|data| {
+            data.get_temp::<bool>(egui::Id::new("settings_button_clicked"))
+        }).unwrap_or(false) {
+            ui.ctx().data_mut(|data| {
+                data.remove::<bool>(egui::Id::new("settings_button_clicked"));
+            });
+
+            // Sync temporary settings from current settings when opening dialog
+            self.dlg_settings.google_play_renderer = self.settings.google_play_renderer;
+            self.dlg_settings.fdroid_renderer = self.settings.fdroid_renderer;
+            self.dlg_settings.apkmirror_renderer = self.settings.apkmirror_renderer;
+            self.dlg_settings.virustotal_apikey = self.settings.virustotal_apikey.clone();
+            self.dlg_settings.hybridanalysis_apikey = self.settings.hybridanalysis_apikey.clone();
+            self.dlg_settings.virustotal_submit = self.settings.virustotal_submit;
+            self.dlg_settings.hybridanalysis_submit = self.settings.hybridanalysis_submit;
+            self.dlg_settings.hybridanalysis_tag_ignorelist = self.settings.hybridanalysis_tag_ignorelist.clone();
+            self.dlg_settings.unsafe_app_remove = self.settings.unsafe_app_remove;
+            self.dlg_settings.autoupdate = self.settings.autoupdate;
+            self.dlg_settings.open();
+        }
+
         // Handle enable/disable/uninstall/refresh actions from dialog
         let mut enable_package: Option<String> = None;
         let mut disable_package: Option<String> = None;

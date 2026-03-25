@@ -4,7 +4,7 @@ use crate::uad_shizuku_app::UadNgLists;
 pub use crate::dlg_dashcounter_details_stt::*;
 use crate::calc;
 use crate::calc_stalkerware_stt::StalkerwareIndicators;
-use crate::material_symbol_icons::{ICON_INFO, ICON_DELETE, ICON_REFRESH};
+use crate::material_symbol_icons::{ICON_DELETE, ICON_REFRESH, ICON_SETTINGS};
 use eframe::egui;
 use egui_material3::{data_table, MaterialButton, DataTableCell, icon_button_standard, show_tooltip_on_hover, TooltipPosition};
 use egui_i18n::tr;
@@ -332,13 +332,146 @@ impl DlgDashCounterDetails {
         }
     }
 
+    /// Create a clickable app description cell that opens package details on click
+    fn render_clickable_app_cell(
+        ctx: &egui::Context,
+        pkg_id: &str,
+        clicked_package_idx: Arc<Mutex<Option<usize>>>,
+        row_idx: usize,
+    ) -> DataTableCell {
+        let pkg_id_owned = pkg_id.to_string();
+        let ctx_clone = ctx.clone();
+
+        // Create clickable cell
+        DataTableCell::widget(move |ui: &mut egui::Ui| {
+            // Get app info
+            let store = get_shared_store();
+            let on_surface = egui_material3::get_global_color("onSurface");
+
+            let mut texture: Option<egui::TextureId> = None;
+            let mut title_text = pkg_id_owned.clone();
+            let mut subtitle_text = String::new();
+
+            // Priority 1: Android Package (native icons)
+            if let Some(android_app) = store.get_cached_android_package_app(&pkg_id_owned) {
+                if !android_app.icon_bytes.is_empty() {
+                    if let Some(tex) = calc::load_texture_from_bytes(&ctx_clone, &pkg_id_owned, &android_app.icon_bytes) {
+                        texture = Some(tex.id());
+                        if !android_app.label.is_empty() {
+                            title_text = android_app.label.clone();
+                        }
+                    }
+                }
+            }
+
+            // Priority 2-4: External sources (disabled on Android)
+            #[cfg(not(target_os = "android"))]
+            {
+                // Priority 2: FDroid
+                if texture.is_none() {
+                    if let Some(fdroid_app) = store.get_cached_fdroid_app(&pkg_id_owned) {
+                        if let Some(icon) = &fdroid_app.icon_base64 {
+                            if let Some(tex) = calc::load_texture_from_base64(&ctx_clone, "fd", &pkg_id_owned, icon) {
+                                texture = Some(tex.id());
+                                if !fdroid_app.title.is_empty() {
+                                    title_text = fdroid_app.title.clone();
+                                }
+                                if !fdroid_app.developer.is_empty() {
+                                    subtitle_text = fdroid_app.developer.clone();
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Priority 3: GooglePlay
+                if texture.is_none() {
+                    if let Some(gp_app) = store.get_cached_google_play_app(&pkg_id_owned) {
+                        if let Some(icon) = &gp_app.icon_base64 {
+                            if let Some(tex) = calc::load_texture_from_base64(&ctx_clone, "gp", &pkg_id_owned, icon) {
+                                texture = Some(tex.id());
+                                if !gp_app.title.is_empty() {
+                                    title_text = gp_app.title.clone();
+                                }
+                                if !gp_app.developer.is_empty() {
+                                    subtitle_text = gp_app.developer.clone();
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Priority 4: APKMirror
+                if texture.is_none() {
+                    if let Some(am_app) = store.get_cached_apkmirror_app(&pkg_id_owned) {
+                        if let Some(icon) = &am_app.icon_base64 {
+                            if let Some(tex) = calc::load_texture_from_base64(&ctx_clone, "am", &pkg_id_owned, icon) {
+                                texture = Some(tex.id());
+                                if !am_app.title.is_empty() {
+                                    title_text = am_app.title.clone();
+                                }
+                                if !am_app.developer.is_empty() {
+                                    subtitle_text = am_app.developer.clone();
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // If no subtitle, use package ID
+            if subtitle_text.is_empty() {
+                subtitle_text = pkg_id_owned.clone();
+            }
+
+            // Render the content in a clickable area
+            let response = ui.horizontal(|ui| {
+                // App icon (38x38)
+                if let Some(tex_id) = texture {
+                    let size = egui::Vec2::new(38.0, 38.0);
+                    ui.add(egui::Image::new(egui::load::SizedTexture::new(tex_id, size)));
+                } else {
+                    ui.add_space(38.0);
+                }
+
+                ui.add_space(8.0);
+
+                // Title and subtitle
+                ui.vertical(|ui| {
+                    ui.spacing_mut().item_spacing.y = 2.0;
+                    ui.label(egui::RichText::new(&title_text).color(on_surface).size(14.0));
+                    ui.label(egui::RichText::new(&subtitle_text)
+                        .color(egui::Color32::from_rgba_unmultiplied(
+                            on_surface.r(),
+                            on_surface.g(),
+                            on_surface.b(),
+                            153,
+                        ))
+                        .size(12.0));
+                });
+            }).response;
+
+            // Make the entire cell clickable
+            let sense_response = ui.interact(response.rect, egui::Id::new(format!("clickable_app_cell_{}", row_idx)), egui::Sense::click());
+
+            if sense_response.clicked() {
+                if let Ok(mut clicked) = clicked_package_idx.lock() {
+                    *clicked = Some(row_idx);
+                }
+            }
+
+            // Change cursor on hover
+            if sense_response.hovered() {
+                ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+            }
+        })
+    }
+
     /// Render action buttons (copied from tab_debloat_control.rs)
     fn render_action_buttons_static(
         ui: &mut egui::Ui,
         pkg_id: &str,
         package: &PackageFingerprint,
-        clicked_idx: Arc<Mutex<Option<usize>>>,
-        row_idx: usize,
         debloat_category: Option<&str>,
         unsafe_app_remove: bool,
         show_refresh_button: bool,
@@ -376,14 +509,6 @@ impl DlgDashCounterDetails {
         ui.horizontal(|ui| {
             ui.spacing_mut().item_spacing.x = 0.0;
 
-            // Info button
-            if ui.add(icon_button_standard(ICON_INFO.to_string()))
-                .on_hover_text(tr!("package-info")).clicked() {
-                if let Ok(mut clicked) = clicked_idx.lock() {
-                    *clicked = Some(row_idx);
-                }
-            }
-
             // Refresh button - delete scan results and re-queue (only for VT/HA tables)
             if show_refresh_button {
                 if ui.add(icon_button_standard(ICON_REFRESH.to_string()))
@@ -419,8 +544,18 @@ impl DlgDashCounterDetails {
                     .icon_color(egui::Color32::from_rgb(211, 47, 47)))
                     .on_hover_text(tr!("uninstall")).clicked() {
                     ui.data_mut(|data| {
-                        data.insert_temp(egui::Id::new("uninstall_clicked_package"), pkg_id_clone);
+                        data.insert_temp(egui::Id::new("uninstall_clicked_package"), pkg_id_clone.clone());
                         data.insert_temp(egui::Id::new("uninstall_clicked_is_system"), is_system);
+                    });
+                }
+            }
+
+            // Settings button for unsafe blocked enabled apps (when nothing else shows)
+            if is_unsafe_blocked && pkg_enabled {
+                if ui.add(icon_button_standard(ICON_SETTINGS.to_string()))
+                    .on_hover_text(tr!("settings")).clicked() {
+                    ui.data_mut(|data| {
+                        data.insert_temp(egui::Id::new("settings_button_clicked"), true);
                     });
                 }
             }
@@ -672,7 +807,6 @@ impl DlgDashCounterDetails {
         }
 
         for (idx, pkg) in filtered_packages.iter().enumerate() {
-            let app_desc_cell = calc::render_app_description_cell(ctx, &pkg.pkg);
             let pkg_id = pkg.pkg.clone();
             let pkg_clone = (*pkg).clone();
             let clicked_idx_clone = clicked_package_idx.clone();
@@ -681,11 +815,12 @@ impl DlgDashCounterDetails {
             // Find the actual index in installed_packages
             let actual_idx = installed_packages.iter().position(|p| p.pkg == pkg.pkg).unwrap_or(idx);
 
+            let app_desc_cell = Self::render_clickable_app_cell(ctx, &pkg.pkg, clicked_idx_clone.clone(), actual_idx);
             let uad_lists_clone = uad_ng_lists.clone();
             table = table.row(|row| {
                 row.custom_cell(app_desc_cell)
                     .custom_cell(DataTableCell::widget(move |ui: &mut egui::Ui| {
-                        Self::render_action_buttons_static(ui, &pkg_id, &pkg_clone, clicked_idx_clone.clone(), actual_idx, Some(debloat_cat), unsafe_app_remove, false, &uad_lists_clone);
+                        Self::render_action_buttons_static(ui, &pkg_id, &pkg_clone, Some(debloat_cat), unsafe_app_remove, false, &uad_lists_clone);
                     }))
             });
         }
@@ -789,17 +924,17 @@ impl DlgDashCounterDetails {
         }
 
         for (idx, pkg) in filtered_packages.iter().enumerate() {
-            let app_desc_cell = calc::render_app_description_cell(ctx, &pkg.pkg);
             let pkg_id = pkg.pkg.clone();
             let pkg_clone = (*pkg).clone();
             let clicked_idx_clone = clicked_package_idx.clone();
             let actual_idx = installed_packages.iter().position(|p| p.pkg == pkg.pkg).unwrap_or(idx);
             let uad_lists_clone = uad_ng_lists.clone();
 
+            let app_desc_cell = Self::render_clickable_app_cell(ctx, &pkg.pkg, clicked_idx_clone.clone(), actual_idx);
             table = table.row(|row| {
                 row.custom_cell(app_desc_cell)
                     .custom_cell(DataTableCell::widget(move |ui: &mut egui::Ui| {
-                        Self::render_action_buttons_static(ui, &pkg_id, &pkg_clone, clicked_idx_clone.clone(), actual_idx, None, unsafe_app_remove, false, &uad_lists_clone);
+                        Self::render_action_buttons_static(ui, &pkg_id, &pkg_clone, None, unsafe_app_remove, false, &uad_lists_clone);
                     }))
             });
         }
@@ -927,7 +1062,6 @@ impl DlgDashCounterDetails {
         }
 
         for (idx, pkg) in filtered_packages.iter().enumerate() {
-            let app_desc_cell = calc::render_app_description_cell(ctx, &pkg.pkg);
             let risk_score = package_risk_scores.get(&pkg.pkg).copied().unwrap_or(0);
 
             // Get caused permissions (install permissions)
@@ -943,12 +1077,13 @@ impl DlgDashCounterDetails {
             let actual_idx = installed_packages.iter().position(|p| p.pkg == pkg.pkg).unwrap_or(idx);
             let uad_lists_clone = uad_ng_lists.clone();
 
+            let app_desc_cell = Self::render_clickable_app_cell(ctx, &pkg.pkg, clicked_idx_clone.clone(), actual_idx);
             table = table.row(|row| {
                 row.custom_cell(app_desc_cell)
                     .cell(&risk_score.to_string())
                     .cell(&permissions_text)
                     .custom_cell(DataTableCell::widget(move |ui: &mut egui::Ui| {
-                        Self::render_action_buttons_static(ui, &pkg_id, &pkg_clone, clicked_idx_clone.clone(), actual_idx, None, unsafe_app_remove, false, &uad_lists_clone);
+                        Self::render_action_buttons_static(ui, &pkg_id, &pkg_clone, None, unsafe_app_remove, false, &uad_lists_clone);
                     }))
             });
         }
@@ -1079,7 +1214,6 @@ impl DlgDashCounterDetails {
         }
 
         for (idx, pkg) in filtered_packages.iter().enumerate() {
-            let app_desc_cell = calc::render_app_description_cell(ctx, &pkg.pkg);
             let pkg_id = pkg.pkg.clone();
             let pkg_clone = (*pkg).clone();
             let clicked_idx_clone = clicked_package_idx.clone();
@@ -1092,12 +1226,13 @@ impl DlgDashCounterDetails {
                 })
             });
 
+            let app_desc_cell = Self::render_clickable_app_cell(ctx, &pkg.pkg, clicked_idx_clone.clone(), actual_idx);
             let uad_lists_clone = uad_ng_lists.clone();
             table = table.row(|row| {
                 row.custom_cell(app_desc_cell)
                     .custom_cell(Self::render_vt_cell(vt_scan_result, idx))
                     .custom_cell(DataTableCell::widget(move |ui: &mut egui::Ui| {
-                        Self::render_action_buttons_static(ui, &pkg_id, &pkg_clone, clicked_idx_clone.clone(), actual_idx, None, unsafe_app_remove, true, &uad_lists_clone);
+                        Self::render_action_buttons_static(ui, &pkg_id, &pkg_clone, None, unsafe_app_remove, true, &uad_lists_clone);
                     }))
             });
         }
@@ -1258,7 +1393,6 @@ impl DlgDashCounterDetails {
         }
 
         for (idx, pkg) in filtered_packages.iter().enumerate() {
-            let app_desc_cell = calc::render_app_description_cell(ctx, &pkg.pkg);
             let pkg_id = pkg.pkg.clone();
             let pkg_clone = (*pkg).clone();
             let clicked_idx_clone = clicked_package_idx.clone();
@@ -1271,6 +1405,7 @@ impl DlgDashCounterDetails {
                 })
             });
 
+            let app_desc_cell = Self::render_clickable_app_cell(ctx, &pkg.pkg, clicked_idx_clone.clone(), actual_idx);
             let ha_tag_ignorelist_clone = hybridanalysis_tag_ignorelist.to_string();
             let uad_lists_clone = uad_ng_lists.clone();
 
@@ -1278,7 +1413,7 @@ impl DlgDashCounterDetails {
                 row.custom_cell(app_desc_cell)
                     .custom_cell(Self::render_ha_cell(ha_scan_result, idx, ha_tag_ignorelist_clone))
                     .custom_cell(DataTableCell::widget(move |ui: &mut egui::Ui| {
-                        Self::render_action_buttons_static(ui, &pkg_id, &pkg_clone, clicked_idx_clone.clone(), actual_idx, None, unsafe_app_remove, true, &uad_lists_clone);
+                        Self::render_action_buttons_static(ui, &pkg_id, &pkg_clone, None, unsafe_app_remove, true, &uad_lists_clone);
                     }))
             });
         }
