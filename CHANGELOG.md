@@ -1,9 +1,28 @@
 ## What's Changed
+* fix. clickable app info on dashcounter. by @nikescar
+* fix. adjust data_table columns on dashcounter. by @nikescar
+* fix. full-width data_table in dashcounter. by @nikescar
+* fix. unsafe restriction to all dashcounter tables. by @nikescar
+* fix. virustotal, hybridanalysis dashcounters and datatable mismatch. by @nikescar
+* refactor. theme, adb related to separate from main ui. by @nikescar
+* fix. dns local caching. by @nikescar
+* fix. android package render system apps. by @nikescar
+* fix. install/update enhancement. by @nikescar
+* fix. improve qemu script. by @nikescar
+* feat. dashcounter for mobile ui. by @nikescar
+* fix. runtime permission text to RP on debloat table. by @nikescar
+* chore. fix star history on github. by @nikescar
+* chore. change android-activity crate to github upstream. by @nikescar
+
+## What's Changed in 0.0.11
+* release. v0.0.11 by @nikescar
 * chore. add versioncode field to Cargo.toml for fdroid release. by @nikescar
 * chore. add recent changelog to release notes. by @nikescar
 * chore. change release notes to have proper vt filename. by @nikescar
 * chore. fdroid build script. by @nikescar
 * fix. change install bin name and shortcut path. by @nikescar
+
+**Full Changelog**: https://github.com/nikescar/uad-shizuku/compare/v0.0.10...v0.0.11
 
 ## What's Changed in 0.0.10
 * release. v0.0.10 by @nikescar
