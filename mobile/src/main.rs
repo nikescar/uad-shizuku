@@ -1,3 +1,13 @@
+//! Desktop entry point for UAD-Shizuku
+//!
+//! Command-line options:
+//! - `--silent` flag: Performs silent installation and exits (desktop only)
+//! - `--uninstall` flag: Performs uninstallation and exits (desktop only)
+//! - `--log [FILE]`: Enable file logging (defaults to uad-shizuku.log if FILE not specified)
+//!
+//! Logging:
+//! - Log level is configured from user settings, defaults to ERROR
+
 #![cfg_attr(target_os = "windows", windows_subsystem = "windows")]
 
 use eframe::egui::{self, IconData};
@@ -103,35 +113,33 @@ fn hide_console() {
 }
 
 fn main() -> eframe::Result<()> {
-    // Handle --uninstall argument (for Windows Add/Remove Programs)
+    // Parse command-line arguments FIRST to check for explicit flags and log configuration
     let args: Vec<String> = std::env::args().collect();
-    if args.iter().any(|arg| arg == "--uninstall") {
-        #[cfg(not(target_os = "android"))]
-        {
-            use uad_shizuku::install;
-            use uad_shizuku::install_stt::InstallResult;
 
-            match install::do_uninstall() {
-                InstallResult::Success(msg) => {
-                    println!("{}", msg);
-                    std::process::exit(0);
+    // Check for --log argument
+    let log_file = {
+        let mut log_file_opt: Option<String> = None;
+        let mut i = 0;
+        while i < args.len() {
+            if args[i] == "--log" {
+                // Check if there's a value after --log
+                if i + 1 < args.len() && !args[i + 1].starts_with("--") {
+                    log_file_opt = Some(args[i + 1].clone());
+                    i += 2;
+                } else {
+                    // --log flag present but no value, use default
+                    log_file_opt = Some("uad-shizuku.log".to_string());
+                    i += 1;
                 }
-                InstallResult::Error(err) => {
-                    eprintln!("Uninstall error: {}", err);
-                    std::process::exit(1);
-                }
+            } else {
+                i += 1;
             }
         }
-        #[cfg(target_os = "android")]
-        {
-            eprintln!("Uninstall not supported on Android");
-            std::process::exit(1);
-        }
-    }
+        log_file_opt
+    };
 
-    // Hide console on Windows for GUI mode
-    #[cfg(target_os = "windows")]
-    hide_console();
+    let silent_install = args.iter().any(|arg| arg == "--silent");
+    let uninstall = args.iter().any(|arg| arg == "--uninstall");
 
     // Try to load user's log level from settings, default to ERROR if not found
     let log_level = if let Ok(config) = uad_shizuku::Config::new() {
@@ -154,11 +162,102 @@ fn main() -> eframe::Result<()> {
         _ => log::LevelFilter::Error,
     };
 
-    // Initialize combined logger that writes to both stdout and in-app log capture
-    uad_shizuku::log_capture::init_combined_logger(level_filter);
+    // Initialize logger based on --log flag
+    if let Some(log_path) = &log_file {
+        // File-based logging
+        let log_path = if log_path.is_empty() {
+            "uad-shizuku.log"
+        } else {
+            log_path.as_str()
+        };
+
+        let target = Box::new(
+            std::fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(log_path)
+                .unwrap_or_else(|e| {
+                    eprintln!("Failed to open log file '{}': {}", log_path, e);
+                    std::process::exit(1);
+                })
+        );
+
+        env_logger::Builder::from_default_env()
+            .filter_level(level_filter)
+            .target(env_logger::Target::Pipe(target))
+            .init();
+
+        log::info!("UAD-Shizuku v{} starting with file logging to {}", env!("CARGO_PKG_VERSION"), log_path);
+    } else {
+        // Initialize combined logger that writes to both stdout and in-app log capture
+        uad_shizuku::log_capture::init_combined_logger(level_filter);
+        log::info!("UAD-Shizuku v{} starting", env!("CARGO_PKG_VERSION"));
+    }
+
+    // Handle --uninstall argument (for Windows Add/Remove Programs)
+    #[cfg(not(target_os = "android"))]
+    if uninstall {
+        log::info!("Running in uninstall mode (--uninstall flag)");
+
+        use uad_shizuku::install;
+        use uad_shizuku::install_stt::InstallResult;
+
+        match install::do_uninstall() {
+            InstallResult::Success(msg) => {
+                log::info!("Uninstallation succeeded: {}", msg);
+                println!("{}", msg);
+                std::process::exit(0);
+            }
+            InstallResult::Error(err) => {
+                log::error!("Uninstallation failed: {}", err);
+                eprintln!("Uninstallation failed: {}", err);
+                std::process::exit(1);
+            }
+        }
+    }
+
+    #[cfg(target_os = "android")]
+    if uninstall {
+        eprintln!("Uninstall not supported on Android");
+        std::process::exit(1);
+    }
+
+    // Handle --silent install mode (desktop only)
+    #[cfg(not(target_os = "android"))]
+    if silent_install {
+        log::info!("Running in silent install mode (--silent flag)");
+
+        use uad_shizuku::install;
+        use uad_shizuku::install_stt::InstallResult;
+
+        match install::do_install() {
+            InstallResult::Success(msg) => {
+                log::info!("Silent installation succeeded: {}", msg);
+                println!("{}", msg);
+                std::process::exit(0);
+            }
+            InstallResult::Error(err) => {
+                log::error!("Silent installation failed: {}", err);
+                eprintln!("Installation failed: {}", err);
+                std::process::exit(1);
+            }
+        }
+    }
+
+    #[cfg(target_os = "android")]
+    if silent_install {
+        eprintln!("Silent install not supported on Android");
+        std::process::exit(1);
+    }
+
+    // Hide console on Windows for GUI mode
+    #[cfg(target_os = "windows")]
+    hide_console();
 
     // Initialize common app components (database, i18n)
     uad_shizuku_app::init_common();
+
+    log::info!("Running in GUI mode");
 
     // Set panic hook on Windows to show OpenGL instructions if eframe panics during initialization
     #[cfg(target_os = "windows")]
