@@ -622,20 +622,31 @@ impl TabScanControl {
 
                 match state.get(&package.pkg) {
                     Some(calc_virustotal::ScanStatus::Completed(result)) => {
-                        let mal_count: i32 =
-                            result.file_results.iter().map(|fr| fr.malicious).sum();
-                        let sus_count: i32 =
-                            result.file_results.iter().map(|fr| fr.suspicious).sum();
+                        // Check file-level results to properly categorize
+                        let has_not_found = result.file_results.iter().any(|fr| fr.not_found);
+                        let has_skipped = result.file_results.iter().any(|fr| fr.skipped);
+                        let has_error = result.file_results.iter().any(|fr| fr.error.is_some());
 
-                        if mal_count > 0 {
-                            vt_malicious.1 += 1;
-                            if is_enabled { vt_malicious.0 += 1; }
-                        } else if sus_count > 0 {
-                            vt_suspicious.1 += 1;
-                            if is_enabled { vt_suspicious.0 += 1; }
+                        // If any file was not found, skipped, or had error, count as not_scanned
+                        if has_not_found || has_skipped || has_error {
+                            vt_not_scanned.1 += 1;
+                            if is_enabled { vt_not_scanned.0 += 1; }
                         } else {
-                            vt_safe.1 += 1;
-                            if is_enabled { vt_safe.0 += 1; }
+                            let mal_count: i32 =
+                                result.file_results.iter().map(|fr| fr.malicious).sum();
+                            let sus_count: i32 =
+                                result.file_results.iter().map(|fr| fr.suspicious).sum();
+
+                            if mal_count > 0 {
+                                vt_malicious.1 += 1;
+                                if is_enabled { vt_malicious.0 += 1; }
+                            } else if sus_count > 0 {
+                                vt_suspicious.1 += 1;
+                                if is_enabled { vt_suspicious.0 += 1; }
+                            } else {
+                                vt_safe.1 += 1;
+                                if is_enabled { vt_safe.0 += 1; }
+                            }
                         }
                     }
                     _ => {
@@ -696,27 +707,41 @@ impl TabScanControl {
 
                 match state.get(&package.pkg) {
                     Some(calc_hybridanalysis::ScanStatus::Completed(result)) => {
-                        // Check if any file is malicious with/without ignored tags
-                        let has_malicious_ignored = result.file_results.iter()
-                            .any(|fr| fr.verdict == "malicious" && check_all_tags_ignored(fr));
-                        let has_malicious_normal = result.file_results.iter()
-                            .any(|fr| fr.verdict == "malicious" && !check_all_tags_ignored(fr));
-                        let has_suspicious = result.file_results.iter()
-                            .any(|fr| fr.verdict == "suspicious");
+                        // Check if any file has non-scan verdict (404, skipped, upload_error, etc.)
+                        let has_non_scan = result.file_results.iter().any(|fr| {
+                            fr.verdict == "404 Not Found" ||
+                            fr.verdict == "" ||
+                            fr.verdict == "upload_error" ||
+                            fr.verdict == "analysis_error"
+                        });
 
-                        // Prioritize: malicious_normal > malicious_ignored > suspicious > safe
-                        if has_malicious_normal {
-                            ha_malicious.1 += 1;
-                            if is_enabled { ha_malicious.0 += 1; }
-                        } else if has_malicious_ignored {
-                            ha_malicious_ignored.1 += 1;
-                            if is_enabled { ha_malicious_ignored.0 += 1; }
-                        } else if has_suspicious {
-                            ha_suspicious.1 += 1;
-                            if is_enabled { ha_suspicious.0 += 1; }
+                        // If any file was not scanned properly, count as not_scanned
+                        if has_non_scan {
+                            ha_not_scanned.1 += 1;
+                            if is_enabled { ha_not_scanned.0 += 1; }
                         } else {
-                            ha_safe.1 += 1;
-                            if is_enabled { ha_safe.0 += 1; }
+                            // Check if any file is malicious with/without ignored tags
+                            let has_malicious_ignored = result.file_results.iter()
+                                .any(|fr| fr.verdict == "malicious" && check_all_tags_ignored(fr));
+                            let has_malicious_normal = result.file_results.iter()
+                                .any(|fr| fr.verdict == "malicious" && !check_all_tags_ignored(fr));
+                            let has_suspicious = result.file_results.iter()
+                                .any(|fr| fr.verdict == "suspicious");
+
+                            // Prioritize: malicious_normal > malicious_ignored > suspicious > safe
+                            if has_malicious_normal {
+                                ha_malicious.1 += 1;
+                                if is_enabled { ha_malicious.0 += 1; }
+                            } else if has_malicious_ignored {
+                                ha_malicious_ignored.1 += 1;
+                                if is_enabled { ha_malicious_ignored.0 += 1; }
+                            } else if has_suspicious {
+                                ha_suspicious.1 += 1;
+                                if is_enabled { ha_suspicious.0 += 1; }
+                            } else {
+                                ha_safe.1 += 1;
+                                if is_enabled { ha_safe.0 += 1; }
+                            }
                         }
                     }
                     _ => {
