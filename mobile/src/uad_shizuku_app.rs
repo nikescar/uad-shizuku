@@ -11,7 +11,7 @@ use eframe::egui;
 use egui_i18n::tr;
 use egui_material3::menu::{Corner, FocusState, Positioning};
 use egui_material3::{dialog, menu, menu_item, tabs_primary, MaterialButton, dashcounter, icon_button_standard};
-use egui_material3::{get_global_theme, ContrastLevel, MaterialThemeContext, ThemeMode};
+use egui_material3::{get_global_theme, ContrastLevel, ThemeMode};
 
 use crate::db::{
     flush_apkmirror, flush_fdroid, flush_googleplay, flush_hybridanalysis, flush_virustotal,
@@ -41,8 +41,9 @@ use crate::install_stt::InstallStatus;
 
 use eframe::egui::Context;
 use egui_material3::theme::{
-    load_fonts, load_themes, setup_local_fonts, setup_local_fonts_from_bytes, setup_local_theme,
-    update_window_background, MaterialThemeFile,
+    apply_theme, load_fonts, load_theme_from_json_str, load_themes, set_contrast_level,
+    set_theme_mode, setup_local_fonts, setup_local_fonts_from_bytes, setup_local_theme,
+    update_window_background,
 };
 use std::sync::OnceLock;
 
@@ -373,7 +374,7 @@ impl Default for UadShizukuApp {
         // Don't call retrieve_adb_devices() here on Android - it will be called
         // on first update when the Android context is fully ready
         #[cfg(not(target_os = "android"))]
-        app.retrieve_adb_devices();
+        crate::calc::retrieve_adb_devices(&mut app);
         
         app
     }
@@ -381,11 +382,10 @@ impl Default for UadShizukuApp {
 
 impl UadShizukuApp {
     fn apply_saved_theme_preferences(&self) {
-        if let Ok(mut theme) = get_global_theme().lock() {
-            theme.theme_mode = Self::string_to_theme_mode(&self.settings.theme_mode);
-            theme.contrast_level = Self::string_to_contrast_level(&self.settings.contrast_level);
-        }
-        
+        // Set theme mode and contrast level using utility functions
+        set_theme_mode(self.settings.theme_mode.parse().unwrap_or(ThemeMode::Auto));
+        set_contrast_level(self.settings.contrast_level.parse().unwrap_or(ContrastLevel::Normal));
+
         // Apply saved theme if not default
         if !self.settings.theme_name.is_empty() && self.settings.theme_name != "default" {
             self.apply_theme_by_name(&self.settings.theme_name);
@@ -415,16 +415,6 @@ impl UadShizukuApp {
             ctx.style_mut(|s| {
                 s.override_text_style = text_style;
             });
-        }
-    }
-
-    /// Enumerate system TTF/OTF fonts by scanning platform-specific directories.
-    /// Returns a sorted Vec of (display_name, file_path) tuples.
-    fn string_to_theme_mode(value: &str) -> ThemeMode {
-        match value {
-            "Light" => ThemeMode::Light,
-            "Dark" => ThemeMode::Dark,
-            _ => ThemeMode::Auto,
         }
     }
 
@@ -460,14 +450,6 @@ impl UadShizukuApp {
         }
     }
 
-    fn theme_mode_to_string(mode: ThemeMode) -> String {
-        match mode {
-            ThemeMode::Light => "Light".to_string(),
-            ThemeMode::Dark => "Dark".to_string(),
-            ThemeMode::Auto => "Auto".to_string(),
-        }
-    }
-
     /// Get theme data by name
     fn get_theme_data_by_name(name: &str) -> Option<&'static str> {
         match name {
@@ -482,30 +464,12 @@ impl UadShizukuApp {
     /// Apply theme by name
     fn apply_theme_by_name(&self, name: &str) {
         if let Some(theme_data) = Self::get_theme_data_by_name(name) {
-            if let Ok(theme_file) = serde_json::from_str::<MaterialThemeFile>(theme_data) {
-                self.update_theme(|global_theme| {
-                    global_theme.material_theme = Some(theme_file);
-                    global_theme.selected_colors.clear();
-                });
+            if let Err(e) = load_theme_from_json_str(theme_data) {
+                log::error!("Failed to load theme '{}': {}", name, e);
             }
         }
     }
 
-    fn string_to_contrast_level(value: &str) -> ContrastLevel {
-        match value {
-            "High" => ContrastLevel::High,
-            "Medium" => ContrastLevel::Medium,
-            _ => ContrastLevel::Normal,
-        }
-    }
-
-    fn contrast_level_to_string(level: ContrastLevel) -> String {
-        match level {
-            ContrastLevel::High => "High".to_string(),
-            ContrastLevel::Medium => "Medium".to_string(),
-            ContrastLevel::Normal => "Normal".to_string(),
-        }
-    }
 
     fn string_to_log_level(value: &str) -> LogLevel {
         match value {
@@ -553,83 +517,6 @@ impl UadShizukuApp {
         log::debug!("update function is called.");
     }
 
-    fn get_theme(&self) -> MaterialThemeContext {
-        if let Ok(theme) = get_global_theme().lock() {
-            theme.clone()
-        } else {
-            MaterialThemeContext::default()
-        }
-    }
-
-    fn update_theme<F>(&self, update_fn: F)
-    where
-        F: FnOnce(&mut MaterialThemeContext),
-    {
-        if let Ok(mut theme) = get_global_theme().lock() {
-            update_fn(&mut *theme);
-        }
-    }
-
-    fn apply_theme(&self, ctx: &egui::Context) {
-        let mut theme = self.get_theme();
-
-        let mut visuals = match theme.theme_mode {
-            ThemeMode::Light => egui::Visuals::light(),
-            ThemeMode::Dark => egui::Visuals::dark(),
-            ThemeMode::Auto => {
-                // Detect OS theme preference using dark-light crate
-                let detected_mode = Self::detect_os_theme();
-                theme.theme_mode = detected_mode; // Resolve Auto to detected OS theme
-                match detected_mode {
-                    ThemeMode::Dark => egui::Visuals::dark(),
-                    _ => egui::Visuals::light(),
-                }
-            }
-        };
-
-        // Apply Material Design 3 colors if theme is loaded
-        let primary_color = theme.get_primary_color();
-        let on_primary = theme.get_on_primary_color();
-        let surface = theme.get_surface_color(visuals.dark_mode);
-        let on_surface = theme.get_color_by_name("onSurface");
-
-        // Apply colors to visuals
-        visuals.selection.bg_fill = primary_color;
-        visuals.selection.stroke.color = primary_color;
-        visuals.hyperlink_color = primary_color;
-
-        // Button and widget colors
-        visuals.widgets.noninteractive.bg_fill = surface;
-
-        visuals.widgets.inactive.bg_fill = egui::Color32::from_rgba_unmultiplied(
-            primary_color.r(),
-            primary_color.g(),
-            primary_color.b(),
-            20,
-        );
-
-        visuals.widgets.hovered.bg_fill = egui::Color32::from_rgba_unmultiplied(
-            primary_color.r(),
-            primary_color.g(),
-            primary_color.b(),
-            40,
-        );
-
-        visuals.widgets.active.bg_fill = primary_color;
-        visuals.widgets.active.fg_stroke.color = on_primary;
-
-        // Window background
-        visuals.window_fill = surface;
-        visuals.panel_fill = theme.get_color_by_name("surfaceContainer");
-
-        // Text colors
-        visuals.override_text_color = Some(on_surface);
-
-        // Apply surface colors
-        visuals.extreme_bg_color = theme.get_color_by_name("surfaceContainerLowest");
-
-        ctx.set_visuals(visuals);
-    }
 
     /// Sync scan progress from background threads to state machines
     /// This must be called before rendering progress bars to ensure they hide immediately
@@ -688,7 +575,7 @@ impl UadShizukuApp {
         let available_width = ui.ctx().content_rect().width();
         let is_desktop = available_width >= crate::DESKTOP_MIN_WIDTH;
         // Apply theme at the start of UI rendering
-        self.apply_theme(ui.ctx());
+        apply_theme(ui.ctx(), Some(Self::detect_os_theme));
         
         // Apply saved text style
         self.apply_saved_text_style(ui.ctx());
@@ -738,18 +625,18 @@ impl UadShizukuApp {
                                 });
 
                             if self.adb_devices.is_empty() && combo_response.response.clicked() {
-                                self.retrieve_adb_devices();
+                                crate::calc::retrieve_adb_devices(self);
                             }
 
                             // Update users list when device selection changes
                             if self.selected_device != self.current_device {
                                 log::debug!("device selection changed to {:?}", self.selected_device);
                                 self.current_device = self.selected_device.clone();
-                                self.retrieve_adb_users();
+                                crate::calc::retrieve_adb_users(self);
                                 // Reset user selection when device changes
                                 self.selected_user = None;
                                 self.current_user = None;
-                                self.retrieve_installed_packages();
+                                crate::calc::retrieve_installed_packages(self);
                             }
 
                             // User selection ComboBox
@@ -781,14 +668,14 @@ impl UadShizukuApp {
                             if self.selected_user != self.current_user {
                                 log::debug!("user selection changed to {:?}", self.selected_user);
                                 self.current_user = self.selected_user;
-                                self.retrieve_installed_packages();
+                                crate::calc::retrieve_installed_packages(self);
                             }
 
                             // Update device list on button click
                             let refresh_button = egui::Button::new(ICON_REFRESH.to_string())
                                 .min_size(egui::vec2(20.0, 20.0));
                             if ui.add(refresh_button).on_hover_text(tr!("refresh-list")).clicked() {
-                                self.retrieve_adb_devices();
+                                crate::calc::retrieve_adb_devices(self);
                             }
                         }
                     });
@@ -1103,7 +990,7 @@ impl UadShizukuApp {
                 use crate::android_shizuku;
                 if android_shizuku::shizuku_is_available() {
                     log::info!("Shizuku detected after retry");
-                    self.retrieve_adb_devices();
+                    crate::calc::retrieve_adb_devices(self);
                 } else {
                     self.dlg_adb_install.open();
                 }
@@ -1115,9 +1002,9 @@ impl UadShizukuApp {
                     self.dlg_adb_install.open();
                 } else {
                     log::info!("ADB detected after retry");
-                    self.retrieve_adb_devices();
-                    self.retrieve_adb_users();
-                    self.retrieve_installed_packages();
+                    crate::calc::retrieve_adb_devices(self);
+                    crate::calc::retrieve_adb_users(self);
+                    crate::calc::retrieve_installed_packages(self);
                 }
             }
         }
@@ -1153,7 +1040,7 @@ impl UadShizukuApp {
 
         // === Package loading dialog
         self.show_package_loading_dialog(ui.ctx());
-        self.handle_package_loading_result();
+        crate::calc::handle_package_loading_result(self);
         // === Package loading dialog end
 
         // === Dashcounter details dialog
@@ -2412,10 +2299,10 @@ impl UadShizukuApp {
                                 let _ = webbrowser::open("https://android.izzysoft.de/applists.php?lang=en;topic=perms");
                             }
                         })
-                        .card_with_description("0(safe)", enabled_risk_0, risk_0, "enabled", "all")
-                        .card_with_description("1-10(normal)", enabled_risk_1_10, risk_1_10, "enabled", "all")
-                        .card_with_description("11-20(moderate)", enabled_risk_11_20, risk_11_20, "enabled", "all")
                         .card_with_description("20+(high)", enabled_risk_20_plus, risk_20_plus, "enabled", "all")
+                        .card_with_description("11-20(moderate)", enabled_risk_11_20, risk_11_20, "enabled", "all")
+                        .card_with_description("1-10(normal)", enabled_risk_1_10, risk_1_10, "enabled", "all")
+                        .card_with_description("0(safe)", enabled_risk_0, risk_0, "enabled", "all")
                         .category_color(egui::Color32::from_rgb(255, 152, 0))
                         .counter_color(egui::Color32::from_rgb(230, 81, 0))
                         .description_color(egui::Color32::from_rgb(255, 183, 77))
@@ -2833,393 +2720,8 @@ impl UadShizukuApp {
             });
     }
 
-    fn retrieve_adb_devices(&mut self) {
-        {
-            // clear current selections
-            self.selected_device = None;
-            self.current_device = None;
-            self.adb_users.clear();
-            self.selected_user = None;
-            self.current_user = None;
-            {
-                use crate::shared_store_stt::get_shared_store;
-                get_shared_store().set_installed_packages(Vec::new());
-            }
-            self.tab_debloat_control.update_packages(Vec::new());
-            self.tab_debloat_control.update_uad_ng_lists(UadNgLists {
-                apps: HashMap::new(),
-            });
-            self.tab_scan_control.update_packages(Vec::new());
-            self.tab_scan_control.update_uad_ng_lists(UadNgLists {
-                apps: HashMap::new(),
-            });
-            self.tab_apps_control.update_packages(Vec::new());
-
-            #[cfg(target_os = "android")]
-            {
-                use crate::android_shizuku;
-
-                // Step 0: Initialize ShizukuBridge (register permission listener) - once only
-                if !self.shizuku_init_done {
-                    android_shizuku::shizuku_init();
-                    self.shizuku_init_done = true;
-                }
-
-                // Step 1: Check if Shizuku is running
-                if !android_shizuku::shizuku_is_available() {
-                    log::error!("Shizuku is not running. Please install and activate Shizuku.");
-                    self.dlg_adb_install.open = true;
-                    self.adb_devices.clear();
-                    return;
-                }
-
-                // Step 2: Check/request permission
-                if !android_shizuku::shizuku_has_permission() {
-                    let perm_state = android_shizuku::shizuku_get_permission_state();
-                    if perm_state == 0 || perm_state == 3 {
-                        // Not yet requested or previously denied -- request now
-                        log::error!("Requesting Shizuku permission...");
-                        android_shizuku::shizuku_request_permission();
-                        self.shizuku_permission_requested = true;
-                    }
-                    self.dlg_adb_install.open = true;
-                    self.adb_devices.clear();
-                    return;
-                }
-
-                // Step 3: Bind service (non-blocking)
-                let bind_state = android_shizuku::shizuku_get_bind_state();
-                match bind_state {
-                    0 => {
-                        // Not bound, start binding
-                        log::error!("Binding Shizuku ShellService...");
-                        android_shizuku::shizuku_bind_service();
-                        self.shizuku_bind_requested = true;
-                        self.dlg_adb_install.open = true;
-                        self.adb_devices.clear();
-                        return;
-                    }
-                    1 => {
-                        // Binding in progress, wait
-                        self.dlg_adb_install.open = true;
-                        self.adb_devices.clear();
-                        return;
-                    }
-                    3 => {
-                        // Bind failed
-                        log::error!("Failed to bind Shizuku ShellService");
-                        self.dlg_adb_install.open = true;
-                        self.adb_devices.clear();
-                        return;
-                    }
-                    2 => {
-                        // Bound successfully, fall through
-                    }
-                    _ => {
-                        self.adb_devices.clear();
-                        return;
-                    }
-                }
-
-                // Step 4: Service is bound, set device
-                self.shizuku_connected = true;
-                self.adb_devices = vec!["local".to_string()];
-                self.selected_device = Some("local".to_string());
-                self.current_device = Some("local".to_string());
-                self.retrieve_adb_users();
-            }
-
-            #[cfg(not(target_os = "android"))]
-            {
-                match get_devices() {
-                    Ok(devices) => {
-                        self.adb_devices = devices;
-
-                        self.retrieve_adb_users();
-                    }
-                    Err(e) => {
-                        log::error!("[ERROR] Failed to get ADB devices: {}", e);
-                        self.adb_devices.clear();
-                    }
-                }
-            }
-        }
-    }
-
-    fn retrieve_adb_users(&mut self) {
-        if let Some(ref device) = self.selected_device {
-            log::debug!("Retrieving users for device: {}", device);
-            match get_users(device) {
-                Ok(users) => {
-                    log::debug!("Successfully retrieved {} users", users.len());
-                    self.adb_users = users;
-
-                    self.retrieve_installed_packages();
-                }
-                Err(e) => {
-                    log::error!("Failed to get users: {}", e);
-                    self.adb_users.clear();
-                }
-            }
-        } else {
-            log::debug!("No device selected, skipping user retrieval");
-            self.adb_users.clear();
-        }
-    }
-
-    fn retrieve_installed_packages(&mut self) {
-        // Don't start a new loading thread if one is already running
-        if self.package_loading_thread.is_some() {
-            log::debug!("Package loading already in progress, skipping");
-            return;
-        }
-
-        // Load uad_ng_lists after struct is constructed
-        self.retrieve_uad_ng_lists();
-
-        // Load stalkerware indicators
-        self.retrieve_stalkerware_indicators();
-
-        let Some(device) = self.selected_device.clone() else {
-            log::debug!("No device selected, skipping package retrieval");
-            return;
-        };
-
-        // Open loading dialog
-        self.package_loading_dialog_open = true;
-        self.package_loading_status = tr!("loading-packages");
-
-        // Clone necessary data for the async task
-        let selected_user = self.selected_user;
-        let debloat_progress = self.package_load_progress.clone();
-        let shared_store = crate::shared_store_stt::get_shared_store();
-        let uad_ng_lists = shared_store.uad_ng_lists.lock().unwrap().clone();
-
-        // Start background thread
-        let handle = std::thread::spawn(move || {
-            use crate::adb::get_all_packages_fingerprints;
-            use crate::db_package_cache::upsert_package_info_cache;
-
-            log::debug!("Retrieving installed packages for device: {}", device);
-
-            // Step 1: Get package fingerprints (lightweight) with retry logic
-            let mut parsed_packages = match get_all_packages_fingerprints(&device) {
-                Ok(fp) => fp,
-                Err(e) => {
-                    log::error!("Failed to get package fingerprints: {}", e);
-                    return (Vec::new(), None);
-                }
-            };
-            log::debug!("Retrieved {} package fingerprints", parsed_packages.len());
-
-            // Step 1.5: If empty, wait 3 seconds and retry once
-            if parsed_packages.is_empty() {
-                log::warn!("Package fingerprint retrieval returned 0 packages, waiting 3 seconds and retrying...");
-                std::thread::sleep(std::time::Duration::from_secs(3));
-                
-                match get_all_packages_fingerprints(&device) {
-                    Ok(fp) => {
-                        parsed_packages = fp;
-                        log::debug!("Retry retrieved {} package fingerprints", parsed_packages.len());
-                    }
-                    Err(e) => {
-                        log::error!("Retry failed to get package fingerprints: {}", e);
-                        return (Vec::new(), None);
-                    }
-                }
-                
-                // If still empty after retry, return error
-                if parsed_packages.is_empty() {
-                    log::error!("Package retrieval failed: got 0 packages after retry. Shizuku may not be ready yet.");
-                    return (Vec::new(), None);
-                }
-            }
-
-            // Step 2: load all contents from get_cached_packages_with_apk, db_package_cache
-            let cached_packages: Vec<PackageInfoCache> = get_cached_packages_with_apk(&device);
-            log::debug!(
-                "Loaded {} cached packages from database",
-                cached_packages.len()
-            );
-
-            // Step 3: fill apk path and sha256sum using background worker
-            let parsed_packages_for_thread = parsed_packages.clone();
-            let device_for_thread = device.to_string();
-            let debloat_progress_clone = debloat_progress.clone();
-
-            // Initialize debloat_progress
-            if let Ok(mut p) = debloat_progress_clone.lock() {
-                *p = Some(0.0);
-            }
-
-            std::thread::spawn(move || {
-                log::info!("fill apk path and sha256sum from all packages -f");
-                if cached_packages.len() < parsed_packages_for_thread.len() / 2 {
-                    match crate::adb::get_all_packages_sha256sum(&device_for_thread) {
-                        Ok(package_data) => {
-                            log::info!(
-                                "Retrieved sha256 sums for {} packages",
-                                package_data.len()
-                            );
-                            // Convert Vec<(String, String, String)> to HashMap for easier lookup
-                            let sha256_map: std::collections::HashMap<
-                                String,
-                                (String, String),
-                            > = package_data
-                                .into_iter()
-                                .map(|(pkg, sha256, path)| (pkg, (sha256, path)))
-                                .collect();
-
-                            let total = parsed_packages_for_thread.len();
-                            for (i, pkg) in parsed_packages_for_thread.iter().enumerate() {
-                                // Update debloat_progress
-                                if let Ok(mut p) = debloat_progress_clone.lock() {
-                                    *p = Some(i as f32 / total as f32);
-                                }
-
-                                if let Some((sha256, apk_path)) = sha256_map.get(&pkg.pkg) {
-                                    // insert into db
-                                    match upsert_package_info_cache(
-                                        &pkg.pkg,
-                                        &pkg.pkgChecksum,
-                                        &pkg.dumpText,
-                                        &pkg.codePath,
-                                        pkg.versionCode,
-                                        &pkg.versionName,
-                                        "", // first_install_time - not available from this data
-                                        &pkg.lastUpdateTime,
-                                        Some(apk_path.as_str()),
-                                        Some(sha256.as_str()),
-                                        None, // izzyscore - calculated separately
-                                        &device_for_thread,
-                                    ) {
-                                        Ok(_) => {
-                                            log::debug!(
-                                                "Cached package info for {}: {} ({})",
-                                                pkg.pkg,
-                                                sha256,
-                                                apk_path
-                                            );
-                                        }
-                                        Err(e) => {
-                                            log::error!(
-                                                "Failed to cache package info for {}: {}",
-                                                pkg.pkg,
-                                                e
-                                            );
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        Err(e) => {
-                            log::error!("Failed to get package sha256 sums: {}", e);
-                        }
-                    }
-                }
-                // Clear progress when done
-                if let Ok(mut p) = debloat_progress_clone.lock() {
-                    *p = None;
-                }
-            });
-
-            // use package
-            let mut packages = parsed_packages;
-
-            // Filter packages by selected user if a specific user is selected
-            if let Some(user_id) = selected_user {
-                log::debug!("Filtering packages for user: {}", user_id);
-                packages
-                    .retain(|pkg| pkg.users.iter().any(|u| u.userId == user_id && u.installed));
-                log::debug!(
-                    "Filtered to {} packages for user {}",
-                    packages.len(),
-                    user_id
-                );
-            } else {
-                log::debug!("Showing all users' packages");
-            }
-
-            log::debug!("Package retrieval complete");
-            (packages, uad_ng_lists)
-        });
-
-        self.package_loading_thread = Some(handle);
-    }
-
-    fn handle_package_loading_result(&mut self) {
-        // Check if thread is complete
-        let should_check = self.package_loading_thread.is_some();
-        if !should_check {
-            return;
-        }
-
-        // Try to take the thread handle and check if it's finished
-        if let Some(handle) = self.package_loading_thread.take() {
-            if handle.is_finished() {
-                // Thread is complete, get the result
-                match handle.join() {
-                    Ok((packages, uad_lists)) => {
-                        // Loading complete, update UI
-                        log::info!("Applying loaded packages to UI - {} packages loaded", packages.len());
-                        
-                        let shared_store = crate::shared_store_stt::get_shared_store();
-                        {
-                            let mut installed_pkgs = shared_store.installed_packages.lock().unwrap();
-                            *installed_pkgs = packages.clone();
-                        }
-                        log::debug!("Updated shared_store with {} packages", packages.len());
-                        self.tab_debloat_control.update_packages(packages.clone());
-                        log::debug!("Updated tab_debloat_control with {} packages", packages.len());
-                        
-                        if let Some(lists) = uad_lists {
-                            self.tab_debloat_control.update_uad_ng_lists(lists.clone());
-                            self.tab_scan_control.update_uad_ng_lists(lists);
-                        }
-                        
-                        self.tab_debloat_control
-                            .set_selected_device(self.selected_device.clone());
-
-                        // Update TabScanControl with API key, device serial, and settings
-                        self.tab_scan_control.vt_api_key = Some(self.settings.virustotal_apikey.clone());
-                        self.tab_scan_control.ha_api_key =
-                            Some(self.settings.hybridanalysis_apikey.clone());
-                        self.tab_scan_control.device_serial = self.selected_device.clone();
-                        self.tab_scan_control.virustotal_submit_enabled = self.settings.virustotal_submit;
-                        self.tab_scan_control.hybridanalysis_submit_enabled =
-                            self.settings.hybridanalysis_submit;
-                        log::info!(
-                            "Synced hybridanalysis_submit_enabled={} to tab_scan_control",
-                            self.settings.hybridanalysis_submit
-                        );
-
-                        let installed_packages = shared_store.installed_packages.lock().unwrap().clone();
-                        self.tab_scan_control
-                            .update_packages(installed_packages.clone());
-
-                        self.tab_apps_control
-                            .update_packages(installed_packages.clone());
-                        self.tab_apps_control
-                            .set_selected_device(self.selected_device.clone());
-                        log::debug!("Updated tab controls with packages");
-
-                        // Close dialog
-                        self.package_loading_dialog_open = false;
-                    }
-                    Err(e) => {
-                        log::error!("Package loading thread panicked: {:?}", e);
-                        self.package_loading_dialog_open = false;
-                    }
-                }
-            } else {
-                // Thread not finished yet, put it back
-                self.package_loading_thread = Some(handle);
-            }
-        }
-    }
-
     // another lists https://github.com/MuntashirAkon/android-debloat-list
-    fn retrieve_uad_ng_lists(&mut self) {
+    pub fn retrieve_uad_ng_lists(&mut self) {
         const UAD_LISTS_URL: &str = "https://raw.githubusercontent.com/Universal-Debloater-Alliance/universal-android-debloater-next-generation/refs/heads/main/resources/assets/uad_lists.json";
         const UAD_LISTS_FILENAME: &str = "uad_lists.json";
 
@@ -3321,7 +2823,8 @@ impl UadShizukuApp {
         }
     }
 
-    fn retrieve_stalkerware_indicators(&mut self) {
+    // Stalkerware IOC : https://github.com/AssoEchap/stalkerware-indicators
+    pub fn retrieve_stalkerware_indicators(&mut self) {
         const IOC_URL: &str = "https://raw.githubusercontent.com/AssoEchap/stalkerware-indicators/master/ioc.yaml";
         const IOC_FILENAME: &str = "stalkerware_ioc.yaml";
 
@@ -3421,7 +2924,6 @@ impl UadShizukuApp {
 
     // Flags : https://android.googlesource.com/platform/frameworks/base/+/master/core/java/android/content/pm/ApplicationInfo.java
     // Permissions : https://developer.android.com/reference/android/Manifest.permission
-    // Stalkerware IOC : https://github.com/AssoEchap/stalkerware-indicators
     fn show_package_loading_dialog(&mut self, ctx: &egui::Context) {
         if self.package_loading_dialog_open {
             dialog(
@@ -3444,8 +2946,8 @@ impl UadShizukuApp {
     fn save_settings(&mut self) {
         // Sync theme selections into settings before persisting
         if let Ok(theme) = get_global_theme().lock() {
-            self.settings.theme_mode = Self::theme_mode_to_string(theme.theme_mode);
-            self.settings.contrast_level = Self::contrast_level_to_string(theme.contrast_level);
+            self.settings.theme_mode = theme.theme_mode.to_string();
+            self.settings.contrast_level = theme.contrast_level.to_string();
         }
 
         // Store old values for comparison
@@ -3661,7 +3163,7 @@ impl eframe::App for UadShizukuApp {
         if !self.first_update_done {
             self.first_update_done = true;
             log::info!("First update - initializing Shizuku");
-            self.retrieve_adb_devices();
+            crate::calc::retrieve_adb_devices(self);
 
             // Check for updates if autoupdate is enabled
             if self.settings.autoupdate {
@@ -3689,7 +3191,7 @@ impl eframe::App for UadShizukuApp {
                 if perm_state == 2 {
                     // Permission granted, retry device detection
                     self.shizuku_permission_requested = false;
-                    self.retrieve_adb_devices();
+                    crate::calc::retrieve_adb_devices(self);
                 }
             }
             if self.shizuku_bind_requested && self.adb_devices.is_empty() {
@@ -3697,7 +3199,7 @@ impl eframe::App for UadShizukuApp {
                 if bind_state == 2 {
                     // Service bound, retry device detection
                     self.shizuku_bind_requested = false;
-                    self.retrieve_adb_devices();
+                    crate::calc::retrieve_adb_devices(self);
                 } else if bind_state == 3 {
                     // Bind failed, stop polling
                     self.shizuku_bind_requested = false;
