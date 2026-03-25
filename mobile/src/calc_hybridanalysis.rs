@@ -870,6 +870,35 @@ fn handle_file_upload(
     // Skip if the path appears to be a directory (doesn't have a file extension or ends with /)
     if file_path.ends_with('/') || !file_path.contains('.') {
         log::warn!("Skipping directory or invalid path: {}", file_path);
+
+        // Save to database so it won't be retried
+        let mut conn = db::establish_connection();
+        if let Err(db_err) = db_hybridanalysis::save_error_result(
+            &mut conn,
+            package_name,
+            file_path,
+            sha256,
+            "",  // Empty verdict for skipped files
+            "Path is a directory, not a file",
+        ) {
+            log::error!("Failed to save skipped file to database: {}", db_err);
+        }
+
+        // Also add to file_results for UI display
+        file_results.push(FileScanResult {
+            file_path: file_path.to_string(),
+            sha256: sha256.to_string(),
+            verdict: "".to_string(),
+            threat_score: None,
+            threat_level: None,
+            classification_tags: Vec::new(),
+            total_signatures: None,
+            ha_link: format!("https://hybrid-analysis.com/sample/{}", sha256),
+            wait_until: None,
+            job_id: None,
+            error_message: Some("Path is a directory, not a file".to_string()),
+        });
+
         return Err(format!("Path is a directory, not a file: {}", file_path).into());
     }
 
@@ -879,6 +908,35 @@ fn handle_file_upload(
             "Skipping file for upload: {} (only .apk and .so files are uploaded)",
             file_path
         );
+
+        // Save to database so it won't be retried
+        let mut conn = db::establish_connection();
+        if let Err(db_err) = db_hybridanalysis::save_error_result(
+            &mut conn,
+            package_name,
+            file_path,
+            sha256,
+            "",  // Empty verdict for skipped files
+            "Not an APK or SO file",
+        ) {
+            log::error!("Failed to save skipped file to database: {}", db_err);
+        }
+
+        // Also add to file_results for UI display
+        file_results.push(FileScanResult {
+            file_path: file_path.to_string(),
+            sha256: sha256.to_string(),
+            verdict: "".to_string(),
+            threat_score: None,
+            threat_level: None,
+            classification_tags: Vec::new(),
+            total_signatures: None,
+            ha_link: format!("https://hybrid-analysis.com/sample/{}", sha256),
+            wait_until: None,
+            job_id: None,
+            error_message: Some("Not an APK or SO file".to_string()),
+        });
+
         return Err(format!("Not an APK or SO file, skipping upload: {}", file_path).into());
     }
 
@@ -901,13 +959,72 @@ fn handle_file_upload(
     // pull_file_to_temp handles both Android (xxd method) and non-Android (adb pull) platforms
     if let Err(e) = adb::pull_file_to_temp(device_serial, file_path, tmp_dir_str, package_name) {
         log::error!("Failed to pull file {} from device: {}", file_path, e);
+
+        // Save to database so it won't be retried
+        let mut conn = db::establish_connection();
+        let error_msg = format!("Pull failed: {}", e);
+        if let Err(db_err) = db_hybridanalysis::save_error_result(
+            &mut conn,
+            package_name,
+            file_path,
+            sha256,
+            "",  // Empty verdict for skipped files
+            &error_msg,
+        ) {
+            log::error!("Failed to save pull error to database: {}", db_err);
+        }
+
+        // Also add to file_results for UI display
+        file_results.push(FileScanResult {
+            file_path: file_path.to_string(),
+            sha256: sha256.to_string(),
+            verdict: "".to_string(),
+            threat_score: None,
+            threat_level: None,
+            classification_tags: Vec::new(),
+            total_signatures: None,
+            ha_link: format!("https://hybrid-analysis.com/sample/{}", sha256),
+            wait_until: None,
+            job_id: None,
+            error_message: Some(error_msg),
+        });
+
         return Err(Box::new(e));
     }
-    
+
     // Verify the file was actually pulled
     if !local_path.exists() {
         let error_msg = format!("File was not pulled successfully: {} does not exist after pull", local_path.display());
         log::error!("{}", error_msg);
+
+        // Save to database so it won't be retried
+        let mut conn = db::establish_connection();
+        if let Err(db_err) = db_hybridanalysis::save_error_result(
+            &mut conn,
+            package_name,
+            file_path,
+            sha256,
+            "",  // Empty verdict for skipped files
+            &error_msg,
+        ) {
+            log::error!("Failed to save pull error to database: {}", db_err);
+        }
+
+        // Also add to file_results for UI display
+        file_results.push(FileScanResult {
+            file_path: file_path.to_string(),
+            sha256: sha256.to_string(),
+            verdict: "".to_string(),
+            threat_score: None,
+            threat_level: None,
+            classification_tags: Vec::new(),
+            total_signatures: None,
+            ha_link: format!("https://hybrid-analysis.com/sample/{}", sha256),
+            wait_until: None,
+            job_id: None,
+            error_message: Some(error_msg.clone()),
+        });
+
         return Err(error_msg.into());
     }
     
@@ -915,8 +1032,49 @@ fn handle_file_upload(
     let file_size = std::fs::metadata(&local_path)
         .map(|m| m.len())
         .unwrap_or(0);
-    
+
     log::info!("File pulled successfully: {} ({} bytes)", local_path.display(), file_size);
+
+    // Check if file exceeds Hybrid Analysis size limit (100MB)
+    const MAX_FILE_SIZE: u64 = 100 * 1024 * 1024; // 100MB in bytes
+    if file_size > MAX_FILE_SIZE {
+        let size_mb = file_size as f64 / (1024.0 * 1024.0);
+        let error_msg = format!("File too large: {:.2} MB (limit: 100 MB)", size_mb);
+        log::warn!("{}", error_msg);
+
+        // Clean up temp file
+        let _ = std::fs::remove_file(&local_path);
+
+        // Save to database so it won't be retried
+        let mut conn = db::establish_connection();
+        if let Err(db_err) = db_hybridanalysis::save_error_result(
+            &mut conn,
+            package_name,
+            file_path,
+            sha256,
+            "upload_error",
+            &error_msg,
+        ) {
+            log::error!("Failed to save file size error to database: {}", db_err);
+        }
+
+        // Also add to file_results for UI display
+        file_results.push(FileScanResult {
+            file_path: file_path.to_string(),
+            sha256: sha256.to_string(),
+            verdict: "upload_error".to_string(),
+            threat_score: None,
+            threat_level: None,
+            classification_tags: Vec::new(),
+            total_signatures: None,
+            ha_link: format!("https://hybrid-analysis.com/sample/{}", sha256),
+            wait_until: None,
+            job_id: None,
+            error_message: Some(error_msg.clone()),
+        });
+
+        return Err(error_msg.into());
+    }
 
     // Update status - uploading
     {

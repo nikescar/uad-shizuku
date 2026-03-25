@@ -956,18 +956,28 @@ impl DlgDashCounterDetails {
                     if let Ok(scanner_state) = state.lock() {
                         match scanner_state.get(&pkg.pkg) {
                             Some(crate::calc_virustotal_stt::ScanStatus::Completed(result)) => {
-                                match category {
-                                    DashCounterCategory::VirusTotalMalicious => {
-                                        result.file_results.iter().any(|f| f.malicious > 0)
+                                // Check file-level flags for categorization
+                                let has_not_found = result.file_results.iter().any(|fr| fr.not_found);
+                                let has_skipped = result.file_results.iter().any(|fr| fr.skipped);
+                                let has_error = result.file_results.iter().any(|fr| fr.error.is_some());
+
+                                // If any file was not found, skipped, or had error, count as not_scanned
+                                if has_not_found || has_skipped || has_error {
+                                    matches!(category, DashCounterCategory::VirusTotalNotScanned)
+                                } else {
+                                    match category {
+                                        DashCounterCategory::VirusTotalMalicious => {
+                                            result.file_results.iter().any(|f| f.malicious > 0)
+                                        }
+                                        DashCounterCategory::VirusTotalSuspicious => {
+                                            result.file_results.iter().any(|f| f.suspicious > 0 && f.malicious == 0)
+                                        }
+                                        DashCounterCategory::VirusTotalSafe => {
+                                            result.file_results.iter().all(|f| f.malicious == 0 && f.suspicious == 0)
+                                        }
+                                        DashCounterCategory::VirusTotalNotScanned => false,
+                                        _ => false,
                                     }
-                                    DashCounterCategory::VirusTotalSuspicious => {
-                                        result.file_results.iter().any(|f| f.suspicious > 0 && f.malicious == 0)
-                                    }
-                                    DashCounterCategory::VirusTotalSafe => {
-                                        result.file_results.iter().all(|f| f.malicious == 0 && f.suspicious == 0)
-                                    }
-                                    DashCounterCategory::VirusTotalNotScanned => false,
-                                    _ => false,
                                 }
                             }
                             _ => {
@@ -1092,44 +1102,57 @@ impl DlgDashCounterDetails {
                     if let Ok(scanner_state) = state.lock() {
                         match scanner_state.get(&pkg.pkg) {
                             Some(crate::calc_hybridanalysis_stt::ScanStatus::Completed(result)) => {
-                                // Helper to check if all tags are ignored
-                                let check_all_tags_ignored = |file_result: &crate::calc_hybridanalysis_stt::FileScanResult| -> bool {
-                                    let ignorelist_tags: Vec<String> = hybridanalysis_tag_ignorelist
-                                        .split(',')
-                                        .map(|s| s.trim().to_lowercase())
-                                        .filter(|s| !s.is_empty())
-                                        .collect();
+                                // Check if any file has non-scan verdict (404, skipped, upload_error, etc.)
+                                let has_non_scan = result.file_results.iter().any(|fr| {
+                                    fr.verdict == "404 Not Found" ||
+                                    fr.verdict == "" ||
+                                    fr.verdict == "upload_error" ||
+                                    fr.verdict == "analysis_error"
+                                });
 
-                                    if file_result.classification_tags.is_empty() {
-                                        true // No tags means we treat it as ignored
-                                    } else {
-                                        file_result.classification_tags.iter().all(|tag| {
-                                            ignorelist_tags.contains(&tag.to_lowercase())
-                                        })
-                                    }
-                                };
+                                // If any file was not scanned properly, count as not_scanned
+                                if has_non_scan {
+                                    matches!(category, DashCounterCategory::HybridAnalysisNotScanned)
+                                } else {
+                                    // Helper to check if all tags are ignored
+                                    let check_all_tags_ignored = |file_result: &crate::calc_hybridanalysis_stt::FileScanResult| -> bool {
+                                        let ignorelist_tags: Vec<String> = hybridanalysis_tag_ignorelist
+                                            .split(',')
+                                            .map(|s| s.trim().to_lowercase())
+                                            .filter(|s| !s.is_empty())
+                                            .collect();
 
-                                // Check for malicious files with/without ignored tags
-                                let has_malicious_ignored = result.file_results.iter()
-                                    .any(|fr| fr.verdict == "malicious" && check_all_tags_ignored(fr));
-                                let has_malicious_normal = result.file_results.iter()
-                                    .any(|fr| fr.verdict == "malicious" && !check_all_tags_ignored(fr));
+                                        if file_result.classification_tags.is_empty() {
+                                            true // No tags means we treat it as ignored
+                                        } else {
+                                            file_result.classification_tags.iter().all(|tag| {
+                                                ignorelist_tags.contains(&tag.to_lowercase())
+                                            })
+                                        }
+                                    };
 
-                                match category {
-                                    DashCounterCategory::HybridAnalysisMalicious => {
-                                        has_malicious_normal
+                                    // Check for malicious files with/without ignored tags
+                                    let has_malicious_ignored = result.file_results.iter()
+                                        .any(|fr| fr.verdict == "malicious" && check_all_tags_ignored(fr));
+                                    let has_malicious_normal = result.file_results.iter()
+                                        .any(|fr| fr.verdict == "malicious" && !check_all_tags_ignored(fr));
+
+                                    match category {
+                                        DashCounterCategory::HybridAnalysisMalicious => {
+                                            has_malicious_normal
+                                        }
+                                        DashCounterCategory::HybridAnalysisMaliciousIgnored => {
+                                            has_malicious_ignored && !has_malicious_normal
+                                        }
+                                        DashCounterCategory::HybridAnalysisSuspicious => {
+                                            result.file_results.iter().any(|f| f.verdict.to_lowercase().contains("suspicious"))
+                                        }
+                                        DashCounterCategory::HybridAnalysisSafe => {
+                                            result.file_results.iter().all(|f| !f.verdict.to_lowercase().contains("malicious") && !f.verdict.to_lowercase().contains("suspicious"))
+                                        }
+                                        DashCounterCategory::HybridAnalysisNotScanned => false,
+                                        _ => false,
                                     }
-                                    DashCounterCategory::HybridAnalysisMaliciousIgnored => {
-                                        has_malicious_ignored && !has_malicious_normal
-                                    }
-                                    DashCounterCategory::HybridAnalysisSuspicious => {
-                                        result.file_results.iter().any(|f| f.verdict.to_lowercase().contains("suspicious"))
-                                    }
-                                    DashCounterCategory::HybridAnalysisSafe => {
-                                        result.file_results.iter().all(|f| !f.verdict.to_lowercase().contains("malicious") && !f.verdict.to_lowercase().contains("suspicious"))
-                                    }
-                                    DashCounterCategory::HybridAnalysisNotScanned => false,
-                                    _ => false,
                                 }
                             }
                             _ => {
