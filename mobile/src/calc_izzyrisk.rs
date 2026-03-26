@@ -301,6 +301,9 @@ pub fn calculate_all_risk_scores_async(
             if let Ok(mut p) = progress_clone.lock() {
                 *p = Some(i as f32 / total as f32);
             }
+            // Request UI repaint after progress update
+            let shared_store = crate::shared_store_stt::get_shared_store();
+            shared_store.request_repaint();
 
             let risk_score = if device_serial_str.is_empty() {
                 // No device serial: calculate without caching
@@ -337,5 +340,8 @@ pub fn calculate_all_risk_scores_async(
         if let Ok(mut p) = progress_clone.lock() {
             *p = None;
         }
+        // Request final UI repaint when calculation completes
+        let shared_store = crate::shared_store_stt::get_shared_store();
+        shared_store.request_repaint();
     });
 }

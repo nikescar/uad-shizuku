@@ -170,6 +170,9 @@ impl TabDebloatControl {
                 if let Ok(mut p) = progress_clone.lock() {
                     *p = Some(i as f32 / total as f32);
                 }
+                // Request UI repaint after progress update
+                let shared_store = get_shared_store();
+                shared_store.request_repaint();
 
                 // Skip unsafe apps when unsafe_app_remove is disabled
                 if unsafe_apps.contains(&pkg_name) && !unsafe_app_remove {
@@ -215,6 +218,9 @@ impl TabDebloatControl {
             if let Ok(mut p) = progress_clone.lock() {
                 *p = Some(1.0);
             }
+            // Request final UI repaint when batch uninstall completes
+            let shared_store = get_shared_store();
+            shared_store.request_repaint();
 
             log::info!(
                 "Batch uninstall completed: {} succeeded, {} failed",
@@ -265,6 +271,9 @@ impl TabDebloatControl {
                 if let Ok(mut p) = progress_clone.lock() {
                     *p = Some(i as f32 / total as f32);
                 }
+                // Request UI repaint after progress update
+                let shared_store = get_shared_store();
+                shared_store.request_repaint();
 
                 // Execute disable
                 match crate::adb::disable_app_current_user(&pkg_name, &device, None) {
@@ -293,6 +302,9 @@ impl TabDebloatControl {
             if let Ok(mut p) = progress_clone.lock() {
                 *p = Some(1.0);
             }
+            // Request final UI repaint when batch disable completes
+            let shared_store = get_shared_store();
+            shared_store.request_repaint();
 
             log::info!(
                 "Batch disable completed: {} succeeded, {} failed",
@@ -343,6 +355,9 @@ impl TabDebloatControl {
                 if let Ok(mut p) = progress_clone.lock() {
                     *p = Some(i as f32 / total as f32);
                 }
+                // Request UI repaint after progress update
+                let shared_store = get_shared_store();
+                shared_store.request_repaint();
 
                 // Execute enable
                 match crate::adb::enable_app(&pkg_name, &device) {
@@ -372,6 +387,9 @@ impl TabDebloatControl {
             if let Ok(mut p) = progress_clone.lock() {
                 *p = Some(1.0);
             }
+            // Request final UI repaint when batch enable completes
+            let shared_store = get_shared_store();
+            shared_store.request_repaint();
 
             log::info!(
                 "Batch enable completed: {} succeeded, {} failed",

@@ -58,6 +58,8 @@ pub struct SharedStore {
     pub ha_scanner_state: Mutex<Option<HaScannerState>>,
     /// Update queue for thread-safe updates from background threads
     pub update_queue: SegQueue<SharedStoreUpdate>,
+    /// UI context for requesting repaints from background threads
+    pub ui_context: Mutex<Option<egui::Context>>,
 }
 
 /// Global shared store instance

@@ -1883,6 +1883,9 @@ pub fn run_hybridanalysis(
             if let Ok(mut p) = ha_scan_progress_clone.lock() {
                 *p = Some(i as f32 / total as f32);
             }
+            // Request UI repaint after progress update
+            let shared_store = crate::shared_store_stt::get_shared_store();
+            shared_store.request_repaint();
 
             let pkg_name = &package.pkg;
 
@@ -2029,6 +2032,9 @@ pub fn run_hybridanalysis(
         if let Ok(mut p) = ha_scan_progress_clone.lock() {
             *p = None;
         }
+        // Request final UI repaint when scan completes
+        let shared_store = crate::shared_store_stt::get_shared_store();
+        shared_store.request_repaint();
     });
 
     (scanner_state, rate_limiter)

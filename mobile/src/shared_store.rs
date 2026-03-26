@@ -35,6 +35,23 @@ impl SharedStore {
             vt_scanner_state: Mutex::new(None),
             ha_scanner_state: Mutex::new(None),
             update_queue: SegQueue::new(),
+            ui_context: Mutex::new(None),
+        }
+    }
+
+    /// Set the UI context for requesting repaints from background threads
+    pub fn set_ui_context(&self, ctx: egui::Context) {
+        if let Ok(mut ui_ctx) = self.ui_context.lock() {
+            *ui_ctx = Some(ctx);
+        }
+    }
+
+    /// Request a UI repaint from a background thread
+    pub fn request_repaint(&self) {
+        if let Ok(ui_ctx) = self.ui_context.lock() {
+            if let Some(ctx) = ui_ctx.as_ref() {
+                ctx.request_repaint();
+            }
         }
     }
 
