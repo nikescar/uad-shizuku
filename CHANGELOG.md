@@ -1,4 +1,19 @@
 ## What's Changed
+* fix. dashcounter data_table action buttons.
+* fix. change raw.github domain to github.com to bypass antivirus.
+* fix. dashcounter data_table sorting.
+* fix. action button vertically centered.
+* fix. add pagenation to dashcounter details table.
+* bump
+* bump
+* fix. debloat dashcounter cache bug.
+* fix. shizuku instructions on android.
+* fix. change snap release to stable channel.
+* fix. add silent, uninstall args to main.
+* Chore. add snapstore publishing.
+
+## What's Changed in 0.0.12
+* release. v0.0.12 by @nikescar
 * fix. clickable app info on dashcounter. by @nikescar
 * fix. adjust data_table columns on dashcounter. by @nikescar
 * fix. full-width data_table in dashcounter. by @nikescar
@@ -13,6 +28,8 @@
 * fix. runtime permission text to RP on debloat table. by @nikescar
 * chore. fix star history on github. by @nikescar
 * chore. change android-activity crate to github upstream. by @nikescar
+
+**Full Changelog**: https://github.com/nikescar/uad-shizuku/compare/v0.0.11...v0.0.12
 
 ## What's Changed in 0.0.11
 * release. v0.0.11 by @nikescar
