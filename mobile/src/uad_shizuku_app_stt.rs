@@ -159,6 +159,8 @@ pub struct UadShizukuApp {
     pub dash_scroll_izzyrisk: f32,
     pub dash_scroll_virustotal: f32,
     pub dash_scroll_hybridanalysis: f32,
+    pub dash_scroll_offa: f32,
+    pub dash_scroll_fmhy: f32,
 
     // Installer package name (Android) - cached for UI decisions
     pub installer_package_name: Option<String>,
