@@ -2073,6 +2073,10 @@ impl UadShizukuApp {
         let shared_store = get_shared_store();
         let installed_packages = shared_store.get_installed_packages();
 
+        // Update cached debloat counts
+        let uad_ng_lists = shared_store.get_uad_ng_lists();
+        self.tab_debloat_control.update_cached_counts(&installed_packages, uad_ng_lists.as_ref());
+
         // Update cached scan counts for VT and HA
         let vt_scanner_state = shared_store.get_vt_scanner_state();
         let ha_scanner_state = shared_store.get_ha_scanner_state();
