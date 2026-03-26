@@ -1711,6 +1711,127 @@ impl DlgDashCounterDetails {
         }
     }
 
+    /// Helper to get sort key for VirusTotal scan results
+    fn get_vt_sort_key(
+        pkg_name: &str,
+        vt_state: &Option<Arc<Mutex<HashMap<String, crate::calc_virustotal_stt::ScanStatus>>>>,
+    ) -> String {
+        if let Some(state) = vt_state {
+            if let Ok(scanner_state) = state.lock() {
+                if let Some(status) = scanner_state.get(pkg_name) {
+                    return match status {
+                        crate::calc_virustotal_stt::ScanStatus::Pending => "1-scan-not-scanned".to_string(),
+                        crate::calc_virustotal_stt::ScanStatus::Scanning { scanned, total, .. } => {
+                            format!("2-scan-scanning-{:04}-{:04}", scanned, total)
+                        }
+                        crate::calc_virustotal_stt::ScanStatus::Completed(result) => {
+                            // Prioritize by severity: malicious > suspicious > clean > error/skip/404
+                            let mut has_malicious = false;
+                            let mut has_suspicious = false;
+                            let mut has_clean = false;
+                            let mut has_error = false;
+                            let mut has_skip = false;
+                            let mut has_404 = false;
+                            let mut malicious_count = 0;
+                            let mut suspicious_count = 0;
+
+                            for file_result in &result.file_results {
+                                if file_result.error.is_some() {
+                                    has_error = true;
+                                } else if file_result.skipped {
+                                    has_skip = true;
+                                } else if file_result.not_found {
+                                    has_404 = true;
+                                } else if file_result.malicious > 0 {
+                                    has_malicious = true;
+                                    malicious_count += file_result.malicious + file_result.suspicious;
+                                } else if file_result.suspicious > 0 {
+                                    has_suspicious = true;
+                                    suspicious_count += file_result.suspicious;
+                                } else {
+                                    has_clean = true;
+                                }
+                            }
+
+                            if has_malicious {
+                                format!("3-scan-malicious-{:04}", malicious_count)
+                            } else if has_suspicious {
+                                format!("4-scan-suspicious-{:04}", suspicious_count)
+                            } else if has_clean {
+                                "5-scan-clean".to_string()
+                            } else if has_error {
+                                "6-scan-error".to_string()
+                            } else if has_skip {
+                                "7-scan-skip".to_string()
+                            } else if has_404 {
+                                "8-scan-404".to_string()
+                            } else {
+                                "9-scan-unknown".to_string()
+                            }
+                        }
+                        crate::calc_virustotal_stt::ScanStatus::Error(_) => "6-scan-error".to_string(),
+                    };
+                }
+            }
+        }
+        "0-scan-not-initialized".to_string()
+    }
+
+    /// Helper to get sort key for HybridAnalysis scan results
+    fn get_ha_sort_key(
+        pkg_name: &str,
+        ha_state: &Option<Arc<Mutex<HashMap<String, crate::calc_hybridanalysis_stt::ScanStatus>>>>,
+    ) -> String {
+        if let Some(state) = ha_state {
+            if let Ok(scanner_state) = state.lock() {
+                if let Some(status) = scanner_state.get(pkg_name) {
+                    return match status {
+                        crate::calc_hybridanalysis_stt::ScanStatus::Pending => "1-scan-not-scanned".to_string(),
+                        crate::calc_hybridanalysis_stt::ScanStatus::Scanning { scanned, total, .. } => {
+                            format!("2-scan-scanning-{:04}-{:04}", scanned, total)
+                        }
+                        crate::calc_hybridanalysis_stt::ScanStatus::Completed(result) => {
+                            if result.file_results.is_empty() {
+                                return "9-scan-no-results".to_string();
+                            }
+
+                            // Prioritize by severity: malicious > suspicious > whitelisted > no specific threat > other
+                            let mut priority = 99;
+                            let mut verdict_text = String::new();
+
+                            for file_result in &result.file_results {
+                                let (file_priority, file_verdict) = match file_result.verdict.as_str() {
+                                    "malicious" => (3, "malicious"),
+                                    "suspicious" => (4, "suspicious"),
+                                    "whitelisted" => (5, "whitelisted"),
+                                    "no specific threat" => (6, "no-specific-threat"),
+                                    "no-result" => (7, "no-result"),
+                                    "rate_limited" => (8, "rate-limited"),
+                                    "submitted" => (9, "submitted"),
+                                    "pending_analysis" => (10, "pending-analysis"),
+                                    "upload_error" => (11, "upload-error"),
+                                    "analysis_error" => (12, "analysis-error"),
+                                    "404 Not Found" => (13, "404-not-found"),
+                                    "" => (14, "skipped"),
+                                    _ => (15, "unknown"),
+                                };
+
+                                if file_priority < priority {
+                                    priority = file_priority;
+                                    verdict_text = file_verdict.to_string();
+                                }
+                            }
+
+                            format!("{}-{}", priority, verdict_text)
+                        }
+                        crate::calc_hybridanalysis_stt::ScanStatus::Error(_) => "12-scan-error".to_string(),
+                    };
+                }
+            }
+        }
+        "0-scan-not-initialized".to_string()
+    }
+
     fn sort_debloat_packages(
         &self,
         packages: &mut [&PackageFingerprint],
@@ -1812,8 +1933,13 @@ impl DlgDashCounterDetails {
                     name_a.cmp(&name_b)
                 }
                 1 => {
-                    // Column 1 is VirusTotal results - no special sorting
-                    std::cmp::Ordering::Equal
+                    // Sort by VirusTotal button text
+                    let store = get_shared_store();
+                    let vt_state = store.get_vt_scanner_state();
+
+                    let text_a = Self::get_vt_sort_key(&a.pkg, &vt_state);
+                    let text_b = Self::get_vt_sort_key(&b.pkg, &vt_state);
+                    text_a.cmp(&text_b)
                 }
                 2 => {
                     // Sort by enabled/disabled status
@@ -1840,8 +1966,13 @@ impl DlgDashCounterDetails {
                     name_a.cmp(&name_b)
                 }
                 1 => {
-                    // Column 1 is HybridAnalysis results - no special sorting
-                    std::cmp::Ordering::Equal
+                    // Sort by HybridAnalysis button text
+                    let store = get_shared_store();
+                    let ha_state = store.get_ha_scanner_state();
+
+                    let text_a = Self::get_ha_sort_key(&a.pkg, &ha_state);
+                    let text_b = Self::get_ha_sort_key(&b.pkg, &ha_state);
+                    text_a.cmp(&text_b)
                 }
                 2 => {
                     // Sort by enabled/disabled status
