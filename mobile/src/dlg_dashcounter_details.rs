@@ -22,6 +22,7 @@ impl DlgDashCounterDetails {
         self.count_total = count_total;
         self.sort_column = None;
         self.sort_ascending = true;
+        self.current_page = 0;
         self.open = true;
     }
 
@@ -806,7 +807,21 @@ impl DlgDashCounterDetails {
             table = table.sort_by(sort_col, direction);
         }
 
-        for (idx, pkg) in filtered_packages.iter().enumerate() {
+        // Pagination
+        let total_items = filtered_packages.len();
+        let total_pages = if total_items == 0 { 1 } else { (total_items + self.items_per_page - 1) / self.items_per_page.max(1) };
+
+        // Clamp current_page to valid range
+        if self.current_page >= total_pages {
+            self.current_page = total_pages.saturating_sub(1);
+        }
+
+        let start_idx = self.current_page * self.items_per_page;
+        let end_idx = (start_idx + self.items_per_page).min(total_items);
+        let page_packages = if start_idx < total_items { &filtered_packages[start_idx..end_idx] } else { &[] };
+
+        for (idx, pkg) in page_packages.iter().enumerate() {
+            let idx = start_idx + idx;
             let pkg_id = pkg.pkg.clone();
             let pkg_clone = (*pkg).clone();
             let clicked_idx_clone = clicked_package_idx.clone();
@@ -846,6 +861,22 @@ impl DlgDashCounterDetails {
                 self.sort_column = Some(clicked_col);
                 self.sort_ascending = true;
             }
+        }
+
+        // Pagination controls
+        if total_pages > 1 {
+            ui.add_space(20.0);
+            ui.horizontal(|ui| {
+                if ui.button("◀").clicked() && self.current_page > 0 {
+                    self.current_page -= 1;
+                }
+                ui.add_space(10.0);
+                ui.label(format!("Page {} of {} ({} items)", self.current_page + 1, total_pages, total_items));
+                ui.add_space(10.0);
+                if ui.button("▶").clicked() && self.current_page + 1 < total_pages {
+                    self.current_page += 1;
+                }
+            });
         }
     }
 
@@ -923,7 +954,21 @@ impl DlgDashCounterDetails {
             table = table.sort_by(sort_col, direction);
         }
 
-        for (idx, pkg) in filtered_packages.iter().enumerate() {
+        // Pagination
+        let total_items = filtered_packages.len();
+        let total_pages = if total_items == 0 { 1 } else { (total_items + self.items_per_page - 1) / self.items_per_page.max(1) };
+
+        // Clamp current_page to valid range
+        if self.current_page >= total_pages {
+            self.current_page = total_pages.saturating_sub(1);
+        }
+
+        let start_idx = self.current_page * self.items_per_page;
+        let end_idx = (start_idx + self.items_per_page).min(total_items);
+        let page_packages = if start_idx < total_items { &filtered_packages[start_idx..end_idx] } else { &[] };
+
+        for (idx, pkg) in page_packages.iter().enumerate() {
+            let idx = start_idx + idx;
             let pkg_id = pkg.pkg.clone();
             let pkg_clone = (*pkg).clone();
             let clicked_idx_clone = clicked_package_idx.clone();
@@ -960,6 +1005,22 @@ impl DlgDashCounterDetails {
                 self.sort_column = Some(clicked_col);
                 self.sort_ascending = true;
             }
+        }
+
+        // Pagination controls
+        if total_pages > 1 {
+            ui.add_space(20.0);
+            ui.horizontal(|ui| {
+                if ui.button("◀").clicked() && self.current_page > 0 {
+                    self.current_page -= 1;
+                }
+                ui.add_space(10.0);
+                ui.label(format!("Page {} of {} ({} items)", self.current_page + 1, total_pages, total_items));
+                ui.add_space(10.0);
+                if ui.button("▶").clicked() && self.current_page + 1 < total_pages {
+                    self.current_page += 1;
+                }
+            });
         }
     }
 
@@ -1061,7 +1122,21 @@ impl DlgDashCounterDetails {
             table = table.sort_by(sort_col, direction);
         }
 
-        for (idx, pkg) in filtered_packages.iter().enumerate() {
+        // Pagination
+        let total_items = filtered_packages.len();
+        let total_pages = if total_items == 0 { 1 } else { (total_items + self.items_per_page - 1) / self.items_per_page.max(1) };
+
+        // Clamp current_page to valid range
+        if self.current_page >= total_pages {
+            self.current_page = total_pages.saturating_sub(1);
+        }
+
+        let start_idx = self.current_page * self.items_per_page;
+        let end_idx = (start_idx + self.items_per_page).min(total_items);
+        let page_packages = if start_idx < total_items { &filtered_packages[start_idx..end_idx] } else { &[] };
+
+        for (idx, pkg) in page_packages.iter().enumerate() {
+            let idx = start_idx + idx;
             let risk_score = package_risk_scores.get(&pkg.pkg).copied().unwrap_or(0);
 
             // Get caused permissions (install permissions)
@@ -1109,6 +1184,22 @@ impl DlgDashCounterDetails {
                 self.sort_column = Some(clicked_col);
                 self.sort_ascending = true;
             }
+        }
+
+        // Pagination controls
+        if total_pages > 1 {
+            ui.add_space(20.0);
+            ui.horizontal(|ui| {
+                if ui.button("◀").clicked() && self.current_page > 0 {
+                    self.current_page -= 1;
+                }
+                ui.add_space(10.0);
+                ui.label(format!("Page {} of {} ({} items)", self.current_page + 1, total_pages, total_items));
+                ui.add_space(10.0);
+                if ui.button("▶").clicked() && self.current_page + 1 < total_pages {
+                    self.current_page += 1;
+                }
+            });
         }
     }
 
@@ -1213,7 +1304,21 @@ impl DlgDashCounterDetails {
             table = table.sort_by(sort_col, direction);
         }
 
-        for (idx, pkg) in filtered_packages.iter().enumerate() {
+        // Pagination
+        let total_items = filtered_packages.len();
+        let total_pages = if total_items == 0 { 1 } else { (total_items + self.items_per_page - 1) / self.items_per_page.max(1) };
+
+        // Clamp current_page to valid range
+        if self.current_page >= total_pages {
+            self.current_page = total_pages.saturating_sub(1);
+        }
+
+        let start_idx = self.current_page * self.items_per_page;
+        let end_idx = (start_idx + self.items_per_page).min(total_items);
+        let page_packages = if start_idx < total_items { &filtered_packages[start_idx..end_idx] } else { &[] };
+
+        for (idx, pkg) in page_packages.iter().enumerate() {
+            let idx = start_idx + idx;
             let pkg_id = pkg.pkg.clone();
             let pkg_clone = (*pkg).clone();
             let clicked_idx_clone = clicked_package_idx.clone();
@@ -1258,6 +1363,22 @@ impl DlgDashCounterDetails {
                 self.sort_column = Some(clicked_col);
                 self.sort_ascending = true;
             }
+        }
+
+        // Pagination controls
+        if total_pages > 1 {
+            ui.add_space(20.0);
+            ui.horizontal(|ui| {
+                if ui.button("◀").clicked() && self.current_page > 0 {
+                    self.current_page -= 1;
+                }
+                ui.add_space(10.0);
+                ui.label(format!("Page {} of {} ({} items)", self.current_page + 1, total_pages, total_items));
+                ui.add_space(10.0);
+                if ui.button("▶").clicked() && self.current_page + 1 < total_pages {
+                    self.current_page += 1;
+                }
+            });
         }
     }
 
@@ -1392,7 +1513,21 @@ impl DlgDashCounterDetails {
             table = table.sort_by(sort_col, direction);
         }
 
-        for (idx, pkg) in filtered_packages.iter().enumerate() {
+        // Pagination
+        let total_items = filtered_packages.len();
+        let total_pages = if total_items == 0 { 1 } else { (total_items + self.items_per_page - 1) / self.items_per_page.max(1) };
+
+        // Clamp current_page to valid range
+        if self.current_page >= total_pages {
+            self.current_page = total_pages.saturating_sub(1);
+        }
+
+        let start_idx = self.current_page * self.items_per_page;
+        let end_idx = (start_idx + self.items_per_page).min(total_items);
+        let page_packages = if start_idx < total_items { &filtered_packages[start_idx..end_idx] } else { &[] };
+
+        for (idx, pkg) in page_packages.iter().enumerate() {
+            let idx = start_idx + idx;
             let pkg_id = pkg.pkg.clone();
             let pkg_clone = (*pkg).clone();
             let clicked_idx_clone = clicked_package_idx.clone();
@@ -1439,6 +1574,22 @@ impl DlgDashCounterDetails {
                 self.sort_column = Some(clicked_col);
                 self.sort_ascending = true;
             }
+        }
+
+        // Pagination controls
+        if total_pages > 1 {
+            ui.add_space(20.0);
+            ui.horizontal(|ui| {
+                if ui.button("◀").clicked() && self.current_page > 0 {
+                    self.current_page -= 1;
+                }
+                ui.add_space(10.0);
+                ui.label(format!("Page {} of {} ({} items)", self.current_page + 1, total_pages, total_items));
+                ui.add_space(10.0);
+                if ui.button("▶").clicked() && self.current_page + 1 < total_pages {
+                    self.current_page += 1;
+                }
+            });
         }
     }
 

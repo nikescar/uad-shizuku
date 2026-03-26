@@ -38,6 +38,8 @@ pub struct DlgDashCounterDetails {
     pub show_only_enabled: bool,
     pub hide_system_app: bool,
     pub text_filter: String,
+    pub current_page: usize,
+    pub items_per_page: usize,
 }
 
 impl Default for DlgDashCounterDetails {
@@ -52,6 +54,8 @@ impl Default for DlgDashCounterDetails {
             show_only_enabled: false,
             hide_system_app: false,
             text_filter: String::new(),
+            current_page: 0,
+            items_per_page: 100,
         }
     }
 }
