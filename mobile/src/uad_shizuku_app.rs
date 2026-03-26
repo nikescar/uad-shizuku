@@ -2748,7 +2748,7 @@ impl UadShizukuApp {
 
     // another lists https://github.com/MuntashirAkon/android-debloat-list
     pub fn retrieve_uad_ng_lists(&mut self) {
-        const UAD_LISTS_URL: &str = "https://raw.githubusercontent.com/Universal-Debloater-Alliance/universal-android-debloater-next-generation/refs/heads/main/resources/assets/uad_lists.json";
+        const UAD_LISTS_URL: &str = "https://github.com/Universal-Debloater-Alliance/universal-android-debloater-next-generation/blob/main/resources/assets/uad_lists.json";
         const UAD_LISTS_FILENAME: &str = "uad_lists.json";
 
         // Get cache directory from config
@@ -2794,16 +2794,28 @@ impl UadShizukuApp {
             match receiver.recv() {
                 Ok(Ok(response)) => {
                     if response.ok {
-                        // Save to cache
-                        match std::fs::write(&cache_file_path, &response.bytes) {
-                            Ok(_) => {
-                                log::info!(
-                                    "Successfully downloaded and cached UAD lists to {:?}",
-                                    cache_file_path
-                                );
+                        // Extract data from GitHub HTML response
+                        let html_content = String::from_utf8_lossy(&response.bytes);
+                        let extracted_data = Self::extract_github_embedded_data(&html_content);
+
+                        match extracted_data {
+                            Some(data) => {
+                                // Save to cache
+                                match std::fs::write(&cache_file_path, data.as_bytes()) {
+                                    Ok(_) => {
+                                        log::info!(
+                                            "Successfully downloaded and cached UAD lists to {:?}",
+                                            cache_file_path
+                                        );
+                                    }
+                                    Err(e) => {
+                                        log::error!("Failed to write UAD lists to cache: {}", e);
+                                        return;
+                                    }
+                                }
                             }
-                            Err(e) => {
-                                log::error!("Failed to write UAD lists to cache: {}", e);
+                            None => {
+                                log::error!("Failed to extract embedded data from GitHub HTML response");
                                 return;
                             }
                         }
@@ -2851,7 +2863,7 @@ impl UadShizukuApp {
 
     // Stalkerware IOC : https://github.com/AssoEchap/stalkerware-indicators
     pub fn retrieve_stalkerware_indicators(&mut self) {
-        const IOC_URL: &str = "https://raw.githubusercontent.com/AssoEchap/stalkerware-indicators/master/ioc.yaml";
+        const IOC_URL: &str = "https://github.com/AssoEchap/stalkerware-indicators/blob/master/ioc.yaml";
         const IOC_FILENAME: &str = "stalkerware_ioc.yaml";
 
         // Get cache directory from config
@@ -2897,16 +2909,28 @@ impl UadShizukuApp {
             match receiver.recv() {
                 Ok(Ok(response)) => {
                     if response.ok {
-                        // Save to cache
-                        match std::fs::write(&cache_file_path, &response.bytes) {
-                            Ok(_) => {
-                                log::info!(
-                                    "Successfully downloaded and cached stalkerware IoC to {:?}",
-                                    cache_file_path
-                                );
+                        // Extract data from GitHub HTML response
+                        let html_content = String::from_utf8_lossy(&response.bytes);
+                        let extracted_data = Self::extract_github_embedded_data(&html_content);
+
+                        match extracted_data {
+                            Some(data) => {
+                                // Save to cache
+                                match std::fs::write(&cache_file_path, data.as_bytes()) {
+                                    Ok(_) => {
+                                        log::info!(
+                                            "Successfully downloaded and cached stalkerware IoC to {:?}",
+                                            cache_file_path
+                                        );
+                                    }
+                                    Err(e) => {
+                                        log::error!("Failed to write stalkerware IoC to cache: {}", e);
+                                        return;
+                                    }
+                                }
                             }
-                            Err(e) => {
-                                log::error!("Failed to write stalkerware IoC to cache: {}", e);
+                            None => {
+                                log::error!("Failed to extract embedded data from GitHub HTML response");
                                 return;
                             }
                         }
@@ -2946,6 +2970,34 @@ impl UadShizukuApp {
                 log::error!("Failed to read stalkerware IoC from cache: {}", e);
             }
         }
+    }
+
+    /// Extracts embedded data from GitHub HTML response
+    /// Data is contained in: <script type="application/json" data-target="react-app.embeddedData">{data}</script>
+    fn extract_github_embedded_data(html: &str) -> Option<String> {
+        // Find the script tag with embedded data
+        let script_start = html.find(r#"<script type="application/json" data-target="react-app.embeddedData">"#)?;
+        let data_start = script_start + r#"<script type="application/json" data-target="react-app.embeddedData">"#.len();
+        let data_end = html[data_start..].find("</script>")?;
+        let json_str = &html[data_start..data_start + data_end];
+
+        // Parse the embedded JSON to extract the actual file content
+        let parsed: serde_json::Value = serde_json::from_str(json_str).ok()?;
+
+        // Navigate to the payload > codeViewBlobLayoutRoute.StyledBlob > rawLines
+        let raw_lines = parsed
+            .get("payload")?
+            .get("codeViewBlobLayoutRoute.StyledBlob")?
+            .get("rawLines")?
+            .as_array()?;
+
+        // Join the lines to reconstruct the file content
+        let content: Vec<String> = raw_lines
+            .iter()
+            .filter_map(|line| line.as_str().map(|s| s.to_string()))
+            .collect();
+
+        Some(content.join("\n"))
     }
 
     // Flags : https://android.googlesource.com/platform/frameworks/base/+/master/core/java/android/content/pm/ApplicationInfo.java
