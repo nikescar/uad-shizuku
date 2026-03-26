@@ -4,7 +4,8 @@ use crate::uad_shizuku_app::UadNgLists;
 pub use crate::dlg_dashcounter_details_stt::*;
 use crate::calc;
 use crate::calc_stalkerware_stt::StalkerwareIndicators;
-use crate::material_symbol_icons::{ICON_DELETE, ICON_REFRESH, ICON_SETTINGS};
+use crate::material_symbol_icons::{ICON_DELETE, ICON_REFRESH, ICON_SETTINGS, ICON_INFO, ICON_DOWNLOAD};
+use crate::svg_stt::*;
 use eframe::egui;
 use egui_material3::{data_table, MaterialButton, DataTableCell, icon_button_standard, show_tooltip_on_hover, TooltipPosition};
 use egui_i18n::tr;
@@ -677,6 +678,9 @@ impl DlgDashCounterDetails {
                             | DashCounterCategory::HybridAnalysisNotScanned => {
                                 self.render_hybridanalysis_table(ui, ctx, installed_packages, &category, clicked_package_idx.clone(), hybridanalysis_tag_ignorelist, unsafe_app_remove, uad_ng_lists);
                             }
+                            DashCounterCategory::OffaCategory(_) | DashCounterCategory::FmhyCategory(_) => {
+                                self.render_apps_table(ui, ctx, installed_packages, &category, clicked_package_idx.clone());
+                            }
                         }
                     });
 
@@ -730,6 +734,8 @@ impl DlgDashCounterDetails {
             DashCounterCategory::HybridAnalysisSuspicious => "HybridAnalysis: Suspicious",
             DashCounterCategory::HybridAnalysisSafe => "HybridAnalysis: Safe",
             DashCounterCategory::HybridAnalysisNotScanned => "HybridAnalysis: Not Scanned",
+            DashCounterCategory::OffaCategory(ref cat_name) => return format!("FOSS/OFFA: {} ({}/{})", cat_name, self.count_enabled, self.count_total),
+            DashCounterCategory::FmhyCategory(ref cat_name) => return format!("FOSS/FMHY: {} ({}/{})", cat_name, self.count_enabled, self.count_total),
         };
         format!("{} ({}/{})", base_title, self.count_enabled, self.count_total)
     }
@@ -1640,6 +1646,332 @@ impl DlgDashCounterDetails {
 
         // Fallback: package ID
         pkg_id.to_lowercase()
+    }
+
+    fn render_apps_table(
+        &mut self,
+        ui: &mut egui::Ui,
+        ctx: &egui::Context,
+        installed_packages: &[PackageFingerprint],
+        category: &DashCounterCategory,
+        _clicked_package_idx: Arc<Mutex<Option<usize>>>,
+    ) {
+        use crate::material_symbol_icons::{ICON_DOWNLOAD, ICON_INFO, ICON_DELETE};
+
+        let category_name = match category {
+            DashCounterCategory::OffaCategory(ref name) | DashCounterCategory::FmhyCategory(ref name) => name.clone(),
+            _ => return,
+        };
+
+        // Filter apps by text filter
+        let mut filtered_apps: Vec<_> = self.offa_apps.iter()
+            .filter(|app| {
+                if self.text_filter.is_empty() {
+                    true
+                } else {
+                    let filter_lower = self.text_filter.to_lowercase();
+                    app.name.to_lowercase().contains(&filter_lower) ||
+                    app.category.to_lowercase().contains(&filter_lower) ||
+                    app.package_name.as_ref().map_or(false, |p| p.to_lowercase().contains(&filter_lower))
+                }
+            })
+            .collect();
+
+        // Sort if needed
+        if let Some(col) = self.sort_column {
+            filtered_apps.sort_by(|a, b| {
+                let ordering = match col {
+                    0 => a.name.cmp(&b.name),
+                    _ => std::cmp::Ordering::Equal,
+                };
+                if self.sort_ascending {
+                    ordering
+                } else {
+                    ordering.reverse()
+                }
+            });
+        }
+
+        // Apply pagination
+        let total_filtered = filtered_apps.len();
+        let start_idx = self.current_page * self.items_per_page;
+        let end_idx = (start_idx + self.items_per_page).min(total_filtered);
+        let paginated_apps = if start_idx < total_filtered {
+            &filtered_apps[start_idx..end_idx]
+        } else {
+            &[]
+        };
+
+        // Build datatable
+        let available_width = ui.available_width();
+        let mut table = data_table()
+            .id(egui::Id::new("apps_details_table"))
+            .sortable_column("App", available_width * 0.5, false)
+            .sortable_column("Links", available_width * 0.25, false)
+            .sortable_column("", available_width * 0.25, false);
+
+        // Set initial sort state
+        if let Some(sort_col) = self.sort_column {
+            use egui_material3::SortDirection;
+            let direction = if self.sort_ascending {
+                SortDirection::Ascending
+            } else {
+                SortDirection::Descending
+            };
+            table = table.sort_by(sort_col, direction);
+        }
+
+        // Build rows
+        for app in paginated_apps {
+            let app_clone = (*app).clone();
+            let installed_packages_clone = installed_packages.to_vec();
+
+            table = table.row(move |row| {
+                // App name column
+                let app_name_text = app_clone.name.clone();
+                let app_cell = DataTableCell::widget(move |ui: &mut egui::Ui| {
+                    ui.label(&app_name_text);
+                });
+
+                // Links column
+                let app_for_links = app_clone.clone();
+                let links_cell = DataTableCell::widget(move |ui: &mut egui::Ui| {
+                    egui::ScrollArea::horizontal()
+                        .id_salt(format!("offa_links_scroll_{}", app_for_links.name))
+                        .auto_shrink([false, true])
+                        .show(ui, |ui| {
+                            ui.horizontal(|ui| {
+                                ui.spacing_mut().item_spacing.x = 4.0;
+                                let num_links = app_for_links.links.len();
+                                let estimated_width = (num_links as f32) * 44.0;
+                                ui.set_min_width(estimated_width);
+
+                                for (url, link_type) in &app_for_links.links {
+                                    let svg = match link_type.as_str() {
+                                        "fdroid" | "fdroid-downloadable" => FDROID_SVG,
+                                        "izzy" | "izzy-downloadable" => IZZYONDROID_SVG,
+                                        "github" | "github-downloadable" => GITHUB_SVG,
+                                        "gitlab" | "gitlab-downloadable" => GITLAB_SVG,
+                                        "googleplay" => GOOGLEPLAY_SVG,
+                                        "reddit" => REDDIT_SVG,
+                                        "discord" => DISCORD_SVG,
+                                        "matrix" => MATRIX_SVG,
+                                        "telegram" => TELEGRAM_SVG,
+                                        "youtube" => YOUTUBE_SVG,
+                                        "source" => SOURCE_SVG,
+                                        _ => HOME_SVG,
+                                    };
+
+                                    let response = ui
+                                        .add(icon_button_standard("")
+                                            .svg_data(svg))
+                                        .on_hover_text(url.as_str());
+
+                                    if response.clicked() {
+                                        #[cfg(not(target_os = "android"))]
+                                        {
+                                            if let Err(e) = webbrowser::open(url) {
+                                                log::error!("Failed to open URL: {}", e);
+                                            }
+                                        }
+                                        #[cfg(target_os = "android")]
+                                        {
+                                            let _ = webbrowser::open(url);
+                                        }
+                                    }
+                                }
+                            });
+                        });
+                });
+
+                // Actions column (install/info/uninstall) - copied from tab_apps_control.rs:1128-1203
+                let app_for_install = app_clone.clone();
+                let installed_pkgs = installed_packages_clone.clone();
+                let actions_cell = DataTableCell::widget(move |ui: &mut egui::Ui| {
+                    // Extract package name from links if not explicitly set
+                    let package_name = app_for_install.package_name.clone().or_else(|| {
+                        // Try to extract from F-Droid or IzzyOnDroid link
+                        for (url, _link_type) in &app_for_install.links {
+                            // F-Droid format: https://f-droid.org/packages/com.example.app or /com.example.app/
+                            if url.contains("f-droid.org") && url.contains("/packages/") {
+                                if let Some(start) = url.find("/packages/") {
+                                    let after = &url[start + 10..];
+                                    let end = after.find('/').unwrap_or(after.len());
+                                    let pkg = after[..end].trim();
+                                    if !pkg.is_empty() && pkg.contains('.') {
+                                        return Some(pkg.to_string());
+                                    }
+                                }
+                            }
+                            // IzzyOnDroid format: https://apt.izzysoft.de/fdroid/index/apk/com.example.app
+                            else if url.contains("izzysoft.de") && url.contains("/apk/") {
+                                if let Some(start) = url.find("/apk/") {
+                                    let after = &url[start + 5..];
+                                    let end = after.find('/').unwrap_or(after.len());
+                                    let pkg = after[..end].trim();
+                                    if !pkg.is_empty() && pkg.contains('.') {
+                                        return Some(pkg.to_string());
+                                    }
+                                }
+                            }
+                        }
+                        None
+                    });
+
+                    // Check if app is installed - only use exact package name matching from URLs
+                    let (is_installed, installed_pkg_info) = if let Some(ref pkg_name) = package_name {
+                        // Exact package name match only
+                        if let Some(pkg) = installed_pkgs.iter().find(|p| &p.pkg == pkg_name) {
+                            let is_system = pkg.flags.contains("SYSTEM");
+                            let enabled_state = pkg.users.first().map(|u| {
+                                match u.enabled {
+                                    0 => if !u.installed && is_system { "REMOVED_USER" } else { "DEFAULT" },
+                                    1 => "ENABLED",
+                                    2 => "DISABLED",
+                                    3 => "DISABLED_USER",
+                                    _ => "UNKNOWN",
+                                }
+                            }).unwrap_or("UNKNOWN").to_string();
+                            (true, Some((pkg_name.clone(), is_system, enabled_state)))
+                        } else {
+                            (false, None)
+                        }
+                    } else {
+                        // No package name extracted from URL - cannot determine if installed
+                        (false, None)
+                    };
+
+                        // Get downloadable link for install button
+                        let downloadable_link = app_for_install.links.iter()
+                            .find(|(_, link_type)| {
+                                matches!(link_type.as_str(),
+                                    "fdroid-downloadable" | "izzy-downloadable" | "github-downloadable" | "gitlab-downloadable")
+                            })
+                            .or_else(|| {
+                                // Fallback to any fdroid/izzy/github link
+                                app_for_install.links.iter().find(|(_, link_type)| {
+                                    matches!(link_type.as_str(), "fdroid" | "izzy" | "github" | "gitlab")
+                                })
+                            })
+                            .map(|(url, link_type)| (url.clone(), link_type.clone()));
+
+                    ui.horizontal(|ui| {
+                        ui.spacing_mut().item_spacing.x = 0.0;
+
+                        if is_installed {
+                            // Info button - open package details dialog
+                            if ui.add(icon_button_standard(ICON_INFO.to_string())).on_hover_text(tr!("package-info")).clicked() {
+                                if let Some((ref pkg_name, _, _)) = installed_pkg_info {
+                                    ui.data_mut(|data| {
+                                        data.insert_temp(
+                                            egui::Id::new("info_clicked_package"),
+                                            pkg_name.clone(),
+                                        );
+                                    });
+                                }
+                            }
+
+                            if let Some((ref pkg_name, is_system, ref enabled_state)) = installed_pkg_info {
+                                // Enable/disable toggle
+                                let pkg_enabled = enabled_state == "DEFAULT" || enabled_state == "ENABLED";
+                                let mut enabled = pkg_enabled;
+                                if toggle_ui(ui, &mut enabled).clicked() {
+                                    if enabled {
+                                        ui.data_mut(|data| {
+                                            data.insert_temp(
+                                                egui::Id::new("enable_clicked_package"),
+                                                pkg_name.clone(),
+                                            );
+                                        });
+                                    } else {
+                                        ui.data_mut(|data| {
+                                            data.insert_temp(
+                                                egui::Id::new("disable_clicked_package"),
+                                                pkg_name.clone(),
+                                            );
+                                        });
+                                    }
+                                }
+
+                                if enabled_state == "DEFAULT" || enabled_state == "ENABLED" {
+                                    if ui.add(icon_button_standard(ICON_DELETE.to_string()).icon_color(egui::Color32::from_rgb(211, 47, 47))).on_hover_text(tr!("uninstall")).clicked() {
+                                        ui.data_mut(|data| {
+                                            data.insert_temp(
+                                                egui::Id::new("uninstall_clicked_package"),
+                                                pkg_name.clone(),
+                                            );
+                                            data.insert_temp(
+                                                egui::Id::new("uninstall_clicked_is_system"),
+                                                is_system,
+                                            );
+                                            data.insert_temp(
+                                                egui::Id::new("uninstall_clicked_app_name"),
+                                                app_for_install.name.clone(),
+                                            );
+                                        });
+                                    }
+                                }
+                            }
+                        } else if let Some((ref url, ref link_type)) = downloadable_link {
+                            let hover_text = format!("[{}]\n{}", link_type, url);
+
+                            if ui.add(icon_button_standard(ICON_DOWNLOAD.to_string())).on_hover_text(&hover_text).clicked() {
+                                ui.data_mut(|data| {
+                                    data.insert_temp(egui::Id::new("install_clicked_app"), app_for_install.clone());
+                                });
+                            }
+                        }
+                    });
+                });
+
+                row.custom_cell(app_cell)
+                    .custom_cell(links_cell)
+                    .custom_cell(actions_cell)
+            });
+        }
+
+        // Show table and handle sorting
+        let table_response = table.show(ui);
+
+        // Handle sort state sync
+        let (widget_sort_col, widget_sort_dir) = table_response.sort_state;
+        let widget_sort_ascending = matches!(widget_sort_dir, egui_material3::SortDirection::Ascending);
+
+        if widget_sort_col != self.sort_column
+            || (widget_sort_col.is_some() && widget_sort_ascending != self.sort_ascending)
+        {
+            self.sort_column = widget_sort_col;
+            self.sort_ascending = widget_sort_ascending;
+        }
+
+        // Handle column clicks
+        if let Some(clicked_col) = table_response.column_clicked {
+            if self.sort_column == Some(clicked_col) {
+                self.sort_ascending = !self.sort_ascending;
+            } else {
+                self.sort_column = Some(clicked_col);
+                self.sort_ascending = true;
+            }
+        }
+
+        // Pagination controls
+        if total_filtered > self.items_per_page {
+            ui.add_space(8.0);
+            ui.horizontal(|ui| {
+                let total_pages = (total_filtered + self.items_per_page - 1) / self.items_per_page;
+                if self.current_page > 0 {
+                    if ui.button("Previous").clicked() {
+                        self.current_page -= 1;
+                    }
+                }
+                ui.label(format!("Page {} of {}", self.current_page + 1, total_pages));
+                if self.current_page + 1 < total_pages {
+                    if ui.button("Next").clicked() {
+                        self.current_page += 1;
+                    }
+                }
+            });
+        }
     }
 
     /// Check if package matches text filter

@@ -342,6 +342,8 @@ impl Default for UadShizukuApp {
             dash_scroll_izzyrisk: 0.0,
             dash_scroll_virustotal: 0.0,
             dash_scroll_hybridanalysis: 0.0,
+            dash_scroll_offa: 0.0,
+            dash_scroll_fmhy: 0.0,
 
             // Installer package name - detect on Android
             #[cfg(target_os = "android")]
@@ -1239,6 +1241,128 @@ impl UadShizukuApp {
                 ("hybridanalysis", 2) => (Some(DashCounterCategory::HybridAnalysisSuspicious), cached_scan_counts.ha_counts.3.0, cached_scan_counts.ha_counts.3.1),
                 ("hybridanalysis", 3) => (Some(DashCounterCategory::HybridAnalysisSafe), cached_scan_counts.ha_counts.4.0, cached_scan_counts.ha_counts.4.1),
                 ("hybridanalysis", 4) => (Some(DashCounterCategory::HybridAnalysisNotScanned), cached_scan_counts.ha_counts.5.0, cached_scan_counts.ha_counts.5.1),
+                ("offa", idx) => {
+                    // Retrieve category name and apps from temp storage
+                    let category_name = ui.ctx().data(|data| {
+                        data.get_temp::<String>(egui::Id::new(format!("offa_category_{}", idx)))
+                    });
+                    let apps_data = ui.ctx().data(|data| {
+                        data.get_temp::<Vec<crate::tab_apps_control_stt::AppEntry>>(egui::Id::new(format!("offa_apps_{}", idx)))
+                    });
+
+                    if let (Some(category), Some(apps)) = (category_name, apps_data) {
+                        // Store apps in dialog for rendering
+                        self.dlg_dashcounter_details.offa_apps = apps.clone();
+
+                        // Helper to check if an app is installed
+                        let is_app_installed = |app_entry: &crate::tab_apps_control_stt::AppEntry| -> bool {
+                            // Extract package name from links if not explicitly set
+                            let package_name = app_entry.package_name.clone().or_else(|| {
+                                // Try to extract from F-Droid or IzzyOnDroid link
+                                for (url, _link_type) in &app_entry.links {
+                                    // F-Droid format: https://f-droid.org/packages/com.example.app
+                                    if url.contains("f-droid.org") && url.contains("/packages/") {
+                                        if let Some(start) = url.find("/packages/") {
+                                            let after = &url[start + 10..];
+                                            let end = after.find('/').unwrap_or(after.len());
+                                            let pkg = after[..end].trim();
+                                            if !pkg.is_empty() && pkg.contains('.') {
+                                                return Some(pkg.to_string());
+                                            }
+                                        }
+                                    }
+                                    // IzzyOnDroid format: https://apt.izzysoft.de/fdroid/index/apk/com.example.app
+                                    else if url.contains("izzysoft.de") && url.contains("/apk/") {
+                                        if let Some(start) = url.find("/apk/") {
+                                            let after = &url[start + 5..];
+                                            let end = after.find('/').unwrap_or(after.len());
+                                            let pkg = after[..end].trim();
+                                            if !pkg.is_empty() && pkg.contains('.') {
+                                                return Some(pkg.to_string());
+                                            }
+                                        }
+                                    }
+                                }
+                                None
+                            });
+
+                            // Check if app is installed - only use exact package name matching
+                            if let Some(ref pkg_name) = package_name {
+                                installed_packages.iter().any(|pkg| &pkg.pkg == pkg_name)
+                            } else {
+                                false
+                            }
+                        };
+
+                        let total = apps.len();
+                        let installed = apps.iter().filter(|app| is_app_installed(app)).count();
+
+                        (Some(DashCounterCategory::OffaCategory(category)), installed, total)
+                    } else {
+                        (None, 0, 0)
+                    }
+                },
+                ("fmhy", idx) => {
+                    // Retrieve category name and apps from temp storage
+                    let category_name = ui.ctx().data(|data| {
+                        data.get_temp::<String>(egui::Id::new(format!("fmhy_category_{}", idx)))
+                    });
+                    let apps_data = ui.ctx().data(|data| {
+                        data.get_temp::<Vec<crate::tab_apps_control_stt::AppEntry>>(egui::Id::new(format!("fmhy_apps_{}", idx)))
+                    });
+
+                    if let (Some(category), Some(apps)) = (category_name, apps_data) {
+                        // Store apps in dialog for rendering
+                        self.dlg_dashcounter_details.offa_apps = apps.clone();
+
+                        // Helper to check if an app is installed
+                        let is_app_installed = |app_entry: &crate::tab_apps_control_stt::AppEntry| -> bool {
+                            // Extract package name from links if not explicitly set
+                            let package_name = app_entry.package_name.clone().or_else(|| {
+                                // Try to extract from F-Droid or IzzyOnDroid link
+                                for (url, _link_type) in &app_entry.links {
+                                    // F-Droid format: https://f-droid.org/packages/com.example.app
+                                    if url.contains("f-droid.org") && url.contains("/packages/") {
+                                        if let Some(start) = url.find("/packages/") {
+                                            let after = &url[start + 10..];
+                                            let end = after.find('/').unwrap_or(after.len());
+                                            let pkg = after[..end].trim();
+                                            if !pkg.is_empty() && pkg.contains('.') {
+                                                return Some(pkg.to_string());
+                                            }
+                                        }
+                                    }
+                                    // IzzyOnDroid format: https://apt.izzysoft.de/fdroid/index/apk/com.example.app
+                                    else if url.contains("izzysoft.de") && url.contains("/apk/") {
+                                        if let Some(start) = url.find("/apk/") {
+                                            let after = &url[start + 5..];
+                                            let end = after.find('/').unwrap_or(after.len());
+                                            let pkg = after[..end].trim();
+                                            if !pkg.is_empty() && pkg.contains('.') {
+                                                return Some(pkg.to_string());
+                                            }
+                                        }
+                                    }
+                                }
+                                None
+                            });
+
+                            // Check if app is installed - only use exact package name matching
+                            if let Some(ref pkg_name) = package_name {
+                                installed_packages.iter().any(|pkg| &pkg.pkg == pkg_name)
+                            } else {
+                                false
+                            }
+                        };
+
+                        let total = apps.len();
+                        let installed = apps.iter().filter(|app| is_app_installed(app)).count();
+
+                        (Some(DashCounterCategory::FmhyCategory(category)), installed, total)
+                    } else {
+                        (None, 0, 0)
+                    }
+                },
                 _ => (None, 0, 0),
             };
             if let Some(cat) = category {
@@ -1400,6 +1524,20 @@ impl UadShizukuApp {
                 self.tab_debloat_control.start_batch_uninstall(pkgs, sys_flags, device.clone(), uad_ng_lists.as_ref());
             } else {
                 log::error!("No device selected for uninstall");
+            }
+        }
+
+        // Handle install button from offa dashcounter details
+        if let Some(app) = ui.ctx().data(|data| {
+            data.get_temp::<crate::tab_apps_control_stt::AppEntry>(egui::Id::new("install_clicked_app"))
+        }) {
+            ui.ctx().data_mut(|data| {
+                data.remove::<crate::tab_apps_control_stt::AppEntry>(egui::Id::new("install_clicked_app"));
+            });
+
+            // Use tab_apps_control's install_app method
+            if let Err(e) = self.tab_apps_control.install_app(&app) {
+                log::error!("Failed to install app: {}", e);
             }
         }
 
@@ -2064,6 +2202,103 @@ impl UadShizukuApp {
         }
     }
 
+    /// Load and parse app entries from an app list (used for dashboard independent loading)
+    fn load_app_list_entries(&self, app_list: &crate::tab_apps_control_stt::AppListSource) -> Vec<crate::tab_apps_control_stt::AppEntry> {
+        let cache_file = self.tab_apps_control.cache_dir
+            .join(format!("{}.md", app_list.name.replace(" ", "_")));
+
+        // Try to load from cache first
+        if let Ok(content) = std::fs::read_to_string(&cache_file) {
+            return self.parse_app_list_content(&content);
+        }
+
+        // If cache doesn't exist, return empty (let the Apps tab handle downloading)
+        Vec::new()
+    }
+
+    /// Parse markdown content into app entries (helper for dashboard)
+    fn parse_app_list_content(&self, content: &str) -> Vec<crate::tab_apps_control_stt::AppEntry> {
+        let mut app_entries = Vec::new();
+        let mut current_category = String::from("Uncategorized");
+
+        for line in content.lines() {
+            // Check if line is a markdown header (category)
+            if line.starts_with('#') {
+                let header_text = line.trim_start_matches('#').trim();
+                if !header_text.is_empty() {
+                    current_category = header_text
+                        .chars()
+                        .filter(|c| c.is_alphanumeric() || c.is_whitespace())
+                        .collect::<String>()
+                        .trim()
+                        .to_string();
+                }
+            } else if line.contains("f-droid.org")
+                || line.contains("izzysoft.de")
+                || line.contains("github.com")
+                || line.contains("gitlab.com")
+            {
+                // Skip iOS categories
+                if current_category.contains("iOS") {
+                    continue;
+                }
+
+                // Extract app name (simplified version)
+                let name = if let Some(start) = line.find('[') {
+                    if let Some(end) = line.find(']') {
+                        if end > start {
+                            line[start + 1..end].trim().to_string()
+                        } else {
+                            continue;
+                        }
+                    } else {
+                        continue;
+                    }
+                } else {
+                    continue;
+                };
+
+                // Extract links
+                let mut links = Vec::new();
+                let mut search_pos = 0;
+                while let Some(link_start) = line[search_pos..].find("http") {
+                    let actual_start = search_pos + link_start;
+                    let remaining = &line[actual_start..];
+                    let end_pos = remaining
+                        .find(|c: char| c.is_whitespace() || c == ')' || c == ']')
+                        .unwrap_or(remaining.len());
+                    let url = remaining[..end_pos].to_string();
+
+                    let link_type = if url.contains("f-droid.org") {
+                        "fdroid"
+                    } else if url.contains("izzysoft.de") {
+                        "izzy"
+                    } else if url.contains("github.com") {
+                        "github"
+                    } else if url.contains("gitlab.com") {
+                        "gitlab"
+                    } else {
+                        "home"
+                    };
+
+                    links.push((url, link_type.to_string()));
+                    search_pos = actual_start + end_pos;
+                }
+
+                if !name.is_empty() && !links.is_empty() {
+                    app_entries.push(crate::tab_apps_control_stt::AppEntry {
+                        category: current_category.clone(),
+                        name,
+                        links,
+                        package_name: None,
+                    });
+                }
+            }
+        }
+
+        app_entries
+    }
+
     fn render_mobile_dashboards(&mut self, ui: &mut egui::Ui) {
         use crate::shared_store_stt::get_shared_store;
 
@@ -2441,9 +2676,273 @@ impl UadShizukuApp {
                 );
                 ui.add_space(20.0);
 
-                // Note: FOSS/OFFA and FOSS/FMHY dashboards are not yet implemented
-                // as the underlying data structures don't exist in the codebase
-                ui.label("📝 FOSS/OFFA and FOSS/FMHY dashboards coming soon...");
+                // 6. FOSS/OFFA Dashboard (show if offa list exists and not installed via Google Play)
+                let show_foss_dashboards = {
+                    #[cfg(target_os = "android")]
+                    {
+                        !matches!(
+                            self.installer_package_name.as_deref(),
+                            Some("com.android.vending")
+                        )
+                    }
+                    #[cfg(not(target_os = "android"))]
+                    {
+                        true
+                    }
+                };
+
+                if show_foss_dashboards {
+                    // Find OFFA list
+                    if let Some((offa_idx, offa_list)) = self.tab_apps_control.app_lists.iter()
+                        .enumerate()
+                        .find(|(_, list)| list.name.to_lowercase().contains("offa"))
+                    {
+                        // Parse apps from OFFA list if needed
+                        let offa_apps = if let Some(sel_idx) = self.tab_apps_control.selected_app_list {
+                            if sel_idx == offa_idx {
+                                // Already loaded
+                                self.tab_apps_control.app_entries.clone()
+                            } else {
+                                // Need to load OFFA list temporarily
+                                self.load_app_list_entries(offa_list)
+                            }
+                        } else {
+                            // No list selected, load OFFA
+                            self.load_app_list_entries(offa_list)
+                        };
+
+                        if !offa_apps.is_empty() {
+                            let ctx_clone = ui.ctx().clone();
+
+                            // Helper to check if an app is installed - using exact package namespace matching only
+                            let is_app_installed = |app_entry: &crate::tab_apps_control_stt::AppEntry| -> bool {
+                                // Extract package name from links if not explicitly set
+                                let package_name = app_entry.package_name.clone().or_else(|| {
+                                    // Try to extract from F-Droid or IzzyOnDroid link
+                                    for (url, _link_type) in &app_entry.links {
+                                        // F-Droid format: https://f-droid.org/packages/com.example.app
+                                        if url.contains("f-droid.org") && url.contains("/packages/") {
+                                            if let Some(start) = url.find("/packages/") {
+                                                let after = &url[start + 10..];
+                                                let end = after.find('/').unwrap_or(after.len());
+                                                let pkg = after[..end].trim();
+                                                if !pkg.is_empty() && pkg.contains('.') {
+                                                    return Some(pkg.to_string());
+                                                }
+                                            }
+                                        }
+                                        // IzzyOnDroid format: https://apt.izzysoft.de/fdroid/index/apk/com.example.app
+                                        else if url.contains("izzysoft.de") && url.contains("/apk/") {
+                                            if let Some(start) = url.find("/apk/") {
+                                                let after = &url[start + 5..];
+                                                let end = after.find('/').unwrap_or(after.len());
+                                                let pkg = after[..end].trim();
+                                                if !pkg.is_empty() && pkg.contains('.') {
+                                                    return Some(pkg.to_string());
+                                                }
+                                            }
+                                        }
+                                    }
+                                    None
+                                });
+
+                                // Check if app is installed - only use exact package name matching
+                                if let Some(ref pkg_name) = package_name {
+                                    installed_packages.iter().any(|pkg| &pkg.pkg == pkg_name)
+                                } else {
+                                    false
+                                }
+                            };
+
+                            // Group apps by category and count installed/total
+                            let mut category_counts: std::collections::HashMap<String, (usize, usize)> = std::collections::HashMap::new();
+                            for app in &offa_apps {
+                                let entry = category_counts.entry(app.category.clone()).or_insert((0, 0));
+                                entry.1 += 1; // total
+                                if is_app_installed(app) {
+                                    entry.0 += 1; // installed
+                                }
+                            }
+
+                            // Sort categories alphabetically
+                            let mut sorted_categories: Vec<_> = category_counts.iter().collect();
+                            sorted_categories.sort_by(|a, b| a.0.cmp(b.0));
+
+                            let mut dashboard = dashcounter("FOSS/OFFA", &mut self.dash_scroll_offa)
+                                .id_salt("dash_offa")
+                                .title_ui(|ui| {
+                                    if ui.add(icon_button_standard(ICON_INFO.to_string())).clicked() {
+                                        let _ = webbrowser::open(&offa_list.info_url);
+                                    }
+                                });
+
+                            // Add a card for each category
+                            for (idx, (category, (installed, total))) in sorted_categories.iter().enumerate() {
+                                dashboard = dashboard.card_with_description(
+                                    category.as_str(),
+                                    *installed,
+                                    *total,
+                                    "installed",
+                                    "all"
+                                );
+
+                                // Store category name and apps for click handler
+                                let category_clone = (*category).clone();
+                                let apps_in_category: Vec<crate::tab_apps_control_stt::AppEntry> = offa_apps.iter()
+                                    .filter(|app| &app.category == *category)
+                                    .cloned()
+                                    .collect();
+
+                                let ctx_for_storage = ctx_clone.clone();
+                                ctx_for_storage.data_mut(|data| {
+                                    data.insert_temp(
+                                        egui::Id::new(format!("offa_category_{}", idx)),
+                                        category_clone
+                                    );
+                                    data.insert_temp(
+                                        egui::Id::new(format!("offa_apps_{}", idx)),
+                                        apps_in_category
+                                    );
+                                });
+                            }
+
+                            ui.add(
+                                dashboard.on_click(move |index| {
+                                    ctx_clone.data_mut(|data| {
+                                        data.insert_temp(egui::Id::new("dashcounter_clicked"), ("offa", index));
+                                    });
+                                })
+                            );
+                            ui.add_space(20.0);
+                        }
+                    }
+
+                    // 7. FOSS/FMHY Dashboard (show if fmhy list exists)
+                    // Find FMHY list
+                    if let Some((fmhy_idx, fmhy_list)) = self.tab_apps_control.app_lists.iter()
+                        .enumerate()
+                        .find(|(_, list)| list.name.to_lowercase().contains("fmhy"))
+                    {
+                        // Parse apps from FMHY list if needed
+                        let fmhy_apps = if let Some(sel_idx) = self.tab_apps_control.selected_app_list {
+                            if sel_idx == fmhy_idx {
+                                // Already loaded
+                                self.tab_apps_control.app_entries.clone()
+                            } else {
+                                // Need to load FMHY list temporarily
+                                self.load_app_list_entries(fmhy_list)
+                            }
+                        } else {
+                            // No list selected, load FMHY
+                            self.load_app_list_entries(fmhy_list)
+                        };
+
+                        if !fmhy_apps.is_empty() {
+                            let ctx_clone = ui.ctx().clone();
+
+                            // Helper to check if an app is installed - using exact package namespace matching only
+                            let is_app_installed = |app_entry: &crate::tab_apps_control_stt::AppEntry| -> bool {
+                                // Extract package name from links if not explicitly set
+                                let package_name = app_entry.package_name.clone().or_else(|| {
+                                    // Try to extract from F-Droid or IzzyOnDroid link
+                                    for (url, _link_type) in &app_entry.links {
+                                        // F-Droid format: https://f-droid.org/packages/com.example.app
+                                        if url.contains("f-droid.org") && url.contains("/packages/") {
+                                            if let Some(start) = url.find("/packages/") {
+                                                let after = &url[start + 10..];
+                                                let end = after.find('/').unwrap_or(after.len());
+                                                let pkg = after[..end].trim();
+                                                if !pkg.is_empty() && pkg.contains('.') {
+                                                    return Some(pkg.to_string());
+                                                }
+                                            }
+                                        }
+                                        // IzzyOnDroid format: https://apt.izzysoft.de/fdroid/index/apk/com.example.app
+                                        else if url.contains("izzysoft.de") && url.contains("/apk/") {
+                                            if let Some(start) = url.find("/apk/") {
+                                                let after = &url[start + 5..];
+                                                let end = after.find('/').unwrap_or(after.len());
+                                                let pkg = after[..end].trim();
+                                                if !pkg.is_empty() && pkg.contains('.') {
+                                                    return Some(pkg.to_string());
+                                                }
+                                            }
+                                        }
+                                    }
+                                    None
+                                });
+
+                                // Check if app is installed - only use exact package name matching
+                                if let Some(ref pkg_name) = package_name {
+                                    installed_packages.iter().any(|pkg| &pkg.pkg == pkg_name)
+                                } else {
+                                    false
+                                }
+                            };
+
+                            // Group apps by category and count installed/total
+                            let mut category_counts: std::collections::HashMap<String, (usize, usize)> = std::collections::HashMap::new();
+                            for app in &fmhy_apps {
+                                let entry = category_counts.entry(app.category.clone()).or_insert((0, 0));
+                                entry.1 += 1; // total
+                                if is_app_installed(app) {
+                                    entry.0 += 1; // installed
+                                }
+                            }
+
+                            // Sort categories alphabetically
+                            let mut sorted_categories: Vec<_> = category_counts.iter().collect();
+                            sorted_categories.sort_by(|a, b| a.0.cmp(b.0));
+
+                            let mut dashboard = dashcounter("FOSS/FMHY", &mut self.dash_scroll_fmhy)
+                                .id_salt("dash_fmhy")
+                                .title_ui(|ui| {
+                                    if ui.add(icon_button_standard(ICON_INFO.to_string())).clicked() {
+                                        let _ = webbrowser::open(&fmhy_list.info_url);
+                                    }
+                                });
+
+                            // Add a card for each category
+                            for (idx, (category, (installed, total))) in sorted_categories.iter().enumerate() {
+                                dashboard = dashboard.card_with_description(
+                                    category.as_str(),
+                                    *installed,
+                                    *total,
+                                    "installed",
+                                    "all"
+                                );
+
+                                // Store category name and apps for click handler
+                                let category_clone = (*category).clone();
+                                let apps_in_category: Vec<crate::tab_apps_control_stt::AppEntry> = fmhy_apps.iter()
+                                    .filter(|app| &app.category == *category)
+                                    .cloned()
+                                    .collect();
+
+                                let ctx_for_storage = ctx_clone.clone();
+                                ctx_for_storage.data_mut(|data| {
+                                    data.insert_temp(
+                                        egui::Id::new(format!("fmhy_category_{}", idx)),
+                                        category_clone
+                                    );
+                                    data.insert_temp(
+                                        egui::Id::new(format!("fmhy_apps_{}", idx)),
+                                        apps_in_category
+                                    );
+                                });
+                            }
+
+                            ui.add(
+                                dashboard.on_click(move |index| {
+                                    ctx_clone.data_mut(|data| {
+                                        data.insert_temp(egui::Id::new("dashcounter_clicked"), ("fmhy", index));
+                                    });
+                                })
+                            );
+                            ui.add_space(20.0);
+                        }
+                    }
+                }
             });
     }
 

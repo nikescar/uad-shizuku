@@ -25,6 +25,10 @@ pub enum DashCounterCategory {
     HybridAnalysisSuspicious,
     HybridAnalysisSafe,
     HybridAnalysisNotScanned,
+    /// Offa FOSS Apps category (dynamic based on app list categories)
+    OffaCategory(String),
+    /// FMHY FOSS Apps category (dynamic based on app list categories)
+    FmhyCategory(String),
 }
 
 #[derive(Debug, Clone)]
@@ -40,6 +44,7 @@ pub struct DlgDashCounterDetails {
     pub text_filter: String,
     pub current_page: usize,
     pub items_per_page: usize,
+    pub offa_apps: Vec<crate::tab_apps_control_stt::AppEntry>,
 }
 
 impl Default for DlgDashCounterDetails {
@@ -56,6 +61,7 @@ impl Default for DlgDashCounterDetails {
             text_filter: String::new(),
             current_page: 0,
             items_per_page: 100,
+            offa_apps: Vec::new(),
         }
     }
 }
