@@ -2325,10 +2325,10 @@ impl UadShizukuApp {
                                 let _ = webbrowser::open("https://android.izzysoft.de/applists.php?lang=en;topic=perms");
                             }
                         })
-                        .card_with_description("20+(high)", enabled_risk_20_plus, risk_20_plus, "enabled", "all")
-                        .card_with_description("11-20(moderate)", enabled_risk_11_20, risk_11_20, "enabled", "all")
-                        .card_with_description("1-10(normal)", enabled_risk_1_10, risk_1_10, "enabled", "all")
                         .card_with_description("0(safe)", enabled_risk_0, risk_0, "enabled", "all")
+                        .card_with_description("1-10(normal)", enabled_risk_1_10, risk_1_10, "enabled", "all")
+                        .card_with_description("11-20(moderate)", enabled_risk_11_20, risk_11_20, "enabled", "all")
+                        .card_with_description("20+(high)", enabled_risk_20_plus, risk_20_plus, "enabled", "all")
                         .category_color(egui::Color32::from_rgb(255, 152, 0))
                         .counter_color(egui::Color32::from_rgb(230, 81, 0))
                         .description_color(egui::Color32::from_rgb(255, 183, 77))
@@ -3188,6 +3188,11 @@ impl eframe::App for UadShizukuApp {
         #[cfg(target_os = "android")]
         if !self.first_update_done {
             self.first_update_done = true;
+
+            // Set UI context for background threads to request repaints
+            let shared_store = crate::shared_store_stt::get_shared_store();
+            shared_store.set_ui_context(ctx.clone());
+
             log::info!("First update - initializing Shizuku");
             crate::calc::retrieve_adb_devices(self);
 
@@ -3201,7 +3206,11 @@ impl eframe::App for UadShizukuApp {
         #[cfg(not(target_os = "android"))]
         if !self.first_update_done {
             self.first_update_done = true;
-            
+
+            // Set UI context for background threads to request repaints
+            let shared_store = crate::shared_store_stt::get_shared_store();
+            shared_store.set_ui_context(ctx.clone());
+
             // Check for updates if autoupdate is enabled
             if self.settings.autoupdate {
                 log::info!("Autoupdate enabled - checking for updates");
@@ -3211,13 +3220,16 @@ impl eframe::App for UadShizukuApp {
 
         // Poll Shizuku state: auto-retry when permission granted or service bound
         #[cfg(target_os = "android")]
-        {
+        let needs_shizuku_polling = {
+            let mut needs_polling = false;
             if self.shizuku_permission_requested && self.adb_devices.is_empty() {
                 let perm_state = crate::android_shizuku::shizuku_get_permission_state();
                 if perm_state == 2 {
                     // Permission granted, retry device detection
                     self.shizuku_permission_requested = false;
                     crate::calc::retrieve_adb_devices(self);
+                } else {
+                    needs_polling = true;
                 }
             }
             if self.shizuku_bind_requested && self.adb_devices.is_empty() {
@@ -3229,9 +3241,12 @@ impl eframe::App for UadShizukuApp {
                 } else if bind_state == 3 {
                     // Bind failed, stop polling
                     self.shizuku_bind_requested = false;
+                } else {
+                    needs_polling = true;
                 }
             }
-        }
+            needs_polling
+        };
 
         egui::CentralPanel::default().show(ctx, |ui| {
             #[cfg(target_os = "android")]
@@ -3246,9 +3261,11 @@ impl eframe::App for UadShizukuApp {
             self.ui(ui);
         });
 
-        // Use reactive mode: only repaint when needed
-        // Request repaint after 500ms to check for background task updates
-        // This reduces CPU usage while still updating worker results periodically
-        ctx.request_repaint_after(std::time::Duration::from_millis(500));
+        // Use reactive mode: only repaint when actually needed
+        // Only poll for Shizuku state changes if needed (Android only)
+        #[cfg(target_os = "android")]
+        if needs_shizuku_polling {
+            ctx.request_repaint_after(std::time::Duration::from_millis(500));
+        }
     }
 }

@@ -610,6 +610,9 @@ pub fn retrieve_installed_packages(app: &mut UadShizukuApp) {
             if let Ok(mut p) = debloat_progress_clone.lock() {
                 *p = None;
             }
+            // Request UI repaint when background sha256sum fetching completes
+            let shared_store = crate::shared_store_stt::get_shared_store();
+            shared_store.request_repaint();
         });
 
         // use package
@@ -630,6 +633,11 @@ pub fn retrieve_installed_packages(app: &mut UadShizukuApp) {
         }
 
         log::debug!("Package retrieval complete");
+
+        // Request UI repaint when package loading completes
+        let shared_store = crate::shared_store_stt::get_shared_store();
+        shared_store.request_repaint();
+
         (packages, uad_ng_lists)
     });
 
