@@ -1142,41 +1142,14 @@ impl UadShizukuApp {
                     };
 
                     let total = installed_packages.iter().filter(|pkg| {
-                        package_risk_scores.get(&pkg.pkg).map_or(false, |&score| score == 0)
+                        package_risk_scores.get(&pkg.pkg).map_or(false, |&score| score > 20)
                     }).count();
                     let enabled = installed_packages.iter().filter(|pkg| {
-                        package_risk_scores.get(&pkg.pkg).map_or(false, |&score| score == 0) && is_pkg_enabled(pkg)
+                        package_risk_scores.get(&pkg.pkg).map_or(false, |&score| score > 20) && is_pkg_enabled(pkg)
                     }).count();
-                    (Some(DashCounterCategory::IzzyRiskSafe), enabled, total)
+                    (Some(DashCounterCategory::IzzyRiskHigh), enabled, total)
                 },
                 ("izzyrisk", 1) => {
-                    let shared_store = crate::shared_store_stt::get_shared_store();
-                    let installed_packages = shared_store.get_installed_packages();
-                    let package_risk_scores = &self.tab_scan_control.package_risk_scores;
-
-                    let is_pkg_enabled = |pkg: &crate::adb::PackageFingerprint| -> bool {
-                        let is_system = pkg.flags.contains("SYSTEM");
-                        pkg.users.first().map(|u| {
-                            let enabled_str = match u.enabled {
-                                0 => if !u.installed && is_system { "REMOVED_USER" } else { "DEFAULT" },
-                                1 => "ENABLED",
-                                2 => "DISABLED",
-                                3 => "DISABLED_USER",
-                                _ => "UNKNOWN",
-                            };
-                            enabled_str == "ENABLED" || enabled_str == "DEFAULT" || enabled_str == "UNKNOWN"
-                        }).unwrap_or(false)
-                    };
-
-                    let total = installed_packages.iter().filter(|pkg| {
-                        package_risk_scores.get(&pkg.pkg).map_or(false, |&score| score >= 1 && score <= 10)
-                    }).count();
-                    let enabled = installed_packages.iter().filter(|pkg| {
-                        package_risk_scores.get(&pkg.pkg).map_or(false, |&score| score >= 1 && score <= 10) && is_pkg_enabled(pkg)
-                    }).count();
-                    (Some(DashCounterCategory::IzzyRiskNormal), enabled, total)
-                },
-                ("izzyrisk", 2) => {
                     let shared_store = crate::shared_store_stt::get_shared_store();
                     let installed_packages = shared_store.get_installed_packages();
                     let package_risk_scores = &self.tab_scan_control.package_risk_scores;
@@ -1203,6 +1176,33 @@ impl UadShizukuApp {
                     }).count();
                     (Some(DashCounterCategory::IzzyRiskModerate), enabled, total)
                 },
+                ("izzyrisk", 2) => {
+                    let shared_store = crate::shared_store_stt::get_shared_store();
+                    let installed_packages = shared_store.get_installed_packages();
+                    let package_risk_scores = &self.tab_scan_control.package_risk_scores;
+
+                    let is_pkg_enabled = |pkg: &crate::adb::PackageFingerprint| -> bool {
+                        let is_system = pkg.flags.contains("SYSTEM");
+                        pkg.users.first().map(|u| {
+                            let enabled_str = match u.enabled {
+                                0 => if !u.installed && is_system { "REMOVED_USER" } else { "DEFAULT" },
+                                1 => "ENABLED",
+                                2 => "DISABLED",
+                                3 => "DISABLED_USER",
+                                _ => "UNKNOWN",
+                            };
+                            enabled_str == "ENABLED" || enabled_str == "DEFAULT" || enabled_str == "UNKNOWN"
+                        }).unwrap_or(false)
+                    };
+
+                    let total = installed_packages.iter().filter(|pkg| {
+                        package_risk_scores.get(&pkg.pkg).map_or(false, |&score| score >= 1 && score <= 10)
+                    }).count();
+                    let enabled = installed_packages.iter().filter(|pkg| {
+                        package_risk_scores.get(&pkg.pkg).map_or(false, |&score| score >= 1 && score <= 10) && is_pkg_enabled(pkg)
+                    }).count();
+                    (Some(DashCounterCategory::IzzyRiskNormal), enabled, total)
+                },
                 ("izzyrisk", 3) => {
                     let shared_store = crate::shared_store_stt::get_shared_store();
                     let installed_packages = shared_store.get_installed_packages();
@@ -1223,12 +1223,12 @@ impl UadShizukuApp {
                     };
 
                     let total = installed_packages.iter().filter(|pkg| {
-                        package_risk_scores.get(&pkg.pkg).map_or(false, |&score| score > 20)
+                        package_risk_scores.get(&pkg.pkg).map_or(false, |&score| score == 0)
                     }).count();
                     let enabled = installed_packages.iter().filter(|pkg| {
-                        package_risk_scores.get(&pkg.pkg).map_or(false, |&score| score > 20) && is_pkg_enabled(pkg)
+                        package_risk_scores.get(&pkg.pkg).map_or(false, |&score| score == 0) && is_pkg_enabled(pkg)
                     }).count();
-                    (Some(DashCounterCategory::IzzyRiskHigh), enabled, total)
+                    (Some(DashCounterCategory::IzzyRiskSafe), enabled, total)
                 },
                 ("virustotal", 0) => (Some(DashCounterCategory::VirusTotalMalicious), cached_scan_counts.vt_counts.1.0, cached_scan_counts.vt_counts.1.1),
                 ("virustotal", 1) => (Some(DashCounterCategory::VirusTotalSuspicious), cached_scan_counts.vt_counts.2.0, cached_scan_counts.vt_counts.2.1),
@@ -2325,10 +2325,10 @@ impl UadShizukuApp {
                                 let _ = webbrowser::open("https://android.izzysoft.de/applists.php?lang=en;topic=perms");
                             }
                         })
-                        .card_with_description("0(safe)", enabled_risk_0, risk_0, "enabled", "all")
-                        .card_with_description("1-10(normal)", enabled_risk_1_10, risk_1_10, "enabled", "all")
-                        .card_with_description("11-20(moderate)", enabled_risk_11_20, risk_11_20, "enabled", "all")
                         .card_with_description("20+(high)", enabled_risk_20_plus, risk_20_plus, "enabled", "all")
+                        .card_with_description("11-20(moderate)", enabled_risk_11_20, risk_11_20, "enabled", "all")
+                        .card_with_description("1-10(normal)", enabled_risk_1_10, risk_1_10, "enabled", "all")
+                        .card_with_description("0(safe)", enabled_risk_0, risk_0, "enabled", "all")
                         .category_color(egui::Color32::from_rgb(255, 152, 0))
                         .counter_color(egui::Color32::from_rgb(230, 81, 0))
                         .description_color(egui::Color32::from_rgb(255, 183, 77))
