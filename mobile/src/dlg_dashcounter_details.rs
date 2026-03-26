@@ -507,8 +507,13 @@ impl DlgDashCounterDetails {
             .map(|entry| entry.removal.as_str());
         let is_unsafe_blocked = actual_debloat_category == Some("Unsafe") && !unsafe_app_remove;
 
-        ui.horizontal(|ui| {
-            ui.spacing_mut().item_spacing.x = 0.0;
+        ui.centered_and_justified(|ui| {
+            egui::ScrollArea::horizontal()
+                .id_salt(format!("action_buttons_{}", pkg_id))
+                .auto_shrink([false, true])
+                .show(ui, |ui| {
+                    ui.horizontal(|ui| {
+                        ui.spacing_mut().item_spacing.x = 0.0;
 
             // Refresh button - delete scan results and re-queue (only for VT/HA tables)
             if show_refresh_button {
@@ -560,6 +565,8 @@ impl DlgDashCounterDetails {
                     });
                 }
             }
+                    });
+                });
         });
     }
 
