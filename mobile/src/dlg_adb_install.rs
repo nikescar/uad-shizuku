@@ -83,12 +83,16 @@ impl DlgAdbInstall {
                             if ui.button(tr!("install-dlg-open-shizuku")).clicked() {
                                 crate::android_activity::open_shizuku_app();
                             }
-                            ui.add_space(4.0);
+                            ui.add_space(8.0);
+                            ui.label(tr!("install-dlg-separator"));
+                            ui.add_space(8.0);
                             ui.add(egui::Label::new(tr!("install-dlg-step4")).wrap());
                             ui.add_space(4.0);
                             if ui.button(tr!("install-dlg-open-shizuku")).clicked() {
                                 crate::android_activity::open_shizuku_app();
                             }
+                            ui.add_space(4.0);
+                            ui.add(egui::Label::new(tr!("install-dlg-step5")).wrap());
                             ui.add_space(16.0);
 
                             ui.label(tr!("install-dlg-detailed-instructions"));
