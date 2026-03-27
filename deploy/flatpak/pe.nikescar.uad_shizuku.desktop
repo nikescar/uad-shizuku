@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=UAD Shizuku
+Comment=Universal Android Debloater - Remove bloatware, scan apps, and install FOSS apps
+Exec=uad-shizuku
+Icon=pe.nikescar.uad_shizuku
+Categories=Utility;System;
+Keywords=android;debloater;adb;shizuku;bloatware;foss;
+StartupNotify=true
+StartupWMClass=uad-shizuku

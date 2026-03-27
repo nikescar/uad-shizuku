@@ -4,9 +4,6 @@
 //! - `--silent` flag: Performs silent installation and exits (desktop only)
 //! - `--uninstall` flag: Performs uninstallation and exits (desktop only)
 //! - `--log [FILE]`: Enable file logging (defaults to uad-shizuku.log if FILE not specified)
-//!
-//! Logging:
-//! - Log level is configured from user settings, defaults to ERROR
 
 #![cfg_attr(target_os = "windows", windows_subsystem = "windows")]
 
@@ -141,28 +138,7 @@ fn main() -> eframe::Result<()> {
     let silent_install = args.iter().any(|arg| arg == "--silent");
     let uninstall = args.iter().any(|arg| arg == "--uninstall");
 
-    // Try to load user's log level from settings, default to ERROR if not found
-    let log_level = if let Ok(config) = uad_shizuku::Config::new() {
-        if let Ok(settings) = config.load_settings() {
-            settings.log_level.to_uppercase()
-        } else {
-            "ERROR".to_string()
-        }
-    } else {
-        "ERROR".to_string()
-    };
-
-    // Convert log level string to LevelFilter
-    let level_filter = match log_level.as_str() {
-        "TRACE" => log::LevelFilter::Trace,
-        "DEBUG" => log::LevelFilter::Debug,
-        "INFO" => log::LevelFilter::Info,
-        "WARN" => log::LevelFilter::Warn,
-        "ERROR" => log::LevelFilter::Error,
-        _ => log::LevelFilter::Error,
-    };
-
-    // Initialize logger based on --log flag
+    // Initialize logger
     if let Some(log_path) = &log_file {
         // File-based logging
         let log_path = if log_path.is_empty() {
@@ -182,14 +158,32 @@ fn main() -> eframe::Result<()> {
                 })
         );
 
-        env_logger::Builder::from_default_env()
-            .filter_level(level_filter)
+        env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"))
             .target(env_logger::Target::Pipe(target))
             .init();
 
-        log::info!("UAD-Shizuku v{} starting with file logging to {}", env!("CARGO_PKG_VERSION"), log_path);
+        log::info!("UAD-Shizuku v{} starting with file logging", env!("CARGO_PKG_VERSION"));
     } else {
-        // Initialize combined logger that writes to both stdout and in-app log capture
+        // Initialize combined logger for in-app log viewer (use settings, default to ERROR)
+        let log_level = if let Ok(config) = uad_shizuku::Config::new() {
+            if let Ok(settings) = config.load_settings() {
+                settings.log_level.to_uppercase()
+            } else {
+                "ERROR".to_string()
+            }
+        } else {
+            "ERROR".to_string()
+        };
+
+        let level_filter = match log_level.as_str() {
+            "TRACE" => log::LevelFilter::Trace,
+            "DEBUG" => log::LevelFilter::Debug,
+            "INFO" => log::LevelFilter::Info,
+            "WARN" => log::LevelFilter::Warn,
+            "ERROR" => log::LevelFilter::Error,
+            _ => log::LevelFilter::Error,
+        };
+
         uad_shizuku::log_capture::init_combined_logger(level_filter);
         log::info!("UAD-Shizuku v{} starting", env!("CARGO_PKG_VERSION"));
     }
@@ -250,9 +244,11 @@ fn main() -> eframe::Result<()> {
         std::process::exit(1);
     }
 
-    // Hide console on Windows for GUI mode
+    // Hide console on Windows for GUI mode (unless --log is specified)
     #[cfg(target_os = "windows")]
-    hide_console();
+    if log_file.is_none() {
+        hide_console();
+    }
 
     // Initialize common app components (database, i18n)
     uad_shizuku_app::init_common();

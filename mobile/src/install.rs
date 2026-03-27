@@ -312,48 +312,157 @@ pub fn get_install_paths() -> InstallPaths {
 pub fn check_install() -> InstallStatus {
     let paths = get_install_paths();
 
+    log::debug!("Checking installation status...");
+    log::debug!("  bin_dir: {}", paths.bin_dir.display());
+
     #[cfg(target_os = "linux")]
     {
-        let binary_path = paths.bin_dir.join(get_versioned_app_name());
+        // Check if ANY version of the binary exists in bin_dir
+        let has_binary = if paths.bin_dir.exists() {
+            fs::read_dir(&paths.bin_dir)
+                .ok()
+                .and_then(|entries| {
+                    entries
+                        .filter_map(Result::ok)
+                        .any(|entry| {
+                            let name = entry.file_name();
+                            let name_str = name.to_string_lossy();
+                            let is_uad_shizuku = name_str.starts_with(&format!("{}-", APP_NAME))
+                                && !name_str.contains("-bin"); // Exclude helper binaries
+                            if is_uad_shizuku {
+                                log::debug!("  Found binary: {}", name_str);
+                            }
+                            is_uad_shizuku
+                        })
+                        .then_some(true)
+                })
+                .unwrap_or(false)
+        } else {
+            false
+        };
+
         let desktop_file_exists = paths
             .start_menu_entry
             .as_ref()
-            .is_some_and(|p| p.exists());
+            .is_some_and(|p| {
+                let exists = p.exists();
+                log::debug!("  Desktop file exists: {} ({})", exists, p.display());
+                exists
+            });
 
-        if binary_path.exists() && desktop_file_exists {
+        if has_binary && desktop_file_exists {
+            log::info!("Installation detected (Linux)");
             return InstallStatus::Installed;
         }
     }
 
     #[cfg(target_os = "macos")]
     {
-        let app_bundle = paths.bin_dir.join(format!("{}.app", get_versioned_app_name()));
-        if app_bundle.exists() {
+        // Check if ANY version of the app bundle exists
+        let has_app = if paths.bin_dir.exists() {
+            fs::read_dir(&paths.bin_dir)
+                .ok()
+                .and_then(|entries| {
+                    entries
+                        .filter_map(Result::ok)
+                        .any(|entry| {
+                            let name = entry.file_name();
+                            let name_str = name.to_string_lossy();
+                            let is_uad_shizuku = name_str.starts_with(&format!("{}-", APP_NAME))
+                                && name_str.ends_with(".app");
+                            if is_uad_shizuku {
+                                log::debug!("  Found app bundle: {}", name_str);
+                            }
+                            is_uad_shizuku
+                        })
+                        .then_some(true)
+                })
+                .unwrap_or(false)
+        } else {
+            false
+        };
+
+        if has_app {
+            log::info!("Installation detected (macOS)");
             return InstallStatus::Installed;
         }
     }
 
     #[cfg(target_os = "windows")]
     {
-        let binary_path = paths.bin_dir.join(format!("{}.exe", get_versioned_app_name()));
-        if binary_path.exists() {
-            // Also check registry
-            if check_windows_registry(&paths) {
-                return InstallStatus::Installed;
-            }
+        // Check shortcuts and registry first (these are the definitive indicators)
+        let has_shortcut = paths
+            .start_menu_entry
+            .as_ref()
+            .is_some_and(|p| {
+                let exists = p.exists();
+                log::debug!("  Start menu shortcut exists: {} ({})", exists, p.display());
+                exists
+            });
+
+        let has_registry = check_windows_registry(&paths);
+        log::debug!("  Registry entry exists: {}", has_registry);
+
+        // If shortcuts or registry exist, definitely installed
+        if has_shortcut || has_registry {
+            log::info!("Installation detected (Windows) - shortcuts/registry exist");
+            return InstallStatus::Installed;
+        }
+
+        // If shortcuts AND registry are gone, check if binary exists
+        // Note: Binary might still exist after uninstall because we can't delete a running exe
+        // It will be cleaned up by the batch script after the app exits
+        let has_binary = if paths.bin_dir.exists() {
+            fs::read_dir(&paths.bin_dir)
+                .ok()
+                .and_then(|entries| {
+                    entries
+                        .filter_map(Result::ok)
+                        .any(|entry| {
+                            let name = entry.file_name();
+                            let name_str = name.to_string_lossy();
+                            let is_uad_shizuku = name_str.starts_with(&format!("{}-", APP_NAME))
+                                && name_str.ends_with(".exe");
+                            if is_uad_shizuku {
+                                log::debug!("  Found binary: {}", name_str);
+                            }
+                            is_uad_shizuku
+                        })
+                        .then_some(true)
+                })
+                .unwrap_or(false)
+        } else {
+            false
+        };
+
+        // Only consider installed if we have shortcuts/registry
+        // Binary alone (without shortcuts/registry) means uninstall is in progress
+        if has_binary && !has_shortcut && !has_registry {
+            log::info!("Binary exists but shortcuts/registry removed - considered uninstalled (cleanup pending)");
+            return InstallStatus::NotInstalled;
+        }
+
+        if has_binary {
+            log::info!("Installation detected (Windows) - binary exists");
+            return InstallStatus::Installed;
         }
     }
 
+    log::info!("No installation detected");
     InstallStatus::NotInstalled
 }
 
 #[cfg(target_os = "windows")]
 fn check_windows_registry(paths: &InstallPaths) -> bool {
+    use std::os::windows::process::CommandExt;
     use std::process::Command;
+
+    const CREATE_NO_WINDOW: u32 = 0x08000000;
 
     if let Some(key) = &paths.uninstall_key {
         let output = Command::new("reg")
             .args(["query", key])
+            .creation_flags(CREATE_NO_WINDOW)
             .output();
 
         matches!(output, Ok(o) if o.status.success())
@@ -497,12 +606,7 @@ Keywords=android;debloat;shizuku;adb;
 
 #[cfg(target_os = "macos")]
 fn install_macos(paths: &InstallPaths, current_exe: &PathBuf) -> Result<String, String> {
-    log::info!("Starting macOS installation...");
-    log::info!("Current exe: {}", current_exe.display());
-    log::info!("Target directory: {}", paths.bin_dir.display());
-
     // Clean up old installations
-    log::info!("Cleaning up old installations...");
     cleanup_old_installations(paths, None)?;
 
     let app_bundle = paths.bin_dir.join(format!("{}.app", get_versioned_app_name()));
@@ -510,13 +614,12 @@ fn install_macos(paths: &InstallPaths, current_exe: &PathBuf) -> Result<String, 
     let macos_dir = contents_dir.join("MacOS");
 
     // Create app bundle structure
-    log::info!("Creating app bundle structure...");
     fs::create_dir_all(&macos_dir)
         .map_err(|e| format!("Failed to create app bundle: {}", e))?;
 
-    // Copy binary
-    let binary_dest = macos_dir.join(get_versioned_app_name());
-    log::info!("Copying binary to: {}", binary_dest.display());
+    // Copy binary with actual binary name
+    let versioned_name = get_versioned_app_name();
+    let binary_dest = macos_dir.join(format!("{}-bin", versioned_name));
     fs::copy(current_exe, &binary_dest)
         .map_err(|e| format!("Failed to copy binary: {}", e))?;
 
@@ -524,7 +627,6 @@ fn install_macos(paths: &InstallPaths, current_exe: &PathBuf) -> Result<String, 
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        log::info!("Setting executable permissions...");
         let mut perms = fs::metadata(&binary_dest)
             .map_err(|e| format!("Failed to get permissions: {}", e))?
             .permissions();
@@ -533,9 +635,31 @@ fn install_macos(paths: &InstallPaths, current_exe: &PathBuf) -> Result<String, 
             .map_err(|e| format!("Failed to set permissions: {}", e))?;
     }
 
+    // Create wrapper script for launching the application
+    let launcher_script = macos_dir.join(&versioned_name);
+    let script_content = format!(
+        r#"#!/bin/bash
+DIR="$(cd "$(dirname "${{BASH_SOURCE[0]}}")" && pwd)"
+exec "$DIR/{}-bin" "$@"
+"#,
+        versioned_name
+    );
+    fs::write(&launcher_script, script_content)
+        .map_err(|e| format!("Failed to create launcher script: {}", e))?;
+
+    // Make launcher executable
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mut perms = fs::metadata(&launcher_script)
+            .map_err(|e| format!("Failed to get launcher permissions: {}", e))?
+            .permissions();
+        perms.set_mode(0o755);
+        fs::set_permissions(&launcher_script, perms)
+            .map_err(|e| format!("Failed to set launcher permissions: {}", e))?;
+    }
+
     // Create Info.plist
-    log::info!("Creating Info.plist...");
-    let versioned_name = get_versioned_app_name();
     let info_plist = format!(
         r#"<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -566,14 +690,11 @@ fn install_macos(paths: &InstallPaths, current_exe: &PathBuf) -> Result<String, 
     fs::write(contents_dir.join("Info.plist"), info_plist)
         .map_err(|e| format!("Failed to create Info.plist: {}", e))?;
 
-    log::info!("Installation completed successfully");
     Ok(format!("Successfully installed to {}", app_bundle.display()))
 }
 
 #[cfg(target_os = "windows")]
 fn install_windows(paths: &InstallPaths, current_exe: &PathBuf) -> Result<String, String> {
-    use std::process::Command;
-
     log::info!("Starting Windows installation...");
     log::info!("Current exe: {}", current_exe.display());
     log::info!("Target directory: {}", paths.bin_dir.display());
@@ -593,39 +714,82 @@ fn install_windows(paths: &InstallPaths, current_exe: &PathBuf) -> Result<String
 
     // Add uninstall registry entry
     if let Some(ref key) = paths.uninstall_key {
+        use std::os::windows::process::CommandExt;
+        use std::process::Command;
+
         log::info!("Adding registry entries for uninstaller...");
 
-        let reg_commands = [
-            format!(r#"reg add "{}" /v DisplayName /t REG_SZ /d "UAD-Shizuku" /f"#, key),
-            format!(r#"reg add "{}" /v DisplayVersion /t REG_SZ /d "{}" /f"#, key, CURRENT_VERSION),
-            format!(r#"reg add "{}" /v Publisher /t REG_SZ /d "nikescar" /f"#, key),
-            format!(r#"reg add "{}" /v UninstallString /t REG_SZ /d "\"{}\" --uninstall" /f"#, key, binary_dest.display()),
-            format!(r#"reg add "{}" /v InstallLocation /t REG_SZ /d "{}" /f"#, key, paths.bin_dir.display()),
-            format!(r#"reg add "{}" /v NoModify /t REG_DWORD /d 1 /f"#, key),
-            format!(r#"reg add "{}" /v NoRepair /t REG_DWORD /d 1 /f"#, key),
+        // Calculate estimated size in KB
+        let estimated_size = fs::metadata(&binary_dest)
+            .map(|m| (m.len() / 1024).to_string())
+            .unwrap_or_else(|_| "0".to_string());
+
+        // Define registry entries to add (name, type, value)
+        let reg_entries: Vec<(&str, &str, String)> = vec![
+            ("DisplayName", "REG_SZ", "UAD-Shizuku".to_string()),
+            ("DisplayVersion", "REG_SZ", CURRENT_VERSION.to_string()),
+            ("Publisher", "REG_SZ", "nikescar".to_string()),
+            ("UninstallString", "REG_SZ", format!("\"{}\" --uninstall", binary_dest.display())),
+            ("InstallLocation", "REG_SZ", paths.bin_dir.display().to_string()),
+            ("DisplayIcon", "REG_SZ", binary_dest.display().to_string()),
+            ("EstimatedSize", "REG_DWORD", estimated_size),
+            ("URLInfoAbout", "REG_SZ", "https://uad-shizuku.pages.dev".to_string()),
+            ("NoModify", "REG_DWORD", "1".to_string()),
+            ("NoRepair", "REG_DWORD", "1".to_string()),
         ];
 
-        for cmd in &reg_commands {
-            let _ = Command::new("cmd")
-                .args(["/C", cmd])
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+        for (i, (value_name, value_type, value_data)) in reg_entries.iter().enumerate() {
+            log::debug!("Adding registry entry {}/{}: {} = {} ({})",
+                i + 1, reg_entries.len(), value_name, value_data, value_type);
+
+            // Call reg.exe directly with separate arguments (not through cmd)
+            let output = Command::new("reg")
+                .args([
+                    "add",
+                    key,
+                    "/v", value_name,
+                    "/t", value_type,
+                    "/d", value_data,
+                    "/f"
+                ])
+                .creation_flags(CREATE_NO_WINDOW)
                 .output();
+
+            match output {
+                Ok(out) => {
+                    if !out.status.success() {
+                        log::warn!("Registry command failed (non-critical) for {}: {}",
+                            value_name, String::from_utf8_lossy(&out.stderr));
+                    } else {
+                        log::debug!("Registry entry '{}' added successfully", value_name);
+                    }
+                }
+                Err(e) => log::warn!("Failed to run registry command for {} (non-critical): {}", value_name, e),
+            }
         }
-        log::debug!("Registry entries added");
+        log::info!("Registry entries added");
     }
 
-    // Create Start Menu shortcut using PowerShell
+    // Create Start Menu shortcut
     if let Some(ref start_menu) = paths.start_menu_entry {
+        log::info!("Creating Start Menu shortcut: {}", start_menu.display());
         if let Some(parent) = start_menu.parent() {
+            log::debug!("Creating Start Menu directory: {}", parent.display());
             let _ = fs::create_dir_all(parent);
         }
-        log::info!("Creating Start Menu shortcut...");
         create_windows_shortcut(&binary_dest, start_menu)?;
+        log::info!("Start Menu shortcut created successfully");
     }
 
     // Create Desktop shortcut
     if let Some(ref desktop) = paths.desktop_shortcut {
-        log::info!("Creating Desktop shortcut...");
-        let _ = create_windows_shortcut(&binary_dest, desktop);
+        log::info!("Creating Desktop shortcut: {}", desktop.display());
+        match create_windows_shortcut(&binary_dest, desktop) {
+            Ok(_) => log::info!("Desktop shortcut created successfully"),
+            Err(e) => log::warn!("Failed to create desktop shortcut (non-critical): {}", e),
+        }
     }
 
     log::info!("Installation completed successfully");
@@ -634,21 +798,95 @@ fn install_windows(paths: &InstallPaths, current_exe: &PathBuf) -> Result<String
 
 #[cfg(target_os = "windows")]
 fn create_windows_shortcut(target: &PathBuf, shortcut_path: &PathBuf) -> Result<(), String> {
-    use std::process::Command;
+    use windows::core::{Interface, PCWSTR};
+    use windows::Win32::System::Com::{
+        CoCreateInstance, CoInitializeEx, CoUninitialize, IPersistFile,
+        CLSCTX_INPROC_SERVER, COINIT_APARTMENTTHREADED,
+    };
+    use windows::Win32::UI::Shell::{IShellLinkW, ShellLink};
 
-    let ps_script = format!(
-        r#"$WshShell = New-Object -ComObject WScript.Shell; $Shortcut = $WshShell.CreateShortcut('{}'); $Shortcut.TargetPath = '{}'; $Shortcut.WorkingDirectory = '{}'; $Shortcut.Description = 'UAD-Shizuku - Universal Android Debloater'; $Shortcut.Save()"#,
-        shortcut_path.display(),
-        target.display(),
-        target.parent().map(|p| p.display().to_string()).unwrap_or_default()
-    );
+    log::debug!("Creating Windows shortcut:");
+    log::debug!("  Target: {}", target.display());
+    log::debug!("  Shortcut path: {}", shortcut_path.display());
 
-    Command::new("powershell")
-        .args(["-Command", &ps_script])
-        .output()
-        .map_err(|e| format!("Failed to create shortcut: {}", e))?;
+    // Check if target exists
+    if !target.exists() {
+        let err_msg = format!("Target binary does not exist: {}", target.display());
+        log::error!("{}", err_msg);
+        return Err(err_msg);
+    }
 
-    Ok(())
+    let working_dir = target.parent()
+        .ok_or_else(|| "Failed to get parent directory".to_string())?;
+
+    log::debug!("  Working directory: {}", working_dir.display());
+
+    // Convert paths to wide strings
+    let target_wide: Vec<u16> = target.display().to_string().encode_utf16().chain(Some(0)).collect();
+    let shortcut_wide: Vec<u16> = shortcut_path.display().to_string().encode_utf16().chain(Some(0)).collect();
+    let workdir_wide: Vec<u16> = working_dir.display().to_string().encode_utf16().chain(Some(0)).collect();
+    let args_wide: Vec<u16> = "".encode_utf16().chain(Some(0)).collect();
+    let desc_wide: Vec<u16> = "UAD-Shizuku - Universal Android Debloater".encode_utf16().chain(Some(0)).collect();
+
+    unsafe {
+        // Initialize COM
+        log::debug!("Initializing COM...");
+        let hr = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
+        // Check if initialization failed (but allow RPC_E_CHANGED_MODE which means COM already initialized)
+        if hr.is_err() {
+            let hr_code = hr.0;
+            // 0x80010106 = RPC_E_CHANGED_MODE, means COM already initialized with different mode (okay)
+            if hr_code != 0x80010106u32 as i32 {
+                let err_msg = format!("Failed to initialize COM: HRESULT 0x{:08X}", hr_code as u32);
+                log::error!("{}", err_msg);
+                return Err(err_msg);
+            }
+            log::debug!("COM already initialized (RPC_E_CHANGED_MODE)");
+        }
+
+        let result = (|| -> Result<(), String> {
+            // Create ShellLink object
+            log::debug!("Creating IShellLink instance...");
+            let shell_link: IShellLinkW = CoCreateInstance(&ShellLink, None, CLSCTX_INPROC_SERVER)
+                .map_err(|e| format!("Failed to create IShellLink: {:?}", e))?;
+
+            // Set target path
+            log::debug!("Setting target path...");
+            shell_link.SetPath(PCWSTR(target_wide.as_ptr()))
+                .map_err(|e| format!("Failed to set target path: {:?}", e))?;
+
+            // Set arguments
+            log::debug!("Setting arguments...");
+            shell_link.SetArguments(PCWSTR(args_wide.as_ptr()))
+                .map_err(|e| format!("Failed to set arguments: {:?}", e))?;
+
+            // Set working directory
+            log::debug!("Setting working directory...");
+            shell_link.SetWorkingDirectory(PCWSTR(workdir_wide.as_ptr()))
+                .map_err(|e| format!("Failed to set working directory: {:?}", e))?;
+
+            // Set description
+            log::debug!("Setting description...");
+            shell_link.SetDescription(PCWSTR(desc_wide.as_ptr()))
+                .map_err(|e| format!("Failed to set description: {:?}", e))?;
+
+            // Save the shortcut
+            log::debug!("Saving shortcut...");
+            let persist_file: IPersistFile = shell_link.cast()
+                .map_err(|e| format!("Failed to get IPersistFile interface: {:?}", e))?;
+
+            persist_file.Save(PCWSTR(shortcut_wide.as_ptr()), true)
+                .map_err(|e| format!("Failed to save shortcut: {:?}", e))?;
+
+            log::info!("Shortcut created successfully");
+            Ok(())
+        })();
+
+        // Uninitialize COM
+        CoUninitialize();
+
+        result
+    }
 }
 
 /// Uninstall the application
@@ -720,7 +958,10 @@ fn uninstall_macos(paths: &InstallPaths) -> Result<String, String> {
 
 #[cfg(target_os = "windows")]
 fn uninstall_windows(paths: &InstallPaths) -> Result<String, String> {
+    use std::os::windows::process::CommandExt;
     use std::process::Command;
+
+    const CREATE_NO_WINDOW: u32 = 0x08000000;
 
     let binary_path = paths.bin_dir.join(format!("{}.exe", get_versioned_app_name()));
 
@@ -736,6 +977,7 @@ fn uninstall_windows(paths: &InstallPaths) -> Result<String, String> {
     if let Some(ref key) = paths.uninstall_key {
         let _ = Command::new("reg")
             .args(["delete", key, "/f"])
+            .creation_flags(CREATE_NO_WINDOW)
             .output();
     }
 
@@ -765,6 +1007,7 @@ del "%~f0"
 
         Command::new("cmd")
             .args(["/C", "start", "/min", "", &batch_script.display().to_string()])
+            .creation_flags(CREATE_NO_WINDOW)
             .spawn()
             .map_err(|e| format!("Failed to run uninstall script: {}", e))?;
     }
@@ -782,13 +1025,11 @@ pub fn check_update() -> Result<UpdateInfo, String> {
     log::info!("Checking for updates from: {}", url);
 
     let response = ureq::get(&url)
-        .set("User-Agent", &format!("{}/{}", APP_NAME, CURRENT_VERSION))
         .timeout(std::time::Duration::from_secs(30))
         .call()
         .map_err(|e| format!("Failed to check for updates: {}", e))?;
 
-    let body = response
-        .into_string()
+    let body = response.into_string()
         .map_err(|e| format!("Failed to read response: {}", e))?;
 
     let release: GitHubRelease = serde_json::from_str(&body)
@@ -973,22 +1214,50 @@ fn download_update(url: &str, tmp_dir: &PathBuf) -> Result<PathBuf, String> {
     log::info!("Starting download from: {}", url);
     log::info!("Download destination: {}", dest_path.display());
 
+    // Use ureq with streaming to handle large files
     let response = ureq::get(url)
-        .set("User-Agent", &format!("{}/{}", APP_NAME, CURRENT_VERSION))
+        .timeout(std::time::Duration::from_secs(300)) // 5 minute timeout for large files
         .call()
         .map_err(|e| format!("Download request failed: {}", e))?;
 
+    // Check response status
+    let status = response.status();
+    if status != 200 {
+        return Err(format!("Download failed with status: {}", status));
+    }
+
+    // Get content length for progress tracking
+    let content_length = response.header("content-length")
+        .and_then(|s| s.parse::<u64>().ok());
+
+    if let Some(size) = content_length {
+        log::info!("Download size: {} bytes ({:.2} MB)", size, size as f64 / 1024.0 / 1024.0);
+    }
+
+    // Stream the response to file instead of loading into memory
+    let mut reader = response.into_reader();
     let mut file = fs::File::create(&dest_path)
         .map_err(|e| format!("Failed to create file: {}", e))?;
 
-    let mut reader = response.into_reader();
-    io::copy(&mut reader, &mut file)
+    let bytes_written = io::copy(&mut reader, &mut file)
         .map_err(|e| format!("Failed to write file: {}", e))?;
 
-    log::info!("Download completed successfully");
+    log::info!("Download completed: {} bytes written", bytes_written);
+
+    // Verify file size if content-length was provided
+    if let Some(expected_size) = content_length {
+        if bytes_written != expected_size {
+            return Err(format!(
+                "Download incomplete: expected {} bytes, got {} bytes",
+                expected_size, bytes_written
+            ));
+        }
+    }
+
     Ok(dest_path)
 }
 
+#[cfg(not(any(target_os = "android", target_arch = "wasm32")))]
 fn extract_tar_gz(archive_path: &PathBuf, dest_dir: &PathBuf) -> Result<PathBuf, String> {
     use flate2::read::GzDecoder;
     use tar::Archive;
@@ -1006,6 +1275,7 @@ fn extract_tar_gz(archive_path: &PathBuf, dest_dir: &PathBuf) -> Result<PathBuf,
     find_binary_in_dir(dest_dir)
 }
 
+#[cfg(not(any(target_os = "android", target_arch = "wasm32")))]
 fn extract_zip(archive_path: &PathBuf, dest_dir: &PathBuf) -> Result<PathBuf, String> {
     let file = fs::File::open(archive_path)
         .map_err(|e| format!("Failed to open archive: {}", e))?;
@@ -1020,19 +1290,28 @@ fn extract_zip(archive_path: &PathBuf, dest_dir: &PathBuf) -> Result<PathBuf, St
 }
 
 fn find_binary_in_dir(dir: &PathBuf) -> Result<PathBuf, String> {
+    // GitHub release binaries don't include version in filename
     #[cfg(target_os = "windows")]
-    let binary_name = format!("{}.exe", get_versioned_app_name());
+    let binary_name = format!("{}.exe", APP_NAME);
     #[cfg(not(target_os = "windows"))]
-    let binary_name = get_versioned_app_name();
+    let binary_name = APP_NAME;
+
+    log::info!("Searching for binary '{}' in directory: {}", binary_name, dir.display());
 
     for entry in walkdir(dir) {
         if let Ok(entry) = entry {
-            if entry.file_name().to_string_lossy() == binary_name {
-                return Ok(entry.path().to_path_buf());
+            let file_name_os = entry.file_name();
+            let file_name = file_name_os.to_string_lossy();
+            log::debug!("Checking file: {}", file_name);
+            if file_name == binary_name {
+                let found_path = entry.path().to_path_buf();
+                log::info!("Found binary at: {}", found_path.display());
+                return Ok(found_path);
             }
         }
     }
 
+    log::error!("Binary '{}' not found in archive", binary_name);
     Err(format!("Binary '{}' not found in archive", binary_name))
 }
 

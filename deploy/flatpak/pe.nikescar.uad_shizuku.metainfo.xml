@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>pe.nikescar.uad_shizuku</id>
+  <metadata_license>MIT</metadata_license>
+  <project_license>GPL-3.0</project_license>
+  <name>UAD Shizuku</name>
+  <summary>Universal Android Debloater with Shizuku support</summary>
+  <description>
+    <p>
+      UAD-Shizuku is a cross-platform application for managing Android devices. It allows you to
+      selectively remove bloatware apps, scan installed FOSS apps with VirusTotal, and install
+      FOSS apps through Obtainium integration.
+    </p>
+    <p>Features:</p>
+    <ul>
+      <li>Debloat applications with curated bloat app lists</li>
+      <li>Get SHA256 checksums of installed apps and scan with VirusTotal API</li>
+      <li>Browse and install Android FOSS apps from OFFA and FMHY lists via Obtainium</li>
+      <li>Support for both ADB wireless (Shizuku) and platform-tools</li>
+      <li>Cross-platform: Linux, macOS, Windows, and Android</li>
+    </ul>
+  </description>
+  <categories>
+    <category>Utility</category>
+    <category>System</category>
+  </categories>
+  <keywords>
+    <keyword>android</keyword>
+    <keyword>debloater</keyword>
+    <keyword>adb</keyword>
+    <keyword>shizuku</keyword>
+    <keyword>bloatware</keyword>
+    <keyword>foss</keyword>
+  </keywords>
+  <url type="homepage">https://github.com/nikescar/uad-shizuku</url>
+  <url type="bugtracker">https://github.com/nikescar/uad-shizuku/issues</url>
+  <url type="vcs-browser">https://github.com/nikescar/uad-shizuku</url>
+  <launchable type="desktop-id">pe.nikescar.uad_shizuku.desktop</launchable>
+  <provides>
+    <binary>uad-shizuku</binary>
+  </provides>
+  <releases>
+    <release version="0.0.13" date="2026-03-27">
+      <description>
+        <p>Latest release with improved stability and features</p>
+      </description>
+    </release>
+  </releases>
+  <content_rating type="oars-1.1">
+    <content_attribute id="social-info">none</content_attribute>
+  </content_rating>
+</component>
