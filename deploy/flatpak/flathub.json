@@ -1,0 +1,8 @@
+{
+  "only-arches": ["x86_64", "aarch64"],
+  "skip-icons-check": false,
+  "skip-appstream-check": false,
+  "automerge-flathubbot-prs": true,
+  "end-of-life": null,
+  "end-of-life-rebase": null
+}

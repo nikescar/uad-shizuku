@@ -1,0 +1,37 @@
+app-id: pe.nikescar.uad_shizuku
+runtime: org.freedesktop.Platform
+runtime-version: '24.08'
+sdk: org.freedesktop.Sdk
+command: uad-shizuku
+separate-locales: false
+
+finish-args:
+  - --share=ipc
+  - --socket=x11
+  - --socket=wayland
+  - --share=network
+  - --filesystem=xdg-config/uad-shizuku:create
+  - --filesystem=xdg-data/uad-shizuku:create
+  - --filesystem=/tmp:rw
+  - --device=all
+  - --system-talk-name=org.freedesktop.UDisks2
+  - --talk-name=org.freedesktop.portal.Desktop
+  - --device=dri
+
+modules:
+  - name: uad-shizuku
+    buildsystem: simple
+    build-commands:
+      - install -Dm755 uad-shizuku /app/bin/uad-shizuku
+      - install -Dm644 pe.nikescar.uad_shizuku.desktop /app/share/applications/pe.nikescar.uad_shizuku.desktop
+      - install -Dm644 pe.nikescar.uad_shizuku.metainfo.xml /app/share/metainfo/pe.nikescar.uad_shizuku.metainfo.xml
+      - install -Dm644 logo.png /app/share/icons/hicolor/256x256/apps/pe.nikescar.uad_shizuku.png
+    sources:
+      - type: file
+        path: ../../artifacts/uad-shizuku-x86_64-unknown-linux-musl/uad-shizuku
+      - type: file
+        path: pe.nikescar.uad_shizuku.desktop
+      - type: file
+        path: pe.nikescar.uad_shizuku.metainfo.xml
+      - type: file
+        path: ../../imgs/logo.png

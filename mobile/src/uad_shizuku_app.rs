@@ -969,6 +969,7 @@ impl UadShizukuApp {
         self.dlg_settings.show(ui.ctx(), &mut self.settings);
         // Handle save and theme changes from settings dialog
         if self.dlg_settings.save_clicked {
+            self.dlg_settings.save_clicked = false; // Reset flag to prevent repeated saves
             self.save_settings();
         }
         if let Some(theme_name) = self.dlg_settings.theme_to_apply.take() {
@@ -3708,6 +3709,7 @@ impl UadShizukuApp {
         });
 
         // Update log level in real-time
+        log::info!("Updating log level to: {}", self.settings.log_level);
         crate::log_capture::update_log_level(&self.settings.log_level);
 
         // Save to file

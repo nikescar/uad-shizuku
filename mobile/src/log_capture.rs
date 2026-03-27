@@ -93,6 +93,8 @@ pub fn init_combined_logger(level_filter: log::LevelFilter) {
 
 /// Update the log level at runtime
 pub fn update_log_level(level: &str) {
+    eprintln!("DEBUG: update_log_level called with: {}", level);
+
     let level_filter = match level.to_uppercase().as_str() {
         "TRACE" => log::LevelFilter::Trace,
         "DEBUG" => log::LevelFilter::Debug,
@@ -102,10 +104,18 @@ pub fn update_log_level(level: &str) {
         _ => log::LevelFilter::Error,
     };
 
+    eprintln!("DEBUG: Converted to filter: {:?}", level_filter);
+
     if let Some(logger) = LOGGER.get() {
+        eprintln!("DEBUG: Logger found, updating...");
         if let Ok(mut filter) = logger.level_filter.write() {
             *filter = level_filter;
             log::set_max_level(level_filter);
+            eprintln!("DEBUG: Log level updated to {:?}", level_filter);
+        } else {
+            eprintln!("DEBUG: Failed to acquire write lock on filter");
         }
+    } else {
+        eprintln!("DEBUG: Logger not initialized yet!");
     }
 }
