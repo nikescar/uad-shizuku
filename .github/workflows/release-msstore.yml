@@ -1,0 +1,140 @@
+name: Publish to Microsoft Store
+
+on:
+  workflow_run:
+    workflows: ["Build and Release"]
+    types:
+      - completed
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  publish-to-pages:
+    name: Publish Windows Exe to GitHub Pages
+    runs-on: ubuntu-22.04
+    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Get Version from Tag
+        id: get_version
+        run: |
+          # Get the latest tag
+          VERSION=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Detected version: $VERSION"
+
+      - name: Download Windows Exe Artifact
+        uses: dawidd6/action-download-artifact@v6
+        with:
+          workflow: release.yml
+          run_id: ${{ github.event.workflow_run.id }}
+          workflow_conclusion: success
+          name_is_regexp: true
+          name: uad-shizuku-.*windows.*
+          path: artifacts
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          check_artifacts: true
+          search_artifacts: true
+          if_no_artifact_found: warn
+
+      - name: Checkout gh-pages Branch
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Try to fetch gh-pages branch
+          git fetch origin gh-pages:gh-pages || {
+            echo "gh-pages branch does not exist, creating it..."
+            git checkout --orphan gh-pages
+            git rm -rf .
+            echo "# Windows Executables for Microsoft Store" > README.md
+            echo "" >> README.md
+            echo "This branch contains Windows executables for Microsoft Store submission." >> README.md
+            echo "Each version is stored in its own folder." >> README.md
+            git add README.md
+            git commit -m "Initialize gh-pages branch"
+            git push origin gh-pages
+            git checkout main
+            git fetch origin gh-pages:gh-pages
+          }
+
+          git checkout gh-pages
+
+      - name: Prepare Version Folder
+        run: |
+          VERSION="${{ steps.get_version.outputs.version }}"
+
+          # Create version folder
+          mkdir -p "$VERSION"
+
+          # Find and copy exe file to version folder (artifacts are extracted to directories)
+          find ./artifacts -name "uad-shizuku.exe" -exec cp {} "$VERSION/uad-shizuku.exe" \;
+
+          # List current versions
+          echo "Current versions:"
+          ls -la
+
+          # Keep only 5 most recent versions
+          # Get all version folders, sort them, and remove old ones
+          VERSIONS=($(ls -d v* 2>/dev/null | sort -V -r))
+          echo "Found ${#VERSIONS[@]} versions: ${VERSIONS[@]}"
+
+          if [ ${#VERSIONS[@]} -gt 5 ]; then
+            echo "Removing old versions (keeping only 5 most recent)..."
+            for i in "${!VERSIONS[@]}"; do
+              if [ $i -ge 5 ]; then
+                echo "Removing ${VERSIONS[$i]}"
+                rm -rf "${VERSIONS[$i]}"
+              fi
+            done
+          fi
+
+      - name: Commit and Push to gh-pages
+        run: |
+          VERSION="${{ steps.get_version.outputs.version }}"
+
+          git add .
+
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "Add Windows executable for $VERSION"
+            git push origin gh-pages
+          fi
+
+      - name: Output Download URLs
+        run: |
+          VERSION="${{ steps.get_version.outputs.version }}"
+          REPO_NAME="${{ github.repository }}"
+          OWNER_NAME="${{ github.repository_owner }}"
+
+          echo "## Download URLs"
+          echo ""
+          echo "Latest version ($VERSION):"
+          echo "https://${OWNER_NAME}.github.io/${REPO_NAME#*/}/${VERSION}/uad-shizuku.exe"
+          echo ""
+          echo "All versions:"
+          VERSIONS=($(ls -d v* 2>/dev/null | sort -V -r))
+          for v in "${VERSIONS[@]}"; do
+            echo "- https://${OWNER_NAME}.github.io/${REPO_NAME#*/}/${v}/uad-shizuku.exe"
+          done
+          echo ""
+          echo "Index page: https://${OWNER_NAME}.github.io/${REPO_NAME#*/}/"
+
+# https://github.com/microsoft/microsoft-partner-center-github-action
