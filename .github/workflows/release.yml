@@ -167,30 +167,10 @@ jobs:
           
           # Copy APK for artifact upload
           cp ./app/build/outputs/apk/release/app-release.apk ./app/build/outputs/apk/release/uad-shizuku-all-signed.apk
+          # Copy AAB for artifact upload
+          cp ./app/build/outputs/bundle/release/app-release.aab ./app/build/outputs/apk/release/uad-shizuku-all.aab
           popd
-      
-      - name: Android - Verify AAB exists
-        if: (contains(matrix.platform.name, 'Android APK arm64'))
-        run: |
-          if [ ! -f "mobile/app/build/outputs/bundle/release/app-release.aab" ]; then
-            echo "ERROR: AAB file not found at mobile/app/build/outputs/bundle/release/app-release.aab"
-            exit 1
-          fi
-          echo "AAB file verified:"
-          ls -lh mobile/app/build/outputs/bundle/release/app-release.aab
-      
-      - name: Android - Publish to google play # https://github.com/marketplace/actions/upload-android-release-to-play-store
-        if: (contains(matrix.platform.name, 'Android APK arm64'))
-        continue-on-error: true
-        uses: r0adkll/upload-google-play@v1
-        with:
-          serviceAccountJsonPlainText: ${{ secrets.SERVICE_ACCOUNT_JSON }}
-          packageName: pe.nikescar.uad_shizuku
-          releaseFiles: mobile/app/build/outputs/bundle/release/app-release.aab
-          track: production # alpha/beta/production
-          status: completed
-          inAppUpdatePriority: 2
-      
+
       - name: Build Binary for ${{ matrix.platform.name }}
         if: (contains(matrix.platform.target, 'x86_64') || contains(matrix.platform.target, 'aarch64') || contains(matrix.platform.target, 'armv7')) && !contains(matrix.platform.name, 'Android APK arm64')
         uses: actions-rs/cargo@v1
@@ -246,26 +226,20 @@ jobs:
           path: target/release${{ contains(matrix.platform.target, 'windows') && '-with-symbols' || '' }}/uad-shizuku*
           retention-days: 1
       
-      # - name: All except Android, Build snap packages
-      #   if: (contains(matrix.platform.target, 'x86_64') || contains(matrix.platform.target, 'aarch64') || contains(matrix.platform.target, 'armv7')) && !contains(matrix.platform.name, 'Android APK arm64')
-      #   uses: snapcore/action-build@v1
-      #   id: build
-      
-      # - name: All except Android, Publish snap to store
-      #   if: (contains(matrix.platform.target, 'x86_64') || contains(matrix.platform.target, 'aarch64') || contains(matrix.platform.target, 'armv7')) && !contains(matrix.platform.name, 'Android APK arm64')
-      #   uses: snapcore/action-publish@v1
-      #   env:
-      #     SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAPSTORE_LOGIN }}
-      #   with:
-      #     snap: ${{ steps.build.outputs.snap }}
-      #     release: edge
-
       - name: Android - Upload APK Artifact
         if: (contains(matrix.platform.name, 'Android APK arm64'))
         uses: actions/upload-artifact@v4
         with:
           name: uad-shizuku-all-signed.apk
           path: ./mobile/app/build/outputs/apk/release/uad-shizuku-all-signed.apk
+          retention-days: 1
+      
+      - name: Android - Upload AAB Artifact
+        if: (contains(matrix.platform.name, 'Android APK arm64'))
+        uses: actions/upload-artifact@v4
+        with:
+          name: uad-shizuku-all.aab
+          path: ./mobile/app/build/outputs/apk/release/uad-shizuku-all.aab
           retention-days: 1
       
   release:
