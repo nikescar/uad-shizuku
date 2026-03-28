@@ -1,16 +1,30 @@
 ## What's Changed
-* fix. dashcounter data_table action buttons.
-* fix. change raw.github domain to github.com to bypass antivirus.
-* fix. dashcounter data_table sorting.
-* fix. action button vertically centered.
-* fix. add pagenation to dashcounter details table.
-* bump
-* bump
-* fix. debloat dashcounter cache bug.
-* fix. shizuku instructions on android.
-* fix. change snap release to stable channel.
-* fix. add silent, uninstall args to main.
-* Chore. add snapstore publishing.
+* fix. app installation delay. by @nikescar
+* feat. apk installer via shizuku on android. by @nikescar
+* docs. readme update. by @nikescar
+* fix. showing foss dashboard card on android. by @nikescar
+* chore. block release store for test branch. by @nikescar
+* fix. log error, flatpak, snap errors. by @nikescar
+* chore. windows release exe binary upload to gh-pages workflow. by @nikescar
+* chore. separate googleplay relese from release workflow. by @nikescar
+* chore. add snapcraft manifest file. by @nikescar
+
+## What's Changed in 0.0.13
+* release. v0.0.13 by @nikescar
+* fix. dashcounter data_table action buttons. by @nikescar
+* fix. change raw.github domain to github.com to bypass antivirus. by @nikescar
+* fix. dashcounter data_table sorting. by @nikescar
+* fix. action button vertically centered. by @nikescar
+* fix. add pagenation to dashcounter details table. by @nikescar
+* bump by @nikescar
+* bump by @nikescar
+* fix. debloat dashcounter cache bug. by @nikescar
+* fix. shizuku instructions on android. by @nikescar
+* fix. change snap release to stable channel. by @nikescar
+* fix. add silent, uninstall args to main. by @nikescar
+* Chore. add snapstore publishing. by @nikescar
+
+**Full Changelog**: https://github.com/nikescar/uad-shizuku/compare/v0.0.12...v0.0.13
 
 ## What's Changed in 0.0.12
 * release. v0.0.12 by @nikescar
