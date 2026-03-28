@@ -5,8 +5,6 @@ on:
     workflows: ["Build and Release"]
     types:
       - completed
-    branches:
-      - main
   workflow_dispatch:
 
 permissions:
@@ -22,7 +20,7 @@ jobs:
   publish-to-pages:
     name: Publish Windows Exe to GitHub Pages
     runs-on: ubuntu-22.04
-    if: ${{ (github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch') && github.ref != 'refs/heads/test' }}
+    if: ${{ (github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch') && github.event.workflow_run.head_branch != 'test' }}
 
     steps:
       - name: Checkout Repository
@@ -47,7 +45,7 @@ jobs:
           workflow_conclusion: success
           name_is_regexp: true
           name: uad-shizuku-.*windows.*
-          path: artifacts
+          path: /tmp/artifacts
           github_token: ${{ secrets.GITHUB_TOKEN }}
           check_artifacts: true
           search_artifacts: true
@@ -80,11 +78,17 @@ jobs:
         run: |
           VERSION="${{ steps.get_version.outputs.version }}"
 
+          # Clean up artifacts directory if it exists (should not be on gh-pages)
+          if [ -d "artifacts" ]; then
+            echo "Removing artifacts directory from gh-pages branch..."
+            rm -rf artifacts
+          fi
+
           # Create version folder
           mkdir -p "$VERSION"
 
           # Find and copy exe file to version folder (artifacts are extracted to directories)
-          find ./artifacts -name "uad-shizuku.exe" -exec cp {} "$VERSION/uad-shizuku.exe" \;
+          find /tmp/artifacts -name "uad-shizuku.exe" -exec cp {} "$VERSION/uad-shizuku.exe" \;
 
           # List current versions
           echo "Current versions:"
