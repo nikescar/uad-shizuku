@@ -2213,7 +2213,43 @@ impl UadShizukuApp {
             return self.parse_app_list_content(&content);
         }
 
-        // If cache doesn't exist, return empty (let the Apps tab handle downloading)
+        // If cache doesn't exist, try to download it
+        log::info!(
+            "Cache file not found for {}, downloading from: {}",
+            app_list.name,
+            app_list.contents_url
+        );
+
+        match ureq::get(&app_list.contents_url).call() {
+            Ok(response) => {
+                match response.into_string() {
+                    Ok(content) => {
+                        log::info!(
+                            "Successfully downloaded {} ({} bytes)",
+                            app_list.name,
+                            content.len()
+                        );
+
+                        // Save to cache
+                        if let Err(e) = std::fs::write(&cache_file, &content) {
+                            log::error!("Failed to save cache file: {}", e);
+                        } else {
+                            log::info!("Successfully saved {} to cache", app_list.name);
+                        }
+
+                        return self.parse_app_list_content(&content);
+                    }
+                    Err(e) => {
+                        log::error!("Failed to read response for {}: {}", app_list.name, e);
+                    }
+                }
+            }
+            Err(e) => {
+                log::error!("Failed to download {}: {}", app_list.name, e);
+            }
+        }
+
+        // Return empty if download failed
         Vec::new()
     }
 
