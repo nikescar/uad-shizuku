@@ -56,6 +56,7 @@
 | [android_logger](https://crates.io/crates/android_logger) | Android logging for Rust | 0.15 | 0.15 | MIT/Apache-2.0 |
 | [android-activity](https://crates.io/crates/android-activity) | Glue for building Android applications | 0.6 | 0.6 | MIT/Apache-2.0 |
 | [ndk-sys](https://crates.io/crates/ndk-sys) | Raw FFI bindings to Android NDK | 0.6.0 | 0.6.0 | MIT/Apache-2.0 |
+| [shizuku_apk_installer](https://github.com/re7gog/shizuku_apk_installer) | Flutter plugin for installing Android APKs using Dhizuku/Shizuku API | - | - | MIT |
 
 ## iOS-Specific Libraries
 
