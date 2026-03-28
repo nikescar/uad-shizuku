@@ -402,6 +402,96 @@ pub fn shizuku_unbind_service() {
     let _ = env.call_static_method(jclass, "unbindService", "()V", &[]);
 }
 
+/// Install an APK file using Shizuku PackageInstaller API.
+/// Returns PackageInstaller.STATUS_SUCCESS (0) on success, other codes on failure.
+#[cfg(target_os = "android")]
+pub fn shizuku_install_apk(apk_path: &str) -> std::io::Result<i32> {
+    let (_vm, mut env) = get_jni_env()?;
+    let class = get_bridge_class()?;
+    let jclass: &jni::objects::JClass = class.as_obj().into();
+
+    let j_apk_path = env.new_string(apk_path).map_err(|e| {
+        std::io::Error::new(
+            std::io::ErrorKind::Other,
+            format!("Failed to create Java string: {}", e),
+        )
+    })?;
+
+    // Get the application context
+    let ctx = ndk_context::android_context();
+    let context = unsafe { jni::objects::JObject::from_raw(ctx.context() as _) };
+
+    let status = env
+        .call_static_method(
+            jclass,
+            "installApk",
+            "(Ljava/lang/String;Landroid/content/Context;)I",
+            &[JValue::Object(&j_apk_path), JValue::Object(&context)],
+        )
+        .and_then(|v| v.i())
+        .map_err(|e| {
+            std::io::Error::new(
+                std::io::ErrorKind::Other,
+                format!("installApk call failed: {}", e),
+            )
+        })?;
+
+    // STATUS_SUCCESS is 0
+    if status == 0 {
+        Ok(status)
+    } else {
+        Err(std::io::Error::new(
+            std::io::ErrorKind::Other,
+            format!("Install failed with status: {}", status),
+        ))
+    }
+}
+
+/// Uninstall a package using Shizuku PackageInstaller API.
+/// Returns PackageInstaller.STATUS_SUCCESS (0) on success, other codes on failure.
+#[cfg(target_os = "android")]
+pub fn shizuku_uninstall_package(package_name: &str) -> std::io::Result<i32> {
+    let (_vm, mut env) = get_jni_env()?;
+    let class = get_bridge_class()?;
+    let jclass: &jni::objects::JClass = class.as_obj().into();
+
+    let j_package_name = env.new_string(package_name).map_err(|e| {
+        std::io::Error::new(
+            std::io::ErrorKind::Other,
+            format!("Failed to create Java string: {}", e),
+        )
+    })?;
+
+    // Get the application context
+    let ctx = ndk_context::android_context();
+    let context = unsafe { jni::objects::JObject::from_raw(ctx.context() as _) };
+
+    let status = env
+        .call_static_method(
+            jclass,
+            "uninstallPackage",
+            "(Ljava/lang/String;Landroid/content/Context;)I",
+            &[JValue::Object(&j_package_name), JValue::Object(&context)],
+        )
+        .and_then(|v| v.i())
+        .map_err(|e| {
+            std::io::Error::new(
+                std::io::ErrorKind::Other,
+                format!("uninstallPackage call failed: {}", e),
+            )
+        })?;
+
+    // STATUS_SUCCESS is 0
+    if status == 0 {
+        Ok(status)
+    } else {
+        Err(std::io::Error::new(
+            std::io::ErrorKind::Other,
+            format!("Uninstall failed with status: {}", status),
+        ))
+    }
+}
+
 // --- Non-Android stubs ---
 
 #[cfg(not(target_os = "android"))]
@@ -463,3 +553,19 @@ pub fn shizuku_is_service_bound() -> bool {
 
 #[cfg(not(target_os = "android"))]
 pub fn shizuku_unbind_service() {}
+
+#[cfg(not(target_os = "android"))]
+pub fn shizuku_install_apk(_apk_path: &str) -> std::io::Result<i32> {
+    Err(std::io::Error::new(
+        std::io::ErrorKind::Unsupported,
+        "Shizuku not available on this platform",
+    ))
+}
+
+#[cfg(not(target_os = "android"))]
+pub fn shizuku_uninstall_package(_package_name: &str) -> std::io::Result<i32> {
+    Err(std::io::Error::new(
+        std::io::ErrorKind::Unsupported,
+        "Shizuku not available on this platform",
+    ))
+}

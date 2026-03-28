@@ -1182,7 +1182,12 @@ pub fn get_single_package_sha256sum(
 pub fn install_apk(apk_path: &str, device: &str) -> std::io::Result<String> {
     #[cfg(target_os = "android")]
     {
-        shell_exec(device, &format!("pm install {}", apk_path))
+        // On Android, use Shizuku PackageInstaller API
+        use crate::android_shizuku;
+        match android_shizuku::shizuku_install_apk(apk_path) {
+            Ok(status) => Ok(format!("Success (status: {})", status)),
+            Err(e) => Err(e),
+        }
     }
     #[cfg(not(target_os = "android"))]
     {
@@ -1207,7 +1212,12 @@ pub fn install_apk(apk_path: &str, device: &str) -> std::io::Result<String> {
 pub fn uninstall_app(package_name: &str, device: &str) -> std::io::Result<String> {
     #[cfg(target_os = "android")]
     {
-        shell_exec(device, &format!("pm uninstall {}", package_name))
+        // On Android, use Shizuku PackageInstaller API
+        use crate::android_shizuku;
+        match android_shizuku::shizuku_uninstall_package(package_name) {
+            Ok(status) => Ok(format!("Success (status: {})", status)),
+            Err(e) => Err(e),
+        }
     }
     #[cfg(not(target_os = "android"))]
     {

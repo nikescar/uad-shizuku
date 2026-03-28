@@ -424,7 +424,6 @@ impl TabAppsControl {
 
     /// Install an app by downloading its APK and installing via adb
     /// Returns Ok(()) on success, Err with error message on failure
-    #[cfg(not(target_os = "android"))]
     pub fn install_app(&mut self, app: &AppEntry) -> Result<(), String> {
         let device = match &self.selected_device {
             Some(d) => d.clone(),
@@ -504,11 +503,16 @@ impl TabAppsControl {
 
         log::info!("APK downloaded to: {:?}", apk_path);
 
-        // Update status
+        // Update status with platform-specific message
+        #[cfg(target_os = "android")]
+        self.installing_apps
+            .insert(app.name.clone(), "Installing APK via Shizuku...".to_string());
+
+        #[cfg(not(target_os = "android"))]
         self.installing_apps
             .insert(app.name.clone(), "Installing APK...".to_string());
 
-        // Install the APK using adb
+        // Install the APK (uses Shizuku on Android, ADB on desktop)
         let apk_path_str = apk_path.to_string_lossy().to_string();
         match crate::adb::install_apk(&apk_path_str, &device) {
             Ok(result) => {
@@ -539,11 +543,6 @@ impl TabAppsControl {
                 Err(format!("Failed to install APK: {}", e))
             }
         }
-    }
-
-    #[cfg(target_os = "android")]
-    pub fn install_app(&mut self, _app: &AppEntry) -> Result<(), String> {
-        Err("Direct install not supported on Android".to_string())
     }
 
     pub fn reload_applist_and_parse_apps(&mut self) {
@@ -1250,68 +1249,60 @@ impl TabAppsControl {
 
         // Perform installation if an app was clicked
         if let Some(app) = install_clicked_app {
-            #[cfg(not(target_os = "android"))]
-            {
-                // Queue the install operation
-                if let Some(ref queue) = self.operations_queue {
-                    // Get the downloadable link
-                    if let Some((url, link_type)) = self.get_downloadable_link(&app) {
-                        // Check if GitHub installs are disabled
-                        if link_type == "github-downloadable" && self.disable_github_install {
-                            log::error!("GitHub installations are disabled");
-                            has_error = true;
-                        } else if let Some(ref device) = self.selected_device {
-                            // Get the actual download URL
-                            let download_url = match link_type.as_str() {
-                                "github-downloadable" => {
-                                    self.get_github_download_url(&url)
+            // Queue the install operation (works on both desktop and Android via Shizuku)
+            if let Some(ref queue) = self.operations_queue {
+                // Get the downloadable link
+                if let Some((url, link_type)) = self.get_downloadable_link(&app) {
+                    // Check if GitHub installs are disabled
+                    if link_type == "github-downloadable" && self.disable_github_install {
+                        log::error!("GitHub installations are disabled");
+                        has_error = true;
+                    } else if let Some(ref device) = self.selected_device {
+                        // Get the actual download URL
+                        let download_url = match link_type.as_str() {
+                            "github-downloadable" => {
+                                self.get_github_download_url(&url)
+                            }
+                            "fdroid-downloadable" => {
+                                if let Some(pkg) = self.extract_package_from_url(&url) {
+                                    self.get_fdroid_download_url(&pkg)
+                                } else {
+                                    None
                                 }
-                                "fdroid-downloadable" => {
-                                    if let Some(pkg) = self.extract_package_from_url(&url) {
-                                        self.get_fdroid_download_url(&pkg)
-                                    } else {
-                                        None
-                                    }
-                                }
-                                _ => None,
-                            };
+                            }
+                            _ => None,
+                        };
 
-                            if let Some(download_url) = download_url {
-                                log::info!("Queuing install for: {} from {}", app.name, download_url);
-                                queue.enqueue(crate::app_operations_queue_stt::OperationType::Install {
-                                    app_name: app.name.clone(),
-                                    download_url,
-                                    link_type,
-                                });
+                        if let Some(download_url) = download_url {
+                            log::info!("Queuing install for: {} from {}", app.name, download_url);
+                            queue.enqueue(crate::app_operations_queue_stt::OperationType::Install {
+                                app_name: app.name.clone(),
+                                download_url,
+                                link_type,
+                            });
 
-                                // Start worker if not running
-                                let is_running = queue.is_running.lock().unwrap();
-                                if !*is_running {
-                                    drop(is_running);
-                                    queue.start_worker(
-                                        device.clone(),
-                                        self.cache_dir.clone(),
-                                        self.tmp_dir.clone(),
-                                    );
-                                }
-                            } else {
-                                log::error!("Failed to get download URL for {}", app.name);
-                                has_error = true;
+                            // Start worker if not running
+                            let is_running = queue.is_running.lock().unwrap();
+                            if !*is_running {
+                                drop(is_running);
+                                queue.start_worker(
+                                    device.clone(),
+                                    self.cache_dir.clone(),
+                                    self.tmp_dir.clone(),
+                                );
                             }
                         } else {
-                            log::error!("No device selected for install");
+                            log::error!("Failed to get download URL for {}", app.name);
                             has_error = true;
                         }
                     } else {
-                        log::error!("No downloadable link found for {}", app.name);
+                        log::error!("No device selected for install");
                         has_error = true;
                     }
+                } else {
+                    log::error!("No downloadable link found for {}", app.name);
+                    has_error = true;
                 }
-            }
-            #[cfg(target_os = "android")]
-            {
-                log::error!("Direct install not supported on Android");
-                has_error = true;
             }
         }
 
