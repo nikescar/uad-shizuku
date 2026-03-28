@@ -96,14 +96,15 @@ Get list of FOSS apps, and install directly. github and fdroid auto-install supp
 ## Todos
 
 * android lifecycle adaptation. freeze after recover from sleep.
-* daily scan alert.
-* web version through webusb on browser.(stuck diesel, ureq not available on wasm)
 * usage history & netstats history
+* daily scan alert. app installation tracking.
+* web version through webusb on browser.(stuck diesel, ureq not available on wasm)
 * logcat ?
 * android : add obtainium list https://apps.obtainium.imranr.dev/data.json?rand=6958.845712989482
-* izzy auto install
 * github install changes to selectable. installation source selectable.
-* fix download & install operation.
-  - izzy downloader - 
+* fix download & install operation.(izzy downloader and installer)
+* android installation over adb shizuku.
+* msstore upload(require app name change).
+* pre-cache apk files on virus scan due to takes long time.
 
 </details>
