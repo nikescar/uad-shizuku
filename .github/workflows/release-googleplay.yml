@@ -5,15 +5,13 @@ on:
     workflows: ["Build and Release"]
     types:
       - completed
-    branches:
-      - main
   workflow_dispatch:
 
 jobs:
   publish-googleplay:
     name: Publish to Google Play
     runs-on: ubuntu-22.04
-    if: ${{ (github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch') && github.ref != 'refs/heads/test' }}
+    if: ${{ (github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch') && github.event.workflow_run.head_branch != 'test' }}
 
     steps:
       - name: Checkout Repository
@@ -23,12 +21,17 @@ jobs:
           fetch-depth: 0
 
       - name: Download AAB Artifact
-        uses: actions/download-artifact@v4
+        uses: dawidd6/action-download-artifact@v6
         with:
+          workflow: release.yml
+          run_id: ${{ github.event.workflow_run.id }}
+          workflow_conclusion: success
           name: uad-shizuku-all.aab
           path: ./artifacts
-          run-id: ${{ github.event.workflow_run.id }}
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          check_artifacts: true
+          search_artifacts: true
+          if_no_artifact_found: fail
 
       - name: Publish to Google Play
         # https://github.com/marketplace/actions/upload-android-release-to-play-store
