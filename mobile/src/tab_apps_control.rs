@@ -8,7 +8,7 @@ use egui_material3::{data_table, icon_button_standard, theme::get_global_color};
 
 // SVG icons as constants (moved to svg_stt.rs)
 use crate::svg_stt::*;
-use crate::material_symbol_icons::{ICON_CANCEL, ICON_CHECK_CIRCLE, ICON_DELETE, ICON_DOWNLOAD, ICON_INFO, ICON_CHECK_BOX, ICON_REFRESH, ICON_TOGGLE_OFF, ICON_TOGGLE_ON};
+use crate::material_symbol_icons::{ICON_CANCEL, ICON_CHECK_CIRCLE, ICON_DELETE, ICON_DOWNLOAD, ICON_INFO, ICON_CHECK_BOX, ICON_REFRESH, ICON_TOGGLE_OFF, ICON_TOGGLE_ON, ICON_PENDING, ICON_HOURGLASS_EMPTY, ICON_ERROR};
 use crate::{DESKTOP_MIN_WIDTH, BASE_TABLE_WIDTH};
 
 // Pre-compiled regex patterns for performance (avoid recompiling on every call)
@@ -44,6 +44,8 @@ impl Default for TabAppsControl {
             sort_column: None,
             sort_ascending: true,
             operations_queue: Some(std::sync::Arc::new(crate::app_operations_queue::AppOperationsQueue::new())),
+            was_worker_running: false,
+            pending_refresh_after_operations: false,
             package_details_dialog: DlgPackageDetails::default(),
             uninstall_confirm_dialog: DlgUninstallConfirm::default(),
         }
@@ -849,6 +851,26 @@ impl TabAppsControl {
     /// Returns true if an error occurred during any operation
     pub fn ui(&mut self, ui: &mut egui::Ui) -> bool {
         let mut has_error = false;
+
+        // Check if operations just completed and trigger refresh
+        if let Some(ref queue) = self.operations_queue {
+            let is_running = queue.is_running.lock().unwrap();
+            let worker_running = *is_running;
+            drop(is_running);
+
+            // Detect when worker transitions from running to stopped
+            if self.was_worker_running && !worker_running {
+                let completed = queue.completed_count();
+                if completed > 0 {
+                    log::info!("Operations completed ({} operations), will refresh package list", completed);
+                    self.pending_refresh_after_operations = true;
+                    // Clear results after a short delay to allow user to see status
+                    // The refresh will clear the results
+                }
+            }
+            self.was_worker_running = worker_running;
+        }
+
         // Top controls: combo box and refresh chip
         ui.horizontal(|ui| {
             ui.vertical(|ui| {
@@ -1058,8 +1080,12 @@ impl TabAppsControl {
             // Get installed package info for action buttons
             let installed_pkg_info = self.get_installed_package_info(&app);
 
-            // Check if this app is currently being installed
-            let install_status = self.installing_apps.get(&app_name).cloned();
+            // Check if this app has an operation in progress (install/uninstall)
+            let operation_status = if let Some(ref queue) = self.operations_queue {
+                queue.get_status(&app_name)
+            } else {
+                None
+            };
 
             interactive_table = interactive_table.row(|row| {
                 // Category and App Name columns (desktop: both, mobile: name only)
@@ -1129,8 +1155,29 @@ impl TabAppsControl {
                     ui.horizontal(|ui| {
                         ui.spacing_mut().item_spacing.x = 0.0;
 
-                        if let Some(ref status) = install_status {
-                            ui.label(status);
+                        // Show operation status if present
+                        if let Some(ref status) = operation_status {
+                            use crate::app_operations_queue_stt::OperationStatus;
+                            match status {
+                                OperationStatus::Pending => {
+                                    ui.add_enabled(false, icon_button_standard(ICON_PENDING.to_string()))
+                                        .on_hover_text(tr!("install-pending"));
+                                }
+                                OperationStatus::Processing => {
+                                    ui.add_enabled(false, icon_button_standard(ICON_HOURGLASS_EMPTY.to_string()))
+                                        .on_hover_text(tr!("install-processing"));
+                                }
+                                OperationStatus::Success(msg) => {
+                                    ui.add_enabled(false, icon_button_standard(ICON_CHECK_CIRCLE.to_string())
+                                        .icon_color(egui::Color32::from_rgb(76, 175, 80)))
+                                        .on_hover_text(msg);
+                                }
+                                OperationStatus::Error(msg) => {
+                                    ui.add_enabled(false, icon_button_standard(ICON_ERROR.to_string())
+                                        .icon_color(egui::Color32::from_rgb(211, 47, 47)))
+                                        .on_hover_text(msg);
+                                }
+                            }
                         } else if is_installed {
 
                             // ui.add(icon_button_standard(ICON_CHECK_BOX.to_string())).on_hover_text(tr!("installed"));
@@ -1251,13 +1298,28 @@ impl TabAppsControl {
         if let Some(app) = install_clicked_app {
             // Queue the install operation (works on both desktop and Android via Shizuku)
             if let Some(ref queue) = self.operations_queue {
-                // Get the downloadable link
-                if let Some((url, link_type)) = self.get_downloadable_link(&app) {
+                // Get the downloadable link, with fallback to F-Droid if GitHub is disabled
+                let link_option = if let Some((url, link_type)) = self.get_downloadable_link(&app) {
                     // Check if GitHub installs are disabled
                     if link_type == "github-downloadable" && self.disable_github_install {
-                        log::error!("GitHub installations are disabled");
-                        has_error = true;
-                    } else if let Some(ref device) = self.selected_device {
+                        log::warn!("GitHub installations are disabled, trying F-Droid alternative");
+                        // Try to find F-Droid alternative
+                        app.links.iter().find_map(|(url, link_type)| {
+                            if link_type == "fdroid-downloadable" {
+                                Some((url.clone(), link_type.clone()))
+                            } else {
+                                None
+                            }
+                        })
+                    } else {
+                        Some((url, link_type))
+                    }
+                } else {
+                    None
+                };
+
+                if let Some((url, link_type)) = link_option {
+                    if let Some(ref device) = self.selected_device {
                         // Get the actual download URL
                         let download_url = match link_type.as_str() {
                             "github-downloadable" => {
@@ -1300,7 +1362,11 @@ impl TabAppsControl {
                         has_error = true;
                     }
                 } else {
-                    log::error!("No downloadable link found for {}", app.name);
+                    if self.disable_github_install {
+                        log::error!("No downloadable link found for {} (GitHub installations are disabled and no F-Droid alternative available)", app.name);
+                    } else {
+                        log::error!("No downloadable link found for {}", app.name);
+                    }
                     has_error = true;
                 }
             }

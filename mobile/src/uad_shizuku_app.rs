@@ -3207,6 +3207,18 @@ impl UadShizukuApp {
         // Operations queue and refresh already handled in controller
         let has_error = self.tab_apps_control.ui(ui);
 
+        // Check if we need to refresh after operations completed
+        if self.tab_apps_control.pending_refresh_after_operations {
+            self.tab_apps_control.pending_refresh_after_operations = false;
+            self.refresh_apps_tab_packages();
+
+            // Clear operation results after refresh so buttons return to normal state
+            if let Some(ref queue) = self.tab_apps_control.operations_queue {
+                queue.clear_results();
+                log::info!("App list refreshed and operation results cleared");
+            }
+        }
+
         // Open log window automatically if an error occurred
         if has_error && !self.settings.show_logs {
             self.settings.show_logs = true;

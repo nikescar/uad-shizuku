@@ -39,6 +39,9 @@ pub struct TabAppsControl {
     pub sort_ascending: bool, // Sort direction
     // Background operations queue
     pub operations_queue: Option<std::sync::Arc<crate::app_operations_queue::AppOperationsQueue>>,
+    // Track if operations just completed to trigger refresh
+    pub was_worker_running: bool,
+    pub pending_refresh_after_operations: bool,
     // Dialogs
     pub package_details_dialog: DlgPackageDetails,
     pub uninstall_confirm_dialog: DlgUninstallConfirm,
