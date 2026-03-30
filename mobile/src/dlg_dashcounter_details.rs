@@ -878,11 +878,14 @@ impl DlgDashCounterDetails {
 
         // Build datatable with responsive column widths
         let available_width = ui.available_width();
+        // Reserve space for drawer column (~40px)
+        let content_width = available_width - 40.0;
         // Columns: Apps (66.67%) + Actions (33.33%) = 100%
         let mut table = data_table()
             .id(egui::Id::new("debloat_details_table"))
-            .sortable_column("Apps", available_width * 0.6667, false)
-            .sortable_column("", available_width * 0.3333, false);
+            .allow_drawer(true)
+            .sortable_column("Apps", content_width * 0.6667, false)
+            .sortable_column("", content_width * 0.3333, false);
 
         // Set initial sort state
         if let Some(sort_col) = self.sort_column {
@@ -908,11 +911,25 @@ impl DlgDashCounterDetails {
 
             let app_desc_cell = Self::render_clickable_app_cell(ctx, &pkg.pkg, clicked_idx_clone.clone(), actual_idx);
             let uad_lists_clone = uad_ng_lists.clone();
+            let pkg_id_for_drawer = pkg_id.clone();
+            let uad_lists_for_drawer = uad_ng_lists.clone();
+
             table = table.row(|row| {
-                row.custom_cell(app_desc_cell)
+                let mut row_builder = row.custom_cell(app_desc_cell)
                     .custom_cell(DataTableCell::widget(move |ui: &mut egui::Ui| {
                         Self::render_action_buttons_static(ui, &pkg_id, &pkg_clone, Some(debloat_cat), unsafe_app_remove, false, &uad_lists_clone);
-                    }))
+                    }));
+
+                // Add drawer if UAD description exists
+                if let Some(uad_entry) = uad_lists_for_drawer.as_ref().and_then(|lists| lists.apps.get(&pkg_id_for_drawer)) {
+                    let description = uad_entry.description.clone();
+                    row_builder = row_builder.drawer(move |ui| {
+                        ui.add_space(8.0);
+                        ui.label("Description:");
+                        ui.add(egui::Label::new(&description).wrap());
+                    });
+                }
+                row_builder
             });
         }
 
@@ -1032,11 +1049,14 @@ impl DlgDashCounterDetails {
 
         // Build datatable with responsive column widths
         let available_width = ui.available_width();
+        // Reserve space for drawer column (~40px)
+        let content_width = available_width - 40.0;
         // Columns: Apps (66.67%) + Actions (33.33%) = 100%
         let mut table = data_table()
             .id(egui::Id::new("stalkerware_details_table"))
-            .sortable_column("Apps", available_width * 0.6667, false)
-            .sortable_column("", available_width * 0.3333, false);
+            .allow_drawer(true)
+            .sortable_column("Apps", content_width * 0.6667, false)
+            .sortable_column("", content_width * 0.3333, false);
 
         // Set initial sort state
         if let Some(sort_col) = self.sort_column {
@@ -1059,11 +1079,25 @@ impl DlgDashCounterDetails {
             let uad_lists_clone = uad_ng_lists.clone();
 
             let app_desc_cell = Self::render_clickable_app_cell(ctx, &pkg.pkg, clicked_idx_clone.clone(), actual_idx);
+            let pkg_id_for_drawer = pkg_id.clone();
+            let uad_lists_for_drawer = uad_lists_clone.clone();
+
             table = table.row(|row| {
-                row.custom_cell(app_desc_cell)
+                let mut row_builder = row.custom_cell(app_desc_cell)
                     .custom_cell(DataTableCell::widget(move |ui: &mut egui::Ui| {
                         Self::render_action_buttons_static(ui, &pkg_id, &pkg_clone, None, unsafe_app_remove, false, &uad_lists_clone);
-                    }))
+                    }));
+
+                // Add drawer if UAD description exists
+                if let Some(uad_entry) = uad_lists_for_drawer.as_ref().and_then(|lists| lists.apps.get(&pkg_id_for_drawer)) {
+                    let description = uad_entry.description.clone();
+                    row_builder = row_builder.drawer(move |ui| {
+                        ui.add_space(8.0);
+                        ui.label("Description:");
+                        ui.add(egui::Label::new(&description).wrap());
+                    });
+                }
+                row_builder
             });
         }
 
@@ -1181,6 +1215,8 @@ impl DlgDashCounterDetails {
 
         // Build datatable with responsive column widths
         let available_width = ui.available_width();
+        // Reserve space for drawer column (~40px)
+        let content_width = available_width - 40.0;
         let screen_width = ctx.screen_rect().width();
         let is_narrow_screen = screen_width < 600.0;
 
@@ -1191,27 +1227,28 @@ impl DlgDashCounterDetails {
         // Columns: Apps (37.5%) + Risk Score (12.5%) + Permissions (25%) + Actions (25%) = 100%
         let mut table = data_table()
             .id(egui::Id::new("izzyrisk_details_table"))
-            .sortable_column("Apps", available_width * 0.375, false);
+            .allow_drawer(true)
+            .sortable_column("Apps", content_width * 0.375, false);
 
         // Add Risk Score column with tooltip if abbreviated
         if is_narrow_screen {
             table = table
-                .sortable_column(risk_score_header, available_width * 0.125, true)
+                .sortable_column(risk_score_header, content_width * 0.125, true)
                 .column_tooltip("Risk Score");
         } else {
-            table = table.sortable_column(risk_score_header, available_width * 0.125, true);
+            table = table.sortable_column(risk_score_header, content_width * 0.125, true);
         }
 
         // Add Permissions column with tooltip if abbreviated
         if is_narrow_screen {
             table = table
-                .sortable_column(permissions_header, available_width * 0.25, false)
+                .sortable_column(permissions_header, content_width * 0.25, false)
                 .column_tooltip("Caused Permissions");
         } else {
-            table = table.sortable_column(permissions_header, available_width * 0.25, false);
+            table = table.sortable_column(permissions_header, content_width * 0.25, false);
         }
 
-        table = table.sortable_column("", available_width * 0.25, false);
+        table = table.sortable_column("", content_width * 0.25, false);
 
         // Set initial sort state
         if let Some(sort_col) = self.sort_column {
@@ -1243,13 +1280,27 @@ impl DlgDashCounterDetails {
             let uad_lists_clone = uad_ng_lists.clone();
 
             let app_desc_cell = Self::render_clickable_app_cell(ctx, &pkg.pkg, clicked_idx_clone.clone(), actual_idx);
+            let pkg_id_for_drawer = pkg_id.clone();
+            let uad_lists_for_drawer = uad_lists_clone.clone();
+
             table = table.row(|row| {
-                row.custom_cell(app_desc_cell)
+                let mut row_builder = row.custom_cell(app_desc_cell)
                     .cell(&risk_score.to_string())
                     .cell(&permissions_text)
                     .custom_cell(DataTableCell::widget(move |ui: &mut egui::Ui| {
                         Self::render_action_buttons_static(ui, &pkg_id, &pkg_clone, None, unsafe_app_remove, false, &uad_lists_clone);
-                    }))
+                    }));
+
+                // Add drawer if UAD description exists
+                if let Some(uad_entry) = uad_lists_for_drawer.as_ref().and_then(|lists| lists.apps.get(&pkg_id_for_drawer)) {
+                    let description = uad_entry.description.clone();
+                    row_builder = row_builder.drawer(move |ui| {
+                        ui.add_space(8.0);
+                        ui.label("Description:");
+                        ui.add(egui::Label::new(&description).wrap());
+                    });
+                }
+                row_builder
             });
         }
 
@@ -1395,12 +1446,15 @@ impl DlgDashCounterDetails {
 
         // Build datatable with responsive column widths
         let available_width = ui.available_width();
+        // Reserve space for drawer column (~40px)
+        let content_width = available_width - 40.0;
         // Columns: Apps (42.86%) + VirusTotal (28.57%) + Actions (28.57%) = 100%
         let mut table = data_table()
             .id(egui::Id::new("virustotal_details_table"))
-            .sortable_column("Apps", available_width * 0.4286, false)
-            .sortable_column(tr!("col-virustotal"), available_width * 0.2857, false)
-            .sortable_column("", available_width * 0.2857, false);
+            .allow_drawer(true)
+            .sortable_column("Apps", content_width * 0.4286, false)
+            .sortable_column(tr!("col-virustotal"), content_width * 0.2857, false)
+            .sortable_column("", content_width * 0.2857, false);
 
         // Set initial sort state
         if let Some(sort_col) = self.sort_column {
@@ -1430,12 +1484,26 @@ impl DlgDashCounterDetails {
 
             let app_desc_cell = Self::render_clickable_app_cell(ctx, &pkg.pkg, clicked_idx_clone.clone(), actual_idx);
             let uad_lists_clone = uad_ng_lists.clone();
+            let pkg_id_for_drawer = pkg_id.clone();
+            let uad_lists_for_drawer = uad_ng_lists.clone();
+
             table = table.row(|row| {
-                row.custom_cell(app_desc_cell)
+                let mut row_builder = row.custom_cell(app_desc_cell)
                     .custom_cell(Self::render_vt_cell(vt_scan_result, idx))
                     .custom_cell(DataTableCell::widget(move |ui: &mut egui::Ui| {
                         Self::render_action_buttons_static(ui, &pkg_id, &pkg_clone, None, unsafe_app_remove, true, &uad_lists_clone);
-                    }))
+                    }));
+
+                // Add drawer if UAD description exists
+                if let Some(uad_entry) = uad_lists_for_drawer.as_ref().and_then(|lists| lists.apps.get(&pkg_id_for_drawer)) {
+                    let description = uad_entry.description.clone();
+                    row_builder = row_builder.drawer(move |ui| {
+                        ui.add_space(8.0);
+                        ui.label("Description:");
+                        ui.add(egui::Label::new(&description).wrap());
+                    });
+                }
+                row_builder
             });
         }
 
@@ -1611,12 +1679,15 @@ impl DlgDashCounterDetails {
 
         // Build datatable with responsive column widths
         let available_width = ui.available_width();
+        // Reserve space for drawer column (~40px)
+        let content_width = available_width - 40.0;
         // Columns: Apps (42.86%) + HybridAnalysis (28.57%) + Actions (28.57%) = 100%
         let mut table = data_table()
             .id(egui::Id::new("hybridanalysis_details_table"))
-            .sortable_column("Apps", available_width * 0.4286, false)
-            .sortable_column(tr!("col-hybrid-analysis"), available_width * 0.2857, false)
-            .sortable_column("", available_width * 0.2857, false);
+            .allow_drawer(true)
+            .sortable_column("Apps", content_width * 0.4286, false)
+            .sortable_column(tr!("col-hybrid-analysis"), content_width * 0.2857, false)
+            .sortable_column("", content_width * 0.2857, false);
 
         // Set initial sort state
         if let Some(sort_col) = self.sort_column {
@@ -1647,13 +1718,26 @@ impl DlgDashCounterDetails {
             let app_desc_cell = Self::render_clickable_app_cell(ctx, &pkg.pkg, clicked_idx_clone.clone(), actual_idx);
             let ha_tag_ignorelist_clone = hybridanalysis_tag_ignorelist.to_string();
             let uad_lists_clone = uad_ng_lists.clone();
+            let pkg_id_for_drawer = pkg_id.clone();
+            let uad_lists_for_drawer = uad_ng_lists.clone();
 
             table = table.row(|row| {
-                row.custom_cell(app_desc_cell)
+                let mut row_builder = row.custom_cell(app_desc_cell)
                     .custom_cell(Self::render_ha_cell(ha_scan_result, idx, ha_tag_ignorelist_clone))
                     .custom_cell(DataTableCell::widget(move |ui: &mut egui::Ui| {
                         Self::render_action_buttons_static(ui, &pkg_id, &pkg_clone, None, unsafe_app_remove, true, &uad_lists_clone);
-                    }))
+                    }));
+
+                // Add drawer if UAD description exists
+                if let Some(uad_entry) = uad_lists_for_drawer.as_ref().and_then(|lists| lists.apps.get(&pkg_id_for_drawer)) {
+                    let description = uad_entry.description.clone();
+                    row_builder = row_builder.drawer(move |ui| {
+                        ui.add_space(8.0);
+                        ui.label("Description:");
+                        ui.add(egui::Label::new(&description).wrap());
+                    });
+                }
+                row_builder
             });
         }
 
