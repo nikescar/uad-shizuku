@@ -106,5 +106,6 @@ Get list of FOSS apps, and install directly. github and fdroid auto-install supp
 * android installation over adb shizuku.
 * msstore upload(require app name change).
 * pre-cache apk files on virus scan due to takes long time.
+* put uad info drawer on data_table in dashcounter.
 
 </details>

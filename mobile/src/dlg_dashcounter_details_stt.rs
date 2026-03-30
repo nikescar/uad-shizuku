@@ -45,6 +45,16 @@ pub struct DlgDashCounterDetails {
     pub current_page: usize,
     pub items_per_page: usize,
     pub offa_apps: Vec<crate::tab_apps_control_stt::AppEntry>,
+    // Cache fields for performance
+    pub cache_key: String,
+    pub cached_rows: Vec<CachedRowData>,
+    pub last_refresh_time: f64,
+    pub refresh_interval: f64, // in seconds, default 0.05 (50ms)
+}
+
+#[derive(Debug, Clone)]
+pub struct CachedRowData {
+    pub package_id: String,
 }
 
 impl Default for DlgDashCounterDetails {
@@ -62,6 +72,10 @@ impl Default for DlgDashCounterDetails {
             current_page: 0,
             items_per_page: 100,
             offa_apps: Vec::new(),
+            cache_key: String::new(),
+            cached_rows: Vec::new(),
+            last_refresh_time: 0.0,
+            refresh_interval: 0.05, // 50ms throttle
         }
     }
 }
