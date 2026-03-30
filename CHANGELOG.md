@@ -1,4 +1,10 @@
 ## What's Changed
+* fix. put uad info drawer on data_table in dashcounter. by @nikescar
+* fix. dashcounter data_table redrawing slow. by @nikescar
+* chore. fix release trigger. by @nikescar
+
+## What's Changed in 0.0.14
+* release. v0.0.14 by @nikescar
 * fix. app installation delay. by @nikescar
 * feat. apk installer via shizuku on android. by @nikescar
 * docs. readme update. by @nikescar
@@ -8,6 +14,8 @@
 * chore. windows release exe binary upload to gh-pages workflow. by @nikescar
 * chore. separate googleplay relese from release workflow. by @nikescar
 * chore. add snapcraft manifest file. by @nikescar
+
+**Full Changelog**: https://github.com/nikescar/uad-shizuku/compare/v0.0.13...v0.0.14
 
 ## What's Changed in 0.0.13
 * release. v0.0.13 by @nikescar
