@@ -25,10 +25,66 @@ impl DlgDashCounterDetails {
         self.sort_ascending = true;
         self.current_page = 0;
         self.open = true;
+        self.invalidate_cache();
     }
 
     pub fn close(&mut self) {
         self.open = false;
+    }
+
+    /// Generate a cache key based on current state
+    fn generate_cache_key(&self, installed_packages: &[PackageFingerprint]) -> String {
+        use std::collections::hash_map::DefaultHasher;
+        use std::hash::{Hash, Hasher};
+
+        let mut hasher = DefaultHasher::new();
+
+        // Hash all state that affects rendering
+        format!("{:?}", self.category).hash(&mut hasher);
+        self.sort_column.hash(&mut hasher);
+        self.sort_ascending.hash(&mut hasher);
+        self.show_only_enabled.hash(&mut hasher);
+        self.hide_system_app.hash(&mut hasher);
+        self.text_filter.hash(&mut hasher);
+        self.current_page.hash(&mut hasher);
+        self.items_per_page.hash(&mut hasher);
+
+        // Hash package list length (lightweight proxy for package changes)
+        installed_packages.len().hash(&mut hasher);
+
+        format!("{:x}", hasher.finish())
+    }
+
+    /// Check if cache needs refresh based on time throttle and state changes
+    fn should_refresh_cache(&self, current_time: f64, new_cache_key: &str) -> bool {
+        // Always refresh if cache key changed
+        if self.cache_key != new_cache_key {
+            return true;
+        }
+
+        // Throttle: only refresh if enough time has passed
+        (current_time - self.last_refresh_time) >= self.refresh_interval
+    }
+
+    /// Invalidate cache
+    fn invalidate_cache(&mut self) {
+        self.cache_key.clear();
+        self.cached_rows.clear();
+        self.last_refresh_time = 0.0;
+    }
+
+    /// Pre-compute row data for caching
+    fn prepare_row_cache(&mut self, packages: &[&PackageFingerprint], current_time: f64) {
+        self.cached_rows.clear();
+
+        // Store package IDs for cache validation
+        for pkg in packages {
+            self.cached_rows.push(CachedRowData {
+                package_id: pkg.pkg.clone(),
+            });
+        }
+
+        self.last_refresh_time = current_time;
     }
 
     /// Render VirusTotal scan result cell
@@ -801,6 +857,25 @@ impl DlgDashCounterDetails {
             }
         }
 
+        // Cache management for performance
+        let current_time = ui.input(|i| i.time);
+        let new_cache_key = self.generate_cache_key(installed_packages);
+
+        // Pagination (calculate early for cache)
+        let total_items = filtered_packages.len();
+        let total_pages = if total_items == 0 { 1 } else { (total_items + self.items_per_page - 1) / self.items_per_page.max(1) };
+        if self.current_page >= total_pages {
+            self.current_page = total_pages.saturating_sub(1);
+        }
+        let start_idx = self.current_page * self.items_per_page;
+        let end_idx = (start_idx + self.items_per_page).min(total_items);
+        let page_packages = if start_idx < total_items { &filtered_packages[start_idx..end_idx] } else { &[] };
+
+        if self.should_refresh_cache(current_time, &new_cache_key) {
+            self.prepare_row_cache(page_packages, current_time);
+            self.cache_key = new_cache_key;
+        }
+
         // Build datatable with responsive column widths
         let available_width = ui.available_width();
         // Columns: Apps (66.67%) + Actions (33.33%) = 100%
@@ -820,19 +895,7 @@ impl DlgDashCounterDetails {
             table = table.sort_by(sort_col, direction);
         }
 
-        // Pagination
-        let total_items = filtered_packages.len();
-        let total_pages = if total_items == 0 { 1 } else { (total_items + self.items_per_page - 1) / self.items_per_page.max(1) };
-
-        // Clamp current_page to valid range
-        if self.current_page >= total_pages {
-            self.current_page = total_pages.saturating_sub(1);
-        }
-
-        let start_idx = self.current_page * self.items_per_page;
-        let end_idx = (start_idx + self.items_per_page).min(total_items);
-        let page_packages = if start_idx < total_items { &filtered_packages[start_idx..end_idx] } else { &[] };
-
+        // Build table rows from cached data
         for (idx, pkg) in page_packages.iter().enumerate() {
             let idx = start_idx + idx;
             let pkg_id = pkg.pkg.clone();
@@ -948,6 +1011,25 @@ impl DlgDashCounterDetails {
             }
         }
 
+        // Cache management for performance
+        let current_time = ui.input(|i| i.time);
+        let new_cache_key = self.generate_cache_key(installed_packages);
+
+        // Pagination (calculate early for cache)
+        let total_items = filtered_packages.len();
+        let total_pages = if total_items == 0 { 1 } else { (total_items + self.items_per_page - 1) / self.items_per_page.max(1) };
+        if self.current_page >= total_pages {
+            self.current_page = total_pages.saturating_sub(1);
+        }
+        let start_idx = self.current_page * self.items_per_page;
+        let end_idx = (start_idx + self.items_per_page).min(total_items);
+        let page_packages = if start_idx < total_items { &filtered_packages[start_idx..end_idx] } else { &[] };
+
+        if self.should_refresh_cache(current_time, &new_cache_key) {
+            self.prepare_row_cache(page_packages, current_time);
+            self.cache_key = new_cache_key;
+        }
+
         // Build datatable with responsive column widths
         let available_width = ui.available_width();
         // Columns: Apps (66.67%) + Actions (33.33%) = 100%
@@ -967,19 +1049,7 @@ impl DlgDashCounterDetails {
             table = table.sort_by(sort_col, direction);
         }
 
-        // Pagination
-        let total_items = filtered_packages.len();
-        let total_pages = if total_items == 0 { 1 } else { (total_items + self.items_per_page - 1) / self.items_per_page.max(1) };
-
-        // Clamp current_page to valid range
-        if self.current_page >= total_pages {
-            self.current_page = total_pages.saturating_sub(1);
-        }
-
-        let start_idx = self.current_page * self.items_per_page;
-        let end_idx = (start_idx + self.items_per_page).min(total_items);
-        let page_packages = if start_idx < total_items { &filtered_packages[start_idx..end_idx] } else { &[] };
-
+        // Build table rows from cached data
         for (idx, pkg) in page_packages.iter().enumerate() {
             let idx = start_idx + idx;
             let pkg_id = pkg.pkg.clone();
@@ -1090,6 +1160,25 @@ impl DlgDashCounterDetails {
             }
         }
 
+        // Cache management for performance
+        let current_time = ui.input(|i| i.time);
+        let new_cache_key = self.generate_cache_key(installed_packages);
+
+        // Pagination (calculate early for cache)
+        let total_items = filtered_packages.len();
+        let total_pages = if total_items == 0 { 1 } else { (total_items + self.items_per_page - 1) / self.items_per_page.max(1) };
+        if self.current_page >= total_pages {
+            self.current_page = total_pages.saturating_sub(1);
+        }
+        let start_idx = self.current_page * self.items_per_page;
+        let end_idx = (start_idx + self.items_per_page).min(total_items);
+        let page_packages = if start_idx < total_items { &filtered_packages[start_idx..end_idx] } else { &[] };
+
+        if self.should_refresh_cache(current_time, &new_cache_key) {
+            self.prepare_row_cache(page_packages, current_time);
+            self.cache_key = new_cache_key;
+        }
+
         // Build datatable with responsive column widths
         let available_width = ui.available_width();
         let screen_width = ctx.screen_rect().width();
@@ -1135,19 +1224,7 @@ impl DlgDashCounterDetails {
             table = table.sort_by(sort_col, direction);
         }
 
-        // Pagination
-        let total_items = filtered_packages.len();
-        let total_pages = if total_items == 0 { 1 } else { (total_items + self.items_per_page - 1) / self.items_per_page.max(1) };
-
-        // Clamp current_page to valid range
-        if self.current_page >= total_pages {
-            self.current_page = total_pages.saturating_sub(1);
-        }
-
-        let start_idx = self.current_page * self.items_per_page;
-        let end_idx = (start_idx + self.items_per_page).min(total_items);
-        let page_packages = if start_idx < total_items { &filtered_packages[start_idx..end_idx] } else { &[] };
-
+        // Build table rows from cached data
         for (idx, pkg) in page_packages.iter().enumerate() {
             let idx = start_idx + idx;
             let risk_score = package_risk_scores.get(&pkg.pkg).copied().unwrap_or(0);
@@ -1297,6 +1374,25 @@ impl DlgDashCounterDetails {
             }
         }
 
+        // Cache management for performance
+        let current_time = ui.input(|i| i.time);
+        let new_cache_key = self.generate_cache_key(installed_packages);
+
+        // Pagination (calculate early for cache)
+        let total_items = filtered_packages.len();
+        let total_pages = if total_items == 0 { 1 } else { (total_items + self.items_per_page - 1) / self.items_per_page.max(1) };
+        if self.current_page >= total_pages {
+            self.current_page = total_pages.saturating_sub(1);
+        }
+        let start_idx = self.current_page * self.items_per_page;
+        let end_idx = (start_idx + self.items_per_page).min(total_items);
+        let page_packages = if start_idx < total_items { &filtered_packages[start_idx..end_idx] } else { &[] };
+
+        if self.should_refresh_cache(current_time, &new_cache_key) {
+            self.prepare_row_cache(page_packages, current_time);
+            self.cache_key = new_cache_key;
+        }
+
         // Build datatable with responsive column widths
         let available_width = ui.available_width();
         // Columns: Apps (42.86%) + VirusTotal (28.57%) + Actions (28.57%) = 100%
@@ -1317,19 +1413,7 @@ impl DlgDashCounterDetails {
             table = table.sort_by(sort_col, direction);
         }
 
-        // Pagination
-        let total_items = filtered_packages.len();
-        let total_pages = if total_items == 0 { 1 } else { (total_items + self.items_per_page - 1) / self.items_per_page.max(1) };
-
-        // Clamp current_page to valid range
-        if self.current_page >= total_pages {
-            self.current_page = total_pages.saturating_sub(1);
-        }
-
-        let start_idx = self.current_page * self.items_per_page;
-        let end_idx = (start_idx + self.items_per_page).min(total_items);
-        let page_packages = if start_idx < total_items { &filtered_packages[start_idx..end_idx] } else { &[] };
-
+        // Build table rows from cached data
         for (idx, pkg) in page_packages.iter().enumerate() {
             let idx = start_idx + idx;
             let pkg_id = pkg.pkg.clone();
@@ -1506,6 +1590,25 @@ impl DlgDashCounterDetails {
             }
         }
 
+        // Cache management for performance
+        let current_time = ui.input(|i| i.time);
+        let new_cache_key = self.generate_cache_key(installed_packages);
+
+        // Pagination (calculate early for cache)
+        let total_items = filtered_packages.len();
+        let total_pages = if total_items == 0 { 1 } else { (total_items + self.items_per_page - 1) / self.items_per_page.max(1) };
+        if self.current_page >= total_pages {
+            self.current_page = total_pages.saturating_sub(1);
+        }
+        let start_idx = self.current_page * self.items_per_page;
+        let end_idx = (start_idx + self.items_per_page).min(total_items);
+        let page_packages = if start_idx < total_items { &filtered_packages[start_idx..end_idx] } else { &[] };
+
+        if self.should_refresh_cache(current_time, &new_cache_key) {
+            self.prepare_row_cache(page_packages, current_time);
+            self.cache_key = new_cache_key;
+        }
+
         // Build datatable with responsive column widths
         let available_width = ui.available_width();
         // Columns: Apps (42.86%) + HybridAnalysis (28.57%) + Actions (28.57%) = 100%
@@ -1526,19 +1629,7 @@ impl DlgDashCounterDetails {
             table = table.sort_by(sort_col, direction);
         }
 
-        // Pagination
-        let total_items = filtered_packages.len();
-        let total_pages = if total_items == 0 { 1 } else { (total_items + self.items_per_page - 1) / self.items_per_page.max(1) };
-
-        // Clamp current_page to valid range
-        if self.current_page >= total_pages {
-            self.current_page = total_pages.saturating_sub(1);
-        }
-
-        let start_idx = self.current_page * self.items_per_page;
-        let end_idx = (start_idx + self.items_per_page).min(total_items);
-        let page_packages = if start_idx < total_items { &filtered_packages[start_idx..end_idx] } else { &[] };
-
+        // Build table rows from cached data
         for (idx, pkg) in page_packages.iter().enumerate() {
             let idx = start_idx + idx;
             let pkg_id = pkg.pkg.clone();
@@ -1701,6 +1792,12 @@ impl DlgDashCounterDetails {
         } else {
             &[]
         };
+
+        // Cache management for performance (time-based throttling)
+        let current_time = ui.input(|i| i.time);
+        if (current_time - self.last_refresh_time) >= self.refresh_interval {
+            self.last_refresh_time = current_time;
+        }
 
         // Build datatable
         let available_width = ui.available_width();
