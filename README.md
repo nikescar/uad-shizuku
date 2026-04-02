@@ -20,8 +20,8 @@ UAD-Shizuku is using debloat apps info from [UAD-NG](https://github.com/Universa
 
 | Arch          | Windows        | MacOS         | Linux        | Android        | IOS         |
 |:--------------|:--------------:|:-------------:|:------------:|:--------------:|--------------:|
-| X86_64(AMD64) | [GUI](https://github.com/nikescar/uad-shizuku/releases/latest/download/uad-shizuku.exe) | [GUI](https://github.com/nikescar/uad-shizuku/releases/latest/download/uad-shizuku-x86_64-apple-darwin.tar.gz) | [GUI](https://github.com/nikescar/uad-shizuku/releases/latest/download/uad-shizuku-x86_64-unknown-linux-musl.tar.gz) | [APK](https://github.com/nikescar/uad-shizuku/releases/latest/download/uad-shizuku-all-signed.apk)  | - |
-| AARCH64(ARM64)| - | [GUI](https://github.com/nikescar/uad-shizuku/releases/latest/download/uad-shizuku-aarch64-apple-darwin.tar.gz) | [GUI](https://github.com/nikescar/uad-shizuku/releases/latest/download/uad-shizuku-aarch64-linux-android.tar.gz) | [APK](https://github.com/nikescar/uad-shizuku/releases/latest/download/uad-shizuku-all-signed.apk) | - |
+| X86_64(AMD64) | [GUI](https://github.com/nikescar/uad-shizuku/releases/latest/download/uad-shizuku.exe) | [GUI](https://github.com/nikescar/uad-shizuku/releases/latest/download/uad-shizuku-x86_64-apple-darwin.tar.gz) | [GUI](https://github.com/nikescar/uad-shizuku/releases/latest/download/uad-shizuku-x86_64-unknown-linux-musl.tar.gz) [SNAP](https://snapcraft.io/uad-shizuku) | [APK](https://github.com/nikescar/uad-shizuku/releases/latest/download/uad-shizuku-all-signed.apk) [Google Play](https://play.google.com/store/apps/details?id=pe.nikescar.uad_shizuku) | - |
+| AARCH64(ARM64)| - | [GUI](https://github.com/nikescar/uad-shizuku/releases/latest/download/uad-shizuku-aarch64-apple-darwin.tar.gz) | [GUI](https://github.com/nikescar/uad-shizuku/releases/latest/download/uad-shizuku-aarch64-linux-android.tar.gz) | [APK](https://github.com/nikescar/uad-shizuku/releases/latest/download/uad-shizuku-all-signed.apk) [Google Play](https://play.google.com/store/apps/details?id=pe.nikescar.uad_shizuku) | - |
 
 [Latest Release](https://github.com/nikescar/UAD-Shizuku/releases)<br/>
 <br/>
