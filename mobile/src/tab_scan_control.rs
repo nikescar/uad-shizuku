@@ -63,6 +63,7 @@ impl Default for TabScanControl {
             android_package_renderer_enabled: false,
             text_filter: String::new(),
             unsafe_app_remove: false,
+            expert_app_remove: false,
             uninstall_confirm_dialog: DlgUninstallConfirm::default(),
         }
     }
@@ -1542,6 +1543,11 @@ impl TabScanControl {
                 .and_then(|lists| lists.apps.get(&package.pkg))
                 .map(|app| app.removal == "Unsafe")
                 .unwrap_or(false);
+            let is_expert_blocked = !self.expert_app_remove && uad_ng_lists.as_ref()
+                .and_then(|lists| lists.apps.get(&package.pkg))
+                .map(|app| app.removal == "Expert")
+                .unwrap_or(false);
+            let is_blocked = is_unsafe_blocked || is_expert_blocked;
 
             let (app_texture_id, app_title, app_developer, _app_version) =
                 if let Some((texture_opt, title, developer, version)) = &app_display_data {
@@ -2186,7 +2192,7 @@ impl TabScanControl {
 
                             // Enable/disable toggle
                             let pkg_enabled = enabled_str.contains("DEFAULT") || enabled_str.contains("ENABLED");
-                            let can_show_toggle = !is_unsafe_blocked || !pkg_enabled;
+                            let can_show_toggle = !is_blocked || !pkg_enabled;
 
                             if can_show_toggle {
                                 let mut enabled = pkg_enabled;
@@ -2204,7 +2210,7 @@ impl TabScanControl {
                             }
 
                             // Uninstall button
-                            if (enabled_str.contains("DEFAULT") || enabled_str.contains("ENABLED")) && !is_unsafe_blocked {
+                            if (enabled_str.contains("DEFAULT") || enabled_str.contains("ENABLED")) && !is_blocked {
                                 if ui.add(icon_button_standard(ICON_DELETE.to_string()).icon_color(egui::Color32::from_rgb(211, 47, 47))).on_hover_text(tr!("uninstall")).clicked() {
                                     ui.data_mut(|data| {
                                         data.insert_temp(egui::Id::new("uninstall_clicked_package"), package_name_for_buttons.clone());

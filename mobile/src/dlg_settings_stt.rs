@@ -16,6 +16,7 @@ pub struct DlgSettings {
     pub hybridanalysis_submit: bool,
     pub hybridanalysis_tag_ignorelist: String,
     pub unsafe_app_remove: bool,
+    pub expert_app_remove: bool,
     pub autoupdate: bool,
     // Font selector state
     pub selected_font_display: String,
@@ -45,6 +46,7 @@ impl Default for DlgSettings {
             hybridanalysis_submit: false,
             hybridanalysis_tag_ignorelist: String::new(),
             unsafe_app_remove: false,
+            expert_app_remove: false,
             autoupdate: false,
             selected_font_display: "Default (NotoSansKr)".to_string(),
             system_fonts: Vec::new(),

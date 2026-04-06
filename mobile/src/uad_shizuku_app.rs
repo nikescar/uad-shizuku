@@ -280,6 +280,7 @@ impl Default for UadShizukuApp {
                 hybridanalysis_submit: settings.hybridanalysis_submit,
                 hybridanalysis_tag_ignorelist: settings.hybridanalysis_tag_ignorelist.clone(),
                 unsafe_app_remove: settings.unsafe_app_remove,
+                expert_app_remove: settings.expert_app_remove,
                 autoupdate: settings.autoupdate,
                 ..Default::default()
             },
@@ -1389,6 +1390,7 @@ impl UadShizukuApp {
             &stalkerware_indicators,
             package_risk_scores,
             self.tab_debloat_control.unsafe_app_remove,
+            self.tab_debloat_control.expert_app_remove,
             &self.settings.hybridanalysis_tag_ignorelist,
         );
 
@@ -1432,6 +1434,7 @@ impl UadShizukuApp {
             self.dlg_settings.hybridanalysis_submit = self.settings.hybridanalysis_submit;
             self.dlg_settings.hybridanalysis_tag_ignorelist = self.settings.hybridanalysis_tag_ignorelist.clone();
             self.dlg_settings.unsafe_app_remove = self.settings.unsafe_app_remove;
+            self.dlg_settings.expert_app_remove = self.settings.expert_app_remove;
             self.dlg_settings.autoupdate = self.settings.autoupdate;
             self.dlg_settings.open();
         }
@@ -1802,6 +1805,8 @@ impl UadShizukuApp {
                 self.dlg_settings.hybridanalysis_submit = self.settings.hybridanalysis_submit;
                 self.dlg_settings.hybridanalysis_tag_ignorelist = self.settings.hybridanalysis_tag_ignorelist.clone();
                 self.dlg_settings.unsafe_app_remove = self.settings.unsafe_app_remove;
+            self.dlg_settings.expert_app_remove = self.settings.expert_app_remove;
+                self.dlg_settings.expert_app_remove = self.settings.expert_app_remove;
                 self.dlg_settings.autoupdate = self.settings.autoupdate;
                 self.dlg_settings.open();
             }
@@ -2038,8 +2043,9 @@ impl UadShizukuApp {
             }
         }
 
-        // Sync unsafe_app_remove setting
+        // Sync unsafe_app_remove and expert_app_remove setting
         self.tab_debloat_control.unsafe_app_remove = self.settings.unsafe_app_remove;
+        self.tab_debloat_control.expert_app_remove = self.settings.expert_app_remove;
     }
 
     fn prepare_scan_tab_controller(&mut self) {
@@ -2059,6 +2065,7 @@ impl UadShizukuApp {
             self.tab_scan_control.android_package_renderer_enabled = false;
         }
         self.tab_scan_control.unsafe_app_remove = self.settings.unsafe_app_remove;
+        self.tab_scan_control.expert_app_remove = self.settings.expert_app_remove;
     }
 
     fn prepare_apps_tab_controller(&mut self) {
@@ -3596,11 +3603,14 @@ impl UadShizukuApp {
         self.settings.fdroid_renderer = self.dlg_settings.fdroid_renderer;
         self.settings.apkmirror_renderer = self.dlg_settings.apkmirror_renderer;
         self.settings.unsafe_app_remove = self.dlg_settings.unsafe_app_remove;
+        self.settings.expert_app_remove = self.dlg_settings.expert_app_remove;
         self.settings.autoupdate = self.dlg_settings.autoupdate;
 
-        // Sync unsafe_app_remove to tab controls
+        // Sync unsafe_app_remove and expert_app_remove to tab controls
         self.tab_debloat_control.unsafe_app_remove = self.settings.unsafe_app_remove;
+        self.tab_debloat_control.expert_app_remove = self.settings.expert_app_remove;
         self.tab_scan_control.unsafe_app_remove = self.settings.unsafe_app_remove;
+        self.tab_scan_control.expert_app_remove = self.settings.expert_app_remove;
 
         // Sync submit settings to tab_scan_control
         self.tab_scan_control.virustotal_submit_enabled = self.settings.virustotal_submit;

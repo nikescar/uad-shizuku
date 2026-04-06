@@ -161,6 +161,7 @@ contrast-high = 높음
 contrast-medium = 중간
 contrast-normal = 보통
 allow-unsafe-app-remove = 위험 앱 제거/비활성화 허용
+allow-expert-app-remove = 전문가 앱 제거/비활성화 허용
 virustotal-api-key = VirusTotal(4/분) API 키:
 get-api-key = API 키 발급
 allow-virustotal-upload = VirusTotal 파일 업로드 허용

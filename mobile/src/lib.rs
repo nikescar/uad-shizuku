@@ -168,6 +168,8 @@ pub struct Settings {
     #[serde(default)]
     pub unsafe_app_remove: bool,
     #[serde(default)]
+    pub expert_app_remove: bool,
+    #[serde(default)]
     pub autoupdate: bool,
 }
 
@@ -236,6 +238,7 @@ impl Default for Settings {
             override_text_style: default_override_text_style(),
             theme_name: default_theme_name(),
             unsafe_app_remove: false,
+            expert_app_remove: false,
             autoupdate: false,
         }
     }

@@ -372,6 +372,12 @@ impl DlgSettings {
                         ui.add_space(8.0);
 
                         ui.horizontal_wrapped(|ui| {
+                            ui.add(MaterialCheckbox::new(&mut self.expert_app_remove, tr!("allow-expert-app-remove")));
+                        });
+
+                        ui.add_space(8.0);
+
+                        ui.horizontal_wrapped(|ui| {
                             ui.spacing_mut().item_spacing.x = 4.0;
                             ui.add(MaterialCheckbox::new(&mut self.autoupdate, tr!("autoupdate")));
                             ui.add_space(8.0);

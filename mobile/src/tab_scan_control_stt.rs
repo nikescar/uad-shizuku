@@ -136,6 +136,9 @@ pub struct TabScanControl {
     // Safety setting: when false, prevent uninstall of Unsafe category apps
     pub unsafe_app_remove: bool,
 
+    // Safety setting: when false, prevent uninstall of Expert category apps
+    pub expert_app_remove: bool,
+
     // Uninstall confirmation dialog
     pub uninstall_confirm_dialog: DlgUninstallConfirm,
 }
