@@ -30,6 +30,7 @@ impl Default for TabDebloatControl {
             cached_counts: CachedCategoryCounts::default(),
             text_filter: String::new(),
             unsafe_app_remove: false,
+            expert_app_remove: false,
             uninstall_confirm_dialog: DlgUninstallConfirm::default(),
             batch_uninstall_state: BatchUninstallState::default(),
             batch_uninstall_progress: Arc::new(Mutex::new(None)),
@@ -138,6 +139,7 @@ impl TabDebloatControl {
         let progress_clone = self.batch_uninstall_progress.clone();
         let cancelled_clone = self.batch_uninstall_cancelled.clone();
         let unsafe_app_remove = self.unsafe_app_remove;
+        let expert_app_remove = self.expert_app_remove;
 
         // Build unsafe app set from uad_ng_lists
         let unsafe_apps: std::collections::HashSet<String> = uad_ng_lists
@@ -146,6 +148,18 @@ impl TabDebloatControl {
                     .apps
                     .iter()
                     .filter(|(_, app)| app.removal == "Unsafe")
+                    .map(|(name, _)| name.clone())
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        // Build expert app set from uad_ng_lists
+        let expert_apps: std::collections::HashSet<String> = uad_ng_lists
+            .map(|lists| {
+                lists
+                    .apps
+                    .iter()
+                    .filter(|(_, app)| app.removal == "Expert")
                     .map(|(name, _)| name.clone())
                     .collect()
             })
@@ -177,6 +191,12 @@ impl TabDebloatControl {
                 // Skip unsafe apps when unsafe_app_remove is disabled
                 if unsafe_apps.contains(&pkg_name) && !unsafe_app_remove {
                     log::warn!("Skipping uninstall of unsafe app: {}", pkg_name);
+                    continue;
+                }
+
+                // Skip expert apps when expert_app_remove is disabled
+                if expert_apps.contains(&pkg_name) && !expert_app_remove {
+                    log::warn!("Skipping uninstall of expert app: {}", pkg_name);
                     continue;
                 }
 
@@ -231,7 +251,7 @@ impl TabDebloatControl {
     }
 
     /// Start batch disable in background thread
-    fn start_batch_disable(&mut self, pkgs: Vec<String>, device: String) {
+    fn start_batch_disable(&mut self, pkgs: Vec<String>, device: String, uad_ng_lists: Option<&UadNgLists>) {
         // Start state machine
         self.batch_disable_state.start();
 
@@ -251,6 +271,32 @@ impl TabDebloatControl {
         // Clone data needed for background thread
         let progress_clone = self.batch_disable_progress.clone();
         let cancelled_clone = self.batch_disable_cancelled.clone();
+        let unsafe_app_remove = self.unsafe_app_remove;
+        let expert_app_remove = self.expert_app_remove;
+
+        // Build unsafe app set from uad_ng_lists
+        let unsafe_apps: std::collections::HashSet<String> = uad_ng_lists
+            .map(|lists| {
+                lists
+                    .apps
+                    .iter()
+                    .filter(|(_, app)| app.removal == "Unsafe")
+                    .map(|(name, _)| name.clone())
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        // Build expert app set from uad_ng_lists
+        let expert_apps: std::collections::HashSet<String> = uad_ng_lists
+            .map(|lists| {
+                lists
+                    .apps
+                    .iter()
+                    .filter(|(_, app)| app.removal == "Expert")
+                    .map(|(name, _)| name.clone())
+                    .collect()
+            })
+            .unwrap_or_default();
 
         // Spawn background thread
         std::thread::spawn(move || {
@@ -274,6 +320,18 @@ impl TabDebloatControl {
                 // Request UI repaint after progress update
                 let shared_store = get_shared_store();
                 shared_store.request_repaint();
+
+                // Skip unsafe apps when unsafe_app_remove is disabled
+                if unsafe_apps.contains(&pkg_name) && !unsafe_app_remove {
+                    log::warn!("Skipping disable of unsafe app: {}", pkg_name);
+                    continue;
+                }
+
+                // Skip expert apps when expert_app_remove is disabled
+                if expert_apps.contains(&pkg_name) && !expert_app_remove {
+                    log::warn!("Skipping disable of expert app: {}", pkg_name);
+                    continue;
+                }
 
                 // Execute disable
                 match crate::adb::disable_app_current_user(&pkg_name, &device, None) {
@@ -1612,6 +1670,8 @@ impl TabDebloatControl {
                 // Tasks column
                 let pkg_id_for_buttons = pkg_id_clone.clone();
                 let is_unsafe_blocked = debloat_category == "Unsafe" && !self.unsafe_app_remove;
+                let is_expert_blocked = debloat_category == "Expert" && !self.expert_app_remove;
+                let is_blocked = is_unsafe_blocked || is_expert_blocked;
                 row_builder = row_builder.widget_cell(move |ui: &mut egui::Ui| {
                     egui::ScrollArea::horizontal()
                         .id_salt(format!("debloat_task_scroll_{}", idx))
@@ -1628,7 +1688,7 @@ impl TabDebloatControl {
 
                             // Enable/disable toggle
                             let pkg_enabled = enabled_str.contains("DEFAULT") || enabled_str.contains("ENABLED");
-                            let can_show_toggle = !is_unsafe_blocked || !pkg_enabled;
+                            let can_show_toggle = !is_blocked || !pkg_enabled;
 
                             if can_show_toggle {
                                 let mut enabled = pkg_enabled;
@@ -1645,7 +1705,7 @@ impl TabDebloatControl {
                                 }
                             }
 
-                            if (enabled_str.contains("DEFAULT") || enabled_str.contains("ENABLED")) && !is_unsafe_blocked {
+                            if (enabled_str.contains("DEFAULT") || enabled_str.contains("ENABLED")) && !is_blocked {
                                 if ui.add(icon_button_standard(ICON_DELETE.to_string()).icon_color(egui::Color32::from_rgb(211, 47, 47))).on_hover_text(tr!("uninstall")).clicked() {
                                     ui.data_mut(|data| {
                                         data.insert_temp(egui::Id::new("uninstall_clicked_package"), pkg_id_for_buttons.clone());
@@ -1842,7 +1902,7 @@ impl TabDebloatControl {
             if let Some(ref device) = self.selected_device {
                 let packages_to_disable: Vec<String> = self.selected_packages.iter().cloned().collect();
                 // Start background batch disable
-                self.start_batch_disable(packages_to_disable, device.clone());
+                self.start_batch_disable(packages_to_disable, device.clone(), uad_ng_lists_ref);
             } else {
                 log::error!("No device selected for batch disable");
                 result = Some(AdbResult::Failure);

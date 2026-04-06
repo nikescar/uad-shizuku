@@ -161,6 +161,7 @@ contrast-high = High
 contrast-medium = Medium
 contrast-normal = Normal
 allow-unsafe-app-remove = Allow unsafe app uninstall/disable
+allow-expert-app-remove = Allow expert app uninstall/disable
 virustotal-api-key = VirusTotal(4/min) API Key:
 get-api-key = Get API Key
 allow-virustotal-upload = Allow VirusTotal file upload
