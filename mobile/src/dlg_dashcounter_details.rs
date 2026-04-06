@@ -74,13 +74,100 @@ impl DlgDashCounterDetails {
     }
 
     /// Pre-compute row data for caching
-    fn prepare_row_cache(&mut self, packages: &[&PackageFingerprint], current_time: f64) {
+    fn prepare_row_cache(&mut self, packages: &[&PackageFingerprint], current_time: f64, ctx: &egui::Context) {
         self.cached_rows.clear();
 
-        // Store package IDs for cache validation
+        let store = get_shared_store();
+
+        // Pre-compute all expensive data for visible rows
         for pkg in packages {
+            let pkg_id = &pkg.pkg;
+            let mut has_texture = false;
+            let mut title = pkg_id.clone();
+            let mut subtitle = String::new();
+
+            // Priority 1: Android Package (native icons)
+            // Load texture into store cache if available
+            if let Some(android_app) = store.get_cached_android_package_app(pkg_id) {
+                if !android_app.icon_bytes.is_empty() {
+                    // This loads the texture and caches it in the store
+                    if calc::load_texture_from_bytes(ctx, pkg_id, &android_app.icon_bytes).is_some() {
+                        has_texture = true;
+                    }
+                    if !android_app.label.is_empty() {
+                        title = android_app.label.clone();
+                    }
+                }
+            }
+
+            // Priority 2-4: External sources (disabled on Android)
+            #[cfg(not(target_os = "android"))]
+            {
+                // Priority 2: FDroid
+                if !has_texture {
+                    if let Some(fdroid_app) = store.get_cached_fdroid_app(pkg_id) {
+                        if let Some(icon) = &fdroid_app.icon_base64 {
+                            // This loads the texture and caches it in the store
+                            if calc::load_texture_from_base64(ctx, "fd", pkg_id, icon).is_some() {
+                                has_texture = true;
+                            }
+                            if !fdroid_app.title.is_empty() {
+                                title = fdroid_app.title.clone();
+                            }
+                            if !fdroid_app.developer.is_empty() {
+                                subtitle = fdroid_app.developer.clone();
+                            }
+                        }
+                    }
+                }
+
+                // Priority 3: GooglePlay
+                if !has_texture {
+                    if let Some(gp_app) = store.get_cached_google_play_app(pkg_id) {
+                        if let Some(icon) = &gp_app.icon_base64 {
+                            // This loads the texture and caches it in the store
+                            if calc::load_texture_from_base64(ctx, "gp", pkg_id, icon).is_some() {
+                                has_texture = true;
+                            }
+                            if !gp_app.title.is_empty() {
+                                title = gp_app.title.clone();
+                            }
+                            if !gp_app.developer.is_empty() {
+                                subtitle = gp_app.developer.clone();
+                            }
+                        }
+                    }
+                }
+
+                // Priority 4: APKMirror
+                if !has_texture {
+                    if let Some(am_app) = store.get_cached_apkmirror_app(pkg_id) {
+                        if let Some(icon) = &am_app.icon_base64 {
+                            // This loads the texture and caches it in the store
+                            if calc::load_texture_from_base64(ctx, "am", pkg_id, icon).is_some() {
+                                has_texture = true;
+                            }
+                            if !am_app.title.is_empty() {
+                                title = am_app.title.clone();
+                            }
+                            if !am_app.developer.is_empty() {
+                                subtitle = am_app.developer.clone();
+                            }
+                        }
+                    }
+                }
+            }
+
+            // If no subtitle, use package ID
+            if subtitle.is_empty() {
+                subtitle = pkg_id.clone();
+            }
+
             self.cached_rows.push(CachedRowData {
-                package_id: pkg.pkg.clone(),
+                package_id: pkg_id.clone(),
+                title,
+                subtitle,
+                has_texture,
             });
         }
 
@@ -525,6 +612,92 @@ impl DlgDashCounterDetails {
         })
     }
 
+    /// Optimized version using pre-cached metadata (title/subtitle)
+    /// Textures are retrieved from store cache (already optimized there)
+    fn render_clickable_app_cell_cached(
+        ctx: &egui::Context,
+        cached_data: &CachedRowData,
+        clicked_package_idx: Arc<Mutex<Option<usize>>>,
+        row_idx: usize,
+    ) -> DataTableCell {
+        let pkg_id = cached_data.package_id.clone();
+        let title_text = cached_data.title.clone();
+        let subtitle_text = cached_data.subtitle.clone();
+        let ctx_clone = ctx.clone();
+
+        DataTableCell::widget(move |ui: &mut egui::Ui| {
+            let on_surface = egui_material3::get_global_color("onSurface");
+            
+            // Get texture from store (the store itself caches TextureHandles, so this is fast)
+            let store = get_shared_store();
+            let mut texture_id: Option<egui::TextureId> = None;
+            
+            // Quick lookups in order of priority (store.get_*_texture is O(1) hashmap lookup)
+            if let Some(tex) = store.get_android_package_texture(&pkg_id) {
+                texture_id = Some(tex.id());
+            }
+            #[cfg(not(target_os = "android"))]
+            {
+                if texture_id.is_none() {
+                    if let Some(tex) = store.get_fdroid_texture(&pkg_id) {
+                        texture_id = Some(tex.id());
+                    }
+                }
+                if texture_id.is_none() {
+                    if let Some(tex) = store.get_google_play_texture(&pkg_id) {
+                        texture_id = Some(tex.id());
+                    }
+                }
+                if texture_id.is_none() {
+                    if let Some(tex) = store.get_apkmirror_texture(&pkg_id) {
+                        texture_id = Some(tex.id());
+                    }
+                }
+            }
+
+            // Render the content in a clickable area
+            let response = ui.horizontal(|ui| {
+                // App icon (38x38)
+                if let Some(tex_id) = texture_id {
+                    let size = egui::Vec2::new(38.0, 38.0);
+                    ui.add(egui::Image::new(egui::load::SizedTexture::new(tex_id, size)));
+                } else {
+                    ui.add_space(38.0);
+                }
+
+                ui.add_space(8.0);
+
+                // Title and subtitle (pre-computed - this is the main optimization!)
+                ui.vertical(|ui| {
+                    ui.spacing_mut().item_spacing.y = 2.0;
+                    ui.label(egui::RichText::new(&title_text).color(on_surface).size(14.0));
+                    ui.label(egui::RichText::new(&subtitle_text)
+                        .color(egui::Color32::from_rgba_unmultiplied(
+                            on_surface.r(),
+                            on_surface.g(),
+                            on_surface.b(),
+                            153,
+                        ))
+                        .size(12.0));
+                });
+            }).response;
+
+            // Make the entire cell clickable
+            let sense_response = ui.interact(response.rect, egui::Id::new(format!("clickable_app_cell_{}", row_idx)), egui::Sense::click());
+
+            if sense_response.clicked() {
+                if let Ok(mut clicked) = clicked_package_idx.lock() {
+                    *clicked = Some(row_idx);
+                }
+            }
+
+            // Change cursor on hover
+            if sense_response.hovered() {
+                ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+            }
+        })
+    }
+
     /// Render action buttons (copied from tab_debloat_control.rs)
     fn render_action_buttons_static(
         ui: &mut egui::Ui,
@@ -877,7 +1050,7 @@ impl DlgDashCounterDetails {
         let page_packages = if start_idx < total_items { &filtered_packages[start_idx..end_idx] } else { &[] };
 
         if self.should_refresh_cache(current_time, &new_cache_key) {
-            self.prepare_row_cache(page_packages, current_time);
+            self.prepare_row_cache(page_packages, current_time, ctx);
             self.cache_key = new_cache_key;
         }
 
@@ -904,8 +1077,8 @@ impl DlgDashCounterDetails {
         }
 
         // Build table rows from cached data
-        for (idx, pkg) in page_packages.iter().enumerate() {
-            let idx = start_idx + idx;
+        for (cache_idx, pkg) in page_packages.iter().enumerate() {
+            let idx = start_idx + cache_idx;
             let pkg_id = pkg.pkg.clone();
             let pkg_clone = (*pkg).clone();
             let clicked_idx_clone = clicked_package_idx.clone();
@@ -914,7 +1087,12 @@ impl DlgDashCounterDetails {
             // Find the actual index in installed_packages
             let actual_idx = installed_packages.iter().position(|p| p.pkg == pkg.pkg).unwrap_or(idx);
 
-            let app_desc_cell = Self::render_clickable_app_cell(ctx, &pkg.pkg, clicked_idx_clone.clone(), actual_idx);
+            // Use cached data if available, otherwise fall back to non-cached version
+            let app_desc_cell = if cache_idx < self.cached_rows.len() {
+                Self::render_clickable_app_cell_cached(ctx, &self.cached_rows[cache_idx], clicked_idx_clone.clone(), actual_idx)
+            } else {
+                Self::render_clickable_app_cell(ctx, &pkg.pkg, clicked_idx_clone.clone(), actual_idx)
+            };
             let uad_lists_clone = uad_ng_lists.clone();
             let pkg_id_for_drawer = pkg_id.clone();
             let uad_lists_for_drawer = uad_ng_lists.clone();
@@ -1049,7 +1227,7 @@ impl DlgDashCounterDetails {
         let page_packages = if start_idx < total_items { &filtered_packages[start_idx..end_idx] } else { &[] };
 
         if self.should_refresh_cache(current_time, &new_cache_key) {
-            self.prepare_row_cache(page_packages, current_time);
+            self.prepare_row_cache(page_packages, current_time, ctx);
             self.cache_key = new_cache_key;
         }
 
@@ -1076,15 +1254,20 @@ impl DlgDashCounterDetails {
         }
 
         // Build table rows from cached data
-        for (idx, pkg) in page_packages.iter().enumerate() {
-            let idx = start_idx + idx;
+        for (cache_idx, pkg) in page_packages.iter().enumerate() {
+            let idx = start_idx + cache_idx;
             let pkg_id = pkg.pkg.clone();
             let pkg_clone = (*pkg).clone();
             let clicked_idx_clone = clicked_package_idx.clone();
             let actual_idx = installed_packages.iter().position(|p| p.pkg == pkg.pkg).unwrap_or(idx);
             let uad_lists_clone = uad_ng_lists.clone();
 
-            let app_desc_cell = Self::render_clickable_app_cell(ctx, &pkg.pkg, clicked_idx_clone.clone(), actual_idx);
+            // Use cached data if available, otherwise fall back to non-cached version
+            let app_desc_cell = if cache_idx < self.cached_rows.len() {
+                Self::render_clickable_app_cell_cached(ctx, &self.cached_rows[cache_idx], clicked_idx_clone.clone(), actual_idx)
+            } else {
+                Self::render_clickable_app_cell(ctx, &pkg.pkg, clicked_idx_clone.clone(), actual_idx)
+            };
             let pkg_id_for_drawer = pkg_id.clone();
             let uad_lists_for_drawer = uad_lists_clone.clone();
 
@@ -1216,7 +1399,7 @@ impl DlgDashCounterDetails {
         let page_packages = if start_idx < total_items { &filtered_packages[start_idx..end_idx] } else { &[] };
 
         if self.should_refresh_cache(current_time, &new_cache_key) {
-            self.prepare_row_cache(page_packages, current_time);
+            self.prepare_row_cache(page_packages, current_time, ctx);
             self.cache_key = new_cache_key;
         }
 
@@ -1269,8 +1452,8 @@ impl DlgDashCounterDetails {
         }
 
         // Build table rows from cached data
-        for (idx, pkg) in page_packages.iter().enumerate() {
-            let idx = start_idx + idx;
+        for (cache_idx, pkg) in page_packages.iter().enumerate() {
+            let idx = start_idx + cache_idx;
             let risk_score = package_risk_scores.get(&pkg.pkg).copied().unwrap_or(0);
 
             // Get caused permissions (install permissions)
@@ -1286,7 +1469,12 @@ impl DlgDashCounterDetails {
             let actual_idx = installed_packages.iter().position(|p| p.pkg == pkg.pkg).unwrap_or(idx);
             let uad_lists_clone = uad_ng_lists.clone();
 
-            let app_desc_cell = Self::render_clickable_app_cell(ctx, &pkg.pkg, clicked_idx_clone.clone(), actual_idx);
+            // Use cached data if available, otherwise fall back to non-cached version
+            let app_desc_cell = if cache_idx < self.cached_rows.len() {
+                Self::render_clickable_app_cell_cached(ctx, &self.cached_rows[cache_idx], clicked_idx_clone.clone(), actual_idx)
+            } else {
+                Self::render_clickable_app_cell(ctx, &pkg.pkg, clicked_idx_clone.clone(), actual_idx)
+            };
             let pkg_id_for_drawer = pkg_id.clone();
             let uad_lists_for_drawer = uad_lists_clone.clone();
 
@@ -1448,7 +1636,7 @@ impl DlgDashCounterDetails {
         let page_packages = if start_idx < total_items { &filtered_packages[start_idx..end_idx] } else { &[] };
 
         if self.should_refresh_cache(current_time, &new_cache_key) {
-            self.prepare_row_cache(page_packages, current_time);
+            self.prepare_row_cache(page_packages, current_time, ctx);
             self.cache_key = new_cache_key;
         }
 
@@ -1476,8 +1664,8 @@ impl DlgDashCounterDetails {
         }
 
         // Build table rows from cached data
-        for (idx, pkg) in page_packages.iter().enumerate() {
-            let idx = start_idx + idx;
+        for (cache_idx, pkg) in page_packages.iter().enumerate() {
+            let idx = start_idx + cache_idx;
             let pkg_id = pkg.pkg.clone();
             let pkg_clone = (*pkg).clone();
             let clicked_idx_clone = clicked_package_idx.clone();
@@ -1490,7 +1678,12 @@ impl DlgDashCounterDetails {
                 })
             });
 
-            let app_desc_cell = Self::render_clickable_app_cell(ctx, &pkg.pkg, clicked_idx_clone.clone(), actual_idx);
+            // Use cached data if available, otherwise fall back to non-cached version
+            let app_desc_cell = if cache_idx < self.cached_rows.len() {
+                Self::render_clickable_app_cell_cached(ctx, &self.cached_rows[cache_idx], clicked_idx_clone.clone(), actual_idx)
+            } else {
+                Self::render_clickable_app_cell(ctx, &pkg.pkg, clicked_idx_clone.clone(), actual_idx)
+            };
             let uad_lists_clone = uad_ng_lists.clone();
             let pkg_id_for_drawer = pkg_id.clone();
             let uad_lists_for_drawer = uad_ng_lists.clone();
@@ -1682,7 +1875,7 @@ impl DlgDashCounterDetails {
         let page_packages = if start_idx < total_items { &filtered_packages[start_idx..end_idx] } else { &[] };
 
         if self.should_refresh_cache(current_time, &new_cache_key) {
-            self.prepare_row_cache(page_packages, current_time);
+            self.prepare_row_cache(page_packages, current_time, ctx);
             self.cache_key = new_cache_key;
         }
 
@@ -1710,8 +1903,8 @@ impl DlgDashCounterDetails {
         }
 
         // Build table rows from cached data
-        for (idx, pkg) in page_packages.iter().enumerate() {
-            let idx = start_idx + idx;
+        for (cache_idx, pkg) in page_packages.iter().enumerate() {
+            let idx = start_idx + cache_idx;
             let pkg_id = pkg.pkg.clone();
             let pkg_clone = (*pkg).clone();
             let clicked_idx_clone = clicked_package_idx.clone();
@@ -1724,7 +1917,12 @@ impl DlgDashCounterDetails {
                 })
             });
 
-            let app_desc_cell = Self::render_clickable_app_cell(ctx, &pkg.pkg, clicked_idx_clone.clone(), actual_idx);
+            // Use cached data if available, otherwise fall back to non-cached version
+            let app_desc_cell = if cache_idx < self.cached_rows.len() {
+                Self::render_clickable_app_cell_cached(ctx, &self.cached_rows[cache_idx], clicked_idx_clone.clone(), actual_idx)
+            } else {
+                Self::render_clickable_app_cell(ctx, &pkg.pkg, clicked_idx_clone.clone(), actual_idx)
+            };
             let ha_tag_ignorelist_clone = hybridanalysis_tag_ignorelist.to_string();
             let uad_lists_clone = uad_ng_lists.clone();
             let pkg_id_for_drawer = pkg_id.clone();
