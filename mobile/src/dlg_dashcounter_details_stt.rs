@@ -55,6 +55,9 @@ pub struct DlgDashCounterDetails {
 #[derive(Debug, Clone)]
 pub struct CachedRowData {
     pub package_id: String,
+    pub title: String,
+    pub subtitle: String,
+    pub has_texture: bool,  // Flag to indicate if texture should exist in store
 }
 
 impl Default for DlgDashCounterDetails {
