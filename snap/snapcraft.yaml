@@ -1,69 +1,44 @@
 name: uad-shizuku
-version: 0.0.13
+base: core24
+version: '0.0.15'
 summary: Universal Android Debloater with Shizuku support
 description: |
   UAD-SHIZUKU is application for remove bloat app selectively, get sha256sum of
   installed foss android apps and install foss apps selectively.
-
+ 
   Features:
   * Debloat application with bloat app list selectively
   * Get sha256sum of app list and scan with virustotal api
   * Get android foss offa app list and install through obtanium
   * Get android foss fmhy app list and install through obtanium
-
+ 
   It supports android mode(apk) with adb wireless shizuku and
   linux/macos/windows mode(binary) with adb platform-tools.
-
+ 
   Open source, cross-platform, written in Rust.
-
-base: core20
-confinement: strict
-
-architectures:
-  - build-on: amd64
-  - build-on: arm64
-  - build-on: armhf
-
+ 
+grade: stable
+confinement: classic
+ 
 apps:
   uad-shizuku:
     command: bin/uad-shizuku
-    plugs:
-      # Desktop GUI support
-      - desktop
-      - desktop-legacy
-      - x11
-      - wayland
-      - opengl
-      # File system access
-      - home
-      - removable-media
-      # Network access for downloading lists and API calls
-      - network
-      # USB access for ADB connections to Android devices
-      - raw-usb
-      # Hardware detection for USB devices
-      - hardware-observe
-    environment:
-      # Ensure proper theme detection
-      GTK_USE_PORTAL: "1"
-
+ 
 parts:
   uad-shizuku:
+    plugin: nil
     source: .
-    plugin: rust
+    source-type: git
     build-packages:
-      - libssl-dev
       - pkg-config
-      - gettext
-      - libclang-dev
+      - libssl-dev
       - libgtk-3-dev
       - libgdk-pixbuf2.0-dev
       - libglib2.0-dev
       - libcairo2-dev
       - libpango1.0-dev
       - libatk1.0-dev
-      - on arm64,armhf,ppc64el,s390x:
-        - lld
+      - git
     stage-packages:
       - libgtk-3-0
       - libgdk-pixbuf2.0-0
@@ -72,45 +47,21 @@ parts:
       - libpango-1.0-0
       - libpangocairo-1.0-0
       - libatk1.0-0
-      - libssl1.1
       - ca-certificates
+    build-attributes:
+      - enable-patchelf
+    override-pull: |
+        craftctl default
     override-build: |
-      # Building process already finished in the build step of github actions
-      # so just copy the binary to the snap install directory
-
-      # Set version from git
-      snapcraftctl set-version $(git describe --tags --always 2>/dev/null || echo "0.0.13")
-
-      # Use TARGET_ARCH from environment if set, otherwise fall back to SNAPCRAFT_TARGET_ARCH
-      ARCH="${TARGET_ARCH:-$SNAPCRAFT_TARGET_ARCH}"
-
-      echo "Building for architecture: $ARCH"
-
-      # Determine the Rust target based on architecture
-      case "$ARCH" in
-        amd64)
-          BINARY_PATH="target/release/uad-shizuku"
-          ;;
-        arm64)
-          BINARY_PATH="target/release/uad-shizuku"
-          ;;
-        armhf)
-          BINARY_PATH="target/release/uad-shizuku"
-          ;;
-        *)
-          echo "Unsupported architecture: $ARCH"
-          exit 1
-          ;;
-      esac
-
-      echo "Looking for binary at: $BINARY_PATH"
-      if [ ! -f "$BINARY_PATH" ]; then
-        echo "ERROR: Binary not found at $BINARY_PATH"
-        echo "Directory contents:"
-        find target -name uad-shizuku 2>/dev/null || echo "No uad-shizuku binaries found in target/"
-        exit 1
-      fi
-
-      # Install the binary
-      install -Dm755 $BINARY_PATH $SNAPCRAFT_PART_INSTALL/bin/uad-shizuku
-      echo "Successfully installed binary to $SNAPCRAFT_PART_INSTALL/bin/uad-shizuku"
+        # Use system rustup/cargo
+        export PATH="$HOME/.cargo/bin:$PATH"
+        export RUSTFLAGS="-Clink-arg=-Wl,-rpath=\$ORIGIN/lib:/snap/core24/current/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR -Clink-arg=-Wl,-dynamic-linker=$(find /snap/core24/current/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR -name 'ld*.so.*' -print | head -n1)"
+ 
+        # Reduce parallelism to avoid OOM
+        export CARGO_BUILD_JOBS=2
+ 
+        # Build with cargo
+        cargo build --release
+ 
+        # Install the binary
+        install -Dm755 target/release/uad-shizuku "$CRAFT_PART_INSTALL"/bin/uad-shizuku
