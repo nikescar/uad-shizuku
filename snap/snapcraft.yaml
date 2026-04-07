@@ -30,6 +30,7 @@ parts:
     source: .
     source-type: git
     build-packages:
+      - curl
       - pkg-config
       - libssl-dev
       - libgtk-3-dev
@@ -53,15 +54,20 @@ parts:
     override-pull: |
         craftctl default
     override-build: |
+        # Install Rust via rustup if not already installed
+        if ! command -v cargo &> /dev/null; then
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
+        fi
+
         # Use system rustup/cargo
         export PATH="$HOME/.cargo/bin:$PATH"
         export RUSTFLAGS="-Clink-arg=-Wl,-rpath=\$ORIGIN/lib:/snap/core24/current/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR -Clink-arg=-Wl,-dynamic-linker=$(find /snap/core24/current/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR -name 'ld*.so.*' -print | head -n1)"
- 
+
         # Reduce parallelism to avoid OOM
         export CARGO_BUILD_JOBS=2
- 
+
         # Build with cargo
         cargo build --release
- 
+
         # Install the binary
         install -Dm755 target/release/uad-shizuku "$CRAFT_PART_INSTALL"/bin/uad-shizuku
