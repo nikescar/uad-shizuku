@@ -1,7 +1,16 @@
 ## What's Changed
+* fix. delaying dashcounter data_table.
+* feat. add expert app remove option on setting.
+* fix. snap runtime glibc error
+* docs. add snap and google play link to download url.
+
+## What's Changed in 0.0.15
+* release. v0.0.15
 * fix. put uad info drawer on data_table in dashcounter. by @nikescar
 * fix. dashcounter data_table redrawing slow. by @nikescar
 * chore. fix release trigger. by @nikescar
+
+**Full Changelog**: https://github.com/nikescar/uad-shizuku/compare/v0.0.14...v0.0.15
 
 ## What's Changed in 0.0.14
 * release. v0.0.14 by @nikescar
