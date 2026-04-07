@@ -1317,21 +1317,34 @@ fn find_binary_in_dir(dir: &PathBuf) -> Result<PathBuf, String> {
 
 fn walkdir(dir: &PathBuf) -> impl Iterator<Item = Result<fs::DirEntry, io::Error>> {
     let mut stack = vec![dir.clone()];
+    let mut current_entries: Vec<Result<fs::DirEntry, io::Error>> = Vec::new();
+
     std::iter::from_fn(move || {
-        while let Some(current_dir) = stack.pop() {
-            if let Ok(entries) = fs::read_dir(&current_dir) {
-                let mut items: Vec<_> = entries.collect();
-                for entry in items.drain(..) {
-                    if let Ok(ref e) = entry {
-                        if e.path().is_dir() {
-                            stack.push(e.path());
-                        }
+        loop {
+            // If we have entries to return, return them first
+            if let Some(entry) = current_entries.pop() {
+                // If entry is a directory, add it to the stack for later traversal
+                if let Ok(ref e) = entry {
+                    if e.path().is_dir() {
+                        stack.push(e.path());
                     }
-                    return Some(entry);
                 }
+                return Some(entry);
+            }
+
+            // Otherwise, get the next directory from the stack
+            if let Some(current_dir) = stack.pop() {
+                if let Ok(entries) = fs::read_dir(&current_dir) {
+                    // Collect all entries from this directory
+                    current_entries = entries.collect();
+                    // Reverse so we pop in the correct order
+                    current_entries.reverse();
+                }
+            } else {
+                // No more directories to process
+                return None;
             }
         }
-        None
     })
 }
 
