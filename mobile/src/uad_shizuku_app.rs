@@ -3303,7 +3303,7 @@ impl UadShizukuApp {
 
     // another lists https://github.com/MuntashirAkon/android-debloat-list
     pub fn retrieve_uad_ng_lists(&mut self) {
-        const UAD_LISTS_URL: &str = "https://github.com/Universal-Debloater-Alliance/universal-android-debloater-next-generation/blob/main/resources/assets/uad_lists.json";
+        const UAD_LISTS_URL: &str = "https://cdn.jsdelivr.net/gh/0x192/universal-android-debloater@latest/resources/assets/uad_lists.json";
         const UAD_LISTS_FILENAME: &str = "uad_lists.json";
 
         // Get cache directory from config
@@ -3466,26 +3466,18 @@ impl UadShizukuApp {
                     if response.ok {
                         // Extract data from GitHub HTML response
                         let html_content = String::from_utf8_lossy(&response.bytes);
-                        let extracted_data = Self::extract_github_embedded_data(&html_content);
+                        // let extracted_data = Self::extract_github_embedded_data(&html_content);
 
-                        match extracted_data {
-                            Some(data) => {
-                                // Save to cache
-                                match std::fs::write(&cache_file_path, data.as_bytes()) {
-                                    Ok(_) => {
-                                        log::info!(
-                                            "Successfully downloaded and cached stalkerware IoC to {:?}",
-                                            cache_file_path
-                                        );
-                                    }
-                                    Err(e) => {
-                                        log::error!("Failed to write stalkerware IoC to cache: {}", e);
-                                        return;
-                                    }
-                                }
+                        // Save to cache
+                        match std::fs::write(&cache_file_path, html_content.as_bytes()) {
+                            Ok(_) => {
+                                log::info!(
+                                    "Successfully downloaded and cached stalkerware IoC to {:?}",
+                                    cache_file_path
+                                );
                             }
-                            None => {
-                                log::error!("Failed to extract embedded data from GitHub HTML response");
+                            Err(e) => {
+                                log::error!("Failed to write stalkerware IoC to cache: {}", e);
                                 return;
                             }
                         }
