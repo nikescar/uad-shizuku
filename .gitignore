@@ -174,3 +174,4 @@ adb_sumpsys_usagestats_history
 # End AI Rules
 
 /mobile/app/tmp/
+/scripts/certificate*
