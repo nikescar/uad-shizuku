@@ -3691,7 +3691,7 @@ impl UadShizukuApp {
 
     // another lists https://github.com/MuntashirAkon/android-debloat-list
     pub fn retrieve_uad_ng_lists(&mut self) {
-        const UAD_LISTS_URL: &str = "https://cdn.jsdelivr.net/gh/0x192/universal-android-debloater@latest/resources/assets/uad_lists.json";
+        const UAD_LISTS_URL: &str = "https://fastly.jsdelivr.net/gh/Universal-Debloater-Alliance/universal-android-debloater-next-generation@main/resources/assets/uad_lists.json";
         const UAD_LISTS_FILENAME: &str = "uad_lists.json";
         // Embedded fallback file (pre-downloaded at build time)
         const UAD_LISTS_FALLBACK: &[u8] = include_bytes!("../resources/uad_lists.json");
@@ -3843,11 +3843,47 @@ impl UadShizukuApp {
                     }
                 }
                 Err(e) => {
-                    log::error!("Failed to parse UAD lists JSON: {}", e);
+                    log::error!("Failed to parse UAD lists JSON from file: {}", e);
+                    // Try parsing directly from embedded fallback
+                    log::info!("Attempting to parse from embedded fallback data");
+                    match serde_json::from_slice::<UadNgLists>(UAD_LISTS_FALLBACK) {
+                        Ok(uad_lists) => {
+                            log::info!(
+                                "Successfully parsed UAD lists from embedded fallback with {} apps",
+                                uad_lists.apps.len()
+                            );
+                            let shared_store = crate::shared_store_stt::get_shared_store();
+                            {
+                                let mut lists = shared_store.uad_ng_lists.lock().unwrap();
+                                *lists = Some(uad_lists);
+                            }
+                        }
+                        Err(e2) => {
+                            log::error!("Failed to parse embedded fallback: {}", e2);
+                        }
+                    }
                 }
             },
             Err(e) => {
                 log::error!("Failed to read UAD lists from cache: {}", e);
+                // Try parsing directly from embedded fallback
+                log::info!("Attempting to parse from embedded fallback data");
+                match serde_json::from_slice::<UadNgLists>(UAD_LISTS_FALLBACK) {
+                    Ok(uad_lists) => {
+                        log::info!(
+                            "Successfully parsed UAD lists from embedded fallback with {} apps",
+                            uad_lists.apps.len()
+                        );
+                        let shared_store = crate::shared_store_stt::get_shared_store();
+                        {
+                            let mut lists = shared_store.uad_ng_lists.lock().unwrap();
+                            *lists = Some(uad_lists);
+                        }
+                    }
+                    Err(e2) => {
+                        log::error!("Failed to parse embedded fallback: {}", e2);
+                    }
+                }
             }
         }
     }
