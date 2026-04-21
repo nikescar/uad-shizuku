@@ -26,8 +26,8 @@ pub struct StalkerwareEntry {
 
 /// Parse stalkerware IoC YAML content into StalkerwareIndicators
 pub fn parse_stalkerware_yaml(yaml_content: &str) -> Result<StalkerwareIndicators, String> {
-    let entries: Vec<StalkerwareEntry> = serde_yaml::from_str(yaml_content)
-        .map_err(|e| format!("Failed to parse YAML: {}", e))?;
+    let entries: Vec<StalkerwareEntry> =
+        serde_yaml::from_str(yaml_content).map_err(|e| format!("Failed to parse YAML: {}", e))?;
 
     let mut package_names = HashSet::new();
     let mut package_to_family = HashMap::new();
@@ -101,10 +101,9 @@ mod tests {
     #[test]
     fn test_get_family_name() {
         let mut indicators = StalkerwareIndicators::new();
-        indicators.package_to_family.insert(
-            "com.evil.app".to_string(),
-            "EvilFamily".to_string(),
-        );
+        indicators
+            .package_to_family
+            .insert("com.evil.app".to_string(), "EvilFamily".to_string());
 
         assert_eq!(
             indicators.get_family_name("com.evil.app"),

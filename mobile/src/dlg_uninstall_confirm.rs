@@ -38,24 +38,20 @@ impl DlgUninstallConfirm {
 
         let title = tr!("uninstall-confirm-title");
 
-        dialog(
-            "uninstall_confirm_dialog",
-            &title,
-            &mut self.open,
-        )
-        .content(|ui| {
-            ui.set_width(300.0);
-            if count == 1 {
-                ui.label(tr!("uninstall-confirm-single", { name: self.packages[0].clone() }));
-            } else {
-                ui.label(tr!("uninstall-confirm-batch", { count: count }));
-            }
-        })
-        .action(tr!("cancel"), || {})
-        .primary_action(tr!("uninstall"), || {
-            do_confirm.set(true);
-        })
-        .show(ctx);
+        dialog("uninstall_confirm_dialog", &title, &mut self.open)
+            .content(|ui| {
+                ui.set_width(300.0);
+                if count == 1 {
+                    ui.label(tr!("uninstall-confirm-single", { name: self.packages[0].clone() }));
+                } else {
+                    ui.label(tr!("uninstall-confirm-batch", { count: count }));
+                }
+            })
+            .action(tr!("cancel"), || {})
+            .primary_action(tr!("uninstall"), || {
+                do_confirm.set(true);
+            })
+            .show(ctx);
 
         if do_confirm.get() {
             self.confirmed = true;

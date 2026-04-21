@@ -1,11 +1,22 @@
 ## What's Changed
-* fix. delaying dashcounter data_table.
-* feat. add expert app remove option on setting.
-* fix. snap runtime glibc error
-* docs. add snap and google play link to download url.
+* Merge branch 'main' into test
+* fix. change snapcraft build to dump.
+* Merge branch 'main' into test
+* fix. change github url to jsdelivr.
+* fix. update error.
+* chore. fix cargo build error by installing new rust version on snap build workflow. by @nikescar
+
+## What's Changed in 0.0.16
+* release. v0.0.16 by @nikescar
+* fix. delaying dashcounter data_table. by @nikescar
+* feat. add expert app remove option on setting. by @nikescar
+* fix. snap runtime glibc error by @nikescar
+* docs. add snap and google play link to download url. by @nikescar
+
+**Full Changelog**: https://github.com/nikescar/uad-shizuku/compare/v0.0.15...v0.0.16
 
 ## What's Changed in 0.0.15
-* release. v0.0.15
+* release. v0.0.15 by @nikescar
 * fix. put uad info drawer on data_table in dashcounter. by @nikescar
 * fix. dashcounter data_table redrawing slow. by @nikescar
 * chore. fix release trigger. by @nikescar
@@ -15,6 +26,8 @@
 ## What's Changed in 0.0.14
 * release. v0.0.14 by @nikescar
 * fix. app installation delay. by @nikescar
+* fix. app installation delay.
+* bump
 * feat. apk installer via shizuku on android. by @nikescar
 * docs. readme update. by @nikescar
 * fix. showing foss dashboard card on android. by @nikescar

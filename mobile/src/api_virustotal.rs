@@ -9,12 +9,14 @@ fn get_agent() -> ureq::Agent {
     use std::sync::OnceLock;
     static AGENT: OnceLock<ureq::Agent> = OnceLock::new();
 
-    AGENT.get_or_init(|| {
-        ureq::AgentBuilder::new()
-            .max_idle_connections(10)
-            .max_idle_connections_per_host(5)
-            .build()
-    }).clone()
+    AGENT
+        .get_or_init(|| {
+            ureq::AgentBuilder::new()
+                .max_idle_connections(10)
+                .max_idle_connections_per_host(5)
+                .build()
+        })
+        .clone()
 }
 
 /// Error types for VirusTotal API

@@ -160,7 +160,10 @@ fn open_android_vending_inner(package_name: &str) -> Result<(), Box<dyn std::err
     let intent = env.new_object(
         &intent_class,
         "(Ljava/lang/String;Landroid/net/Uri;)V",
-        &[JValue::Object(&action_view), JValue::Object(&market_uri_parsed)],
+        &[
+            JValue::Object(&action_view),
+            JValue::Object(&market_uri_parsed),
+        ],
     )?;
 
     // Set package to specifically target the Play Store app
@@ -195,7 +198,10 @@ fn open_android_vending_inner(package_name: &str) -> Result<(), Box<dyn std::err
             let web_intent = env.new_object(
                 &intent_class,
                 "(Ljava/lang/String;Landroid/net/Uri;)V",
-                &[JValue::Object(&web_action_view), JValue::Object(&web_uri_obj)],
+                &[
+                    JValue::Object(&web_action_view),
+                    JValue::Object(&web_uri_obj),
+                ],
             )?;
 
             env.call_method(
@@ -294,7 +300,10 @@ pub fn open_wireless_debugging_settings() {
 
 #[cfg(not(target_os = "android"))]
 pub fn open_android_vending(package_name: &str) {
-    log::debug!("open_android_vending({}) is only available on Android", package_name);
+    log::debug!(
+        "open_android_vending({}) is only available on Android",
+        package_name
+    );
 }
 
 #[cfg(not(target_os = "android"))]

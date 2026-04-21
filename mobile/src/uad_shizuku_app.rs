@@ -1,16 +1,17 @@
 #![doc(hidden)]
 
-use std::process;
 use std::cell::Cell;
 use std::collections::HashMap;
+use std::process;
 use std::sync::{Arc, Mutex};
 use sys_locale::get_locale;
-
 
 use eframe::egui;
 use egui_i18n::tr;
 use egui_material3::menu::{Corner, FocusState, Positioning};
-use egui_material3::{dialog, menu, menu_item, tabs_primary, MaterialButton, dashcounter, icon_button_standard};
+use egui_material3::{
+    dashcounter, dialog, icon_button_standard, menu, menu_item, tabs_primary, MaterialButton,
+};
 use egui_material3::{get_global_theme, ContrastLevel, ThemeMode};
 
 use crate::db::{
@@ -25,15 +26,15 @@ use crate::models::PackageInfoCache;
 use crate::adb::get_devices;
 use crate::adb::{get_users, UserInfo};
 // use crate::android_packagemanager::get_installed_packages;
+use crate::dlg_dashcounter_details::DlgDashCounterDetails;
 use crate::tab_apps_control::TabAppsControl;
 use crate::tab_debloat_control::TabDebloatControl;
 use crate::tab_scan_control::TabScanControl;
 use crate::tab_usage_control::TabUsageControl;
-use crate::dlg_dashcounter_details::DlgDashCounterDetails;
 use crate::LogLevel;
 
 pub use crate::uad_shizuku_app_stt::*;
-use crate::{Config, Settings, DESKTOP_MIN_WIDTH, BASE_TABLE_WIDTH};
+use crate::{Config, Settings, BASE_TABLE_WIDTH, DESKTOP_MIN_WIDTH};
 
 use crate::install;
 #[cfg(not(target_os = "android"))]
@@ -82,7 +83,10 @@ pub fn init_egui(ctx: &Context) {
         "MaterialSymbolsOutlined",
         include_bytes!("../resources/MaterialSymbolsOutlined[FILL,GRAD,opsz,wght].ttf"),
     );
-    setup_local_fonts_from_bytes("NotoSansKr", include_bytes!("../resources/noto-sans-kr.ttf"));
+    setup_local_fonts_from_bytes(
+        "NotoSansKr",
+        include_bytes!("../resources/noto-sans-kr.ttf"),
+    );
     egui_extras::install_image_loaders(ctx);
     load_fonts(ctx);
     load_themes();
@@ -261,7 +265,6 @@ impl Default for UadShizukuApp {
             current_user: None,
 
             // NOTE: installed_packages and uad_ng_lists are now in shared_store_stt::SharedStore
-
             tab_debloat_control: TabDebloatControl::default(),
             tab_scan_control: TabScanControl::default(),
             tab_usage_control: TabUsageControl::default(),
@@ -349,8 +352,10 @@ impl Default for UadShizukuApp {
             // Installer package name - detect on Android
             #[cfg(target_os = "android")]
             installer_package_name: crate::android_packagemanager::get_installer_package_name(
-                "pe.nikescar.uad_shizuku"
-            ).ok().flatten(),
+                "pe.nikescar.uad_shizuku",
+            )
+            .ok()
+            .flatten(),
             #[cfg(not(target_os = "android"))]
             installer_package_name: None,
 
@@ -378,7 +383,7 @@ impl Default for UadShizukuApp {
         // on first update when the Android context is fully ready
         #[cfg(not(target_os = "android"))]
         crate::calc::retrieve_adb_devices(&mut app);
-        
+
         app
     }
 }
@@ -387,7 +392,12 @@ impl UadShizukuApp {
     fn apply_saved_theme_preferences(&self) {
         // Set theme mode and contrast level using utility functions
         set_theme_mode(self.settings.theme_mode.parse().unwrap_or(ThemeMode::Auto));
-        set_contrast_level(self.settings.contrast_level.parse().unwrap_or(ContrastLevel::Normal));
+        set_contrast_level(
+            self.settings
+                .contrast_level
+                .parse()
+                .unwrap_or(ContrastLevel::Normal),
+        );
 
         // Apply saved theme if not default
         if !self.settings.theme_name.is_empty() && self.settings.theme_name != "default" {
@@ -399,16 +409,19 @@ impl UadShizukuApp {
     fn detect_system_language() -> String {
         match get_locale().as_deref() {
             Some("ko_KR") | Some("ko-KR") | Some("ko") => "ko-KR".to_string(),
-            Some("en_US") | Some("en-US") | Some("en_GB") | Some("en-GB") | Some("en") | _ => "en-US".to_string(),
+            Some("en_US") | Some("en-US") | Some("en_GB") | Some("en-GB") | Some("en") | _ => {
+                "en-US".to_string()
+            }
         }
     }
 
     fn apply_saved_language(&self) {
-        let language_to_apply = if self.settings.language == "Auto" || self.settings.language.is_empty() {
-            Self::detect_system_language()
-        } else {
-            self.settings.language.clone()
-        };
+        let language_to_apply =
+            if self.settings.language == "Auto" || self.settings.language.is_empty() {
+                Self::detect_system_language()
+            } else {
+                self.settings.language.clone()
+            };
         egui_i18n::set_language(&language_to_apply);
     }
 
@@ -441,7 +454,7 @@ impl UadShizukuApp {
                 }
             }
         }
-        
+
         #[cfg(not(target_os = "android"))]
         {
             // Use dark-light crate for desktop platforms
@@ -472,7 +485,6 @@ impl UadShizukuApp {
             }
         }
     }
-
 
     fn string_to_log_level(value: &str) -> LogLevel {
         match value {
@@ -520,7 +532,6 @@ impl UadShizukuApp {
         log::debug!("update function is called.");
     }
 
-
     /// Sync scan progress from background threads to state machines
     /// This must be called before rendering progress bars to ensure they hide immediately
     fn sync_scan_progress(&mut self) {
@@ -551,7 +562,9 @@ impl UadShizukuApp {
         // Sync batch uninstall progress
         if let Ok(progress) = self.tab_debloat_control.batch_uninstall_progress.lock() {
             if let Some(p) = *progress {
-                self.tab_debloat_control.batch_uninstall_state.update_progress(p);
+                self.tab_debloat_control
+                    .batch_uninstall_state
+                    .update_progress(p);
             } else if self.tab_debloat_control.batch_uninstall_state.is_running {
                 self.tab_debloat_control.batch_uninstall_state.complete();
             }
@@ -559,7 +572,9 @@ impl UadShizukuApp {
         // Sync batch disable progress
         if let Ok(progress) = self.tab_debloat_control.batch_disable_progress.lock() {
             if let Some(p) = *progress {
-                self.tab_debloat_control.batch_disable_state.update_progress(p);
+                self.tab_debloat_control
+                    .batch_disable_state
+                    .update_progress(p);
             } else if self.tab_debloat_control.batch_disable_state.is_running {
                 self.tab_debloat_control.batch_disable_state.complete();
             }
@@ -567,7 +582,9 @@ impl UadShizukuApp {
         // Sync batch enable progress
         if let Ok(progress) = self.tab_debloat_control.batch_enable_progress.lock() {
             if let Some(p) = *progress {
-                self.tab_debloat_control.batch_enable_state.update_progress(p);
+                self.tab_debloat_control
+                    .batch_enable_state
+                    .update_progress(p);
             } else if self.tab_debloat_control.batch_enable_state.is_running {
                 self.tab_debloat_control.batch_enable_state.complete();
             }
@@ -579,10 +596,10 @@ impl UadShizukuApp {
         let is_desktop = available_width >= crate::DESKTOP_MIN_WIDTH;
         // Apply theme at the start of UI rendering
         apply_theme(ui.ctx(), Some(Self::detect_os_theme));
-        
+
         // Apply saved text style
         self.apply_saved_text_style(ui.ctx());
-        
+
         // Sync scan progress states before rendering progress bars
         self.sync_scan_progress();
 
@@ -633,7 +650,10 @@ impl UadShizukuApp {
 
                             // Update users list when device selection changes
                             if self.selected_device != self.current_device {
-                                log::debug!("device selection changed to {:?}", self.selected_device);
+                                log::debug!(
+                                    "device selection changed to {:?}",
+                                    self.selected_device
+                                );
                                 self.current_device = self.selected_device.clone();
                                 crate::calc::retrieve_adb_users(self);
                                 // Reset user selection when device changes
@@ -645,7 +665,9 @@ impl UadShizukuApp {
                             // User selection ComboBox
                             ui.label(tr!("users"));
                             let user_selected_text = if let Some(user_id) = self.selected_user {
-                                if let Some(user_info) = self.adb_users.iter().find(|u| u.user_id == user_id) {
+                                if let Some(user_info) =
+                                    self.adb_users.iter().find(|u| u.user_id == user_id)
+                                {
                                     format!("User {} ({})", user_id, user_info.name)
                                 } else {
                                     format!("User {}", user_id)
@@ -658,12 +680,21 @@ impl UadShizukuApp {
                                 .selected_text(user_selected_text)
                                 .show_ui(ui, |ui| {
                                     // Add "All Users" option
-                                    ui.selectable_value(&mut self.selected_user, None, tr!("all-users"));
+                                    ui.selectable_value(
+                                        &mut self.selected_user,
+                                        None,
+                                        tr!("all-users"),
+                                    );
 
                                     // Add individual users
                                     for user in &self.adb_users {
-                                        let label = format!("User {} ({})", user.user_id, user.name);
-                                        ui.selectable_value(&mut self.selected_user, Some(user.user_id), label);
+                                        let label =
+                                            format!("User {} ({})", user.user_id, user.name);
+                                        ui.selectable_value(
+                                            &mut self.selected_user,
+                                            Some(user.user_id),
+                                            label,
+                                        );
                                     }
                                 });
 
@@ -677,21 +708,25 @@ impl UadShizukuApp {
                             // Update device list on button click
                             let refresh_button = egui::Button::new(ICON_REFRESH.to_string())
                                 .min_size(egui::vec2(20.0, 20.0));
-                            if ui.add(refresh_button).on_hover_text(tr!("refresh-list")).clicked() {
+                            if ui
+                                .add(refresh_button)
+                                .on_hover_text(tr!("refresh-list"))
+                                .clicked()
+                            {
                                 crate::calc::retrieve_adb_devices(self);
                             }
                         }
                     });
-                });
+            });
         });
         // === top app bar area end
 
         // === notification render progress area start
         ui.horizontal(|ui| {
             egui::ScrollArea::horizontal()
-            .id_salt(format!("notification_render_progress_area"))
-            .auto_shrink([false, true])
-            .show(ui, |ui| {
+                .id_salt(format!("notification_render_progress_area"))
+                .auto_shrink([false, true])
+                .show(ui, |ui| {
                     ui.spacing_mut().item_spacing.x = 0.0;
 
                     // Package loading progress
@@ -747,8 +782,7 @@ impl UadShizukuApp {
                                     .desired_width(100.0)
                                     .animate(true);
                                 ui.label(tr!("rendering-fdroid"));
-                                ui.add(progress_bar)
-                                    .on_hover_text(tr!("fdroid-renderer"));
+                                ui.add(progress_bar).on_hover_text(tr!("fdroid-renderer"));
                                 if ui.button(tr!("stop")).clicked() {
                                     log::info!("Stop F-Droid renderer clicked");
                                     queue.clear_queue();
@@ -793,10 +827,14 @@ impl UadShizukuApp {
                             if ui.button(tr!("stop")).clicked() {
                                 log::info!("Stop Virustotal scan clicked");
                                 self.tab_scan_control.vt_scan_state.cancel();
-                                if let Ok(mut cancelled) = self.tab_scan_control.vt_scan_cancelled.lock() {
+                                if let Ok(mut cancelled) =
+                                    self.tab_scan_control.vt_scan_cancelled.lock()
+                                {
                                     *cancelled = true;
                                 }
-                                if let Ok(mut progress) = self.tab_scan_control.vt_scan_progress.lock() {
+                                if let Ok(mut progress) =
+                                    self.tab_scan_control.vt_scan_progress.lock()
+                                {
                                     *progress = None;
                                 }
                             }
@@ -816,10 +854,14 @@ impl UadShizukuApp {
                             if ui.button(tr!("stop")).clicked() {
                                 log::info!("Stop Hybrid Analysis scan clicked");
                                 self.tab_scan_control.ha_scan_state.cancel();
-                                if let Ok(mut cancelled) = self.tab_scan_control.ha_scan_cancelled.lock() {
+                                if let Ok(mut cancelled) =
+                                    self.tab_scan_control.ha_scan_cancelled.lock()
+                                {
                                     *cancelled = true;
                                 }
-                                if let Ok(mut progress) = self.tab_scan_control.ha_scan_progress.lock() {
+                                if let Ok(mut progress) =
+                                    self.tab_scan_control.ha_scan_progress.lock()
+                                {
                                     *progress = None;
                                 }
                             }
@@ -834,15 +876,20 @@ impl UadShizukuApp {
                             .animate(true);
                         ui.label(tr!("izzyrisk-calculation"));
                         ui.horizontal(|ui| {
-                            ui.add(progress_bar).on_hover_text(tr!("calculating-risk-scores"));
+                            ui.add(progress_bar)
+                                .on_hover_text(tr!("calculating-risk-scores"));
 
                             if ui.button(tr!("stop")).clicked() {
                                 log::info!("Stop IzzyRisk calculation clicked");
                                 self.tab_scan_control.izzyrisk_scan_state.cancel();
-                                if let Ok(mut cancelled) = self.tab_scan_control.izzyrisk_scan_cancelled.lock() {
+                                if let Ok(mut cancelled) =
+                                    self.tab_scan_control.izzyrisk_scan_cancelled.lock()
+                                {
                                     *cancelled = true;
                                 }
-                                if let Ok(mut progress) = self.tab_scan_control.izzyrisk_scan_progress.lock() {
+                                if let Ok(mut progress) =
+                                    self.tab_scan_control.izzyrisk_scan_progress.lock()
+                                {
                                     *progress = None;
                                 }
                             }
@@ -857,15 +904,20 @@ impl UadShizukuApp {
                             .animate(true);
                         ui.label(tr!("batch-uninstall"));
                         ui.horizontal(|ui| {
-                            ui.add(progress_bar).on_hover_text(tr!("uninstalling-packages"));
+                            ui.add(progress_bar)
+                                .on_hover_text(tr!("uninstalling-packages"));
 
                             if ui.button(tr!("stop")).clicked() {
                                 log::info!("Stop batch uninstall clicked");
                                 self.tab_debloat_control.batch_uninstall_state.cancel();
-                                if let Ok(mut cancelled) = self.tab_debloat_control.batch_uninstall_cancelled.lock() {
+                                if let Ok(mut cancelled) =
+                                    self.tab_debloat_control.batch_uninstall_cancelled.lock()
+                                {
                                     *cancelled = true;
                                 }
-                                if let Ok(mut progress) = self.tab_debloat_control.batch_uninstall_progress.lock() {
+                                if let Ok(mut progress) =
+                                    self.tab_debloat_control.batch_uninstall_progress.lock()
+                                {
                                     *progress = None;
                                 }
                             }
@@ -880,15 +932,20 @@ impl UadShizukuApp {
                             .animate(true);
                         ui.label(tr!("batch-disable"));
                         ui.horizontal(|ui| {
-                            ui.add(progress_bar).on_hover_text(tr!("disabling-packages"));
+                            ui.add(progress_bar)
+                                .on_hover_text(tr!("disabling-packages"));
 
                             if ui.button(tr!("stop")).clicked() {
                                 log::info!("Stop batch disable clicked");
                                 self.tab_debloat_control.batch_disable_state.cancel();
-                                if let Ok(mut cancelled) = self.tab_debloat_control.batch_disable_cancelled.lock() {
+                                if let Ok(mut cancelled) =
+                                    self.tab_debloat_control.batch_disable_cancelled.lock()
+                                {
                                     *cancelled = true;
                                 }
-                                if let Ok(mut progress) = self.tab_debloat_control.batch_disable_progress.lock() {
+                                if let Ok(mut progress) =
+                                    self.tab_debloat_control.batch_disable_progress.lock()
+                                {
                                     *progress = None;
                                 }
                             }
@@ -908,10 +965,14 @@ impl UadShizukuApp {
                             if ui.button(tr!("stop")).clicked() {
                                 log::info!("Stop batch enable clicked");
                                 self.tab_debloat_control.batch_enable_state.cancel();
-                                if let Ok(mut cancelled) = self.tab_debloat_control.batch_enable_cancelled.lock() {
+                                if let Ok(mut cancelled) =
+                                    self.tab_debloat_control.batch_enable_cancelled.lock()
+                                {
                                     *cancelled = true;
                                 }
-                                if let Ok(mut progress) = self.tab_debloat_control.batch_enable_progress.lock() {
+                                if let Ok(mut progress) =
+                                    self.tab_debloat_control.batch_enable_progress.lock()
+                                {
                                     *progress = None;
                                 }
                             }
@@ -932,7 +993,10 @@ impl UadShizukuApp {
                                     .animate(true);
                                 ui.label("App Operations");
                                 ui.horizontal(|ui| {
-                                    ui.add(progress_bar).on_hover_text(format!("{}/{} operations", completed, total));
+                                    ui.add(progress_bar).on_hover_text(format!(
+                                        "{}/{} operations",
+                                        completed, total
+                                    ));
 
                                     if ui.button(tr!("stop")).clicked() {
                                         log::info!("Stop app operations clicked");
@@ -942,7 +1006,6 @@ impl UadShizukuApp {
                             }
                         }
                     }
-
                 });
         });
         // === notification render progress area end
@@ -954,7 +1017,8 @@ impl UadShizukuApp {
         let is_desktop = available_width >= DESKTOP_MIN_WIDTH;
         if is_desktop {
             self.render_desktop_tabs(ui);
-        } else { // mobile
+        } else {
+            // mobile
             self.render_mobile_dashboards(ui);
         }
         // === tab area end
@@ -988,7 +1052,7 @@ impl UadShizukuApp {
         // Handle retry request from ADB install dialog
         if self.dlg_adb_install.retry_requested {
             self.dlg_adb_install.retry_requested = false;
-            
+
             #[cfg(target_os = "android")]
             {
                 use crate::android_shizuku;
@@ -999,7 +1063,7 @@ impl UadShizukuApp {
                     self.dlg_adb_install.open();
                 }
             }
-            
+
             #[cfg(not(target_os = "android"))]
             {
                 if which::which("adb").is_err() {
@@ -1027,7 +1091,12 @@ impl UadShizukuApp {
         // === Update dialog end
 
         // === About dialog
-        self.dlg_about.show(ui.ctx(), self.update_checking, self.update_available, &self.update_status);
+        self.dlg_about.show(
+            ui.ctx(),
+            self.update_checking,
+            self.update_available,
+            &self.update_status,
+        );
         // Handle check update and perform update from about dialog
         if self.dlg_about.do_check_update {
             self.check_for_update();
@@ -1049,27 +1118,49 @@ impl UadShizukuApp {
 
         // === Dashcounter details dialog
         // Check if a dashcounter was clicked
-        if let Some((dashboard_type, index)) = ui.ctx().data(|data| {
-            data.get_temp::<(&str, usize)>(egui::Id::new("dashcounter_clicked"))
-        }) {
+        if let Some((dashboard_type, index)) = ui
+            .ctx()
+            .data(|data| data.get_temp::<(&str, usize)>(egui::Id::new("dashcounter_clicked")))
+        {
             use crate::dlg_dashcounter_details_stt::DashCounterCategory;
 
             // Update cached counts before using them (needed when viewing from dashboard)
             let shared_store = crate::shared_store_stt::get_shared_store();
             let installed_packages = shared_store.get_installed_packages();
             let uad_ng_lists = shared_store.get_uad_ng_lists();
-            self.tab_debloat_control.update_cached_counts(&installed_packages, uad_ng_lists.as_ref());
+            self.tab_debloat_control
+                .update_cached_counts(&installed_packages, uad_ng_lists.as_ref());
 
             // Get counts from the dashboard
             let cached_counts = &self.tab_debloat_control.cached_counts;
             let cached_scan_counts = &self.tab_scan_control.cached_scan_counts;
 
             let (category, count_enabled, count_total) = match (dashboard_type, index) {
-                ("debloat", 0) => (Some(DashCounterCategory::DebloatRecommend), cached_counts.recommended.0, cached_counts.recommended.1),
-                ("debloat", 1) => (Some(DashCounterCategory::DebloatAdvanced), cached_counts.advanced.0, cached_counts.advanced.1),
-                ("debloat", 2) => (Some(DashCounterCategory::DebloatExpert), cached_counts.expert.0, cached_counts.expert.1),
-                ("debloat", 3) => (Some(DashCounterCategory::DebloatUnsafe), cached_counts.unsafe_count.0, cached_counts.unsafe_count.1),
-                ("debloat", 4) => (Some(DashCounterCategory::DebloatUnknown), cached_counts.unknown.0, cached_counts.unknown.1),
+                ("debloat", 0) => (
+                    Some(DashCounterCategory::DebloatRecommend),
+                    cached_counts.recommended.0,
+                    cached_counts.recommended.1,
+                ),
+                ("debloat", 1) => (
+                    Some(DashCounterCategory::DebloatAdvanced),
+                    cached_counts.advanced.0,
+                    cached_counts.advanced.1,
+                ),
+                ("debloat", 2) => (
+                    Some(DashCounterCategory::DebloatExpert),
+                    cached_counts.expert.0,
+                    cached_counts.expert.1,
+                ),
+                ("debloat", 3) => (
+                    Some(DashCounterCategory::DebloatUnsafe),
+                    cached_counts.unsafe_count.0,
+                    cached_counts.unsafe_count.1,
+                ),
+                ("debloat", 4) => (
+                    Some(DashCounterCategory::DebloatUnknown),
+                    cached_counts.unknown.0,
+                    cached_counts.unknown.1,
+                ),
                 ("stalkerware", 0) => {
                     let shared_store = crate::shared_store_stt::get_shared_store();
                     let installed_packages = shared_store.get_installed_packages();
@@ -1077,27 +1168,50 @@ impl UadShizukuApp {
 
                     let is_pkg_enabled = |pkg: &crate::adb::PackageFingerprint| -> bool {
                         let is_system = pkg.flags.contains("SYSTEM");
-                        pkg.users.first().map(|u| {
-                            let enabled_str = match u.enabled {
-                                0 => if !u.installed && is_system { "REMOVED_USER" } else { "DEFAULT" },
-                                1 => "ENABLED",
-                                2 => "DISABLED",
-                                3 => "DISABLED_USER",
-                                _ => "UNKNOWN",
-                            };
-                            enabled_str == "ENABLED" || enabled_str == "DEFAULT" || enabled_str == "UNKNOWN"
-                        }).unwrap_or(false)
+                        pkg.users
+                            .first()
+                            .map(|u| {
+                                let enabled_str = match u.enabled {
+                                    0 => {
+                                        if !u.installed && is_system {
+                                            "REMOVED_USER"
+                                        } else {
+                                            "DEFAULT"
+                                        }
+                                    }
+                                    1 => "ENABLED",
+                                    2 => "DISABLED",
+                                    3 => "DISABLED_USER",
+                                    _ => "UNKNOWN",
+                                };
+                                enabled_str == "ENABLED"
+                                    || enabled_str == "DEFAULT"
+                                    || enabled_str == "UNKNOWN"
+                            })
+                            .unwrap_or(false)
                     };
 
                     let (enabled, total) = if let Some(indicators) = &stalkerware_indicators {
-                        let detected = installed_packages.iter().filter(|pkg| indicators.is_stalkerware(&pkg.pkg)).count();
-                        let enabled_detected = installed_packages.iter().filter(|pkg| indicators.is_stalkerware(&pkg.pkg) && is_pkg_enabled(pkg)).count();
+                        let detected = installed_packages
+                            .iter()
+                            .filter(|pkg| indicators.is_stalkerware(&pkg.pkg))
+                            .count();
+                        let enabled_detected = installed_packages
+                            .iter()
+                            .filter(|pkg| {
+                                indicators.is_stalkerware(&pkg.pkg) && is_pkg_enabled(pkg)
+                            })
+                            .count();
                         (enabled_detected, detected)
                     } else {
                         (0, 0)
                     };
-                    (Some(DashCounterCategory::StalkerwareDetected), enabled, total)
-                },
+                    (
+                        Some(DashCounterCategory::StalkerwareDetected),
+                        enabled,
+                        total,
+                    )
+                }
                 ("stalkerware", 1) => {
                     let shared_store = crate::shared_store_stt::get_shared_store();
                     let installed_packages = shared_store.get_installed_packages();
@@ -1105,27 +1219,50 @@ impl UadShizukuApp {
 
                     let is_pkg_enabled = |pkg: &crate::adb::PackageFingerprint| -> bool {
                         let is_system = pkg.flags.contains("SYSTEM");
-                        pkg.users.first().map(|u| {
-                            let enabled_str = match u.enabled {
-                                0 => if !u.installed && is_system { "REMOVED_USER" } else { "DEFAULT" },
-                                1 => "ENABLED",
-                                2 => "DISABLED",
-                                3 => "DISABLED_USER",
-                                _ => "UNKNOWN",
-                            };
-                            enabled_str == "ENABLED" || enabled_str == "DEFAULT" || enabled_str == "UNKNOWN"
-                        }).unwrap_or(false)
+                        pkg.users
+                            .first()
+                            .map(|u| {
+                                let enabled_str = match u.enabled {
+                                    0 => {
+                                        if !u.installed && is_system {
+                                            "REMOVED_USER"
+                                        } else {
+                                            "DEFAULT"
+                                        }
+                                    }
+                                    1 => "ENABLED",
+                                    2 => "DISABLED",
+                                    3 => "DISABLED_USER",
+                                    _ => "UNKNOWN",
+                                };
+                                enabled_str == "ENABLED"
+                                    || enabled_str == "DEFAULT"
+                                    || enabled_str == "UNKNOWN"
+                            })
+                            .unwrap_or(false)
                     };
 
                     let (enabled, total) = if let Some(indicators) = &stalkerware_indicators {
-                        let undetected = installed_packages.iter().filter(|pkg| !indicators.is_stalkerware(&pkg.pkg)).count();
-                        let enabled_undetected = installed_packages.iter().filter(|pkg| !indicators.is_stalkerware(&pkg.pkg) && is_pkg_enabled(pkg)).count();
+                        let undetected = installed_packages
+                            .iter()
+                            .filter(|pkg| !indicators.is_stalkerware(&pkg.pkg))
+                            .count();
+                        let enabled_undetected = installed_packages
+                            .iter()
+                            .filter(|pkg| {
+                                !indicators.is_stalkerware(&pkg.pkg) && is_pkg_enabled(pkg)
+                            })
+                            .count();
                         (enabled_undetected, undetected)
                     } else {
                         (installed_packages.len(), installed_packages.len())
                     };
-                    (Some(DashCounterCategory::StalkerwareUndetected), enabled, total)
-                },
+                    (
+                        Some(DashCounterCategory::StalkerwareUndetected),
+                        enabled,
+                        total,
+                    )
+                }
                 ("izzyrisk", 0) => {
                     let shared_store = crate::shared_store_stt::get_shared_store();
                     let installed_packages = shared_store.get_installed_packages();
@@ -1133,26 +1270,48 @@ impl UadShizukuApp {
 
                     let is_pkg_enabled = |pkg: &crate::adb::PackageFingerprint| -> bool {
                         let is_system = pkg.flags.contains("SYSTEM");
-                        pkg.users.first().map(|u| {
-                            let enabled_str = match u.enabled {
-                                0 => if !u.installed && is_system { "REMOVED_USER" } else { "DEFAULT" },
-                                1 => "ENABLED",
-                                2 => "DISABLED",
-                                3 => "DISABLED_USER",
-                                _ => "UNKNOWN",
-                            };
-                            enabled_str == "ENABLED" || enabled_str == "DEFAULT" || enabled_str == "UNKNOWN"
-                        }).unwrap_or(false)
+                        pkg.users
+                            .first()
+                            .map(|u| {
+                                let enabled_str = match u.enabled {
+                                    0 => {
+                                        if !u.installed && is_system {
+                                            "REMOVED_USER"
+                                        } else {
+                                            "DEFAULT"
+                                        }
+                                    }
+                                    1 => "ENABLED",
+                                    2 => "DISABLED",
+                                    3 => "DISABLED_USER",
+                                    _ => "UNKNOWN",
+                                };
+                                enabled_str == "ENABLED"
+                                    || enabled_str == "DEFAULT"
+                                    || enabled_str == "UNKNOWN"
+                            })
+                            .unwrap_or(false)
                     };
 
-                    let total = installed_packages.iter().filter(|pkg| {
-                        package_risk_scores.get(&pkg.pkg).map_or(false, |&score| score > 20)
-                    }).count();
-                    let enabled = installed_packages.iter().filter(|pkg| {
-                        package_risk_scores.get(&pkg.pkg).map_or(false, |&score| score > 20) && is_pkg_enabled(pkg)
-                    }).count();
+                    let total = installed_packages
+                        .iter()
+                        .filter(|pkg| {
+                            package_risk_scores
+                                .get(&pkg.pkg)
+                                .map_or(false, |&score| score > 20)
+                        })
+                        .count();
+                    let enabled = installed_packages
+                        .iter()
+                        .filter(|pkg| {
+                            package_risk_scores
+                                .get(&pkg.pkg)
+                                .map_or(false, |&score| score > 20)
+                                && is_pkg_enabled(pkg)
+                        })
+                        .count();
                     (Some(DashCounterCategory::IzzyRiskHigh), enabled, total)
-                },
+                }
                 ("izzyrisk", 1) => {
                     let shared_store = crate::shared_store_stt::get_shared_store();
                     let installed_packages = shared_store.get_installed_packages();
@@ -1160,26 +1319,48 @@ impl UadShizukuApp {
 
                     let is_pkg_enabled = |pkg: &crate::adb::PackageFingerprint| -> bool {
                         let is_system = pkg.flags.contains("SYSTEM");
-                        pkg.users.first().map(|u| {
-                            let enabled_str = match u.enabled {
-                                0 => if !u.installed && is_system { "REMOVED_USER" } else { "DEFAULT" },
-                                1 => "ENABLED",
-                                2 => "DISABLED",
-                                3 => "DISABLED_USER",
-                                _ => "UNKNOWN",
-                            };
-                            enabled_str == "ENABLED" || enabled_str == "DEFAULT" || enabled_str == "UNKNOWN"
-                        }).unwrap_or(false)
+                        pkg.users
+                            .first()
+                            .map(|u| {
+                                let enabled_str = match u.enabled {
+                                    0 => {
+                                        if !u.installed && is_system {
+                                            "REMOVED_USER"
+                                        } else {
+                                            "DEFAULT"
+                                        }
+                                    }
+                                    1 => "ENABLED",
+                                    2 => "DISABLED",
+                                    3 => "DISABLED_USER",
+                                    _ => "UNKNOWN",
+                                };
+                                enabled_str == "ENABLED"
+                                    || enabled_str == "DEFAULT"
+                                    || enabled_str == "UNKNOWN"
+                            })
+                            .unwrap_or(false)
                     };
 
-                    let total = installed_packages.iter().filter(|pkg| {
-                        package_risk_scores.get(&pkg.pkg).map_or(false, |&score| score >= 11 && score <= 20)
-                    }).count();
-                    let enabled = installed_packages.iter().filter(|pkg| {
-                        package_risk_scores.get(&pkg.pkg).map_or(false, |&score| score >= 11 && score <= 20) && is_pkg_enabled(pkg)
-                    }).count();
+                    let total = installed_packages
+                        .iter()
+                        .filter(|pkg| {
+                            package_risk_scores
+                                .get(&pkg.pkg)
+                                .map_or(false, |&score| score >= 11 && score <= 20)
+                        })
+                        .count();
+                    let enabled = installed_packages
+                        .iter()
+                        .filter(|pkg| {
+                            package_risk_scores
+                                .get(&pkg.pkg)
+                                .map_or(false, |&score| score >= 11 && score <= 20)
+                                && is_pkg_enabled(pkg)
+                        })
+                        .count();
                     (Some(DashCounterCategory::IzzyRiskModerate), enabled, total)
-                },
+                }
                 ("izzyrisk", 2) => {
                     let shared_store = crate::shared_store_stt::get_shared_store();
                     let installed_packages = shared_store.get_installed_packages();
@@ -1187,26 +1368,48 @@ impl UadShizukuApp {
 
                     let is_pkg_enabled = |pkg: &crate::adb::PackageFingerprint| -> bool {
                         let is_system = pkg.flags.contains("SYSTEM");
-                        pkg.users.first().map(|u| {
-                            let enabled_str = match u.enabled {
-                                0 => if !u.installed && is_system { "REMOVED_USER" } else { "DEFAULT" },
-                                1 => "ENABLED",
-                                2 => "DISABLED",
-                                3 => "DISABLED_USER",
-                                _ => "UNKNOWN",
-                            };
-                            enabled_str == "ENABLED" || enabled_str == "DEFAULT" || enabled_str == "UNKNOWN"
-                        }).unwrap_or(false)
+                        pkg.users
+                            .first()
+                            .map(|u| {
+                                let enabled_str = match u.enabled {
+                                    0 => {
+                                        if !u.installed && is_system {
+                                            "REMOVED_USER"
+                                        } else {
+                                            "DEFAULT"
+                                        }
+                                    }
+                                    1 => "ENABLED",
+                                    2 => "DISABLED",
+                                    3 => "DISABLED_USER",
+                                    _ => "UNKNOWN",
+                                };
+                                enabled_str == "ENABLED"
+                                    || enabled_str == "DEFAULT"
+                                    || enabled_str == "UNKNOWN"
+                            })
+                            .unwrap_or(false)
                     };
 
-                    let total = installed_packages.iter().filter(|pkg| {
-                        package_risk_scores.get(&pkg.pkg).map_or(false, |&score| score >= 1 && score <= 10)
-                    }).count();
-                    let enabled = installed_packages.iter().filter(|pkg| {
-                        package_risk_scores.get(&pkg.pkg).map_or(false, |&score| score >= 1 && score <= 10) && is_pkg_enabled(pkg)
-                    }).count();
+                    let total = installed_packages
+                        .iter()
+                        .filter(|pkg| {
+                            package_risk_scores
+                                .get(&pkg.pkg)
+                                .map_or(false, |&score| score >= 1 && score <= 10)
+                        })
+                        .count();
+                    let enabled = installed_packages
+                        .iter()
+                        .filter(|pkg| {
+                            package_risk_scores
+                                .get(&pkg.pkg)
+                                .map_or(false, |&score| score >= 1 && score <= 10)
+                                && is_pkg_enabled(pkg)
+                        })
+                        .count();
                     (Some(DashCounterCategory::IzzyRiskNormal), enabled, total)
-                },
+                }
                 ("izzyrisk", 3) => {
                     let shared_store = crate::shared_store_stt::get_shared_store();
                     let installed_packages = shared_store.get_installed_packages();
@@ -1214,42 +1417,102 @@ impl UadShizukuApp {
 
                     let is_pkg_enabled = |pkg: &crate::adb::PackageFingerprint| -> bool {
                         let is_system = pkg.flags.contains("SYSTEM");
-                        pkg.users.first().map(|u| {
-                            let enabled_str = match u.enabled {
-                                0 => if !u.installed && is_system { "REMOVED_USER" } else { "DEFAULT" },
-                                1 => "ENABLED",
-                                2 => "DISABLED",
-                                3 => "DISABLED_USER",
-                                _ => "UNKNOWN",
-                            };
-                            enabled_str == "ENABLED" || enabled_str == "DEFAULT" || enabled_str == "UNKNOWN"
-                        }).unwrap_or(false)
+                        pkg.users
+                            .first()
+                            .map(|u| {
+                                let enabled_str = match u.enabled {
+                                    0 => {
+                                        if !u.installed && is_system {
+                                            "REMOVED_USER"
+                                        } else {
+                                            "DEFAULT"
+                                        }
+                                    }
+                                    1 => "ENABLED",
+                                    2 => "DISABLED",
+                                    3 => "DISABLED_USER",
+                                    _ => "UNKNOWN",
+                                };
+                                enabled_str == "ENABLED"
+                                    || enabled_str == "DEFAULT"
+                                    || enabled_str == "UNKNOWN"
+                            })
+                            .unwrap_or(false)
                     };
 
-                    let total = installed_packages.iter().filter(|pkg| {
-                        package_risk_scores.get(&pkg.pkg).map_or(false, |&score| score == 0)
-                    }).count();
-                    let enabled = installed_packages.iter().filter(|pkg| {
-                        package_risk_scores.get(&pkg.pkg).map_or(false, |&score| score == 0) && is_pkg_enabled(pkg)
-                    }).count();
+                    let total = installed_packages
+                        .iter()
+                        .filter(|pkg| {
+                            package_risk_scores
+                                .get(&pkg.pkg)
+                                .map_or(false, |&score| score == 0)
+                        })
+                        .count();
+                    let enabled = installed_packages
+                        .iter()
+                        .filter(|pkg| {
+                            package_risk_scores
+                                .get(&pkg.pkg)
+                                .map_or(false, |&score| score == 0)
+                                && is_pkg_enabled(pkg)
+                        })
+                        .count();
                     (Some(DashCounterCategory::IzzyRiskSafe), enabled, total)
-                },
-                ("virustotal", 0) => (Some(DashCounterCategory::VirusTotalMalicious), cached_scan_counts.vt_counts.1.0, cached_scan_counts.vt_counts.1.1),
-                ("virustotal", 1) => (Some(DashCounterCategory::VirusTotalSuspicious), cached_scan_counts.vt_counts.2.0, cached_scan_counts.vt_counts.2.1),
-                ("virustotal", 2) => (Some(DashCounterCategory::VirusTotalSafe), cached_scan_counts.vt_counts.3.0, cached_scan_counts.vt_counts.3.1),
-                ("virustotal", 3) => (Some(DashCounterCategory::VirusTotalNotScanned), cached_scan_counts.vt_counts.4.0, cached_scan_counts.vt_counts.4.1),
-                ("hybridanalysis", 0) => (Some(DashCounterCategory::HybridAnalysisMalicious), cached_scan_counts.ha_counts.1.0, cached_scan_counts.ha_counts.1.1),
-                ("hybridanalysis", 1) => (Some(DashCounterCategory::HybridAnalysisMaliciousIgnored), cached_scan_counts.ha_counts.2.0, cached_scan_counts.ha_counts.2.1),
-                ("hybridanalysis", 2) => (Some(DashCounterCategory::HybridAnalysisSuspicious), cached_scan_counts.ha_counts.3.0, cached_scan_counts.ha_counts.3.1),
-                ("hybridanalysis", 3) => (Some(DashCounterCategory::HybridAnalysisSafe), cached_scan_counts.ha_counts.4.0, cached_scan_counts.ha_counts.4.1),
-                ("hybridanalysis", 4) => (Some(DashCounterCategory::HybridAnalysisNotScanned), cached_scan_counts.ha_counts.5.0, cached_scan_counts.ha_counts.5.1),
+                }
+                ("virustotal", 0) => (
+                    Some(DashCounterCategory::VirusTotalMalicious),
+                    cached_scan_counts.vt_counts.1 .0,
+                    cached_scan_counts.vt_counts.1 .1,
+                ),
+                ("virustotal", 1) => (
+                    Some(DashCounterCategory::VirusTotalSuspicious),
+                    cached_scan_counts.vt_counts.2 .0,
+                    cached_scan_counts.vt_counts.2 .1,
+                ),
+                ("virustotal", 2) => (
+                    Some(DashCounterCategory::VirusTotalSafe),
+                    cached_scan_counts.vt_counts.3 .0,
+                    cached_scan_counts.vt_counts.3 .1,
+                ),
+                ("virustotal", 3) => (
+                    Some(DashCounterCategory::VirusTotalNotScanned),
+                    cached_scan_counts.vt_counts.4 .0,
+                    cached_scan_counts.vt_counts.4 .1,
+                ),
+                ("hybridanalysis", 0) => (
+                    Some(DashCounterCategory::HybridAnalysisMalicious),
+                    cached_scan_counts.ha_counts.1 .0,
+                    cached_scan_counts.ha_counts.1 .1,
+                ),
+                ("hybridanalysis", 1) => (
+                    Some(DashCounterCategory::HybridAnalysisMaliciousIgnored),
+                    cached_scan_counts.ha_counts.2 .0,
+                    cached_scan_counts.ha_counts.2 .1,
+                ),
+                ("hybridanalysis", 2) => (
+                    Some(DashCounterCategory::HybridAnalysisSuspicious),
+                    cached_scan_counts.ha_counts.3 .0,
+                    cached_scan_counts.ha_counts.3 .1,
+                ),
+                ("hybridanalysis", 3) => (
+                    Some(DashCounterCategory::HybridAnalysisSafe),
+                    cached_scan_counts.ha_counts.4 .0,
+                    cached_scan_counts.ha_counts.4 .1,
+                ),
+                ("hybridanalysis", 4) => (
+                    Some(DashCounterCategory::HybridAnalysisNotScanned),
+                    cached_scan_counts.ha_counts.5 .0,
+                    cached_scan_counts.ha_counts.5 .1,
+                ),
                 ("offa", idx) => {
                     // Retrieve category name and apps from temp storage
                     let category_name = ui.ctx().data(|data| {
                         data.get_temp::<String>(egui::Id::new(format!("offa_category_{}", idx)))
                     });
                     let apps_data = ui.ctx().data(|data| {
-                        data.get_temp::<Vec<crate::tab_apps_control_stt::AppEntry>>(egui::Id::new(format!("offa_apps_{}", idx)))
+                        data.get_temp::<Vec<crate::tab_apps_control_stt::AppEntry>>(egui::Id::new(
+                            format!("offa_apps_{}", idx),
+                        ))
                     });
 
                     if let (Some(category), Some(apps)) = (category_name, apps_data) {
@@ -1257,60 +1520,70 @@ impl UadShizukuApp {
                         self.dlg_dashcounter_details.offa_apps = apps.clone();
 
                         // Helper to check if an app is installed
-                        let is_app_installed = |app_entry: &crate::tab_apps_control_stt::AppEntry| -> bool {
-                            // Extract package name from links if not explicitly set
-                            let package_name = app_entry.package_name.clone().or_else(|| {
-                                // Try to extract from F-Droid or IzzyOnDroid link
-                                for (url, _link_type) in &app_entry.links {
-                                    // F-Droid format: https://f-droid.org/packages/com.example.app
-                                    if url.contains("f-droid.org") && url.contains("/packages/") {
-                                        if let Some(start) = url.find("/packages/") {
-                                            let after = &url[start + 10..];
-                                            let end = after.find('/').unwrap_or(after.len());
-                                            let pkg = after[..end].trim();
-                                            if !pkg.is_empty() && pkg.contains('.') {
-                                                return Some(pkg.to_string());
+                        let is_app_installed =
+                            |app_entry: &crate::tab_apps_control_stt::AppEntry| -> bool {
+                                // Extract package name from links if not explicitly set
+                                let package_name = app_entry.package_name.clone().or_else(|| {
+                                    // Try to extract from F-Droid or IzzyOnDroid link
+                                    for (url, _link_type) in &app_entry.links {
+                                        // F-Droid format: https://f-droid.org/packages/com.example.app
+                                        if url.contains("f-droid.org") && url.contains("/packages/")
+                                        {
+                                            if let Some(start) = url.find("/packages/") {
+                                                let after = &url[start + 10..];
+                                                let end = after.find('/').unwrap_or(after.len());
+                                                let pkg = after[..end].trim();
+                                                if !pkg.is_empty() && pkg.contains('.') {
+                                                    return Some(pkg.to_string());
+                                                }
+                                            }
+                                        }
+                                        // IzzyOnDroid format: https://apt.izzysoft.de/fdroid/index/apk/com.example.app
+                                        else if url.contains("izzysoft.de")
+                                            && url.contains("/apk/")
+                                        {
+                                            if let Some(start) = url.find("/apk/") {
+                                                let after = &url[start + 5..];
+                                                let end = after.find('/').unwrap_or(after.len());
+                                                let pkg = after[..end].trim();
+                                                if !pkg.is_empty() && pkg.contains('.') {
+                                                    return Some(pkg.to_string());
+                                                }
                                             }
                                         }
                                     }
-                                    // IzzyOnDroid format: https://apt.izzysoft.de/fdroid/index/apk/com.example.app
-                                    else if url.contains("izzysoft.de") && url.contains("/apk/") {
-                                        if let Some(start) = url.find("/apk/") {
-                                            let after = &url[start + 5..];
-                                            let end = after.find('/').unwrap_or(after.len());
-                                            let pkg = after[..end].trim();
-                                            if !pkg.is_empty() && pkg.contains('.') {
-                                                return Some(pkg.to_string());
-                                            }
-                                        }
-                                    }
-                                }
-                                None
-                            });
+                                    None
+                                });
 
-                            // Check if app is installed - only use exact package name matching
-                            if let Some(ref pkg_name) = package_name {
-                                installed_packages.iter().any(|pkg| &pkg.pkg == pkg_name)
-                            } else {
-                                false
-                            }
-                        };
+                                // Check if app is installed - only use exact package name matching
+                                if let Some(ref pkg_name) = package_name {
+                                    installed_packages.iter().any(|pkg| &pkg.pkg == pkg_name)
+                                } else {
+                                    false
+                                }
+                            };
 
                         let total = apps.len();
                         let installed = apps.iter().filter(|app| is_app_installed(app)).count();
 
-                        (Some(DashCounterCategory::OffaCategory(category)), installed, total)
+                        (
+                            Some(DashCounterCategory::OffaCategory(category)),
+                            installed,
+                            total,
+                        )
                     } else {
                         (None, 0, 0)
                     }
-                },
+                }
                 ("fmhy", idx) => {
                     // Retrieve category name and apps from temp storage
                     let category_name = ui.ctx().data(|data| {
                         data.get_temp::<String>(egui::Id::new(format!("fmhy_category_{}", idx)))
                     });
                     let apps_data = ui.ctx().data(|data| {
-                        data.get_temp::<Vec<crate::tab_apps_control_stt::AppEntry>>(egui::Id::new(format!("fmhy_apps_{}", idx)))
+                        data.get_temp::<Vec<crate::tab_apps_control_stt::AppEntry>>(egui::Id::new(
+                            format!("fmhy_apps_{}", idx),
+                        ))
                     });
 
                     if let (Some(category), Some(apps)) = (category_name, apps_data) {
@@ -1318,57 +1591,66 @@ impl UadShizukuApp {
                         self.dlg_dashcounter_details.offa_apps = apps.clone();
 
                         // Helper to check if an app is installed
-                        let is_app_installed = |app_entry: &crate::tab_apps_control_stt::AppEntry| -> bool {
-                            // Extract package name from links if not explicitly set
-                            let package_name = app_entry.package_name.clone().or_else(|| {
-                                // Try to extract from F-Droid or IzzyOnDroid link
-                                for (url, _link_type) in &app_entry.links {
-                                    // F-Droid format: https://f-droid.org/packages/com.example.app
-                                    if url.contains("f-droid.org") && url.contains("/packages/") {
-                                        if let Some(start) = url.find("/packages/") {
-                                            let after = &url[start + 10..];
-                                            let end = after.find('/').unwrap_or(after.len());
-                                            let pkg = after[..end].trim();
-                                            if !pkg.is_empty() && pkg.contains('.') {
-                                                return Some(pkg.to_string());
+                        let is_app_installed =
+                            |app_entry: &crate::tab_apps_control_stt::AppEntry| -> bool {
+                                // Extract package name from links if not explicitly set
+                                let package_name = app_entry.package_name.clone().or_else(|| {
+                                    // Try to extract from F-Droid or IzzyOnDroid link
+                                    for (url, _link_type) in &app_entry.links {
+                                        // F-Droid format: https://f-droid.org/packages/com.example.app
+                                        if url.contains("f-droid.org") && url.contains("/packages/")
+                                        {
+                                            if let Some(start) = url.find("/packages/") {
+                                                let after = &url[start + 10..];
+                                                let end = after.find('/').unwrap_or(after.len());
+                                                let pkg = after[..end].trim();
+                                                if !pkg.is_empty() && pkg.contains('.') {
+                                                    return Some(pkg.to_string());
+                                                }
+                                            }
+                                        }
+                                        // IzzyOnDroid format: https://apt.izzysoft.de/fdroid/index/apk/com.example.app
+                                        else if url.contains("izzysoft.de")
+                                            && url.contains("/apk/")
+                                        {
+                                            if let Some(start) = url.find("/apk/") {
+                                                let after = &url[start + 5..];
+                                                let end = after.find('/').unwrap_or(after.len());
+                                                let pkg = after[..end].trim();
+                                                if !pkg.is_empty() && pkg.contains('.') {
+                                                    return Some(pkg.to_string());
+                                                }
                                             }
                                         }
                                     }
-                                    // IzzyOnDroid format: https://apt.izzysoft.de/fdroid/index/apk/com.example.app
-                                    else if url.contains("izzysoft.de") && url.contains("/apk/") {
-                                        if let Some(start) = url.find("/apk/") {
-                                            let after = &url[start + 5..];
-                                            let end = after.find('/').unwrap_or(after.len());
-                                            let pkg = after[..end].trim();
-                                            if !pkg.is_empty() && pkg.contains('.') {
-                                                return Some(pkg.to_string());
-                                            }
-                                        }
-                                    }
-                                }
-                                None
-                            });
+                                    None
+                                });
 
-                            // Check if app is installed - only use exact package name matching
-                            if let Some(ref pkg_name) = package_name {
-                                installed_packages.iter().any(|pkg| &pkg.pkg == pkg_name)
-                            } else {
-                                false
-                            }
-                        };
+                                // Check if app is installed - only use exact package name matching
+                                if let Some(ref pkg_name) = package_name {
+                                    installed_packages.iter().any(|pkg| &pkg.pkg == pkg_name)
+                                } else {
+                                    false
+                                }
+                            };
 
                         let total = apps.len();
                         let installed = apps.iter().filter(|app| is_app_installed(app)).count();
 
-                        (Some(DashCounterCategory::FmhyCategory(category)), installed, total)
+                        (
+                            Some(DashCounterCategory::FmhyCategory(category)),
+                            installed,
+                            total,
+                        )
                     } else {
                         (None, 0, 0)
                     }
-                },
+                }
                 _ => (None, 0, 0),
             };
             if let Some(cat) = category {
-                self.dlg_dashcounter_details.open(cat, count_enabled, count_total);
+                self.dlg_dashcounter_details
+                    .open(cat, count_enabled, count_total);
             }
             // Clear the temp data
             ui.ctx().data_mut(|data| {
@@ -1398,9 +1680,10 @@ impl UadShizukuApp {
         // These need to be handled here because the tabs may not be rendered when viewing dashboard
 
         // Handle info button - open package details dialog
-        if let Some(pkg_id) = ui.ctx().data(|data| {
-            data.get_temp::<String>(egui::Id::new("info_clicked_package"))
-        }) {
+        if let Some(pkg_id) = ui
+            .ctx()
+            .data(|data| data.get_temp::<String>(egui::Id::new("info_clicked_package")))
+        {
             ui.ctx().data_mut(|data| {
                 data.remove::<String>(egui::Id::new("info_clicked_package"));
             });
@@ -1417,9 +1700,11 @@ impl UadShizukuApp {
         }
 
         // Handle settings button - open settings dialog
-        if ui.ctx().data(|data| {
-            data.get_temp::<bool>(egui::Id::new("settings_button_clicked"))
-        }).unwrap_or(false) {
+        if ui
+            .ctx()
+            .data(|data| data.get_temp::<bool>(egui::Id::new("settings_button_clicked")))
+            .unwrap_or(false)
+        {
             ui.ctx().data_mut(|data| {
                 data.remove::<bool>(egui::Id::new("settings_button_clicked"));
             });
@@ -1432,7 +1717,8 @@ impl UadShizukuApp {
             self.dlg_settings.hybridanalysis_apikey = self.settings.hybridanalysis_apikey.clone();
             self.dlg_settings.virustotal_submit = self.settings.virustotal_submit;
             self.dlg_settings.hybridanalysis_submit = self.settings.hybridanalysis_submit;
-            self.dlg_settings.hybridanalysis_tag_ignorelist = self.settings.hybridanalysis_tag_ignorelist.clone();
+            self.dlg_settings.hybridanalysis_tag_ignorelist =
+                self.settings.hybridanalysis_tag_ignorelist.clone();
             self.dlg_settings.unsafe_app_remove = self.settings.unsafe_app_remove;
             self.dlg_settings.expert_app_remove = self.settings.expert_app_remove;
             self.dlg_settings.autoupdate = self.settings.autoupdate;
@@ -1457,7 +1743,9 @@ impl UadShizukuApp {
             }
             if let Some(pkg) = data.get_temp::<String>(egui::Id::new("uninstall_clicked_package")) {
                 uninstall_package = Some(pkg);
-                uninstall_is_system = data.get_temp::<bool>(egui::Id::new("uninstall_clicked_is_system")).unwrap_or(false);
+                uninstall_is_system = data
+                    .get_temp::<bool>(egui::Id::new("uninstall_clicked_is_system"))
+                    .unwrap_or(false);
                 data.remove::<String>(egui::Id::new("uninstall_clicked_package"));
                 data.remove::<bool>(egui::Id::new("uninstall_clicked_is_system"));
             }
@@ -1514,18 +1802,31 @@ impl UadShizukuApp {
 
         // Open uninstall confirmation dialog
         if let Some(pkg_name) = uninstall_package {
-            self.tab_debloat_control.uninstall_confirm_dialog.open_single(pkg_name, uninstall_is_system);
+            self.tab_debloat_control
+                .uninstall_confirm_dialog
+                .open_single(pkg_name, uninstall_is_system);
         }
 
         // Show uninstall confirm dialog (needed when viewing from dashboard)
-        if self.tab_debloat_control.uninstall_confirm_dialog.show(ui.ctx()) {
-            let pkgs = std::mem::take(&mut self.tab_debloat_control.uninstall_confirm_dialog.packages);
-            let sys_flags = std::mem::take(&mut self.tab_debloat_control.uninstall_confirm_dialog.is_system);
+        if self
+            .tab_debloat_control
+            .uninstall_confirm_dialog
+            .show(ui.ctx())
+        {
+            let pkgs =
+                std::mem::take(&mut self.tab_debloat_control.uninstall_confirm_dialog.packages);
+            let sys_flags =
+                std::mem::take(&mut self.tab_debloat_control.uninstall_confirm_dialog.is_system);
             self.tab_debloat_control.uninstall_confirm_dialog.reset();
 
             if let Some(ref device) = self.tab_debloat_control.selected_device {
                 // Use tab's batch uninstall to handle the operation properly
-                self.tab_debloat_control.start_batch_uninstall(pkgs, sys_flags, device.clone(), uad_ng_lists.as_ref());
+                self.tab_debloat_control.start_batch_uninstall(
+                    pkgs,
+                    sys_flags,
+                    device.clone(),
+                    uad_ng_lists.as_ref(),
+                );
             } else {
                 log::error!("No device selected for uninstall");
             }
@@ -1533,10 +1834,14 @@ impl UadShizukuApp {
 
         // Handle install button from offa dashcounter details
         if let Some(app) = ui.ctx().data(|data| {
-            data.get_temp::<crate::tab_apps_control_stt::AppEntry>(egui::Id::new("install_clicked_app"))
+            data.get_temp::<crate::tab_apps_control_stt::AppEntry>(egui::Id::new(
+                "install_clicked_app",
+            ))
         }) {
             ui.ctx().data_mut(|data| {
-                data.remove::<crate::tab_apps_control_stt::AppEntry>(egui::Id::new("install_clicked_app"));
+                data.remove::<crate::tab_apps_control_stt::AppEntry>(egui::Id::new(
+                    "install_clicked_app",
+                ));
             });
 
             // Use tab_apps_control's install_app method
@@ -1552,20 +1857,33 @@ impl UadShizukuApp {
             // Delete from database
             let mut conn = crate::db::establish_connection();
             if let Err(e) = crate::db_virustotal::delete_results_by_package(&mut conn, &pkg_name) {
-                log::error!("Failed to delete VirusTotal results for {}: {}", pkg_name, e);
+                log::error!(
+                    "Failed to delete VirusTotal results for {}: {}",
+                    pkg_name,
+                    e
+                );
             } else {
                 log::info!("Deleted VirusTotal results for: {}", pkg_name);
             }
 
-            if let Err(e) = crate::db_hybridanalysis::delete_results_by_package(&mut conn, &pkg_name) {
-                log::error!("Failed to delete HybridAnalysis results for {}: {}", pkg_name, e);
+            if let Err(e) =
+                crate::db_hybridanalysis::delete_results_by_package(&mut conn, &pkg_name)
+            {
+                log::error!(
+                    "Failed to delete HybridAnalysis results for {}: {}",
+                    pkg_name,
+                    e
+                );
             } else {
                 log::info!("Deleted HybridAnalysis results for: {}", pkg_name);
             }
 
             // Get package info for scanning
             let installed_packages = shared_store.installed_packages.lock().unwrap();
-            let package_info = installed_packages.iter().find(|p| p.pkg == pkg_name).cloned();
+            let package_info = installed_packages
+                .iter()
+                .find(|p| p.pkg == pkg_name)
+                .cloned();
 
             if let Some(package) = package_info {
                 // Get hashes for the package
@@ -1600,7 +1918,9 @@ impl UadShizukuApp {
                     let has_invalid_hashes = sha256sums.iter().any(|s| s.len() != 64);
 
                     if needs_directory_scan || has_invalid_hashes {
-                        if let Ok((new_paths, new_sha256sums)) = crate::adb::get_single_package_sha256sum(serial, &pkg_name) {
+                        if let Ok((new_paths, new_sha256sums)) =
+                            crate::adb::get_single_package_sha256sum(serial, &pkg_name)
+                        {
                             if !new_paths.is_empty() && !new_sha256sums.is_empty() {
                                 paths_str = new_paths;
                                 sha256sums_str = new_sha256sums;
@@ -1620,7 +1940,12 @@ impl UadShizukuApp {
 
                 // Start VirusTotal scan in background
                 let vt_scanner_state = shared_store.vt_scanner_state.lock().unwrap().clone();
-                if let (Some(ref vt_state), Some(ref vt_limiter), Some(ref api_key), Some(ref serial)) = (
+                if let (
+                    Some(ref vt_state),
+                    Some(ref vt_limiter),
+                    Some(ref api_key),
+                    Some(ref serial),
+                ) = (
                     &vt_scanner_state,
                     &self.tab_scan_control.vt_rate_limiter,
                     &self.tab_scan_control.vt_api_key,
@@ -1636,7 +1961,10 @@ impl UadShizukuApp {
 
                     // Reset state to Pending first
                     if let Ok(mut state) = vt_state.lock() {
-                        state.insert(pkg_name.clone(), crate::calc_virustotal_stt::ScanStatus::Pending);
+                        state.insert(
+                            pkg_name.clone(),
+                            crate::calc_virustotal_stt::ScanStatus::Pending,
+                        );
                     }
 
                     std::thread::spawn(move || {
@@ -1658,7 +1986,12 @@ impl UadShizukuApp {
 
                 // Start HybridAnalysis scan in background
                 let ha_scanner_state = shared_store.ha_scanner_state.lock().unwrap().clone();
-                if let (Some(ref ha_state), Some(ref ha_limiter), Some(ref api_key), Some(ref serial)) = (
+                if let (
+                    Some(ref ha_state),
+                    Some(ref ha_limiter),
+                    Some(ref api_key),
+                    Some(ref serial),
+                ) = (
                     &ha_scanner_state,
                     &self.tab_scan_control.ha_rate_limiter,
                     &self.tab_scan_control.ha_api_key,
@@ -1674,7 +2007,10 @@ impl UadShizukuApp {
 
                     // Reset state to Pending first
                     if let Ok(mut state) = ha_state.lock() {
-                        state.insert(pkg_name.clone(), crate::calc_hybridanalysis_stt::ScanStatus::Pending);
+                        state.insert(
+                            pkg_name.clone(),
+                            crate::calc_hybridanalysis_stt::ScanStatus::Pending,
+                        );
                     }
 
                     std::thread::spawn(move || {
@@ -1701,15 +2037,29 @@ impl UadShizukuApp {
         let uad_lists_for_dialog = shared_store.get_uad_ng_lists();
 
         match self.custom_selected {
-            1 => self.tab_debloat_control.package_details_dialog.show(ui.ctx(), &packages_for_dialog, &uad_lists_for_dialog),
-            2 => self.tab_scan_control.package_details_dialog.show(ui.ctx(), &packages_for_dialog, &uad_lists_for_dialog),
-            3 => self.tab_apps_control.package_details_dialog.show(ui.ctx(), &packages_for_dialog, &uad_lists_for_dialog),
-            _ => self.tab_debloat_control.package_details_dialog.show(ui.ctx(), &packages_for_dialog, &uad_lists_for_dialog), // Dashboard or other views
+            1 => self.tab_debloat_control.package_details_dialog.show(
+                ui.ctx(),
+                &packages_for_dialog,
+                &uad_lists_for_dialog,
+            ),
+            2 => self.tab_scan_control.package_details_dialog.show(
+                ui.ctx(),
+                &packages_for_dialog,
+                &uad_lists_for_dialog,
+            ),
+            3 => self.tab_apps_control.package_details_dialog.show(
+                ui.ctx(),
+                &packages_for_dialog,
+                &uad_lists_for_dialog,
+            ),
+            _ => self.tab_debloat_control.package_details_dialog.show(
+                ui.ctx(),
+                &packages_for_dialog,
+                &uad_lists_for_dialog,
+            ), // Dashboard or other views
         };
 
         // === Dashcounter details dialog end
-
-
     }
 
     fn show_menus(&mut self, ctx: &egui::Context) {
@@ -1800,12 +2150,14 @@ impl UadShizukuApp {
                 self.dlg_settings.fdroid_renderer = self.settings.fdroid_renderer;
                 self.dlg_settings.apkmirror_renderer = self.settings.apkmirror_renderer;
                 self.dlg_settings.virustotal_apikey = self.settings.virustotal_apikey.clone();
-                self.dlg_settings.hybridanalysis_apikey = self.settings.hybridanalysis_apikey.clone();
+                self.dlg_settings.hybridanalysis_apikey =
+                    self.settings.hybridanalysis_apikey.clone();
                 self.dlg_settings.virustotal_submit = self.settings.virustotal_submit;
                 self.dlg_settings.hybridanalysis_submit = self.settings.hybridanalysis_submit;
-                self.dlg_settings.hybridanalysis_tag_ignorelist = self.settings.hybridanalysis_tag_ignorelist.clone();
+                self.dlg_settings.hybridanalysis_tag_ignorelist =
+                    self.settings.hybridanalysis_tag_ignorelist.clone();
                 self.dlg_settings.unsafe_app_remove = self.settings.unsafe_app_remove;
-            self.dlg_settings.expert_app_remove = self.settings.expert_app_remove;
+                self.dlg_settings.expert_app_remove = self.settings.expert_app_remove;
                 self.dlg_settings.expert_app_remove = self.settings.expert_app_remove;
                 self.dlg_settings.autoupdate = self.settings.autoupdate;
                 self.dlg_settings.open();
@@ -1915,7 +2267,12 @@ impl UadShizukuApp {
                     self.dlg_update.current_version = info.current_version;
                     self.dlg_update.latest_version = info.latest_version.clone();
                     self.dlg_update.release_notes = info.release_notes;
-                    self.update_status = format!("{} {} → {}", tr!("update-available"), self.dlg_update.current_version, info.latest_version);
+                    self.update_status = format!(
+                        "{} {} → {}",
+                        tr!("update-available"),
+                        self.dlg_update.current_version,
+                        info.latest_version
+                    );
                     // Open update dialog automatically
                     self.dlg_update.open();
                 } else {
@@ -1941,7 +2298,11 @@ impl UadShizukuApp {
                 std::path::PathBuf::from("./tmp")
             };
 
-            match install::do_update(&self.dlg_update.download_url, &self.dlg_update.latest_version, &tmp_dir) {
+            match install::do_update(
+                &self.dlg_update.download_url,
+                &self.dlg_update.latest_version,
+                &tmp_dir,
+            ) {
                 InstallResult::Success(msg) => {
                     self.install_message = msg;
                     self.update_available = false;
@@ -1954,7 +2315,7 @@ impl UadShizukuApp {
             }
             self.install_dialog_open = true;
         }
-        
+
         #[cfg(target_os = "android")]
         {
             // On Android, open browser to download page
@@ -2009,7 +2370,11 @@ impl UadShizukuApp {
             let apkmirror_enabled = self.apkmirror_renderer.is_enabled;
 
             // Initialize and start worker queues if renderers are enabled (desktop only)
-            let db_path = self.config.as_ref().map(|c| c.db_dir.to_string_lossy().to_string()).unwrap_or_default();
+            let db_path = self
+                .config
+                .as_ref()
+                .map(|c| c.db_dir.to_string_lossy().to_string())
+                .unwrap_or_default();
 
             if google_play_enabled && self.google_play_queue.is_none() {
                 let queue = std::sync::Arc::new(crate::calc_googleplay::GooglePlayQueue::new());
@@ -2031,13 +2396,21 @@ impl UadShizukuApp {
             // Only enqueue packages when the table version changes (packages updated)
             let current_version = self.tab_debloat_control.table_version;
             if current_version != self.debloat_last_enqueued_version {
-                self.enqueue_visible_packages_for_debloat(google_play_enabled, fdroid_enabled, apkmirror_enabled);
+                self.enqueue_visible_packages_for_debloat(
+                    google_play_enabled,
+                    fdroid_enabled,
+                    apkmirror_enabled,
+                );
                 self.debloat_last_enqueued_version = current_version;
             }
 
             // Only load results periodically (every 500ms) instead of every frame
             let now = std::time::Instant::now();
-            if now.duration_since(self.debloat_last_result_load_time).as_millis() >= 500 {
+            if now
+                .duration_since(self.debloat_last_result_load_time)
+                .as_millis()
+                >= 500
+            {
                 self.load_renderer_results_to_debloat_cache();
                 self.debloat_last_result_load_time = now;
             }
@@ -2083,7 +2456,10 @@ impl UadShizukuApp {
                     // Check if any operation completed successfully
                     if let Ok(results) = queue.results.lock() {
                         let has_success = results.values().any(|status| {
-                            matches!(status, crate::app_operations_queue_stt::OperationStatus::Success(_))
+                            matches!(
+                                status,
+                                crate::app_operations_queue_stt::OperationStatus::Success(_)
+                            )
                         });
                         if has_success && !self.tab_apps_control.refresh_pending {
                             self.tab_apps_control.refresh_pending = true;
@@ -2211,8 +2587,13 @@ impl UadShizukuApp {
     }
 
     /// Load and parse app entries from an app list (used for dashboard independent loading)
-    fn load_app_list_entries(&self, app_list: &crate::tab_apps_control_stt::AppListSource) -> Vec<crate::tab_apps_control_stt::AppEntry> {
-        let cache_file = self.tab_apps_control.cache_dir
+    fn load_app_list_entries(
+        &self,
+        app_list: &crate::tab_apps_control_stt::AppListSource,
+    ) -> Vec<crate::tab_apps_control_stt::AppEntry> {
+        let cache_file = self
+            .tab_apps_control
+            .cache_dir
             .join(format!("{}.md", app_list.name.replace(" ", "_")));
 
         // Try to load from cache first
@@ -2354,7 +2735,8 @@ impl UadShizukuApp {
 
         // Update cached debloat counts
         let uad_ng_lists = shared_store.get_uad_ng_lists();
-        self.tab_debloat_control.update_cached_counts(&installed_packages, uad_ng_lists.as_ref());
+        self.tab_debloat_control
+            .update_cached_counts(&installed_packages, uad_ng_lists.as_ref());
 
         // Update cached scan counts for VT and HA
         let vt_scanner_state = shared_store.get_vt_scanner_state();
@@ -2995,9 +3377,8 @@ impl UadShizukuApp {
 
         // Use pre-calculated renderer flags from controller
         #[cfg(target_os = "android")]
-        let (google_play_enabled, fdroid_enabled, apkmirror_enabled, android_package_enabled) = {
-            (false, false, false, true)
-        };
+        let (google_play_enabled, fdroid_enabled, apkmirror_enabled, android_package_enabled) =
+            { (false, false, false, true) };
 
         #[cfg(not(target_os = "android"))]
         let (google_play_enabled, fdroid_enabled, apkmirror_enabled, android_package_enabled) = {
@@ -3107,7 +3488,8 @@ impl UadShizukuApp {
                 if let Some(status) = queue.get_status(pkg_id) {
                     match status {
                         crate::calc_googleplay_stt::FetchStatus::Success(app) => {
-                            self.tab_debloat_control.update_cached_google_play(pkg_id.clone(), app);
+                            self.tab_debloat_control
+                                .update_cached_google_play(pkg_id.clone(), app);
                         }
                         crate::calc_googleplay_stt::FetchStatus::Error(_) => {
                             // Cache 404 placeholder
@@ -3126,7 +3508,8 @@ impl UadShizukuApp {
                                 created_at: 0,
                                 updated_at: 0,
                             };
-                            self.tab_debloat_control.update_cached_google_play(pkg_id.clone(), placeholder);
+                            self.tab_debloat_control
+                                .update_cached_google_play(pkg_id.clone(), placeholder);
                         }
                         _ => {}
                     }
@@ -3143,7 +3526,8 @@ impl UadShizukuApp {
                 if let Some(status) = queue.get_status(pkg_id) {
                     match status {
                         crate::calc_fdroid_stt::FDroidFetchStatus::Success(app) => {
-                            self.tab_debloat_control.update_cached_fdroid(pkg_id.clone(), app);
+                            self.tab_debloat_control
+                                .update_cached_fdroid(pkg_id.clone(), app);
                         }
                         crate::calc_fdroid_stt::FDroidFetchStatus::Error(_) => {
                             // Cache 404 placeholder
@@ -3162,7 +3546,8 @@ impl UadShizukuApp {
                                 created_at: 0,
                                 updated_at: 0,
                             };
-                            self.tab_debloat_control.update_cached_fdroid(pkg_id.clone(), placeholder);
+                            self.tab_debloat_control
+                                .update_cached_fdroid(pkg_id.clone(), placeholder);
                         }
                         _ => {}
                     }
@@ -3179,7 +3564,8 @@ impl UadShizukuApp {
                 if let Some(status) = queue.get_status(pkg_id) {
                     match status {
                         crate::calc_apkmirror_stt::ApkMirrorFetchStatus::Success(app) => {
-                            self.tab_debloat_control.update_cached_apkmirror(pkg_id.clone(), app);
+                            self.tab_debloat_control
+                                .update_cached_apkmirror(pkg_id.clone(), app);
                         }
                         crate::calc_apkmirror_stt::ApkMirrorFetchStatus::Error(_) => {
                             // Cache 404 placeholder
@@ -3196,7 +3582,8 @@ impl UadShizukuApp {
                                 created_at: 0,
                                 updated_at: 0,
                             };
-                            self.tab_debloat_control.update_cached_apkmirror(pkg_id.clone(), placeholder);
+                            self.tab_debloat_control
+                                .update_cached_apkmirror(pkg_id.clone(), placeholder);
                         }
                         _ => {}
                     }
@@ -3207,7 +3594,8 @@ impl UadShizukuApp {
 
     fn render_scan_tab(&mut self, ui: &mut egui::Ui) {
         // Renderer settings already synced in controller
-        self.tab_scan_control.ui(ui, &self.settings.hybridanalysis_tag_ignorelist);
+        self.tab_scan_control
+            .ui(ui, &self.settings.hybridanalysis_tag_ignorelist);
     }
 
     fn render_apps_tab(&mut self, ui: &mut egui::Ui) {
@@ -3370,7 +3758,9 @@ impl UadShizukuApp {
                                 }
                             }
                             None => {
-                                log::error!("Failed to extract embedded data from GitHub HTML response");
+                                log::error!(
+                                    "Failed to extract embedded data from GitHub HTML response"
+                                );
                                 return;
                             }
                         }
@@ -3418,7 +3808,8 @@ impl UadShizukuApp {
 
     // Stalkerware IOC : https://github.com/AssoEchap/stalkerware-indicators
     pub fn retrieve_stalkerware_indicators(&mut self) {
-        const IOC_URL: &str = "https://github.com/AssoEchap/stalkerware-indicators/blob/master/ioc.yaml";
+        const IOC_URL: &str =
+            "https://github.com/AssoEchap/stalkerware-indicators/blob/master/ioc.yaml";
         const IOC_FILENAME: &str = "stalkerware_ioc.yaml";
 
         // Get cache directory from config
@@ -3482,7 +3873,10 @@ impl UadShizukuApp {
                             }
                         }
                     } else {
-                        log::error!("Failed to download stalkerware IoC: HTTP {}", response.status);
+                        log::error!(
+                            "Failed to download stalkerware IoC: HTTP {}",
+                            response.status
+                        );
                         return;
                     }
                 }
@@ -3523,8 +3917,10 @@ impl UadShizukuApp {
     /// Data is contained in: <script type="application/json" data-target="react-app.embeddedData">{data}</script>
     fn extract_github_embedded_data(html: &str) -> Option<String> {
         // Find the script tag with embedded data
-        let script_start = html.find(r#"<script type="application/json" data-target="react-app.embeddedData">"#)?;
-        let data_start = script_start + r#"<script type="application/json" data-target="react-app.embeddedData">"#.len();
+        let script_start =
+            html.find(r#"<script type="application/json" data-target="react-app.embeddedData">"#)?;
+        let data_start = script_start
+            + r#"<script type="application/json" data-target="react-app.embeddedData">"#.len();
         let data_end = html[data_start..].find("</script>")?;
         let json_str = &html[data_start..data_start + data_end];
 
@@ -3590,7 +3986,8 @@ impl UadShizukuApp {
         self.settings.hybridanalysis_apikey = self.dlg_settings.hybridanalysis_apikey.clone();
         self.settings.virustotal_submit = self.dlg_settings.virustotal_submit;
         self.settings.hybridanalysis_submit = self.dlg_settings.hybridanalysis_submit;
-        self.settings.hybridanalysis_tag_ignorelist = self.dlg_settings.hybridanalysis_tag_ignorelist.clone();
+        self.settings.hybridanalysis_tag_ignorelist =
+            self.dlg_settings.hybridanalysis_tag_ignorelist.clone();
         self.settings.google_play_renderer = self.dlg_settings.google_play_renderer;
         self.settings.fdroid_renderer = self.dlg_settings.fdroid_renderer;
         self.settings.apkmirror_renderer = self.dlg_settings.apkmirror_renderer;
@@ -3856,7 +4253,8 @@ impl eframe::App for UadShizukuApp {
             {
                 if let Some(multi_touch) = ctx.input(|i| i.multi_touch()) {
                     if multi_touch.num_touches >= 2 {
-                        self.zoom_factor = (self.zoom_factor * multi_touch.zoom_delta).clamp(0.25, 3.0);
+                        self.zoom_factor =
+                            (self.zoom_factor * multi_touch.zoom_delta).clamp(0.25, 3.0);
                     }
                 }
                 ctx.set_zoom_factor(self.zoom_factor);

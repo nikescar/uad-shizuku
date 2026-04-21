@@ -1,11 +1,11 @@
-use crate::adb::{PackageFingerprint, UserInfo, get_users};
+use crate::adb::{get_users, PackageFingerprint, UserInfo};
+use crate::material_symbol_icons::{ICON_DELETE, ICON_INFO, ICON_TOGGLE_OFF, ICON_TOGGLE_ON};
+use crate::models::PackageInfoCache;
 use crate::shared_store_stt::get_shared_store;
 use crate::uad_shizuku_app::{UadNgLists, UadShizukuApp};
-use crate::material_symbol_icons::{ICON_INFO, ICON_DELETE, ICON_TOGGLE_OFF, ICON_TOGGLE_ON};
-use crate::models::PackageInfoCache;
 use eframe::egui;
-use egui_material3::{icon_button_standard, DataTableCell, theme::get_global_color};
 use egui_i18n::tr;
+use egui_material3::{icon_button_standard, theme::get_global_color, DataTableCell};
 use std::collections::HashMap;
 
 #[cfg(not(target_os = "android"))]
@@ -48,7 +48,8 @@ pub fn load_texture_from_base64(
                     let size = [image.width() as _, image.height() as _];
                     let image_buffer = image.to_rgba8();
                     let pixels = image_buffer.as_flat_samples();
-                    let color_image = egui::ColorImage::from_rgba_unmultiplied(size, pixels.as_slice());
+                    let color_image =
+                        egui::ColorImage::from_rgba_unmultiplied(size, pixels.as_slice());
                     let texture = ctx.load_texture(
                         format!("{}_{}", prefix, pkg_id),
                         color_image,
@@ -195,10 +196,9 @@ pub fn render_app_description_cell(ctx: &egui::Context, pkg_id: &str) -> DataTab
 
     // Determine if we need scrollable title (for GooglePlay and APKMirror sources)
     #[cfg(not(target_os = "android"))]
-    let use_scrollable_title = texture.is_some() && (
-        store.get_cached_google_play_app(pkg_id).is_some() ||
-        store.get_cached_apkmirror_app(pkg_id).is_some()
-    );
+    let use_scrollable_title = texture.is_some()
+        && (store.get_cached_google_play_app(pkg_id).is_some()
+            || store.get_cached_apkmirror_app(pkg_id).is_some());
 
     // On Android, never use scrollable title
     #[cfg(target_os = "android")]
@@ -227,7 +227,12 @@ pub fn render_app_description_cell(ctx: &egui::Context, pkg_id: &str) -> DataTab
                         .id_salt(format!("app_title_scroll_{}", pkg_id_for_scroll))
                         .auto_shrink([false, true])
                         .show(ui, |ui| {
-                            ui.add(egui::Label::new(egui::RichText::new(&title_text).strong().color(on_surface)).wrap_mode(egui::TextWrapMode::Extend));
+                            ui.add(
+                                egui::Label::new(
+                                    egui::RichText::new(&title_text).strong().color(on_surface),
+                                )
+                                .wrap_mode(egui::TextWrapMode::Extend),
+                            );
                         });
                 } else {
                     ui.label(egui::RichText::new(&title_text).strong().color(on_surface));
@@ -235,7 +240,11 @@ pub fn render_app_description_cell(ctx: &egui::Context, pkg_id: &str) -> DataTab
 
                 // Subtitle (package ID or developer)
                 if !subtitle_text.is_empty() {
-                    ui.label(egui::RichText::new(&subtitle_text).small().color(egui::Color32::GRAY));
+                    ui.label(
+                        egui::RichText::new(&subtitle_text)
+                            .small()
+                            .color(egui::Color32::GRAY),
+                    );
                 }
             });
         });
@@ -263,8 +272,11 @@ pub fn render_action_buttons_cell(
             ui.spacing_mut().item_spacing.x = 0.0;
 
             // Info button
-            if ui.add(icon_button_standard(ICON_INFO.to_string()))
-                .on_hover_text(tr!("package-info")).clicked() {
+            if ui
+                .add(icon_button_standard(ICON_INFO.to_string()))
+                .on_hover_text(tr!("package-info"))
+                .clicked()
+            {
                 // Store clicked package for opening details dialog
                 ui.data_mut(|data| {
                     data.insert_temp(egui::Id::new("info_clicked_package"), pkg_id_clone.clone());
@@ -275,28 +287,48 @@ pub fn render_action_buttons_cell(
             let pkg_enabled = enabled_str.contains("DEFAULT") || enabled_str.contains("ENABLED");
 
             if pkg_enabled {
-                if ui.add(icon_button_standard(ICON_TOGGLE_ON.to_string()))
-                    .on_hover_text(tr!("disable")).clicked() {
+                if ui
+                    .add(icon_button_standard(ICON_TOGGLE_ON.to_string()))
+                    .on_hover_text(tr!("disable"))
+                    .clicked()
+                {
                     ui.data_mut(|data| {
-                        data.insert_temp(egui::Id::new("disable_clicked_package"), pkg_id_clone.clone());
+                        data.insert_temp(
+                            egui::Id::new("disable_clicked_package"),
+                            pkg_id_clone.clone(),
+                        );
                     });
                 }
             } else {
-                if ui.add(icon_button_standard(ICON_TOGGLE_OFF.to_string()))
-                    .on_hover_text(tr!("enable")).clicked() {
+                if ui
+                    .add(icon_button_standard(ICON_TOGGLE_OFF.to_string()))
+                    .on_hover_text(tr!("enable"))
+                    .clicked()
+                {
                     ui.data_mut(|data| {
-                        data.insert_temp(egui::Id::new("enable_clicked_package"), pkg_id_clone.clone());
+                        data.insert_temp(
+                            egui::Id::new("enable_clicked_package"),
+                            pkg_id_clone.clone(),
+                        );
                     });
                 }
             }
 
             // Uninstall button (only for enabled apps)
             if pkg_enabled {
-                if ui.add(icon_button_standard(ICON_DELETE.to_string())
-                    .icon_color(egui::Color32::from_rgb(211, 47, 47)))
-                    .on_hover_text(tr!("uninstall")).clicked() {
+                if ui
+                    .add(
+                        icon_button_standard(ICON_DELETE.to_string())
+                            .icon_color(egui::Color32::from_rgb(211, 47, 47)),
+                    )
+                    .on_hover_text(tr!("uninstall"))
+                    .clicked()
+                {
                     ui.data_mut(|data| {
-                        data.insert_temp(egui::Id::new("uninstall_clicked_package"), pkg_id_clone.clone());
+                        data.insert_temp(
+                            egui::Id::new("uninstall_clicked_package"),
+                            pkg_id_clone.clone(),
+                        );
                         data.insert_temp(egui::Id::new("uninstall_clicked_is_system"), is_system);
                     });
                 }
@@ -509,7 +541,10 @@ pub fn retrieve_installed_packages(app: &mut UadShizukuApp) {
             match get_all_packages_fingerprints(&device) {
                 Ok(fp) => {
                     parsed_packages = fp;
-                    log::debug!("Retry retrieved {} package fingerprints", parsed_packages.len());
+                    log::debug!(
+                        "Retry retrieved {} package fingerprints",
+                        parsed_packages.len()
+                    );
                 }
                 Err(e) => {
                     log::error!("Retry failed to get package fingerprints: {}", e);
@@ -525,7 +560,8 @@ pub fn retrieve_installed_packages(app: &mut UadShizukuApp) {
         }
 
         // Step 2: load all contents from get_cached_packages_with_apk, db_package_cache
-        let cached_packages: Vec<PackageInfoCache> = crate::db_package_cache::get_cached_packages_with_apk(&device);
+        let cached_packages: Vec<PackageInfoCache> =
+            crate::db_package_cache::get_cached_packages_with_apk(&device);
         log::debug!(
             "Loaded {} cached packages from database",
             cached_packages.len()
@@ -546,18 +582,13 @@ pub fn retrieve_installed_packages(app: &mut UadShizukuApp) {
             if cached_packages.len() < parsed_packages_for_thread.len() / 2 {
                 match crate::adb::get_all_packages_sha256sum(&device_for_thread) {
                     Ok(package_data) => {
-                        log::info!(
-                            "Retrieved sha256 sums for {} packages",
-                            package_data.len()
-                        );
+                        log::info!("Retrieved sha256 sums for {} packages", package_data.len());
                         // Convert Vec<(String, String, String)> to HashMap for easier lookup
-                        let sha256_map: std::collections::HashMap<
-                            String,
-                            (String, String),
-                        > = package_data
-                            .into_iter()
-                            .map(|(pkg, sha256, path)| (pkg, (sha256, path)))
-                            .collect();
+                        let sha256_map: std::collections::HashMap<String, (String, String)> =
+                            package_data
+                                .into_iter()
+                                .map(|(pkg, sha256, path)| (pkg, (sha256, path)))
+                                .collect();
 
                         let total = parsed_packages_for_thread.len();
                         for (i, pkg) in parsed_packages_for_thread.iter().enumerate() {
@@ -621,8 +652,7 @@ pub fn retrieve_installed_packages(app: &mut UadShizukuApp) {
         // Filter packages by selected user if a specific user is selected
         if let Some(user_id) = selected_user {
             log::debug!("Filtering packages for user: {}", user_id);
-            packages
-                .retain(|pkg| pkg.users.iter().any(|u| u.userId == user_id && u.installed));
+            packages.retain(|pkg| pkg.users.iter().any(|u| u.userId == user_id && u.installed));
             log::debug!(
                 "Filtered to {} packages for user {}",
                 packages.len(),
@@ -659,7 +689,10 @@ pub fn handle_package_loading_result(app: &mut UadShizukuApp) {
             match handle.join() {
                 Ok((packages, uad_lists)) => {
                     // Loading complete, update UI
-                    log::info!("Applying loaded packages to UI - {} packages loaded", packages.len());
+                    log::info!(
+                        "Applying loaded packages to UI - {} packages loaded",
+                        packages.len()
+                    );
 
                     let shared_store = get_shared_store();
                     {
@@ -668,7 +701,10 @@ pub fn handle_package_loading_result(app: &mut UadShizukuApp) {
                     }
                     log::debug!("Updated shared_store with {} packages", packages.len());
                     app.tab_debloat_control.update_packages(packages.clone());
-                    log::debug!("Updated tab_debloat_control with {} packages", packages.len());
+                    log::debug!(
+                        "Updated tab_debloat_control with {} packages",
+                        packages.len()
+                    );
 
                     if let Some(lists) = uad_lists {
                         app.tab_debloat_control.update_uad_ng_lists(lists.clone());
@@ -691,7 +727,8 @@ pub fn handle_package_loading_result(app: &mut UadShizukuApp) {
                         app.settings.hybridanalysis_submit
                     );
 
-                    let installed_packages = shared_store.installed_packages.lock().unwrap().clone();
+                    let installed_packages =
+                        shared_store.installed_packages.lock().unwrap().clone();
                     app.tab_scan_control
                         .update_packages(installed_packages.clone());
 

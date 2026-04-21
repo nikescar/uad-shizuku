@@ -35,10 +35,7 @@ pub fn get_ui_theme_mode() -> std::io::Result<UiThemeMode> {
 
     let activity = unsafe { jni::objects::JObject::from_raw(ctx.context() as _) };
     let mut env = vm.attach_current_thread().map_err(|_| {
-        std::io::Error::new(
-            std::io::ErrorKind::Other,
-            "Failed to attach current thread",
-        )
+        std::io::Error::new(std::io::ErrorKind::Other, "Failed to attach current thread")
     })?;
 
     // Call getResources() to get Resources object

@@ -373,10 +373,7 @@ pub fn analyze_package(
         match api_virustotal::get_file_report(sha256, api_key) {
             Ok(response) => {
                 let available_after = rate_limiter.lock().unwrap().available_requests();
-                log::info!(
-                    "Got VirusTotal report for {}",
-                    sha256
-                );
+                log::info!("Got VirusTotal report for {}", sha256);
 
                 // Save to database via queue
                 db_virustotal::queue_upsert(
@@ -502,7 +499,10 @@ pub fn analyze_package(
                     continue;
                 }
 
-                let tmp_dir_str = config.tmp_dir.to_str().ok_or("Invalid tmp directory path")?;
+                let tmp_dir_str = config
+                    .tmp_dir
+                    .to_str()
+                    .ok_or("Invalid tmp directory path")?;
                 let expected_filename = format!("{}.apk", package_name.replace('.', "_"));
                 let local_path = config.tmp_dir.join(&expected_filename);
 
@@ -560,7 +560,11 @@ pub fn analyze_package(
                             Ok(upload_response) => {
                                 let available_after =
                                     rate_limiter.lock().unwrap().available_requests();
-                                log::info!("Uploaded file {}, analysis ID: {}", sha256, upload_response.data.id);
+                                log::info!(
+                                    "Uploaded file {}, analysis ID: {}",
+                                    sha256,
+                                    upload_response.data.id
+                                );
 
                                 // Poll for results until timeout
                                 log::info!("Waiting for analysis to complete...");
@@ -619,10 +623,7 @@ pub fn analyze_package(
                                 if let Some(response) = analysis_result {
                                     let available_after =
                                         rate_limiter.lock().unwrap().available_requests();
-                                    log::info!(
-                                        "Got analysis result for {}",
-                                        sha256
-                                    );
+                                    log::info!("Got analysis result for {}", sha256);
 
                                     // Save to database via queue
                                     db_virustotal::queue_upsert(
@@ -910,8 +911,7 @@ pub fn run_virustotal(
             perms_b.cmp(&perms_a)
         });
 
-        let cached_packages =
-            crate::db_package_cache::get_cached_packages_with_apk(&device_serial);
+        let cached_packages = crate::db_package_cache::get_cached_packages_with_apk(&device_serial);
 
         let mut cached_packages_map: HashMap<String, crate::models::PackageInfoCache> =
             HashMap::new();

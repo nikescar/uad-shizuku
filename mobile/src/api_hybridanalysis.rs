@@ -9,12 +9,14 @@ fn get_agent() -> ureq::Agent {
     use std::sync::OnceLock;
     static AGENT: OnceLock<ureq::Agent> = OnceLock::new();
 
-    AGENT.get_or_init(|| {
-        ureq::AgentBuilder::new()
-            .max_idle_connections(10)
-            .max_idle_connections_per_host(5)
-            .build()
-    }).clone()
+    AGENT
+        .get_or_init(|| {
+            ureq::AgentBuilder::new()
+                .max_idle_connections(10)
+                .max_idle_connections_per_host(5)
+                .build()
+        })
+        .clone()
 }
 
 /// Error types for Hybrid Analysis API
@@ -255,7 +257,7 @@ pub fn ha_submit_file(
         log::error!("Cannot access file for upload: {:?} - {}", file_path, e);
         HaError::IoError(std::io::Error::new(
             e.kind(),
-            format!("Cannot access file {:?}: {}", file_path, e)
+            format!("Cannot access file {:?}: {}", file_path, e),
         ))
     })?;
     let file_size_mb = file_metadata.len() as f64 / 1024.0 / 1024.0;

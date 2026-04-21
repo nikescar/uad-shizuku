@@ -194,11 +194,7 @@ pub fn calculate_and_cache_izzyrisk(
     // Check if cached score exists
     if let Some(cached) = cached_pkg {
         if let Some(score) = cached.izzyscore {
-            log::debug!(
-                "Package {} izzyrisk cache hit: {}",
-                package.pkg,
-                score
-            );
+            log::debug!("Package {} izzyrisk cache hit: {}", package.pkg, score);
             return score;
         }
     }
@@ -232,11 +228,7 @@ pub fn calculate_and_cache_izzyrisk(
             Some(score),
             device_serial,
         ) {
-            log::error!(
-                "Failed to create cache entry for {}: {}",
-                package.pkg,
-                e
-            );
+            log::error!("Failed to create cache entry for {}: {}", package.pkg, e);
         }
     }
 
@@ -310,11 +302,7 @@ pub fn calculate_all_risk_scores_async(
                 calculate_izzyrisk(package)
             } else {
                 let cached_pkg = cached_packages_map.get(&package.pkg);
-                let score = calculate_and_cache_izzyrisk(
-                    package,
-                    cached_pkg,
-                    device_serial_str,
-                );
+                let score = calculate_and_cache_izzyrisk(package, cached_pkg, device_serial_str);
                 if cached_pkg.and_then(|c| c.izzyscore).is_some() {
                     cache_hits += 1;
                 } else {

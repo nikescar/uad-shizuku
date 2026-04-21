@@ -3,8 +3,15 @@ use std::sync::{Arc, Mutex};
 
 #[derive(Debug, Clone)]
 pub enum OperationType {
-    Install { app_name: String, download_url: String, link_type: String },
-    Uninstall { package_name: String, is_system: bool },
+    Install {
+        app_name: String,
+        download_url: String,
+        link_type: String,
+    },
+    Uninstall {
+        package_name: String,
+        is_system: bool,
+    },
 }
 
 #[derive(Debug, Clone)]

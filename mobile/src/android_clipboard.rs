@@ -21,28 +21,19 @@ pub fn get_text() -> std::io::Result<Option<String>> {
 
     let activity = unsafe { jni::objects::JObject::from_raw(ctx.context() as _) };
     let mut env = vm.attach_current_thread().map_err(|_| {
-        std::io::Error::new(
-            std::io::ErrorKind::Other,
-            "Failed to attach current thread",
-        )
+        std::io::Error::new(std::io::ErrorKind::Other, "Failed to attach current thread")
     })?;
 
     // Get ClipboardManager via getSystemService
-    let context_class = env
-        .find_class("android/content/Context")
-        .map_err(|e| {
-            std::io::Error::new(
-                std::io::ErrorKind::Other,
-                format!("Failed to find Context class: {}", e),
-            )
-        })?;
+    let context_class = env.find_class("android/content/Context").map_err(|e| {
+        std::io::Error::new(
+            std::io::ErrorKind::Other,
+            format!("Failed to find Context class: {}", e),
+        )
+    })?;
 
     let clipboard_service = env
-        .get_static_field(
-            &context_class,
-            "CLIPBOARD_SERVICE",
-            "Ljava/lang/String;",
-        )
+        .get_static_field(&context_class, "CLIPBOARD_SERVICE", "Ljava/lang/String;")
         .map_err(|e| {
             std::io::Error::new(
                 std::io::ErrorKind::Other,
@@ -87,12 +78,7 @@ pub fn get_text() -> std::io::Result<Option<String>> {
 
     // Check if clipboard has primary clip
     let has_primary_clip = env
-        .call_method(
-            &clipboard_manager_obj,
-            "hasPrimaryClip",
-            "()Z",
-            &[],
-        )
+        .call_method(&clipboard_manager_obj, "hasPrimaryClip", "()Z", &[])
         .map_err(|e| {
             std::io::Error::new(
                 std::io::ErrorKind::Other,
@@ -186,12 +172,7 @@ pub fn get_text() -> std::io::Result<Option<String>> {
 
     // Get text from item
     let text = env
-        .call_method(
-            &clip_item_obj,
-            "getText",
-            "()Ljava/lang/CharSequence;",
-            &[],
-        )
+        .call_method(&clip_item_obj, "getText", "()Ljava/lang/CharSequence;", &[])
         .map_err(|e| {
             std::io::Error::new(
                 std::io::ErrorKind::Other,
@@ -253,28 +234,19 @@ pub fn has_text() -> std::io::Result<bool> {
 
     let activity = unsafe { jni::objects::JObject::from_raw(ctx.context() as _) };
     let mut env = vm.attach_current_thread().map_err(|_| {
-        std::io::Error::new(
-            std::io::ErrorKind::Other,
-            "Failed to attach current thread",
-        )
+        std::io::Error::new(std::io::ErrorKind::Other, "Failed to attach current thread")
     })?;
 
     // Get ClipboardManager
-    let context_class = env
-        .find_class("android/content/Context")
-        .map_err(|e| {
-            std::io::Error::new(
-                std::io::ErrorKind::Other,
-                format!("Failed to find Context class: {}", e),
-            )
-        })?;
+    let context_class = env.find_class("android/content/Context").map_err(|e| {
+        std::io::Error::new(
+            std::io::ErrorKind::Other,
+            format!("Failed to find Context class: {}", e),
+        )
+    })?;
 
     let clipboard_service = env
-        .get_static_field(
-            &context_class,
-            "CLIPBOARD_SERVICE",
-            "Ljava/lang/String;",
-        )
+        .get_static_field(&context_class, "CLIPBOARD_SERVICE", "Ljava/lang/String;")
         .map_err(|e| {
             std::io::Error::new(
                 std::io::ErrorKind::Other,
@@ -316,12 +288,7 @@ pub fn has_text() -> std::io::Result<bool> {
 
     // Check if has text
     let has_primary_clip = env
-        .call_method(
-            &clipboard_manager_obj,
-            "hasPrimaryClip",
-            "()Z",
-            &[],
-        )
+        .call_method(&clipboard_manager_obj, "hasPrimaryClip", "()Z", &[])
         .map_err(|e| {
             std::io::Error::new(
                 std::io::ErrorKind::Other,
@@ -352,28 +319,19 @@ pub fn set_text(text: &str) -> std::io::Result<()> {
 
     let activity = unsafe { jni::objects::JObject::from_raw(ctx.context() as _) };
     let mut env = vm.attach_current_thread().map_err(|_| {
-        std::io::Error::new(
-            std::io::ErrorKind::Other,
-            "Failed to attach current thread",
-        )
+        std::io::Error::new(std::io::ErrorKind::Other, "Failed to attach current thread")
     })?;
 
     // Get ClipboardManager
-    let context_class = env
-        .find_class("android/content/Context")
-        .map_err(|e| {
-            std::io::Error::new(
-                std::io::ErrorKind::Other,
-                format!("Failed to find Context class: {}", e),
-            )
-        })?;
+    let context_class = env.find_class("android/content/Context").map_err(|e| {
+        std::io::Error::new(
+            std::io::ErrorKind::Other,
+            format!("Failed to find Context class: {}", e),
+        )
+    })?;
 
     let clipboard_service = env
-        .get_static_field(
-            &context_class,
-            "CLIPBOARD_SERVICE",
-            "Ljava/lang/String;",
-        )
+        .get_static_field(&context_class, "CLIPBOARD_SERVICE", "Ljava/lang/String;")
         .map_err(|e| {
             std::io::Error::new(
                 std::io::ErrorKind::Other,
@@ -417,14 +375,12 @@ pub fn set_text(text: &str) -> std::io::Result<()> {
     }
 
     // Create ClipData with text
-    let clip_data_class = env
-        .find_class("android/content/ClipData")
-        .map_err(|e| {
-            std::io::Error::new(
-                std::io::ErrorKind::Other,
-                format!("Failed to find ClipData class: {}", e),
-            )
-        })?;
+    let clip_data_class = env.find_class("android/content/ClipData").map_err(|e| {
+        std::io::Error::new(
+            std::io::ErrorKind::Other,
+            format!("Failed to find ClipData class: {}", e),
+        )
+    })?;
 
     let label = env.new_string("text").map_err(|e| {
         std::io::Error::new(

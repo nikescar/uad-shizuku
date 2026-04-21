@@ -41,8 +41,14 @@ impl DlgAdbInstall {
             .min_width(500.0)
             .min_height(400.0)
             .resize(|r| {
-                r.default_size([ctx.content_rect().width() - 40.0, ctx.content_rect().height() - 40.0])
-                    .max_size([ctx.content_rect().width() - 40.0, ctx.content_rect().height() - 40.0])
+                r.default_size([
+                    ctx.content_rect().width() - 40.0,
+                    ctx.content_rect().height() - 40.0,
+                ])
+                .max_size([
+                    ctx.content_rect().width() - 40.0,
+                    ctx.content_rect().height() - 40.0,
+                ])
             })
             .show(ctx, |ui| {
                 ui.heading(&title);
@@ -68,7 +74,9 @@ impl DlgAdbInstall {
                             ui.add_space(4.0);
 
                             if ui.button(tr!("install-dlg-open-play-store")).clicked() {
-                                crate::android_activity::open_android_vending("moe.shizuku.privileged.api");
+                                crate::android_activity::open_android_vending(
+                                    "moe.shizuku.privileged.api",
+                                );
                             }
 
                             ui.add_space(8.0);
@@ -104,7 +112,6 @@ impl DlgAdbInstall {
                                     log::error!("Failed to open installation guide URL: {}", e);
                                 }
                             }
-
                         }
 
                         #[cfg(not(target_os = "android"))]
@@ -130,7 +137,6 @@ impl DlgAdbInstall {
                                     log::error!("Failed to open installation guide URL: {}", e);
                                 }
                             }
-
                         }
                     });
 
@@ -139,7 +145,10 @@ impl DlgAdbInstall {
                 // Action buttons
                 ui.horizontal(|ui| {
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if ui.add(MaterialButton::filled(tr!("install-dlg-retry"))).clicked() {
+                        if ui
+                            .add(MaterialButton::filled(tr!("install-dlg-retry")))
+                            .clicked()
+                        {
                             retry_clicked = true;
                         }
                         if ui.add(MaterialButton::outlined(tr!("close"))).clicked() {

@@ -1,9 +1,9 @@
 use crate::adb::PackageFingerprint;
+pub use crate::dlg_package_details_stt::*;
 use crate::shared_store_stt::get_shared_store;
 use crate::uad_shizuku_app::UadNgLists;
-pub use crate::dlg_package_details_stt::*;
 use eframe::egui;
-use egui_material3::{MaterialButton, tabs_primary};
+use egui_material3::{tabs_primary, MaterialButton};
 
 impl DlgPackageDetails {
     pub fn new() -> Self {
@@ -42,17 +42,24 @@ impl DlgPackageDetails {
         let store = get_shared_store();
 
         // Check what data is available
-        let has_uad = uad_ng_lists.as_ref().and_then(|lists| lists.apps.get(pkg_id)).is_some();
+        let has_uad = uad_ng_lists
+            .as_ref()
+            .and_then(|lists| lists.apps.get(pkg_id))
+            .is_some();
         let has_googleplay = store.get_cached_google_play_app(pkg_id).is_some();
         let has_fdroid = store.get_cached_fdroid_app(pkg_id).is_some();
         let has_apkmirror = store.get_cached_apkmirror_app(pkg_id).is_some();
         let has_virustotal = {
             let vt_state = store.get_vt_scanner_state();
-            vt_state.and_then(|state| state.lock().ok().and_then(|s| s.get(pkg_id).cloned())).is_some()
+            vt_state
+                .and_then(|state| state.lock().ok().and_then(|s| s.get(pkg_id).cloned()))
+                .is_some()
         };
         let has_hybridanalysis = {
             let ha_state = store.get_ha_scanner_state();
-            ha_state.and_then(|state| state.lock().ok().and_then(|s| s.get(pkg_id).cloned())).is_some()
+            ha_state
+                .and_then(|state| state.lock().ok().and_then(|s| s.get(pkg_id).cloned()))
+                .is_some()
         };
 
         let mut close_clicked = false;
@@ -66,8 +73,14 @@ impl DlgPackageDetails {
             .min_width(700.0)
             .min_height(500.0)
             .resize(|r| {
-                r.default_size([ctx.content_rect().width() - 40.0, ctx.content_rect().height() - 40.0])
-                    .max_size([ctx.content_rect().width() - 40.0, ctx.content_rect().height() - 40.0])
+                r.default_size([
+                    ctx.content_rect().width() - 40.0,
+                    ctx.content_rect().height() - 40.0,
+                ])
+                .max_size([
+                    ctx.content_rect().width() - 40.0,
+                    ctx.content_rect().height() - 40.0,
+                ])
             })
             .show(ctx, |ui| {
                 // Build tab labels dynamically
@@ -102,8 +115,16 @@ impl DlgPackageDetails {
                 // Map tab index to actual tab based on what's available
                 let mut tab_index = 0;
                 let mut selected_tab_type = "pkg";
-                
-                for tab_type in ["pkg", "uad", "googleplay", "fdroid", "apkmirror", "virustotal", "hybridanalysis"] {
+
+                for tab_type in [
+                    "pkg",
+                    "uad",
+                    "googleplay",
+                    "fdroid",
+                    "apkmirror",
+                    "virustotal",
+                    "hybridanalysis",
+                ] {
                     match tab_type {
                         "pkg" => {
                             if self.selected_tab == tab_index {
@@ -161,17 +182,15 @@ impl DlgPackageDetails {
                 egui::ScrollArea::both()
                     .id_salt("package_details_scroll")
                     .max_height(max_height)
-                    .show(ui, |ui| {
-                        match selected_tab_type {
-                            "pkg" => self.render_pkg_tab(ui, package),
-                            "uad" => self.render_uad_tab(ui, pkg_id, uad_ng_lists),
-                            "googleplay" => self.render_googleplay_tab(ui, pkg_id),
-                            "fdroid" => self.render_fdroid_tab(ui, pkg_id),
-                            "apkmirror" => self.render_apkmirror_tab(ui, pkg_id),
-                            "virustotal" => self.render_virustotal_tab(ui, pkg_id),
-                            "hybridanalysis" => self.render_hybridanalysis_tab(ui, pkg_id),
-                            _ => {}
-                        }
+                    .show(ui, |ui| match selected_tab_type {
+                        "pkg" => self.render_pkg_tab(ui, package),
+                        "uad" => self.render_uad_tab(ui, pkg_id, uad_ng_lists),
+                        "googleplay" => self.render_googleplay_tab(ui, pkg_id),
+                        "fdroid" => self.render_fdroid_tab(ui, pkg_id),
+                        "apkmirror" => self.render_apkmirror_tab(ui, pkg_id),
+                        "virustotal" => self.render_virustotal_tab(ui, pkg_id),
+                        "hybridanalysis" => self.render_hybridanalysis_tab(ui, pkg_id),
+                        _ => {}
                     });
 
                 ui.add_space(8.0);
@@ -336,7 +355,9 @@ impl DlgPackageDetails {
     }
 
     fn render_uad_tab(&self, ui: &mut egui::Ui, pkg_id: &str, uad_ng_lists: &Option<UadNgLists>) {
-        let uad_info = uad_ng_lists.as_ref().and_then(|lists| lists.apps.get(pkg_id));
+        let uad_info = uad_ng_lists
+            .as_ref()
+            .and_then(|lists| lists.apps.get(pkg_id));
 
         if let Some(uad_entry) = uad_info {
             ui.heading("UAD Debloat Information");
@@ -578,7 +599,7 @@ impl DlgPackageDetails {
     fn render_virustotal_tab(&self, ui: &mut egui::Ui, pkg_id: &str) {
         let store = get_shared_store();
         let vt_state = store.get_vt_scanner_state();
-        
+
         if let Some(state) = vt_state {
             if let Ok(scanner_state) = state.lock() {
                 if let Some(scan_status) = scanner_state.get(pkg_id) {
@@ -587,20 +608,24 @@ impl DlgPackageDetails {
 
                     match scan_status {
                         crate::calc_virustotal_stt::ScanStatus::Completed(result) => {
-                            ui.label(format!("Files scanned: {} of {}", 
-                                result.file_results.len(), 
-                                result.files_attempted));
-                            
+                            ui.label(format!(
+                                "Files scanned: {} of {}",
+                                result.file_results.len(),
+                                result.files_attempted
+                            ));
+
                             if result.files_skipped_invalid_hash > 0 {
-                                ui.label(format!("Files skipped (invalid hash): {}", 
-                                    result.files_skipped_invalid_hash));
+                                ui.label(format!(
+                                    "Files skipped (invalid hash): {}",
+                                    result.files_skipped_invalid_hash
+                                ));
                             }
                             ui.add_space(8.0);
 
                             for file_result in &result.file_results {
                                 ui.separator();
                                 ui.label(format!("File: {}", file_result.file_path));
-                                
+
                                 ui.horizontal(|ui| {
                                     ui.label("SHA256:");
                                     ui.add(egui::Label::new(&file_result.sha256).wrap());
@@ -630,15 +655,22 @@ impl DlgPackageDetails {
                                     ui.label("Report Link:");
                                     ui.hyperlink_to("View on VirusTotal", &file_result.vt_link);
                                 });
-                                
+
                                 if let Some(error) = &file_result.error {
-                                    ui.colored_label(egui::Color32::RED, format!("Error: {}", error));
+                                    ui.colored_label(
+                                        egui::Color32::RED,
+                                        format!("Error: {}", error),
+                                    );
                                 }
                                 ui.add_space(4.0);
                             }
                             return;
                         }
-                        crate::calc_virustotal_stt::ScanStatus::Scanning { scanned, total, operation } => {
+                        crate::calc_virustotal_stt::ScanStatus::Scanning {
+                            scanned,
+                            total,
+                            operation,
+                        } => {
                             ui.label(format!("Scanning: {} / {} ({})", scanned, total, operation));
                             return;
                         }
@@ -654,14 +686,14 @@ impl DlgPackageDetails {
                 }
             }
         }
-        
+
         ui.label("No VirusTotal scan results available for this package");
     }
 
     fn render_hybridanalysis_tab(&self, ui: &mut egui::Ui, pkg_id: &str) {
         let store = get_shared_store();
         let ha_state = store.get_ha_scanner_state();
-        
+
         if let Some(state) = ha_state {
             if let Ok(scanner_state) = state.lock() {
                 if let Some(scan_status) = scanner_state.get(pkg_id) {
@@ -676,7 +708,7 @@ impl DlgPackageDetails {
                             for file_result in &result.file_results {
                                 ui.separator();
                                 ui.label(format!("File: {}", file_result.file_path));
-                                
+
                                 ui.horizontal(|ui| {
                                     ui.label("SHA256:");
                                     ui.add(egui::Label::new(&file_result.sha256).wrap());
@@ -717,17 +749,27 @@ impl DlgPackageDetails {
 
                                 ui.horizontal(|ui| {
                                     ui.label("Report Link:");
-                                    ui.hyperlink_to("View on Hybrid Analysis", &file_result.ha_link);
+                                    ui.hyperlink_to(
+                                        "View on Hybrid Analysis",
+                                        &file_result.ha_link,
+                                    );
                                 });
-                                
+
                                 if let Some(error) = &file_result.error_message {
-                                    ui.colored_label(egui::Color32::RED, format!("Error: {}", error));
+                                    ui.colored_label(
+                                        egui::Color32::RED,
+                                        format!("Error: {}", error),
+                                    );
                                 }
                                 ui.add_space(4.0);
                             }
                             return;
                         }
-                        crate::calc_hybridanalysis_stt::ScanStatus::Scanning { scanned, total, operation } => {
+                        crate::calc_hybridanalysis_stt::ScanStatus::Scanning {
+                            scanned,
+                            total,
+                            operation,
+                        } => {
                             ui.label(format!("Scanning: {} / {} ({})", scanned, total, operation));
                             return;
                         }
@@ -743,7 +785,7 @@ impl DlgPackageDetails {
                 }
             }
         }
-        
+
         ui.label("No Hybrid Analysis scan results available for this package");
     }
 

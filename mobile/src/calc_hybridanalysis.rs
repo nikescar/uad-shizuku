@@ -21,8 +21,10 @@ impl FileScanResult {
                 let simplified = if error_msg.contains("File too large") {
                     // Extract size information if present
                     if let Some(mb_pos) = error_msg.find(" MB ") {
-                        if let Some(start) = error_msg[..mb_pos].rfind(|c: char| !c.is_numeric() && c != '.') {
-                            let size = &error_msg[start+1..mb_pos+3]; // Include " MB"
+                        if let Some(start) =
+                            error_msg[..mb_pos].rfind(|c: char| !c.is_numeric() && c != '.')
+                        {
+                            let size = &error_msg[start + 1..mb_pos + 3]; // Include " MB"
                             format!("File too large: {}", size)
                         } else {
                             "File too large (>100 MB)".to_string()
@@ -181,7 +183,10 @@ impl RateLimiter {
             let since_last = now.duration_since(last);
             if since_last < self.min_interval {
                 let wait_duration = self.min_interval - since_last;
-                log::debug!("Need to wait {:.2}s for minimum interval", wait_duration.as_secs_f64());
+                log::debug!(
+                    "Need to wait {:.2}s for minimum interval",
+                    wait_duration.as_secs_f64()
+                );
                 return Some(wait_duration);
             }
         }
@@ -617,7 +622,10 @@ pub fn analyze_package(
                             break;
                         }
 
-                        log::debug!("Waiting {:.2}s before fetching report", duration.as_secs_f64());
+                        log::debug!(
+                            "Waiting {:.2}s before fetching report",
+                            duration.as_secs_f64()
+                        );
                         if let Err(e) = sleep_with_updates(
                             duration,
                             package_name,
@@ -878,7 +886,7 @@ fn handle_file_upload(
             package_name,
             file_path,
             sha256,
-            "",  // Empty verdict for skipped files
+            "", // Empty verdict for skipped files
             "Path is a directory, not a file",
         ) {
             log::error!("Failed to save skipped file to database: {}", db_err);
@@ -916,7 +924,7 @@ fn handle_file_upload(
             package_name,
             file_path,
             sha256,
-            "",  // Empty verdict for skipped files
+            "", // Empty verdict for skipped files
             "Not an APK or SO file",
         ) {
             log::error!("Failed to save skipped file to database: {}", db_err);
@@ -946,7 +954,10 @@ fn handle_file_upload(
         return Err(format!("Failed to create tmp directory: {}", e).into());
     }
 
-    let tmp_dir_str = config.tmp_dir.to_str().ok_or("Invalid tmp directory path")?;
+    let tmp_dir_str = config
+        .tmp_dir
+        .to_str()
+        .ok_or("Invalid tmp directory path")?;
     let expected_filename = format!("{}.apk", package_name.replace('.', "_"));
     let local_path = config.tmp_dir.join(&expected_filename);
 
@@ -955,7 +966,7 @@ fn handle_file_upload(
         file_path,
         local_path.display()
     );
-    
+
     // pull_file_to_temp handles both Android (xxd method) and non-Android (adb pull) platforms
     if let Err(e) = adb::pull_file_to_temp(device_serial, file_path, tmp_dir_str, package_name) {
         log::error!("Failed to pull file {} from device: {}", file_path, e);
@@ -968,7 +979,7 @@ fn handle_file_upload(
             package_name,
             file_path,
             sha256,
-            "",  // Empty verdict for skipped files
+            "", // Empty verdict for skipped files
             &error_msg,
         ) {
             log::error!("Failed to save pull error to database: {}", db_err);
@@ -994,7 +1005,10 @@ fn handle_file_upload(
 
     // Verify the file was actually pulled
     if !local_path.exists() {
-        let error_msg = format!("File was not pulled successfully: {} does not exist after pull", local_path.display());
+        let error_msg = format!(
+            "File was not pulled successfully: {} does not exist after pull",
+            local_path.display()
+        );
         log::error!("{}", error_msg);
 
         // Save to database so it won't be retried
@@ -1004,7 +1018,7 @@ fn handle_file_upload(
             package_name,
             file_path,
             sha256,
-            "",  // Empty verdict for skipped files
+            "", // Empty verdict for skipped files
             &error_msg,
         ) {
             log::error!("Failed to save pull error to database: {}", db_err);
@@ -1027,13 +1041,15 @@ fn handle_file_upload(
 
         return Err(error_msg.into());
     }
-    
-    // Check file size
-    let file_size = std::fs::metadata(&local_path)
-        .map(|m| m.len())
-        .unwrap_or(0);
 
-    log::info!("File pulled successfully: {} ({} bytes)", local_path.display(), file_size);
+    // Check file size
+    let file_size = std::fs::metadata(&local_path).map(|m| m.len()).unwrap_or(0);
+
+    log::info!(
+        "File pulled successfully: {} ({} bytes)",
+        local_path.display(),
+        file_size
+    );
 
     // Check if file exceeds Hybrid Analysis size limit (100MB)
     const MAX_FILE_SIZE: u64 = 100 * 1024 * 1024; // 100MB in bytes
@@ -1225,10 +1241,7 @@ fn handle_file_upload(
                                     api_key,
                                 ) {
                                     Ok(report) => {
-                                        log::info!(
-                                            "Got report for uploaded file {}",
-                                            sha256
-                                        );
+                                        log::info!("Got report for uploaded file {}", sha256);
 
                                         // Cache result
                                         let _ = db_hybridanalysis::queue_upsert(
@@ -1244,9 +1257,7 @@ fn handle_file_upload(
                                             verdict: report.verdict.clone(),
                                             threat_score: report.threat_score,
                                             threat_level: report.threat_level,
-                                            classification_tags: report
-                                                .classification_tags
-                                                .clone(),
+                                            classification_tags: report.classification_tags.clone(),
                                             total_signatures: report.total_signatures,
                                             ha_link: format!(
                                                 "https://hybrid-analysis.com/sample/{}",
@@ -1259,10 +1270,7 @@ fn handle_file_upload(
                                         return Ok(());
                                     }
                                     Err(e) => {
-                                        log::error!(
-                                            "Failed to get report after upload: {}",
-                                            e
-                                        );
+                                        log::error!("Failed to get report after upload: {}", e);
                                     }
                                 }
                             }
@@ -1299,7 +1307,10 @@ fn handle_file_upload(
                                     threat_level: None,
                                     classification_tags: Vec::new(),
                                     total_signatures: None,
-                                    ha_link: format!("https://hybrid-analysis.com/sample/{}", sha256),
+                                    ha_link: format!(
+                                        "https://hybrid-analysis.com/sample/{}",
+                                        sha256
+                                    ),
                                     wait_until: None,
                                     job_id: None,
                                     error_message: Some(error_msg),
@@ -1339,7 +1350,10 @@ fn handle_file_upload(
                                     threat_level: None,
                                     classification_tags: Vec::new(),
                                     total_signatures: None,
-                                    ha_link: format!("https://hybrid-analysis.com/sample/{}", sha256),
+                                    ha_link: format!(
+                                        "https://hybrid-analysis.com/sample/{}",
+                                        sha256
+                                    ),
                                     wait_until: None,
                                     job_id: None,
                                     error_message: Some(error_msg),
@@ -1350,14 +1364,16 @@ fn handle_file_upload(
                     } else if state_response.state == "ERROR" {
                         let error_msg = format!(
                             "{}: {}",
-                            state_response.error_type.as_deref().unwrap_or("Unknown error"),
-                            state_response.error_origin.as_deref().unwrap_or("Unknown origin")
+                            state_response
+                                .error_type
+                                .as_deref()
+                                .unwrap_or("Unknown error"),
+                            state_response
+                                .error_origin
+                                .as_deref()
+                                .unwrap_or("Unknown origin")
                         );
-                        log::error!(
-                            "Job {} failed with error: {}",
-                            job_id,
-                            error_msg
-                        );
+                        log::error!("Job {} failed with error: {}", job_id, error_msg);
 
                         // Save error to database for persistence
                         {
@@ -1550,7 +1566,11 @@ pub fn check_pending_jobs(
             limiter.record_request();
         }
 
-        log::info!("Checking job state for job_id: {} (sha256: {})", job_id, sha256);
+        log::info!(
+            "Checking job state for job_id: {} (sha256: {})",
+            job_id,
+            sha256
+        );
 
         match api_hybridanalysis::get_job_state(&job_id, api_key) {
             Ok(state_response) => {
@@ -1558,7 +1578,11 @@ pub fn check_pending_jobs(
 
                 if state_response.state == "SUCCESS" {
                     // Job completed, fetch report
-                    log::info!("Job {} completed, fetching report for sha256: {}", job_id, sha256);
+                    log::info!(
+                        "Job {} completed, fetching report for sha256: {}",
+                        job_id,
+                        sha256
+                    );
 
                     // Wait for rate limit
                     {
@@ -1860,8 +1884,7 @@ pub fn run_hybridanalysis(
             perms_b.cmp(&perms_a)
         });
 
-        let cached_packages =
-            crate::db_package_cache::get_cached_packages_with_apk(&device_serial);
+        let cached_packages = crate::db_package_cache::get_cached_packages_with_apk(&device_serial);
 
         let mut cached_packages_map: HashMap<String, crate::models::PackageInfoCache> =
             HashMap::new();
@@ -2004,12 +2027,8 @@ pub fn run_hybridanalysis(
                 }
             }
 
-            let pending_count = check_pending_jobs(
-                &scanner_state_clone,
-                &rate_limiter_clone,
-                &api_key,
-                &None,
-            );
+            let pending_count =
+                check_pending_jobs(&scanner_state_clone, &rate_limiter_clone, &api_key, &None);
 
             if pending_count == 0 {
                 log::info!("All pending jobs completed");

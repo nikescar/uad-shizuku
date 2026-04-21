@@ -13,7 +13,7 @@ use uad_shizuku::uad_shizuku_app::{self, UadShizukuApp};
 /// Check OpenGL version on Windows and show installation instructions if OpenGL 2.0+ is not available
 #[cfg(target_os = "windows")]
 fn show_opengl_instructions() {
-    use winsafe::{self as w, gui, co, prelude::*};
+    use winsafe::{self as w, co, gui, prelude::*};
 
     /// Instruction dialog window
     #[derive(Clone)]
@@ -25,14 +25,12 @@ fn show_opengl_instructions() {
 
     impl InstructionWindow {
         fn new() -> Self {
-            let wnd = gui::WindowMain::new(
-                gui::WindowMainOpts {
-                    title: "UAD-Shizuku - OpenGL Required",
-                    size: (500, 280),
-                    style: gui::WindowMainOpts::default().style | co::WS::MINIMIZEBOX,
-                    ..Default::default()
-                },
-            );
+            let wnd = gui::WindowMain::new(gui::WindowMainOpts {
+                title: "UAD-Shizuku - OpenGL Required",
+                size: (500, 280),
+                style: gui::WindowMainOpts::default().style | co::WS::MINIMIZEBOX,
+                ..Default::default()
+            });
 
             let instruction_text = "System does not have OpenGL 2.0+.\r\n\r\n\
                 To run this application, please install the Mesa3D OpenGL drivers:\r\n\r\n\
@@ -46,7 +44,10 @@ fn show_opengl_instructions() {
                     width: 460,
                     height: 180,
                     text: instruction_text,
-                    window_style: co::WS::CHILD | co::WS::VISIBLE | co::WS::TABSTOP | co::WS::VSCROLL,
+                    window_style: co::WS::CHILD
+                        | co::WS::VISIBLE
+                        | co::WS::TABSTOP
+                        | co::WS::VSCROLL,
                     window_ex_style: co::WS_EX::CLIENTEDGE,
                     control_style: co::ES::MULTILINE | co::ES::READONLY | co::ES::AUTOVSCROLL,
                     resize_behavior: (gui::Horz::Resize, gui::Vert::Resize),
@@ -85,8 +86,9 @@ fn show_opengl_instructions() {
     }
 
     if let Err(e) = (|| InstructionWindow::new().run())() {
-        w::HWND::NULL.MessageBox(
-            &e.to_string(), "Error", co::MB::ICONERROR).unwrap();
+        w::HWND::NULL
+            .MessageBox(&e.to_string(), "Error", co::MB::ICONERROR)
+            .unwrap();
     }
 
     std::process::exit(1);
@@ -155,14 +157,17 @@ fn main() -> eframe::Result<()> {
                 .unwrap_or_else(|e| {
                     eprintln!("Failed to open log file '{}': {}", log_path, e);
                     std::process::exit(1);
-                })
+                }),
         );
 
         env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"))
             .target(env_logger::Target::Pipe(target))
             .init();
 
-        log::info!("UAD-Shizuku v{} starting with file logging", env!("CARGO_PKG_VERSION"));
+        log::info!(
+            "UAD-Shizuku v{} starting with file logging",
+            env!("CARGO_PKG_VERSION")
+        );
     } else {
         // Initialize combined logger for in-app log viewer (use settings, default to ERROR)
         let log_level = if let Ok(config) = uad_shizuku::Config::new() {
@@ -265,7 +270,8 @@ fn main() -> eframe::Result<()> {
         }));
     }
 
-    let icon = image::load_from_memory(include_bytes!("../app/src/main/play_store_512.png")).unwrap();
+    let icon =
+        image::load_from_memory(include_bytes!("../app/src/main/play_store_512.png")).unwrap();
     let icon = IconData {
         width: icon.width(),
         height: icon.height(),

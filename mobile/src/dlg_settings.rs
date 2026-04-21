@@ -1,9 +1,9 @@
-use crate::Settings;
-use crate::LogLevel;
 pub use crate::dlg_settings_stt::*;
+use crate::LogLevel;
+use crate::Settings;
 use eframe::egui;
 use egui_i18n::tr;
-use egui_material3::{get_global_theme, ThemeMode, MaterialButton, MaterialCheckbox};
+use egui_material3::{get_global_theme, MaterialButton, MaterialCheckbox, ThemeMode};
 use sys_locale::get_locale;
 
 impl DlgSettings {
@@ -24,7 +24,9 @@ impl DlgSettings {
     fn detect_system_language() -> String {
         match get_locale().as_deref() {
             Some("ko_KR") | Some("ko-KR") | Some("ko") => "ko-KR".to_string(),
-            Some("en_US") | Some("en-US") | Some("en_GB") | Some("en-GB") | Some("en") | _ => "en-US".to_string(),
+            Some("en_US") | Some("en-US") | Some("en_GB") | Some("en-GB") | Some("en") | _ => {
+                "en-US".to_string()
+            }
         }
     }
 
@@ -61,8 +63,13 @@ impl DlgSettings {
                                 if let Some(ext) = sub_path.extension().and_then(|e| e.to_str()) {
                                     let ext_lower = ext.to_lowercase();
                                     if ext_lower == "ttf" || ext_lower == "otf" {
-                                        if let Some(name) = sub_path.file_stem().and_then(|n| n.to_str()) {
-                                            fonts.push((name.to_string(), sub_path.to_string_lossy().to_string()));
+                                        if let Some(name) =
+                                            sub_path.file_stem().and_then(|n| n.to_str())
+                                        {
+                                            fonts.push((
+                                                name.to_string(),
+                                                sub_path.to_string_lossy().to_string(),
+                                            ));
                                         }
                                     }
                                 }
@@ -124,11 +131,7 @@ impl DlgSettings {
         }
     }
 
-    pub fn show(
-        &mut self,
-        ctx: &egui::Context,
-        settings: &mut Settings,
-    ) {
+    pub fn show(&mut self, ctx: &egui::Context, settings: &mut Settings) {
         if !self.open {
             return;
         }
@@ -149,8 +152,14 @@ impl DlgSettings {
             .min_width(600.0)
             .min_height(400.0)
             .resize(|r| {
-                r.default_size([ctx.content_rect().width() - 40.0, ctx.content_rect().height() - 40.0])
-                    .max_size([ctx.content_rect().width() - 40.0, ctx.content_rect().height() - 40.0])
+                r.default_size([
+                    ctx.content_rect().width() - 40.0,
+                    ctx.content_rect().height() - 40.0,
+                ])
+                .max_size([
+                    ctx.content_rect().width() - 40.0,
+                    ctx.content_rect().height() - 40.0,
+                ])
             })
             .show(ctx, |ui| {
                 ui.heading("Settings");
@@ -176,9 +185,21 @@ impl DlgSettings {
                                     _ => &selected_lang,
                                 })
                                 .show_ui(ui, |ui| {
-                                    ui.selectable_value(&mut selected_lang, "Auto".to_string(), "Auto");
-                                    ui.selectable_value(&mut selected_lang, "en-US".to_string(), "English");
-                                    ui.selectable_value(&mut selected_lang, "ko-KR".to_string(), "Korean");
+                                    ui.selectable_value(
+                                        &mut selected_lang,
+                                        "Auto".to_string(),
+                                        "Auto",
+                                    );
+                                    ui.selectable_value(
+                                        &mut selected_lang,
+                                        "en-US".to_string(),
+                                        "English",
+                                    );
+                                    ui.selectable_value(
+                                        &mut selected_lang,
+                                        "ko-KR".to_string(),
+                                        "Korean",
+                                    );
                                 });
 
                             if selected_lang != settings.language {
@@ -219,10 +240,8 @@ impl DlgSettings {
 
                                 if selected == "Default (NotoSansKr)" {
                                     settings.font_path = String::new();
-                                } else if let Some((_, path)) = self
-                                    .system_fonts
-                                    .iter()
-                                    .find(|(name, _)| name == &selected)
+                                } else if let Some((_, path)) =
+                                    self.system_fonts.iter().find(|(name, _)| name == &selected)
                                 {
                                     settings.font_path = path.clone();
                                 }
@@ -319,21 +338,33 @@ impl DlgSettings {
                             ui.label(tr!("color-mode"));
                             if let Ok(mut theme) = get_global_theme().lock() {
                                 let light_selected = theme.theme_mode == ThemeMode::Light;
-                                if ui.selectable_label(light_selected, tr!("light-mode")).clicked() {
+                                if ui
+                                    .selectable_label(light_selected, tr!("light-mode"))
+                                    .clicked()
+                                {
                                     theme.theme_mode = ThemeMode::Light;
-                                    settings.theme_mode = Self::theme_mode_to_string(ThemeMode::Light);
+                                    settings.theme_mode =
+                                        Self::theme_mode_to_string(ThemeMode::Light);
                                 }
 
                                 let auto_selected = theme.theme_mode == ThemeMode::Auto;
-                                if ui.selectable_label(auto_selected, tr!("auto-mode")).clicked() {
+                                if ui
+                                    .selectable_label(auto_selected, tr!("auto-mode"))
+                                    .clicked()
+                                {
                                     theme.theme_mode = ThemeMode::Auto;
-                                    settings.theme_mode = Self::theme_mode_to_string(ThemeMode::Auto);
+                                    settings.theme_mode =
+                                        Self::theme_mode_to_string(ThemeMode::Auto);
                                 }
 
                                 let dark_selected = theme.theme_mode == ThemeMode::Dark;
-                                if ui.selectable_label(dark_selected, tr!("dark-mode")).clicked() {
+                                if ui
+                                    .selectable_label(dark_selected, tr!("dark-mode"))
+                                    .clicked()
+                                {
                                     theme.theme_mode = ThemeMode::Dark;
-                                    settings.theme_mode = Self::theme_mode_to_string(ThemeMode::Dark);
+                                    settings.theme_mode =
+                                        Self::theme_mode_to_string(ThemeMode::Dark);
                                 }
                             }
 
@@ -355,7 +386,14 @@ impl DlgSettings {
                                         ("lightpink", "Light Pink"),
                                         ("yellow", "Yellow"),
                                     ] {
-                                        if ui.selectable_value(&mut selected_theme, value.to_string(), label).clicked() {
+                                        if ui
+                                            .selectable_value(
+                                                &mut selected_theme,
+                                                value.to_string(),
+                                                label,
+                                            )
+                                            .clicked()
+                                        {
                                             settings.theme_name = value.to_string();
                                             self.theme_to_apply = Some(value.to_string());
                                         }
@@ -366,20 +404,29 @@ impl DlgSettings {
                         ui.add_space(8.0);
 
                         ui.horizontal_wrapped(|ui| {
-                            ui.add(MaterialCheckbox::new(&mut self.unsafe_app_remove, tr!("allow-unsafe-app-remove")));
+                            ui.add(MaterialCheckbox::new(
+                                &mut self.unsafe_app_remove,
+                                tr!("allow-unsafe-app-remove"),
+                            ));
                         });
 
                         ui.add_space(8.0);
 
                         ui.horizontal_wrapped(|ui| {
-                            ui.add(MaterialCheckbox::new(&mut self.expert_app_remove, tr!("allow-expert-app-remove")));
+                            ui.add(MaterialCheckbox::new(
+                                &mut self.expert_app_remove,
+                                tr!("allow-expert-app-remove"),
+                            ));
                         });
 
                         ui.add_space(8.0);
 
                         ui.horizontal_wrapped(|ui| {
                             ui.spacing_mut().item_spacing.x = 4.0;
-                            ui.add(MaterialCheckbox::new(&mut self.autoupdate, tr!("autoupdate")));
+                            ui.add(MaterialCheckbox::new(
+                                &mut self.autoupdate,
+                                tr!("autoupdate"),
+                            ));
                             ui.add_space(8.0);
                             ui.label(tr!("autoupdate-desc"));
                         });
@@ -398,9 +445,15 @@ impl DlgSettings {
                                     let _ = crate::android_inputmethod::hide_soft_input();
                                 }
                             }
-                            crate::clipboard_popup::show_clipboard_popup(ui, &response, &mut self.virustotal_apikey);
+                            crate::clipboard_popup::show_clipboard_popup(
+                                ui,
+                                &response,
+                                &mut self.virustotal_apikey,
+                            );
                             if ui.button(tr!("get-api-key")).clicked() {
-                                if let Err(e) = webbrowser::open("https://www.virustotal.com/gui/my-apikey") {
+                                if let Err(e) =
+                                    webbrowser::open("https://www.virustotal.com/gui/my-apikey")
+                                {
                                     log::error!("Failed to open VirusTotal API key URL: {}", e);
                                 }
                             }
@@ -410,10 +463,16 @@ impl DlgSettings {
 
                         ui.horizontal_wrapped(|ui| {
                             ui.spacing_mut().item_spacing.x = 4.0;
-                            ui.add(MaterialCheckbox::new(&mut self.virustotal_submit, tr!("allow-virustotal-upload")));
+                            ui.add(MaterialCheckbox::new(
+                                &mut self.virustotal_submit,
+                                tr!("allow-virustotal-upload"),
+                            ));
                             ui.add_space(8.0);
                             ui.label(tr!("virustotal-upload-desc"));
-                            ui.add(MaterialCheckbox::new(&mut self.flush_virustotal, tr!("flush")));
+                            ui.add(MaterialCheckbox::new(
+                                &mut self.flush_virustotal,
+                                tr!("flush"),
+                            ));
                         });
 
                         ui.add_space(8.0);
@@ -430,9 +489,15 @@ impl DlgSettings {
                                     let _ = crate::android_inputmethod::hide_soft_input();
                                 }
                             }
-                            crate::clipboard_popup::show_clipboard_popup(ui, &response, &mut self.hybridanalysis_apikey);
+                            crate::clipboard_popup::show_clipboard_popup(
+                                ui,
+                                &response,
+                                &mut self.hybridanalysis_apikey,
+                            );
                             if ui.button(tr!("get-api-key")).clicked() {
-                                if let Err(e) = webbrowser::open("https://hybrid-analysis.com/my-account") {
+                                if let Err(e) =
+                                    webbrowser::open("https://hybrid-analysis.com/my-account")
+                                {
                                     log::error!("Failed to open HybridAnalysis API key URL: {}", e);
                                 }
                             }
@@ -442,17 +507,24 @@ impl DlgSettings {
 
                         ui.horizontal_wrapped(|ui| {
                             ui.spacing_mut().item_spacing.x = 4.0;
-                            ui.add(MaterialCheckbox::new(&mut self.hybridanalysis_submit, tr!("allow-hybridanalysis-upload")));
+                            ui.add(MaterialCheckbox::new(
+                                &mut self.hybridanalysis_submit,
+                                tr!("allow-hybridanalysis-upload"),
+                            ));
                             ui.add_space(8.0);
                             ui.label(tr!("hybridanalysis-upload-desc"));
-                            ui.add(MaterialCheckbox::new(&mut self.flush_hybridanalysis, tr!("flush")));
+                            ui.add(MaterialCheckbox::new(
+                                &mut self.flush_hybridanalysis,
+                                tr!("flush"),
+                            ));
                         });
 
                         ui.add_space(8.0);
 
                         ui.horizontal_wrapped(|ui| {
                             ui.label(tr!("hybridanalysis-tag-ignorelist"));
-                            let response = ui.text_edit_singleline(&mut self.hybridanalysis_tag_ignorelist);
+                            let response =
+                                ui.text_edit_singleline(&mut self.hybridanalysis_tag_ignorelist);
                             #[cfg(target_os = "android")]
                             {
                                 if response.gained_focus() {
@@ -462,7 +534,11 @@ impl DlgSettings {
                                     let _ = crate::android_inputmethod::hide_soft_input();
                                 }
                             }
-                            crate::clipboard_popup::show_clipboard_popup(ui, &response, &mut self.hybridanalysis_tag_ignorelist);
+                            crate::clipboard_popup::show_clipboard_popup(
+                                ui,
+                                &response,
+                                &mut self.hybridanalysis_tag_ignorelist,
+                            );
                         });
 
                         ui.add_space(8.0);
@@ -471,17 +547,26 @@ impl DlgSettings {
                         {
                             ui.horizontal_wrapped(|ui| {
                                 ui.spacing_mut().item_spacing.x = 4.0;
-                                ui.add(MaterialCheckbox::new(&mut self.google_play_renderer, tr!("google-play-renderer")));
+                                ui.add(MaterialCheckbox::new(
+                                    &mut self.google_play_renderer,
+                                    tr!("google-play-renderer"),
+                                ));
                                 ui.add_space(8.0);
                                 ui.label(tr!("google-play-renderer-desc"));
-                                ui.add(MaterialCheckbox::new(&mut self.flush_googleplay, tr!("flush")));
+                                ui.add(MaterialCheckbox::new(
+                                    &mut self.flush_googleplay,
+                                    tr!("flush"),
+                                ));
                             });
 
                             ui.add_space(8.0);
 
                             ui.horizontal_wrapped(|ui| {
                                 ui.spacing_mut().item_spacing.x = 4.0;
-                                ui.add(MaterialCheckbox::new(&mut self.fdroid_renderer, tr!("fdroid-renderer")));
+                                ui.add(MaterialCheckbox::new(
+                                    &mut self.fdroid_renderer,
+                                    tr!("fdroid-renderer"),
+                                ));
                                 ui.add_space(8.0);
                                 ui.label(tr!("fdroid-renderer-desc"));
                                 ui.add(MaterialCheckbox::new(&mut self.flush_fdroid, tr!("flush")));
@@ -491,17 +576,26 @@ impl DlgSettings {
 
                             ui.horizontal_wrapped(|ui| {
                                 ui.spacing_mut().item_spacing.x = 4.0;
-                                ui.add(MaterialCheckbox::new(&mut self.apkmirror_renderer, tr!("apkmirror-renderer")));
+                                ui.add(MaterialCheckbox::new(
+                                    &mut self.apkmirror_renderer,
+                                    tr!("apkmirror-renderer"),
+                                ));
                                 ui.add_space(8.0);
                                 ui.label(tr!("apkmirror-renderer-desc"));
-                                ui.add(MaterialCheckbox::new(&mut self.flush_apkmirror, tr!("flush")));
+                                ui.add(MaterialCheckbox::new(
+                                    &mut self.flush_apkmirror,
+                                    tr!("flush"),
+                                ));
                             });
 
                             ui.add_space(8.0);
 
                             ui.horizontal_wrapped(|ui| {
                                 ui.spacing_mut().item_spacing.x = 4.0;
-                                ui.add(MaterialCheckbox::new(&mut settings.apkmirror_auto_upload, tr!("apkmirror-auto-upload")));
+                                ui.add(MaterialCheckbox::new(
+                                    &mut settings.apkmirror_auto_upload,
+                                    tr!("apkmirror-auto-upload"),
+                                ));
                                 ui.add_space(8.0);
                                 ui.label(tr!("apkmirror-auto-upload-desc"));
                             });
@@ -515,7 +609,11 @@ impl DlgSettings {
                                         .desired_width(200.0)
                                         .hint_text(tr!("email-hint")),
                                 );
-                                crate::clipboard_popup::show_clipboard_popup(ui, &response, &mut settings.apkmirror_email);
+                                crate::clipboard_popup::show_clipboard_popup(
+                                    ui,
+                                    &response,
+                                    &mut settings.apkmirror_email,
+                                );
                             });
 
                             ui.add_space(8.0);
@@ -527,7 +625,11 @@ impl DlgSettings {
                                         .desired_width(200.0)
                                         .hint_text(tr!("name-hint")),
                                 );
-                                crate::clipboard_popup::show_clipboard_popup(ui, &response, &mut settings.apkmirror_name);
+                                crate::clipboard_popup::show_clipboard_popup(
+                                    ui,
+                                    &response,
+                                    &mut settings.apkmirror_name,
+                                );
                             });
 
                             ui.add_space(8.0);
@@ -535,7 +637,10 @@ impl DlgSettings {
 
                         ui.horizontal_wrapped(|ui| {
                             ui.spacing_mut().item_spacing.x = 4.0;
-                            ui.add(MaterialCheckbox::new(&mut self.invalidate_cache, tr!("invalidate-cache")));
+                            ui.add(MaterialCheckbox::new(
+                                &mut self.invalidate_cache,
+                                tr!("invalidate-cache"),
+                            ));
                             ui.add_space(8.0);
                             ui.label(tr!("invalidate-cache-desc"));
                         });
