@@ -4026,8 +4026,12 @@ pub fn get_icon(name: &str) -> Option<char> {
         "signal_cellular_alt" => ICON_SIGNAL_CELLULAR_ALT,
         "signal_cellular_alt_1_bar" => ICON_SIGNAL_CELLULAR_ALT_1_BAR,
         "signal_cellular_alt_2_bar" => ICON_SIGNAL_CELLULAR_ALT_2_BAR,
-        "signal_cellular_connected_no_internet_0_bar" => ICON_SIGNAL_CELLULAR_CONNECTED_NO_INTERNET_0_BAR,
-        "signal_cellular_connected_no_internet_4_bar" => ICON_SIGNAL_CELLULAR_CONNECTED_NO_INTERNET_4_BAR,
+        "signal_cellular_connected_no_internet_0_bar" => {
+            ICON_SIGNAL_CELLULAR_CONNECTED_NO_INTERNET_0_BAR
+        }
+        "signal_cellular_connected_no_internet_4_bar" => {
+            ICON_SIGNAL_CELLULAR_CONNECTED_NO_INTERNET_4_BAR
+        }
         "signal_cellular_no_sim" => ICON_SIGNAL_CELLULAR_NO_SIM,
         "signal_cellular_nodata" => ICON_SIGNAL_CELLULAR_NODATA,
         "signal_cellular_null" => ICON_SIGNAL_CELLULAR_NULL,
@@ -4039,7 +4043,9 @@ pub fn get_icon(name: &str) -> Option<char> {
         "signal_wifi_connected_no_internet_4" => ICON_SIGNAL_WIFI_CONNECTED_NO_INTERNET_4,
         "signal_wifi_off" => ICON_SIGNAL_WIFI_OFF,
         "signal_wifi_statusbar_4_bar" => ICON_SIGNAL_WIFI_STATUSBAR_4_BAR,
-        "signal_wifi_statusbar_connected_no_internet_4" => ICON_SIGNAL_WIFI_STATUSBAR_CONNECTED_NO_INTERNET_4,
+        "signal_wifi_statusbar_connected_no_internet_4" => {
+            ICON_SIGNAL_WIFI_STATUSBAR_CONNECTED_NO_INTERNET_4
+        }
         "signal_wifi_statusbar_null" => ICON_SIGNAL_WIFI_STATUSBAR_NULL,
         "signpost" => ICON_SIGNPOST,
         "sim_card" => ICON_SIM_CARD,

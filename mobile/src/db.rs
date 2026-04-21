@@ -155,9 +155,15 @@ pub fn flush_hybridanalysis() {
     match diesel::sql_query("DELETE FROM hybridanalysis_results").execute(connection) {
         Ok(count) => {
             #[cfg(not(target_family = "wasm"))]
-            log::info!("Flushed hybridanalysis_results table. Deleted {} rows.", count);
+            log::info!(
+                "Flushed hybridanalysis_results table. Deleted {} rows.",
+                count
+            );
             #[cfg(target_family = "wasm")]
-            console_log!("Flushed hybridanalysis_results table. Deleted {} rows.", count);
+            console_log!(
+                "Flushed hybridanalysis_results table. Deleted {} rows.",
+                count
+            );
         }
         Err(e) => {
             #[cfg(not(target_family = "wasm"))]

@@ -21,29 +21,20 @@ pub fn show_soft_input() -> std::io::Result<()> {
 
     let activity = unsafe { jni::objects::JObject::from_raw(ctx.context() as _) };
     let mut env = vm.attach_current_thread().map_err(|_| {
-        std::io::Error::new(
-            std::io::ErrorKind::Other,
-            "Failed to attach current thread",
-        )
+        std::io::Error::new(std::io::ErrorKind::Other, "Failed to attach current thread")
     })?;
 
     // Get InputMethodManager via getSystemService
     // First, get the INPUT_METHOD_SERVICE constant
-    let context_class = env
-        .find_class("android/content/Context")
-        .map_err(|e| {
-            std::io::Error::new(
-                std::io::ErrorKind::Other,
-                format!("Failed to find Context class: {}", e),
-            )
-        })?;
+    let context_class = env.find_class("android/content/Context").map_err(|e| {
+        std::io::Error::new(
+            std::io::ErrorKind::Other,
+            format!("Failed to find Context class: {}", e),
+        )
+    })?;
 
     let input_method_service = env
-        .get_static_field(
-            &context_class,
-            "INPUT_METHOD_SERVICE",
-            "Ljava/lang/String;",
-        )
+        .get_static_field(&context_class, "INPUT_METHOD_SERVICE", "Ljava/lang/String;")
         .map_err(|e| {
             std::io::Error::new(
                 std::io::ErrorKind::Other,
@@ -170,28 +161,19 @@ pub fn hide_soft_input() -> std::io::Result<()> {
 
     let activity = unsafe { jni::objects::JObject::from_raw(ctx.context() as _) };
     let mut env = vm.attach_current_thread().map_err(|_| {
-        std::io::Error::new(
-            std::io::ErrorKind::Other,
-            "Failed to attach current thread",
-        )
+        std::io::Error::new(std::io::ErrorKind::Other, "Failed to attach current thread")
     })?;
 
     // Get InputMethodManager
-    let context_class = env
-        .find_class("android/content/Context")
-        .map_err(|e| {
-            std::io::Error::new(
-                std::io::ErrorKind::Other,
-                format!("Failed to find Context class: {}", e),
-            )
-        })?;
+    let context_class = env.find_class("android/content/Context").map_err(|e| {
+        std::io::Error::new(
+            std::io::ErrorKind::Other,
+            format!("Failed to find Context class: {}", e),
+        )
+    })?;
 
     let input_method_service = env
-        .get_static_field(
-            &context_class,
-            "INPUT_METHOD_SERVICE",
-            "Ljava/lang/String;",
-        )
+        .get_static_field(&context_class, "INPUT_METHOD_SERVICE", "Ljava/lang/String;")
         .map_err(|e| {
             std::io::Error::new(
                 std::io::ErrorKind::Other,
@@ -337,27 +319,18 @@ pub fn toggle_soft_input() -> std::io::Result<()> {
 
     let activity = unsafe { jni::objects::JObject::from_raw(ctx.context() as _) };
     let mut env = vm.attach_current_thread().map_err(|_| {
+        std::io::Error::new(std::io::ErrorKind::Other, "Failed to attach current thread")
+    })?;
+
+    let context_class = env.find_class("android/content/Context").map_err(|e| {
         std::io::Error::new(
             std::io::ErrorKind::Other,
-            "Failed to attach current thread",
+            format!("Failed to find Context class: {}", e),
         )
     })?;
 
-    let context_class = env
-        .find_class("android/content/Context")
-        .map_err(|e| {
-            std::io::Error::new(
-                std::io::ErrorKind::Other,
-                format!("Failed to find Context class: {}", e),
-            )
-        })?;
-
     let input_method_service = env
-        .get_static_field(
-            &context_class,
-            "INPUT_METHOD_SERVICE",
-            "Ljava/lang/String;",
-        )
+        .get_static_field(&context_class, "INPUT_METHOD_SERVICE", "Ljava/lang/String;")
         .map_err(|e| {
             std::io::Error::new(
                 std::io::ErrorKind::Other,

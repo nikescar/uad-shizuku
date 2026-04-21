@@ -36,7 +36,10 @@ pub fn android_main(app: AndroidApp) {
     // Initialize combined logger that writes to both logcat and in-app log capture
     log_capture::init_combined_logger(level_filter);
 
-    log::info!("UAD-Shizuku v{} starting on Android", env!("CARGO_PKG_VERSION"));
+    log::info!(
+        "UAD-Shizuku v{} starting on Android",
+        env!("CARGO_PKG_VERSION")
+    );
 
     // Initialize common app components (database, i18n)
     uad_shizuku_app::init_common();
@@ -67,7 +70,10 @@ pub fn android_main(app: AndroidApp) {
         };
 
         if is_expected_window_panic {
-            log::warn!("Expected window destruction during activity lifecycle change: {}", panic_info);
+            log::warn!(
+                "Expected window destruction during activity lifecycle change: {}",
+                panic_info
+            );
             // Don't treat this as a critical error - it's normal during Android lifecycle
             return;
         }

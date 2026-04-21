@@ -16,9 +16,9 @@ pub fn shell_exec(device: &str, command: &str) -> std::io::Result<String> {
     #[cfg(target_os = "android")]
     {
         let _ = device; // device is implicit on Android (local)
-        // Use file-based execution to bypass Binder IPC size limit.
-        // The ShellService writes output to a temp file, then Rust reads it.
-        // Use /data/local/tmp/ as it's accessible by both shell user (Shizuku) and the app
+                        // Use file-based execution to bypass Binder IPC size limit.
+                        // The ShellService writes output to a temp file, then Rust reads it.
+                        // Use /data/local/tmp/ as it's accessible by both shell user (Shizuku) and the app
         use std::time::{SystemTime, UNIX_EPOCH};
         let timestamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -586,7 +586,10 @@ pub fn parse_package_fingerprints(fingerprints: Vec<String>) -> Vec<PackageFinge
         });
     }
 
-    debug!("Parsed {} package fingerprints before dedup", packages.len());
+    debug!(
+        "Parsed {} package fingerprints before dedup",
+        packages.len()
+    );
 
     // Deduplicate packages: merge users from duplicate package entries
     // This handles cases where dumpsys returns the same package multiple times
@@ -708,10 +711,7 @@ pub fn get_single_package_sha256sum(
             }
 
             if !found_files {
-                debug!(
-                    "No APK files found in {} using fallback methods",
-                    code_path
-                );
+                debug!("No APK files found in {} using fallback methods", code_path);
             }
         }
     }
@@ -1245,7 +1245,10 @@ pub fn uninstall_app_user(
     user_id: Option<&str>,
 ) -> std::io::Result<String> {
     let user = user_id.unwrap_or("0");
-    shell_exec(device, &format!("pm uninstall --user {} {}", user, package_name))
+    shell_exec(
+        device,
+        &format!("pm uninstall --user {} {}", user, package_name),
+    )
 }
 
 pub fn disable_app_current_user(
@@ -1254,7 +1257,10 @@ pub fn disable_app_current_user(
     user_id: Option<&str>,
 ) -> std::io::Result<String> {
     let user = user_id.unwrap_or("0");
-    shell_exec(device, &format!("pm disable-user --user {} {}", user, package_name))
+    shell_exec(
+        device,
+        &format!("pm disable-user --user {} {}", user, package_name),
+    )
 }
 
 pub fn enable_app(package_name: &str, device: &str) -> std::io::Result<String> {
@@ -1294,18 +1300,24 @@ pub fn pull_file_to_temp(
             .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_millis();
-        let base64_path = format!("/data/local/tmp/uad_base64_{}_{}.txt", 
-            package_id.replace(".", "_"), timestamp);
-        
-        debug!("Encoding file via base64 on Android: {} -> {}", file_path, base64_path);
-        
+        let base64_path = format!(
+            "/data/local/tmp/uad_base64_{}_{}.txt",
+            package_id.replace(".", "_"),
+            timestamp
+        );
+
+        debug!(
+            "Encoding file via base64 on Android: {} -> {}",
+            file_path, base64_path
+        );
+
         // Step 1: Use base64 to encode file and write to /data/local/tmp/ (shell-accessible)
         let encode_cmd = format!("base64 \"{}\" > \"{}\"", file_path, base64_path);
         if let Err(e) = shell_exec(device_serial, &encode_cmd) {
             error!("Failed to base64 encode file {}: {}", file_path, e);
             return Err(e);
         }
-        
+
         // Step 2: Read the base64-encoded file (app can read from /data/local/tmp/)
         let base64_content = match std::fs::read_to_string(&base64_path) {
             Ok(content) => content,
@@ -1316,44 +1328,57 @@ pub fn pull_file_to_temp(
                 return Err(e);
             }
         };
-        
+
         // Step 3: Decode base64 in Rust
         // Remove all whitespace (including newlines) that Android base64 command adds for line wrapping
         use base64::{engine::general_purpose, Engine as _};
-        let base64_clean: String = base64_content.chars()
+        let base64_clean: String = base64_content
+            .chars()
             .filter(|c| !c.is_whitespace())
             .collect();
-        
-        let decoded_bytes = match base64::Engine::decode(&general_purpose::STANDARD, &base64_clean) {
+
+        let decoded_bytes = match base64::Engine::decode(&general_purpose::STANDARD, &base64_clean)
+        {
             Ok(bytes) => bytes,
             Err(e) => {
                 error!("Failed to decode base64 content: {}", e);
                 // Clean up
                 let _ = shell_exec(device_serial, &format!("rm \"{}\"", base64_path));
-                return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, 
-                    format!("Base64 decode error: {}", e)));
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    format!("Base64 decode error: {}", e),
+                ));
             }
         };
-        
+
         // Step 4: Write decoded binary to final destination
         if let Err(e) = std::fs::write(&absolute_path, &decoded_bytes) {
-            error!("Failed to write binary file to {}: {}", absolute_path_str, e);
+            error!(
+                "Failed to write binary file to {}: {}",
+                absolute_path_str, e
+            );
             // Clean up
             let _ = shell_exec(device_serial, &format!("rm \"{}\"", base64_path));
             return Err(e);
         }
-        
+
         debug!("Successfully wrote binary file to {}", absolute_path_str);
-        
+
         // Clean up temporary files
         let _ = shell_exec(device_serial, &format!("rm \"{}\"", base64_path));
-        
+
         if absolute_path.exists() {
             let file_size = std::fs::metadata(&absolute_path)?.len();
-            debug!("File pulled successfully: {} ({} bytes)", absolute_path_str, file_size);
+            debug!(
+                "File pulled successfully: {} ({} bytes)",
+                absolute_path_str, file_size
+            );
             Ok(absolute_path_str.to_string())
         } else {
-            let err_msg = format!("File write succeeded but file not found at {}", absolute_path_str);
+            let err_msg = format!(
+                "File write succeeded but file not found at {}",
+                absolute_path_str
+            );
             error!("{}", err_msg);
             Err(std::io::Error::new(std::io::ErrorKind::NotFound, err_msg))
         }
@@ -1361,7 +1386,10 @@ pub fn pull_file_to_temp(
     #[cfg(not(target_os = "android"))]
     {
         use std::process::Command;
-        debug!("Executing: adb -s {} pull {} {}", device_serial, file_path, absolute_path_str);
+        debug!(
+            "Executing: adb -s {} pull {} {}",
+            device_serial, file_path, absolute_path_str
+        );
 
         let output = Command::new("adb")
             .arg("-s")
@@ -1383,7 +1411,10 @@ pub fn pull_file_to_temp(
         if output.status.success() {
             if absolute_path.exists() {
                 let file_size = std::fs::metadata(&absolute_path)?.len();
-                debug!("File successfully pulled to: {} ({} bytes)", absolute_path_str, file_size);
+                debug!(
+                    "File successfully pulled to: {} ({} bytes)",
+                    absolute_path_str, file_size
+                );
                 Ok(absolute_path_str.to_string())
             } else {
                 let err_msg = format!(
@@ -1403,7 +1434,10 @@ pub fn pull_file_to_temp(
 
 #[allow(dead_code)]
 pub fn install_existing_app(package_name: &str, device: &str) -> std::io::Result<String> {
-    shell_exec(device, &format!("cmd package install-existing {}", package_name))
+    shell_exec(
+        device,
+        &format!("cmd package install-existing {}", package_name),
+    )
 }
 
 pub fn usagestats_history(device: &str) -> std::io::Result<String> {
@@ -2154,46 +2188,58 @@ mod tests {
         // - File: /product/priv-app/Velvet/Velvet.apk
         // - Package: com.google.android.googlequicksearchbox
         // - Expected: /home/spot/.config/uad_shizuku/tmp/com_google_android_googlequicksearchbox.apk
-        
+
         let device_serial = "43151JEKB07226";
         let file_path = "/product/priv-app/Velvet/Velvet.apk";
         let tmp_dir = "/tmp/test_pull_file";
         let package_id = "com.google.android.googlequicksearchbox";
-        
+
         // Create tmp directory
         std::fs::create_dir_all(tmp_dir).expect("Failed to create tmp dir");
-        
+
         // Attempt to pull file
         let result = pull_file_to_temp(device_serial, file_path, tmp_dir, package_id);
-        
+
         match result {
             Ok(pulled_path) => {
                 println!("File successfully pulled to: {}", pulled_path);
-                
+
                 // Verify the file exists
-                assert!(std::path::Path::new(&pulled_path).exists(), 
-                    "File should exist at pulled path: {}", pulled_path);
-                
+                assert!(
+                    std::path::Path::new(&pulled_path).exists(),
+                    "File should exist at pulled path: {}",
+                    pulled_path
+                );
+
                 // Verify it's the expected path
-                let expected_path = format!("{}/com_google_android_googlequicksearchbox.apk", tmp_dir);
-                assert_eq!(pulled_path, expected_path, 
-                    "Pulled path should match expected path");
-                
+                let expected_path =
+                    format!("{}/com_google_android_googlequicksearchbox.apk", tmp_dir);
+                assert_eq!(
+                    pulled_path, expected_path,
+                    "Pulled path should match expected path"
+                );
+
                 // Clean up
                 let _ = std::fs::remove_file(&pulled_path);
             }
             Err(e) => {
                 println!("Pull failed with error: {}", e);
-                
+
                 // Check if file was pulled with original device filename
                 let original_name_path = format!("{}/Velvet.apk", tmp_dir);
                 if std::path::Path::new(&original_name_path).exists() {
-                    println!("ISSUE FOUND: File was pulled with original device name: {}", original_name_path);
-                    println!("Expected: {}/com_google_android_googlequicksearchbox.apk", tmp_dir);
-                    
+                    println!(
+                        "ISSUE FOUND: File was pulled with original device name: {}",
+                        original_name_path
+                    );
+                    println!(
+                        "Expected: {}/com_google_android_googlequicksearchbox.apk",
+                        tmp_dir
+                    );
+
                     // Clean up
                     let _ = std::fs::remove_file(&original_name_path);
-                    
+
                     panic!("File naming mismatch: adb pulled file with original device name (Velvet.apk) instead of package-based name (com_google_android_googlequicksearchbox.apk)");
                 } else {
                     // File doesn't exist anywhere
@@ -2201,7 +2247,7 @@ mod tests {
                 }
             }
         }
-        
+
         // Clean up directory
         let _ = std::fs::remove_dir(tmp_dir);
     }

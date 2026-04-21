@@ -34,9 +34,9 @@ pub struct TabAppsControl {
     pub recently_installed_apps: HashSet<String>, // Track app names that were just installed (for GitHub apps where package name isn't in URL)
     pub show_only_installable: bool, // Filter to show only apps with downloadable links
     pub disable_github_install: bool, // Option to disable GitHub installations
-    pub text_filter: String, // Text filter for searching all visible text in the table
-    pub sort_column: Option<usize>, // Sort column for mobile view
-    pub sort_ascending: bool, // Sort direction
+    pub text_filter: String,         // Text filter for searching all visible text in the table
+    pub sort_column: Option<usize>,  // Sort column for mobile view
+    pub sort_ascending: bool,        // Sort direction
     // Background operations queue
     pub operations_queue: Option<std::sync::Arc<crate::app_operations_queue::AppOperationsQueue>>,
     // Track if operations just completed to trigger refresh

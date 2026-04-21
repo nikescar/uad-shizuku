@@ -38,12 +38,11 @@ fn move_to_trash<P: AsRef<Path>>(path: P) -> Result<(), String> {
     // - Linux: Uses freedesktop.org Trash specification
     #[cfg(not(any(target_os = "android", target_arch = "wasm32")))]
     {
-        trash::delete(path)
-            .map_err(|e| {
-                let err_msg = format!("Failed to move to trash: {}", e);
-                log::error!("{}", err_msg);
-                err_msg
-            })?;
+        trash::delete(path).map_err(|e| {
+            let err_msg = format!("Failed to move to trash: {}", e);
+            log::error!("{}", err_msg);
+            err_msg
+        })?;
 
         log::debug!("Successfully moved to trash");
     }
@@ -53,11 +52,9 @@ fn move_to_trash<P: AsRef<Path>>(path: P) -> Result<(), String> {
         // On Android/WASM, just delete the file
         log::debug!("Platform does not support trash, deleting file directly");
         if path.is_dir() {
-            fs::remove_dir_all(path)
-                .map_err(|e| format!("Failed to remove directory: {}", e))?;
+            fs::remove_dir_all(path).map_err(|e| format!("Failed to remove directory: {}", e))?;
         } else {
-            fs::remove_file(path)
-                .map_err(|e| format!("Failed to remove file: {}", e))?;
+            fs::remove_file(path).map_err(|e| format!("Failed to remove file: {}", e))?;
         }
     }
 
@@ -66,14 +63,20 @@ fn move_to_trash<P: AsRef<Path>>(path: P) -> Result<(), String> {
 
 /// Remove old versions of binaries and shortcuts
 /// If `keep_version` is provided, keep that version instead of the current running version
-fn cleanup_old_installations(paths: &InstallPaths, keep_version: Option<&str>) -> Result<(), String> {
+fn cleanup_old_installations(
+    paths: &InstallPaths,
+    keep_version: Option<&str>,
+) -> Result<(), String> {
     let version_to_keep = if let Some(ver) = keep_version {
         format!("{}-{}", APP_NAME, ver)
     } else {
         get_versioned_app_name()
     };
 
-    log::info!("Cleaning up old installations, keeping: {}", version_to_keep);
+    log::info!(
+        "Cleaning up old installations, keeping: {}",
+        version_to_keep
+    );
 
     // Clean up old binaries in bin_dir
     if paths.bin_dir.exists() {
@@ -146,13 +149,18 @@ fn cleanup_old_installations(paths: &InstallPaths, keep_version: Option<&str>) -
                             let is_old_shortcut = false;
 
                             if is_old_shortcut && path != *start_menu {
-                                log::info!("Moving old start menu shortcut to trash: {}", path.display());
+                                log::info!(
+                                    "Moving old start menu shortcut to trash: {}",
+                                    path.display()
+                                );
                                 match move_to_trash(&path) {
                                     Ok(_) => {
                                         shortcuts_removed += 1;
                                         log::debug!("Successfully removed shortcut: {}", name_str);
                                     }
-                                    Err(e) => log::warn!("Failed to remove shortcut {}: {}", name_str, e),
+                                    Err(e) => {
+                                        log::warn!("Failed to remove shortcut {}: {}", name_str, e)
+                                    }
                                 }
                             }
                         }
@@ -182,13 +190,18 @@ fn cleanup_old_installations(paths: &InstallPaths, keep_version: Option<&str>) -
                             let is_old_shortcut = false;
 
                             if is_old_shortcut && path != *desktop {
-                                log::info!("Moving old desktop shortcut to trash: {}", path.display());
+                                log::info!(
+                                    "Moving old desktop shortcut to trash: {}",
+                                    path.display()
+                                );
                                 match move_to_trash(&path) {
                                     Ok(_) => {
                                         shortcuts_removed += 1;
                                         log::debug!("Successfully removed shortcut: {}", name_str);
                                     }
-                                    Err(e) => log::warn!("Failed to remove shortcut {}: {}", name_str, e),
+                                    Err(e) => {
+                                        log::warn!("Failed to remove shortcut {}: {}", name_str, e)
+                                    }
                                 }
                             }
                         }
@@ -227,7 +240,9 @@ fn cleanup_old_installations(paths: &InstallPaths, keep_version: Option<&str>) -
                                 removed_count += 1;
                                 log::debug!("Successfully removed: {}", name_str);
                             }
-                            Err(e) => log::warn!("Failed to remove old app bundle {}: {}", name_str, e),
+                            Err(e) => {
+                                log::warn!("Failed to remove old app bundle {}: {}", name_str, e)
+                            }
                         }
                     }
                 }
@@ -275,7 +290,11 @@ pub fn get_install_paths() -> InstallPaths {
 
     #[cfg(target_os = "windows")]
     {
-        let user_profile = dirs::home_dir().unwrap_or_else(|| PathBuf::from(std::env::var("USERPROFILE").unwrap_or_else(|_| "C:\\Users\\Default".to_string())));
+        let user_profile = dirs::home_dir().unwrap_or_else(|| {
+            PathBuf::from(
+                std::env::var("USERPROFILE").unwrap_or_else(|_| "C:\\Users\\Default".to_string()),
+            )
+        });
         let local_app_data =
             dirs::data_local_dir().unwrap_or_else(|| user_profile.join("AppData").join("Local"));
         let start_menu = dirs::data_dir()
@@ -341,14 +360,11 @@ pub fn check_install() -> InstallStatus {
             false
         };
 
-        let desktop_file_exists = paths
-            .start_menu_entry
-            .as_ref()
-            .is_some_and(|p| {
-                let exists = p.exists();
-                log::debug!("  Desktop file exists: {} ({})", exists, p.display());
-                exists
-            });
+        let desktop_file_exists = paths.start_menu_entry.as_ref().is_some_and(|p| {
+            let exists = p.exists();
+            log::debug!("  Desktop file exists: {} ({})", exists, p.display());
+            exists
+        });
 
         if has_binary && desktop_file_exists {
             log::info!("Installation detected (Linux)");
@@ -391,14 +407,11 @@ pub fn check_install() -> InstallStatus {
     #[cfg(target_os = "windows")]
     {
         // Check shortcuts and registry first (these are the definitive indicators)
-        let has_shortcut = paths
-            .start_menu_entry
-            .as_ref()
-            .is_some_and(|p| {
-                let exists = p.exists();
-                log::debug!("  Start menu shortcut exists: {} ({})", exists, p.display());
-                exists
-            });
+        let has_shortcut = paths.start_menu_entry.as_ref().is_some_and(|p| {
+            let exists = p.exists();
+            log::debug!("  Start menu shortcut exists: {} ({})", exists, p.display());
+            exists
+        });
 
         let has_registry = check_windows_registry(&paths);
         log::debug!("  Registry entry exists: {}", has_registry);
@@ -486,10 +499,7 @@ pub fn do_install() -> InstallResult {
 
     // Create installation directory
     if let Err(e) = fs::create_dir_all(&paths.bin_dir) {
-        return InstallResult::Error(format!(
-            "Failed to create installation directory: {}",
-            e
-        ));
+        return InstallResult::Error(format!("Failed to create installation directory: {}", e));
     }
 
     #[cfg(target_os = "linux")]
@@ -537,8 +547,7 @@ fn install_linux(paths: &InstallPaths, current_exe: &PathBuf) -> Result<String, 
 
     // Copy binary
     log::info!("Copying binary...");
-    fs::copy(current_exe, &binary_dest)
-        .map_err(|e| format!("Failed to copy binary: {}", e))?;
+    fs::copy(current_exe, &binary_dest).map_err(|e| format!("Failed to copy binary: {}", e))?;
     log::info!("Binary copied successfully");
 
     // Make executable
@@ -601,7 +610,10 @@ Keywords=android;debloat;shizuku;adb;
     }
 
     log::info!("Installation completed successfully");
-    Ok(format!("Successfully installed to {}", binary_dest.display()))
+    Ok(format!(
+        "Successfully installed to {}",
+        binary_dest.display()
+    ))
 }
 
 #[cfg(target_os = "macos")]
@@ -609,19 +621,19 @@ fn install_macos(paths: &InstallPaths, current_exe: &PathBuf) -> Result<String, 
     // Clean up old installations
     cleanup_old_installations(paths, None)?;
 
-    let app_bundle = paths.bin_dir.join(format!("{}.app", get_versioned_app_name()));
+    let app_bundle = paths
+        .bin_dir
+        .join(format!("{}.app", get_versioned_app_name()));
     let contents_dir = app_bundle.join("Contents");
     let macos_dir = contents_dir.join("MacOS");
 
     // Create app bundle structure
-    fs::create_dir_all(&macos_dir)
-        .map_err(|e| format!("Failed to create app bundle: {}", e))?;
+    fs::create_dir_all(&macos_dir).map_err(|e| format!("Failed to create app bundle: {}", e))?;
 
     // Copy binary with actual binary name
     let versioned_name = get_versioned_app_name();
     let binary_dest = macos_dir.join(format!("{}-bin", versioned_name));
-    fs::copy(current_exe, &binary_dest)
-        .map_err(|e| format!("Failed to copy binary: {}", e))?;
+    fs::copy(current_exe, &binary_dest).map_err(|e| format!("Failed to copy binary: {}", e))?;
 
     // Make executable
     #[cfg(unix)]
@@ -690,7 +702,10 @@ exec "$DIR/{}-bin" "$@"
     fs::write(contents_dir.join("Info.plist"), info_plist)
         .map_err(|e| format!("Failed to create Info.plist: {}", e))?;
 
-    Ok(format!("Successfully installed to {}", app_bundle.display()))
+    Ok(format!(
+        "Successfully installed to {}",
+        app_bundle.display()
+    ))
 }
 
 #[cfg(target_os = "windows")]
@@ -703,13 +718,14 @@ fn install_windows(paths: &InstallPaths, current_exe: &PathBuf) -> Result<String
     log::info!("Cleaning up old installations...");
     cleanup_old_installations(paths, None)?;
 
-    let binary_dest = paths.bin_dir.join(format!("{}.exe", get_versioned_app_name()));
+    let binary_dest = paths
+        .bin_dir
+        .join(format!("{}.exe", get_versioned_app_name()));
     log::info!("Installing to: {}", binary_dest.display());
 
     // Copy binary
     log::info!("Copying binary...");
-    fs::copy(current_exe, &binary_dest)
-        .map_err(|e| format!("Failed to copy binary: {}", e))?;
+    fs::copy(current_exe, &binary_dest).map_err(|e| format!("Failed to copy binary: {}", e))?;
     log::info!("Binary copied successfully");
 
     // Add uninstall registry entry
@@ -729,11 +745,23 @@ fn install_windows(paths: &InstallPaths, current_exe: &PathBuf) -> Result<String
             ("DisplayName", "REG_SZ", "UAD-Shizuku".to_string()),
             ("DisplayVersion", "REG_SZ", CURRENT_VERSION.to_string()),
             ("Publisher", "REG_SZ", "nikescar".to_string()),
-            ("UninstallString", "REG_SZ", format!("\"{}\" --uninstall", binary_dest.display())),
-            ("InstallLocation", "REG_SZ", paths.bin_dir.display().to_string()),
+            (
+                "UninstallString",
+                "REG_SZ",
+                format!("\"{}\" --uninstall", binary_dest.display()),
+            ),
+            (
+                "InstallLocation",
+                "REG_SZ",
+                paths.bin_dir.display().to_string(),
+            ),
             ("DisplayIcon", "REG_SZ", binary_dest.display().to_string()),
             ("EstimatedSize", "REG_DWORD", estimated_size),
-            ("URLInfoAbout", "REG_SZ", "https://uad-shizuku.pages.dev".to_string()),
+            (
+                "URLInfoAbout",
+                "REG_SZ",
+                "https://uad-shizuku.pages.dev".to_string(),
+            ),
             ("NoModify", "REG_DWORD", "1".to_string()),
             ("NoRepair", "REG_DWORD", "1".to_string()),
         ];
@@ -741,18 +769,19 @@ fn install_windows(paths: &InstallPaths, current_exe: &PathBuf) -> Result<String
         const CREATE_NO_WINDOW: u32 = 0x08000000;
 
         for (i, (value_name, value_type, value_data)) in reg_entries.iter().enumerate() {
-            log::debug!("Adding registry entry {}/{}: {} = {} ({})",
-                i + 1, reg_entries.len(), value_name, value_data, value_type);
+            log::debug!(
+                "Adding registry entry {}/{}: {} = {} ({})",
+                i + 1,
+                reg_entries.len(),
+                value_name,
+                value_data,
+                value_type
+            );
 
             // Call reg.exe directly with separate arguments (not through cmd)
             let output = Command::new("reg")
                 .args([
-                    "add",
-                    key,
-                    "/v", value_name,
-                    "/t", value_type,
-                    "/d", value_data,
-                    "/f"
+                    "add", key, "/v", value_name, "/t", value_type, "/d", value_data, "/f",
                 ])
                 .creation_flags(CREATE_NO_WINDOW)
                 .output();
@@ -760,13 +789,20 @@ fn install_windows(paths: &InstallPaths, current_exe: &PathBuf) -> Result<String
             match output {
                 Ok(out) => {
                     if !out.status.success() {
-                        log::warn!("Registry command failed (non-critical) for {}: {}",
-                            value_name, String::from_utf8_lossy(&out.stderr));
+                        log::warn!(
+                            "Registry command failed (non-critical) for {}: {}",
+                            value_name,
+                            String::from_utf8_lossy(&out.stderr)
+                        );
                     } else {
                         log::debug!("Registry entry '{}' added successfully", value_name);
                     }
                 }
-                Err(e) => log::warn!("Failed to run registry command for {} (non-critical): {}", value_name, e),
+                Err(e) => log::warn!(
+                    "Failed to run registry command for {} (non-critical): {}",
+                    value_name,
+                    e
+                ),
             }
         }
         log::info!("Registry entries added");
@@ -793,15 +829,18 @@ fn install_windows(paths: &InstallPaths, current_exe: &PathBuf) -> Result<String
     }
 
     log::info!("Installation completed successfully");
-    Ok(format!("Successfully installed to {}", binary_dest.display()))
+    Ok(format!(
+        "Successfully installed to {}",
+        binary_dest.display()
+    ))
 }
 
 #[cfg(target_os = "windows")]
 fn create_windows_shortcut(target: &PathBuf, shortcut_path: &PathBuf) -> Result<(), String> {
     use windows::core::{Interface, PCWSTR};
     use windows::Win32::System::Com::{
-        CoCreateInstance, CoInitializeEx, CoUninitialize, IPersistFile,
-        CLSCTX_INPROC_SERVER, COINIT_APARTMENTTHREADED,
+        CoCreateInstance, CoInitializeEx, CoUninitialize, IPersistFile, CLSCTX_INPROC_SERVER,
+        COINIT_APARTMENTTHREADED,
     };
     use windows::Win32::UI::Shell::{IShellLinkW, ShellLink};
 
@@ -816,17 +855,36 @@ fn create_windows_shortcut(target: &PathBuf, shortcut_path: &PathBuf) -> Result<
         return Err(err_msg);
     }
 
-    let working_dir = target.parent()
+    let working_dir = target
+        .parent()
         .ok_or_else(|| "Failed to get parent directory".to_string())?;
 
     log::debug!("  Working directory: {}", working_dir.display());
 
     // Convert paths to wide strings
-    let target_wide: Vec<u16> = target.display().to_string().encode_utf16().chain(Some(0)).collect();
-    let shortcut_wide: Vec<u16> = shortcut_path.display().to_string().encode_utf16().chain(Some(0)).collect();
-    let workdir_wide: Vec<u16> = working_dir.display().to_string().encode_utf16().chain(Some(0)).collect();
+    let target_wide: Vec<u16> = target
+        .display()
+        .to_string()
+        .encode_utf16()
+        .chain(Some(0))
+        .collect();
+    let shortcut_wide: Vec<u16> = shortcut_path
+        .display()
+        .to_string()
+        .encode_utf16()
+        .chain(Some(0))
+        .collect();
+    let workdir_wide: Vec<u16> = working_dir
+        .display()
+        .to_string()
+        .encode_utf16()
+        .chain(Some(0))
+        .collect();
     let args_wide: Vec<u16> = "".encode_utf16().chain(Some(0)).collect();
-    let desc_wide: Vec<u16> = "UAD-Shizuku - Universal Android Debloater".encode_utf16().chain(Some(0)).collect();
+    let desc_wide: Vec<u16> = "UAD-Shizuku - Universal Android Debloater"
+        .encode_utf16()
+        .chain(Some(0))
+        .collect();
 
     unsafe {
         // Initialize COM
@@ -852,30 +910,36 @@ fn create_windows_shortcut(target: &PathBuf, shortcut_path: &PathBuf) -> Result<
 
             // Set target path
             log::debug!("Setting target path...");
-            shell_link.SetPath(PCWSTR(target_wide.as_ptr()))
+            shell_link
+                .SetPath(PCWSTR(target_wide.as_ptr()))
                 .map_err(|e| format!("Failed to set target path: {:?}", e))?;
 
             // Set arguments
             log::debug!("Setting arguments...");
-            shell_link.SetArguments(PCWSTR(args_wide.as_ptr()))
+            shell_link
+                .SetArguments(PCWSTR(args_wide.as_ptr()))
                 .map_err(|e| format!("Failed to set arguments: {:?}", e))?;
 
             // Set working directory
             log::debug!("Setting working directory...");
-            shell_link.SetWorkingDirectory(PCWSTR(workdir_wide.as_ptr()))
+            shell_link
+                .SetWorkingDirectory(PCWSTR(workdir_wide.as_ptr()))
                 .map_err(|e| format!("Failed to set working directory: {:?}", e))?;
 
             // Set description
             log::debug!("Setting description...");
-            shell_link.SetDescription(PCWSTR(desc_wide.as_ptr()))
+            shell_link
+                .SetDescription(PCWSTR(desc_wide.as_ptr()))
                 .map_err(|e| format!("Failed to set description: {:?}", e))?;
 
             // Save the shortcut
             log::debug!("Saving shortcut...");
-            let persist_file: IPersistFile = shell_link.cast()
+            let persist_file: IPersistFile = shell_link
+                .cast()
                 .map_err(|e| format!("Failed to get IPersistFile interface: {:?}", e))?;
 
-            persist_file.Save(PCWSTR(shortcut_wide.as_ptr()), true)
+            persist_file
+                .Save(PCWSTR(shortcut_wide.as_ptr()), true)
                 .map_err(|e| format!("Failed to save shortcut: {:?}", e))?;
 
             log::info!("Shortcut created successfully");
@@ -929,8 +993,7 @@ fn uninstall_linux(paths: &InstallPaths) -> Result<String, String> {
 
     // Remove binary
     if binary_path.exists() {
-        fs::remove_file(&binary_path)
-            .map_err(|e| format!("Failed to remove binary: {}", e))?;
+        fs::remove_file(&binary_path).map_err(|e| format!("Failed to remove binary: {}", e))?;
     }
 
     // Remove .desktop files
@@ -946,7 +1009,9 @@ fn uninstall_linux(paths: &InstallPaths) -> Result<String, String> {
 
 #[cfg(target_os = "macos")]
 fn uninstall_macos(paths: &InstallPaths) -> Result<String, String> {
-    let app_bundle = paths.bin_dir.join(format!("{}.app", get_versioned_app_name()));
+    let app_bundle = paths
+        .bin_dir
+        .join(format!("{}.app", get_versioned_app_name()));
 
     if app_bundle.exists() {
         fs::remove_dir_all(&app_bundle)
@@ -963,7 +1028,9 @@ fn uninstall_windows(paths: &InstallPaths) -> Result<String, String> {
 
     const CREATE_NO_WINDOW: u32 = 0x08000000;
 
-    let binary_path = paths.bin_dir.join(format!("{}.exe", get_versioned_app_name()));
+    let binary_path = paths
+        .bin_dir
+        .join(format!("{}.exe", get_versioned_app_name()));
 
     // Remove shortcuts
     if let Some(ref start_menu) = paths.start_menu_entry {
@@ -1006,7 +1073,13 @@ del "%~f0"
             .map_err(|e| format!("Failed to create uninstall script: {}", e))?;
 
         Command::new("cmd")
-            .args(["/C", "start", "/min", "", &batch_script.display().to_string()])
+            .args([
+                "/C",
+                "start",
+                "/min",
+                "",
+                &batch_script.display().to_string(),
+            ])
             .creation_flags(CREATE_NO_WINDOW)
             .spawn()
             .map_err(|e| format!("Failed to run uninstall script: {}", e))?;
@@ -1029,27 +1102,35 @@ pub fn check_update() -> Result<UpdateInfo, String> {
         .call()
         .map_err(|e| format!("Failed to check for updates: {}", e))?;
 
-    let body = response.into_string()
+    let body = response
+        .into_string()
         .map_err(|e| format!("Failed to read response: {}", e))?;
 
-    let release: GitHubRelease = serde_json::from_str(&body)
-        .map_err(|e| format!("Failed to parse release info: {}", e))?;
+    let release: GitHubRelease =
+        serde_json::from_str(&body).map_err(|e| format!("Failed to parse release info: {}", e))?;
 
     let latest_version = release.tag_name.trim_start_matches('v').to_string();
     let current_version = CURRENT_VERSION.to_string();
 
     // Construct direct download URL based on platform and architecture
-    let download_url = get_platform_download_url()
-        .ok_or_else(|| {
-            log::error!("No compatible release for platform {} arch {}",
-                std::env::consts::OS, std::env::consts::ARCH);
-            "No compatible release found for your platform".to_string()
-        })?;
+    let download_url = get_platform_download_url().ok_or_else(|| {
+        log::error!(
+            "No compatible release for platform {} arch {}",
+            std::env::consts::OS,
+            std::env::consts::ARCH
+        );
+        "No compatible release found for your platform".to_string()
+    })?;
 
     let available = is_newer_version(&current_version, &latest_version);
 
-    log::info!("Update check: current={}, latest={}, available={}, url={}",
-        current_version, latest_version, available, download_url);
+    log::info!(
+        "Update check: current={}, latest={}, available={}, url={}",
+        current_version,
+        latest_version,
+        available,
+        download_url
+    );
 
     Ok(UpdateInfo {
         available,
@@ -1062,17 +1143,19 @@ pub fn check_update() -> Result<UpdateInfo, String> {
 
 /// Compare versions to determine if latest is newer
 fn is_newer_version(current: &str, latest: &str) -> bool {
-    let parse_version = |v: &str| -> Vec<u32> {
-        v.split('.')
-            .filter_map(|s| s.parse().ok())
-            .collect()
-    };
+    let parse_version =
+        |v: &str| -> Vec<u32> { v.split('.').filter_map(|s| s.parse().ok()).collect() };
 
     let current_parts = parse_version(current);
     let latest_parts = parse_version(latest);
 
-    log::debug!("Version comparison: current={} ({:?}) vs latest={} ({:?})",
-        current, current_parts, latest, latest_parts);
+    log::debug!(
+        "Version comparison: current={} ({:?}) vs latest={} ({:?})",
+        current,
+        current_parts,
+        latest,
+        latest_parts
+    );
 
     for (c, l) in current_parts.iter().zip(latest_parts.iter()) {
         if l > c {
@@ -1094,7 +1177,11 @@ fn get_platform_download_url() -> Option<String> {
     let target_arch = std::env::consts::ARCH; // "x86_64", "aarch64", etc.
     let target_os = std::env::consts::OS;
 
-    log::debug!("Constructing download URL for OS: {}, Architecture: {}", target_os, target_arch);
+    log::debug!(
+        "Constructing download URL for OS: {}, Architecture: {}",
+        target_os,
+        target_arch
+    );
 
     // Build filename based on platform and architecture
     let filename = match (target_os, target_arch) {
@@ -1156,8 +1243,14 @@ pub fn do_update(download_url: &str, latest_version: &str, tmp_dir: &PathBuf) ->
 
     // Extract if archive
     #[cfg(not(any(target_os = "android", target_arch = "wasm32")))]
-    let binary_path = if downloaded_file.extension().is_some_and(|ext| ext == "gz" || ext == "tar") {
-        log::info!("Step 2: Extracting tar.gz archive: {}", downloaded_file.display());
+    let binary_path = if downloaded_file
+        .extension()
+        .is_some_and(|ext| ext == "gz" || ext == "tar")
+    {
+        log::info!(
+            "Step 2: Extracting tar.gz archive: {}",
+            downloaded_file.display()
+        );
         match extract_tar_gz(&downloaded_file, tmp_dir) {
             Ok(path) => {
                 log::info!("Extraction successful, binary at: {}", path.display());
@@ -1169,7 +1262,10 @@ pub fn do_update(download_url: &str, latest_version: &str, tmp_dir: &PathBuf) ->
             }
         }
     } else if downloaded_file.extension().is_some_and(|ext| ext == "zip") {
-        log::info!("Step 2: Extracting zip archive: {}", downloaded_file.display());
+        log::info!(
+            "Step 2: Extracting zip archive: {}",
+            downloaded_file.display()
+        );
         match extract_zip(&downloaded_file, tmp_dir) {
             Ok(path) => {
                 log::info!("Extraction successful, binary at: {}", path.display());
@@ -1181,7 +1277,10 @@ pub fn do_update(download_url: &str, latest_version: &str, tmp_dir: &PathBuf) ->
             }
         }
     } else {
-        log::info!("Step 2: No extraction needed, using downloaded file directly: {}", downloaded_file.display());
+        log::info!(
+            "Step 2: No extraction needed, using downloaded file directly: {}",
+            downloaded_file.display()
+        );
         downloaded_file
     };
 
@@ -1208,8 +1307,7 @@ fn download_update(url: &str, tmp_dir: &PathBuf) -> Result<PathBuf, String> {
     let dest_path = tmp_dir.join(filename);
 
     // Create tmp directory if it doesn't exist
-    fs::create_dir_all(tmp_dir)
-        .map_err(|e| format!("Failed to create tmp directory: {}", e))?;
+    fs::create_dir_all(tmp_dir).map_err(|e| format!("Failed to create tmp directory: {}", e))?;
 
     log::info!("Starting download from: {}", url);
     log::info!("Download destination: {}", dest_path.display());
@@ -1227,20 +1325,25 @@ fn download_update(url: &str, tmp_dir: &PathBuf) -> Result<PathBuf, String> {
     }
 
     // Get content length for progress tracking
-    let content_length = response.header("content-length")
+    let content_length = response
+        .header("content-length")
         .and_then(|s| s.parse::<u64>().ok());
 
     if let Some(size) = content_length {
-        log::info!("Download size: {} bytes ({:.2} MB)", size, size as f64 / 1024.0 / 1024.0);
+        log::info!(
+            "Download size: {} bytes ({:.2} MB)",
+            size,
+            size as f64 / 1024.0 / 1024.0
+        );
     }
 
     // Stream the response to file instead of loading into memory
     let mut reader = response.into_reader();
-    let mut file = fs::File::create(&dest_path)
-        .map_err(|e| format!("Failed to create file: {}", e))?;
+    let mut file =
+        fs::File::create(&dest_path).map_err(|e| format!("Failed to create file: {}", e))?;
 
-    let bytes_written = io::copy(&mut reader, &mut file)
-        .map_err(|e| format!("Failed to write file: {}", e))?;
+    let bytes_written =
+        io::copy(&mut reader, &mut file).map_err(|e| format!("Failed to write file: {}", e))?;
 
     log::info!("Download completed: {} bytes written", bytes_written);
 
@@ -1262,13 +1365,14 @@ fn extract_tar_gz(archive_path: &PathBuf, dest_dir: &PathBuf) -> Result<PathBuf,
     use flate2::read::GzDecoder;
     use tar::Archive;
 
-    let file = fs::File::open(archive_path)
-        .map_err(|e| format!("Failed to open archive: {}", e))?;
+    let file =
+        fs::File::open(archive_path).map_err(|e| format!("Failed to open archive: {}", e))?;
 
     let tar = GzDecoder::new(file);
     let mut archive = Archive::new(tar);
 
-    archive.unpack(dest_dir)
+    archive
+        .unpack(dest_dir)
         .map_err(|e| format!("Failed to extract archive: {}", e))?;
 
     // Find the binary in extracted files
@@ -1277,13 +1381,14 @@ fn extract_tar_gz(archive_path: &PathBuf, dest_dir: &PathBuf) -> Result<PathBuf,
 
 #[cfg(not(any(target_os = "android", target_arch = "wasm32")))]
 fn extract_zip(archive_path: &PathBuf, dest_dir: &PathBuf) -> Result<PathBuf, String> {
-    let file = fs::File::open(archive_path)
-        .map_err(|e| format!("Failed to open archive: {}", e))?;
+    let file =
+        fs::File::open(archive_path).map_err(|e| format!("Failed to open archive: {}", e))?;
 
-    let mut archive = zip::ZipArchive::new(file)
-        .map_err(|e| format!("Failed to read zip: {}", e))?;
+    let mut archive =
+        zip::ZipArchive::new(file).map_err(|e| format!("Failed to read zip: {}", e))?;
 
-    archive.extract(dest_dir)
+    archive
+        .extract(dest_dir)
         .map_err(|e| format!("Failed to extract zip: {}", e))?;
 
     find_binary_in_dir(dest_dir)
@@ -1296,7 +1401,11 @@ fn find_binary_in_dir(dir: &PathBuf) -> Result<PathBuf, String> {
     #[cfg(not(target_os = "windows"))]
     let binary_name = APP_NAME;
 
-    log::info!("Searching for binary '{}' in directory: {}", binary_name, dir.display());
+    log::info!(
+        "Searching for binary '{}' in directory: {}",
+        binary_name,
+        dir.display()
+    );
 
     for entry in walkdir(dir) {
         if let Ok(entry) = entry {
@@ -1348,7 +1457,11 @@ fn walkdir(dir: &PathBuf) -> impl Iterator<Item = Result<fs::DirEntry, io::Error
     })
 }
 
-fn replace_binary(new_binary: &PathBuf, paths: &InstallPaths, version: Option<&str>) -> Result<String, String> {
+fn replace_binary(
+    new_binary: &PathBuf,
+    paths: &InstallPaths,
+    version: Option<&str>,
+) -> Result<String, String> {
     log::info!("=== Starting binary replacement ===");
     log::debug!("Source binary: {}", new_binary.display());
     log::debug!("Install paths bin_dir: {}", paths.bin_dir.display());
@@ -1381,11 +1494,10 @@ fn replace_binary(new_binary: &PathBuf, paths: &InstallPaths, version: Option<&s
     if let Some(parent) = dest.parent() {
         if !parent.exists() {
             log::info!("Creating bin directory: {}", parent.display());
-            fs::create_dir_all(parent)
-                .map_err(|e| {
-                    log::error!("Failed to create bin directory: {}", e);
-                    format!("Failed to create bin directory: {}", e)
-                })?;
+            fs::create_dir_all(parent).map_err(|e| {
+                log::error!("Failed to create bin directory: {}", e);
+                format!("Failed to create bin directory: {}", e)
+            })?;
         } else {
             log::debug!("Bin directory already exists");
         }
@@ -1400,22 +1512,20 @@ fn replace_binary(new_binary: &PathBuf, paths: &InstallPaths, version: Option<&s
         let backup = dest.with_extension("old");
 
         log::info!("Existing binary found, backing up to: {}", backup.display());
-        fs::rename(&dest, &backup)
-            .map_err(|e| {
-                log::error!("Failed to backup existing binary: {}", e);
-                format!("Failed to backup existing binary: {}", e)
-            })?;
+        fs::rename(&dest, &backup).map_err(|e| {
+            log::error!("Failed to backup existing binary: {}", e);
+            format!("Failed to backup existing binary: {}", e)
+        })?;
         log::debug!("Backup completed");
     } else {
         log::debug!("No existing binary to backup");
     }
 
     log::info!("Copying new binary to destination...");
-    fs::copy(new_binary, &dest)
-        .map_err(|e| {
-            log::error!("Failed to copy new binary: {}", e);
-            format!("Failed to copy new binary: {}", e)
-        })?;
+    fs::copy(new_binary, &dest).map_err(|e| {
+        log::error!("Failed to copy new binary: {}", e);
+        format!("Failed to copy new binary: {}", e)
+    })?;
     log::info!("Binary copied successfully");
 
     #[cfg(unix)]
@@ -1429,11 +1539,10 @@ fn replace_binary(new_binary: &PathBuf, paths: &InstallPaths, version: Option<&s
             })?
             .permissions();
         perms.set_mode(0o755);
-        fs::set_permissions(&dest, perms)
-            .map_err(|e| {
-                log::error!("Failed to set permissions: {}", e);
-                format!("Failed to set permissions: {}", e)
-            })?;
+        fs::set_permissions(&dest, perms).map_err(|e| {
+            log::error!("Failed to set permissions: {}", e);
+            format!("Failed to set permissions: {}", e)
+        })?;
         log::debug!("Permissions set successfully");
     }
 
@@ -1517,7 +1626,9 @@ Keywords=android;debloat;shizuku;adb;
 
     log::info!("=== Binary replacement completed successfully ===");
     log::info!("Installed to: {}", dest.display());
-    Ok(format!("Successfully updated to new version. Please restart the application."))
+    Ok(format!(
+        "Successfully updated to new version. Please restart the application."
+    ))
 }
 
 /// Get current version

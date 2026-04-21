@@ -36,8 +36,14 @@ impl DlgUpdate {
             .min_width(500.0)
             .min_height(350.0)
             .resize(|r| {
-                r.default_size([ctx.content_rect().width() - 40.0, ctx.content_rect().height() - 40.0])
-                    .max_size([ctx.content_rect().width() - 40.0, ctx.content_rect().height() - 40.0])
+                r.default_size([
+                    ctx.content_rect().width() - 40.0,
+                    ctx.content_rect().height() - 40.0,
+                ])
+                .max_size([
+                    ctx.content_rect().width() - 40.0,
+                    ctx.content_rect().height() - 40.0,
+                ])
             })
             .show(ctx, |ui| {
                 ui.heading(tr!("update-available-title"));
@@ -50,12 +56,15 @@ impl DlgUpdate {
                     .max_height(max_height)
                     .show(ui, |ui| {
                         // Show version info
-                        ui.add(egui::Label::new(format!(
-                            "{} {} → {}",
-                            tr!("update-available-message"),
-                            self.current_version,
-                            self.latest_version
-                        )).wrap());
+                        ui.add(
+                            egui::Label::new(format!(
+                                "{} {} → {}",
+                                tr!("update-available-message"),
+                                self.current_version,
+                                self.latest_version
+                            ))
+                            .wrap(),
+                        );
 
                         ui.add_space(12.0);
 

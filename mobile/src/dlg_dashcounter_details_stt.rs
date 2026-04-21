@@ -10,10 +10,10 @@ pub enum DashCounterCategory {
     StalkerwareDetected,
     StalkerwareUndetected,
     /// IzzyRisk categories
-    IzzyRiskSafe,       // 0
-    IzzyRiskNormal,     // 1-10
-    IzzyRiskModerate,   // 11-20
-    IzzyRiskHigh,       // 20+
+    IzzyRiskSafe, // 0
+    IzzyRiskNormal,   // 1-10
+    IzzyRiskModerate, // 11-20
+    IzzyRiskHigh,     // 20+
     /// VirusTotal categories
     VirusTotalMalicious,
     VirusTotalSuspicious,
@@ -57,7 +57,7 @@ pub struct CachedRowData {
     pub package_id: String,
     pub title: String,
     pub subtitle: String,
-    pub has_texture: bool,  // Flag to indicate if texture should exist in store
+    pub has_texture: bool, // Flag to indicate if texture should exist in store
 }
 
 impl Default for DlgDashCounterDetails {

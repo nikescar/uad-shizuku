@@ -60,7 +60,12 @@ impl AppOperationsQueue {
         let results = self.results.lock().unwrap();
         results
             .values()
-            .filter(|status| matches!(status, OperationStatus::Success(_) | OperationStatus::Error(_)))
+            .filter(|status| {
+                matches!(
+                    status,
+                    OperationStatus::Success(_) | OperationStatus::Error(_)
+                )
+            })
             .count()
     }
 
@@ -83,7 +88,12 @@ impl AppOperationsQueue {
 
     /// Start the background worker thread
     #[cfg(not(target_os = "android"))]
-    pub fn start_worker(&self, device: String, _cache_dir: std::path::PathBuf, tmp_dir: std::path::PathBuf) {
+    pub fn start_worker(
+        &self,
+        device: String,
+        _cache_dir: std::path::PathBuf,
+        tmp_dir: std::path::PathBuf,
+    ) {
         let mut is_running = self.is_running.lock().unwrap();
 
         if *is_running {
@@ -146,7 +156,11 @@ impl AppOperationsQueue {
 
                     // Process the operation
                     let result = match &item.operation {
-                        OperationType::Install { app_name, download_url, link_type } => {
+                        OperationType::Install {
+                            app_name,
+                            download_url,
+                            link_type,
+                        } => {
                             log::info!("Processing install for: {}", app_name);
                             Self::process_install(
                                 app_name,
@@ -157,7 +171,10 @@ impl AppOperationsQueue {
                                 cancelled_clone.clone(),
                             )
                         }
-                        OperationType::Uninstall { package_name, is_system } => {
+                        OperationType::Uninstall {
+                            package_name,
+                            is_system,
+                        } => {
                             log::info!("Processing uninstall for: {}", package_name);
                             Self::process_uninstall(package_name, *is_system, &device)
                         }
@@ -175,7 +192,12 @@ impl AppOperationsQueue {
                             let results = results.lock().unwrap();
                             results
                                 .values()
-                                .filter(|status| matches!(status, OperationStatus::Success(_) | OperationStatus::Error(_)))
+                                .filter(|status| {
+                                    matches!(
+                                        status,
+                                        OperationStatus::Success(_) | OperationStatus::Error(_)
+                                    )
+                                })
                                 .count()
                         };
                         let progress_value = completed as f32 / total_count as f32;
@@ -214,7 +236,11 @@ impl AppOperationsQueue {
     ) -> OperationStatus {
         use crate::adb;
 
-        log::info!("Starting installation for: {} from {}", app_name, download_url);
+        log::info!(
+            "Starting installation for: {} from {}",
+            app_name,
+            download_url
+        );
 
         // Generate a safe filename from app name
         let safe_name: String = app_name
@@ -310,11 +336,16 @@ impl AppOperationsQueue {
             })?;
 
         // Get content length for progress tracking
-        let content_length = response.header("Content-Length")
+        let content_length = response
+            .header("Content-Length")
             .and_then(|s| s.parse::<u64>().ok());
 
         if let Some(size) = content_length {
-            log::info!("Content-Length: {} bytes ({:.2} MB)", size, size as f64 / 1_048_576.0);
+            log::info!(
+                "Content-Length: {} bytes ({:.2} MB)",
+                size,
+                size as f64 / 1_048_576.0
+            );
         } else {
             log::info!("Content-Length: unknown");
         }
@@ -373,10 +404,12 @@ impl AppOperationsQueue {
             if total_written - last_log_at >= log_interval {
                 if let Some(total) = content_length {
                     let progress = (total_written as f64 / total as f64) * 100.0;
-                    log::info!("Downloaded: {:.1} MB / {:.1} MB ({:.0}%)",
+                    log::info!(
+                        "Downloaded: {:.1} MB / {:.1} MB ({:.0}%)",
                         total_written as f64 / 1_048_576.0,
                         total as f64 / 1_048_576.0,
-                        progress);
+                        progress
+                    );
                 } else {
                     log::info!("Downloaded: {:.1} MB", total_written as f64 / 1_048_576.0);
                 }
@@ -396,8 +429,11 @@ impl AppOperationsQueue {
         // Explicitly drop writer to close file
         drop(writer);
 
-        log::info!("Download complete: {:.2} MB ({} bytes)",
-            total_written as f64 / 1_048_576.0, total_written);
+        log::info!(
+            "Download complete: {:.2} MB ({} bytes)",
+            total_written as f64 / 1_048_576.0,
+            total_written
+        );
 
         // Verify file size if Content-Length was provided
         if let Some(expected) = content_length {
@@ -428,11 +464,7 @@ impl AppOperationsQueue {
     }
 
     #[cfg(not(target_os = "android"))]
-    fn process_uninstall(
-        package_name: &str,
-        is_system: bool,
-        device: &str,
-    ) -> OperationStatus {
+    fn process_uninstall(package_name: &str, is_system: bool, device: &str) -> OperationStatus {
         use crate::adb;
 
         let result = if is_system {
@@ -454,7 +486,12 @@ impl AppOperationsQueue {
     }
 
     #[cfg(target_os = "android")]
-    pub fn start_worker(&self, _device: String, cache_dir: std::path::PathBuf, _tmp_dir: std::path::PathBuf) {
+    pub fn start_worker(
+        &self,
+        _device: String,
+        cache_dir: std::path::PathBuf,
+        _tmp_dir: std::path::PathBuf,
+    ) {
         let mut is_running = self.is_running.lock().unwrap();
 
         if *is_running {
@@ -517,7 +554,11 @@ impl AppOperationsQueue {
 
                     // Process the operation
                     let result = match &item.operation {
-                        OperationType::Install { app_name, download_url, link_type } => {
+                        OperationType::Install {
+                            app_name,
+                            download_url,
+                            link_type,
+                        } => {
                             log::info!("Processing install for: {}", app_name);
                             Self::process_install_android(
                                 app_name,
@@ -527,7 +568,10 @@ impl AppOperationsQueue {
                                 cancelled_clone.clone(),
                             )
                         }
-                        OperationType::Uninstall { package_name, is_system } => {
+                        OperationType::Uninstall {
+                            package_name,
+                            is_system,
+                        } => {
                             log::info!("Processing uninstall for: {}", package_name);
                             Self::process_uninstall_android(package_name, *is_system)
                         }
@@ -545,7 +589,12 @@ impl AppOperationsQueue {
                             let results = results.lock().unwrap();
                             results
                                 .values()
-                                .filter(|status| matches!(status, OperationStatus::Success(_) | OperationStatus::Error(_)))
+                                .filter(|status| {
+                                    matches!(
+                                        status,
+                                        OperationStatus::Success(_) | OperationStatus::Error(_)
+                                    )
+                                })
                                 .count()
                         };
                         let progress_value = completed as f32 / total_count as f32;
@@ -583,7 +632,11 @@ impl AppOperationsQueue {
     ) -> OperationStatus {
         use crate::android_shizuku;
 
-        log::info!("Starting installation for: {} from {}", app_name, download_url);
+        log::info!(
+            "Starting installation for: {} from {}",
+            app_name,
+            download_url
+        );
 
         // Generate a safe filename from app name
         let safe_name: String = app_name
@@ -615,7 +668,10 @@ impl AppOperationsQueue {
         let apk_path_str = apk_path.to_string_lossy().to_string();
         let result = match android_shizuku::shizuku_install_apk(&apk_path_str) {
             Ok(status) => {
-                log::info!("APK installed successfully via Shizuku (status: {})", status);
+                log::info!(
+                    "APK installed successfully via Shizuku (status: {})",
+                    status
+                );
 
                 // Clean up the downloaded APK
                 if let Err(e) = std::fs::remove_file(&apk_path) {
@@ -679,11 +735,16 @@ impl AppOperationsQueue {
             })?;
 
         // Get content length for progress tracking
-        let content_length = response.header("Content-Length")
+        let content_length = response
+            .header("Content-Length")
             .and_then(|s| s.parse::<u64>().ok());
 
         if let Some(size) = content_length {
-            log::info!("Content-Length: {} bytes ({:.2} MB)", size, size as f64 / 1_048_576.0);
+            log::info!(
+                "Content-Length: {} bytes ({:.2} MB)",
+                size,
+                size as f64 / 1_048_576.0
+            );
         } else {
             log::info!("Content-Length: unknown");
         }
@@ -742,10 +803,12 @@ impl AppOperationsQueue {
             if total_written - last_log_at >= log_interval {
                 if let Some(total) = content_length {
                     let progress = (total_written as f64 / total as f64) * 100.0;
-                    log::info!("Downloaded: {:.1} MB / {:.1} MB ({:.0}%)",
+                    log::info!(
+                        "Downloaded: {:.1} MB / {:.1} MB ({:.0}%)",
                         total_written as f64 / 1_048_576.0,
                         total as f64 / 1_048_576.0,
-                        progress);
+                        progress
+                    );
                 } else {
                     log::info!("Downloaded: {:.1} MB", total_written as f64 / 1_048_576.0);
                 }
@@ -765,8 +828,11 @@ impl AppOperationsQueue {
         // Explicitly drop writer to close file
         drop(writer);
 
-        log::info!("Download complete: {:.2} MB ({} bytes)",
-            total_written as f64 / 1_048_576.0, total_written);
+        log::info!(
+            "Download complete: {:.2} MB ({} bytes)",
+            total_written as f64 / 1_048_576.0,
+            total_written
+        );
 
         // Verify file size if Content-Length was provided
         if let Some(expected) = content_length {
@@ -797,17 +863,17 @@ impl AppOperationsQueue {
     }
 
     #[cfg(target_os = "android")]
-    fn process_uninstall_android(
-        package_name: &str,
-        _is_system: bool,
-    ) -> OperationStatus {
+    fn process_uninstall_android(package_name: &str, _is_system: bool) -> OperationStatus {
         use crate::android_shizuku;
 
         let result = android_shizuku::shizuku_uninstall_package(package_name);
 
         match result {
             Ok(_) => {
-                log::info!("Package uninstalled successfully via Shizuku: {}", package_name);
+                log::info!(
+                    "Package uninstalled successfully via Shizuku: {}",
+                    package_name
+                );
                 OperationStatus::Success(format!("Uninstalled: {}", package_name))
             }
             Err(e) => {
@@ -834,7 +900,10 @@ mod tests {
         // Test network connectivity first
         println!("\n========================================");
         println!("Checking network connectivity...");
-        match ureq::get("https://www.google.com").timeout(std::time::Duration::from_secs(5)).call() {
+        match ureq::get("https://www.google.com")
+            .timeout(std::time::Duration::from_secs(5))
+            .call()
+        {
             Ok(_) => println!("✓ Network is available"),
             Err(e) => {
                 println!("✗ Network check failed: {}", e);

@@ -131,8 +131,7 @@ impl SharedStore {
     }
 
     pub fn queue_uad_ng_lists(&self, lists: Option<UadNgLists>) {
-        self.update_queue
-            .push(SharedStoreUpdate::UadNgLists(lists));
+        self.update_queue.push(SharedStoreUpdate::UadNgLists(lists));
     }
 
     // === Stalkerware indicators ===

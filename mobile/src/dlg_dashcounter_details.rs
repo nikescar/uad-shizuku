@@ -1,14 +1,19 @@
 use crate::adb::PackageFingerprint;
-use crate::shared_store_stt::get_shared_store;
-use crate::uad_shizuku_app::UadNgLists;
-pub use crate::dlg_dashcounter_details_stt::*;
 use crate::calc;
 use crate::calc_stalkerware_stt::StalkerwareIndicators;
-use crate::material_symbol_icons::{ICON_DELETE, ICON_REFRESH, ICON_SETTINGS, ICON_INFO, ICON_DOWNLOAD};
+pub use crate::dlg_dashcounter_details_stt::*;
+use crate::material_symbol_icons::{
+    ICON_DELETE, ICON_DOWNLOAD, ICON_INFO, ICON_REFRESH, ICON_SETTINGS,
+};
+use crate::shared_store_stt::get_shared_store;
 use crate::svg_stt::*;
+use crate::uad_shizuku_app::UadNgLists;
 use eframe::egui;
-use egui_material3::{data_table, MaterialButton, DataTableCell, icon_button_standard, show_tooltip_on_hover, TooltipPosition};
 use egui_i18n::tr;
+use egui_material3::{
+    data_table, icon_button_standard, show_tooltip_on_hover, DataTableCell, MaterialButton,
+    TooltipPosition,
+};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
@@ -17,7 +22,12 @@ impl DlgDashCounterDetails {
         Self::default()
     }
 
-    pub fn open(&mut self, category: DashCounterCategory, count_enabled: usize, count_total: usize) {
+    pub fn open(
+        &mut self,
+        category: DashCounterCategory,
+        count_enabled: usize,
+        count_total: usize,
+    ) {
         self.category = Some(category);
         self.count_enabled = count_enabled;
         self.count_total = count_total;
@@ -74,7 +84,12 @@ impl DlgDashCounterDetails {
     }
 
     /// Pre-compute row data for caching
-    fn prepare_row_cache(&mut self, packages: &[&PackageFingerprint], current_time: f64, ctx: &egui::Context) {
+    fn prepare_row_cache(
+        &mut self,
+        packages: &[&PackageFingerprint],
+        current_time: f64,
+        ctx: &egui::Context,
+    ) {
         self.cached_rows.clear();
 
         let store = get_shared_store();
@@ -91,7 +106,8 @@ impl DlgDashCounterDetails {
             if let Some(android_app) = store.get_cached_android_package_app(pkg_id) {
                 if !android_app.icon_bytes.is_empty() {
                     // This loads the texture and caches it in the store
-                    if calc::load_texture_from_bytes(ctx, pkg_id, &android_app.icon_bytes).is_some() {
+                    if calc::load_texture_from_bytes(ctx, pkg_id, &android_app.icon_bytes).is_some()
+                    {
                         has_texture = true;
                     }
                     if !android_app.label.is_empty() {
@@ -366,8 +382,10 @@ impl DlgDashCounterDetails {
             if let Some(ref error_msg) = file_result.error_message {
                 if error_msg.contains("File too large") {
                     if let Some(mb_pos) = error_msg.find(" MB ") {
-                        if let Some(start) = error_msg[..mb_pos].rfind(|c: char| !c.is_numeric() && c != '.') {
-                            let size = &error_msg[start+1..mb_pos+3];
+                        if let Some(start) =
+                            error_msg[..mb_pos].rfind(|c: char| !c.is_numeric() && c != '.')
+                        {
+                            let size = &error_msg[start + 1..mb_pos + 3];
                             return tr!("ha-file-too-large", { size: size.to_string() });
                         } else {
                             return tr!("ha-file-too-large-default");
@@ -439,12 +457,16 @@ impl DlgDashCounterDetails {
                 "submitted" => tr!("ha-submitted"),
                 "pending_analysis" => {
                     if let Some(ref job_id) = file_result.job_id {
-                        let short_id = if job_id.len() > 8 { &job_id[..8] } else { job_id };
+                        let short_id = if job_id.len() > 8 {
+                            &job_id[..8]
+                        } else {
+                            job_id
+                        };
                         tr!("ha-pending", { jobid: short_id.to_string() })
                     } else {
                         tr!("ha-pending-analysis")
                     }
-                },
+                }
                 "404 Not Found" => tr!("ha-404"),
                 "" => tr!("ha-skipped"),
                 _ => file_result.verdict.clone(),
@@ -500,7 +522,11 @@ impl DlgDashCounterDetails {
             // Priority 1: Android Package (native icons)
             if let Some(android_app) = store.get_cached_android_package_app(&pkg_id_owned) {
                 if !android_app.icon_bytes.is_empty() {
-                    if let Some(tex) = calc::load_texture_from_bytes(&ctx_clone, &pkg_id_owned, &android_app.icon_bytes) {
+                    if let Some(tex) = calc::load_texture_from_bytes(
+                        &ctx_clone,
+                        &pkg_id_owned,
+                        &android_app.icon_bytes,
+                    ) {
                         texture = Some(tex.id());
                         if !android_app.label.is_empty() {
                             title_text = android_app.label.clone();
@@ -516,7 +542,12 @@ impl DlgDashCounterDetails {
                 if texture.is_none() {
                     if let Some(fdroid_app) = store.get_cached_fdroid_app(&pkg_id_owned) {
                         if let Some(icon) = &fdroid_app.icon_base64 {
-                            if let Some(tex) = calc::load_texture_from_base64(&ctx_clone, "fd", &pkg_id_owned, icon) {
+                            if let Some(tex) = calc::load_texture_from_base64(
+                                &ctx_clone,
+                                "fd",
+                                &pkg_id_owned,
+                                icon,
+                            ) {
                                 texture = Some(tex.id());
                                 if !fdroid_app.title.is_empty() {
                                     title_text = fdroid_app.title.clone();
@@ -533,7 +564,12 @@ impl DlgDashCounterDetails {
                 if texture.is_none() {
                     if let Some(gp_app) = store.get_cached_google_play_app(&pkg_id_owned) {
                         if let Some(icon) = &gp_app.icon_base64 {
-                            if let Some(tex) = calc::load_texture_from_base64(&ctx_clone, "gp", &pkg_id_owned, icon) {
+                            if let Some(tex) = calc::load_texture_from_base64(
+                                &ctx_clone,
+                                "gp",
+                                &pkg_id_owned,
+                                icon,
+                            ) {
                                 texture = Some(tex.id());
                                 if !gp_app.title.is_empty() {
                                     title_text = gp_app.title.clone();
@@ -550,7 +586,12 @@ impl DlgDashCounterDetails {
                 if texture.is_none() {
                     if let Some(am_app) = store.get_cached_apkmirror_app(&pkg_id_owned) {
                         if let Some(icon) = &am_app.icon_base64 {
-                            if let Some(tex) = calc::load_texture_from_base64(&ctx_clone, "am", &pkg_id_owned, icon) {
+                            if let Some(tex) = calc::load_texture_from_base64(
+                                &ctx_clone,
+                                "am",
+                                &pkg_id_owned,
+                                icon,
+                            ) {
                                 texture = Some(tex.id());
                                 if !am_app.title.is_empty() {
                                     title_text = am_app.title.clone();
@@ -570,34 +611,48 @@ impl DlgDashCounterDetails {
             }
 
             // Render the content in a clickable area
-            let response = ui.horizontal(|ui| {
-                // App icon (38x38)
-                if let Some(tex_id) = texture {
-                    let size = egui::Vec2::new(38.0, 38.0);
-                    ui.add(egui::Image::new(egui::load::SizedTexture::new(tex_id, size)));
-                } else {
-                    ui.add_space(38.0);
-                }
+            let response = ui
+                .horizontal(|ui| {
+                    // App icon (38x38)
+                    if let Some(tex_id) = texture {
+                        let size = egui::Vec2::new(38.0, 38.0);
+                        ui.add(egui::Image::new(egui::load::SizedTexture::new(
+                            tex_id, size,
+                        )));
+                    } else {
+                        ui.add_space(38.0);
+                    }
 
-                ui.add_space(8.0);
+                    ui.add_space(8.0);
 
-                // Title and subtitle
-                ui.vertical(|ui| {
-                    ui.spacing_mut().item_spacing.y = 2.0;
-                    ui.label(egui::RichText::new(&title_text).color(on_surface).size(14.0));
-                    ui.label(egui::RichText::new(&subtitle_text)
-                        .color(egui::Color32::from_rgba_unmultiplied(
-                            on_surface.r(),
-                            on_surface.g(),
-                            on_surface.b(),
-                            153,
-                        ))
-                        .size(12.0));
-                });
-            }).response;
+                    // Title and subtitle
+                    ui.vertical(|ui| {
+                        ui.spacing_mut().item_spacing.y = 2.0;
+                        ui.label(
+                            egui::RichText::new(&title_text)
+                                .color(on_surface)
+                                .size(14.0),
+                        );
+                        ui.label(
+                            egui::RichText::new(&subtitle_text)
+                                .color(egui::Color32::from_rgba_unmultiplied(
+                                    on_surface.r(),
+                                    on_surface.g(),
+                                    on_surface.b(),
+                                    153,
+                                ))
+                                .size(12.0),
+                        );
+                    });
+                })
+                .response;
 
             // Make the entire cell clickable
-            let sense_response = ui.interact(response.rect, egui::Id::new(format!("clickable_app_cell_{}", row_idx)), egui::Sense::click());
+            let sense_response = ui.interact(
+                response.rect,
+                egui::Id::new(format!("clickable_app_cell_{}", row_idx)),
+                egui::Sense::click(),
+            );
 
             if sense_response.clicked() {
                 if let Ok(mut clicked) = clicked_package_idx.lock() {
@@ -627,11 +682,11 @@ impl DlgDashCounterDetails {
 
         DataTableCell::widget(move |ui: &mut egui::Ui| {
             let on_surface = egui_material3::get_global_color("onSurface");
-            
+
             // Get texture from store (the store itself caches TextureHandles, so this is fast)
             let store = get_shared_store();
             let mut texture_id: Option<egui::TextureId> = None;
-            
+
             // Quick lookups in order of priority (store.get_*_texture is O(1) hashmap lookup)
             if let Some(tex) = store.get_android_package_texture(&pkg_id) {
                 texture_id = Some(tex.id());
@@ -656,34 +711,48 @@ impl DlgDashCounterDetails {
             }
 
             // Render the content in a clickable area
-            let response = ui.horizontal(|ui| {
-                // App icon (38x38)
-                if let Some(tex_id) = texture_id {
-                    let size = egui::Vec2::new(38.0, 38.0);
-                    ui.add(egui::Image::new(egui::load::SizedTexture::new(tex_id, size)));
-                } else {
-                    ui.add_space(38.0);
-                }
+            let response = ui
+                .horizontal(|ui| {
+                    // App icon (38x38)
+                    if let Some(tex_id) = texture_id {
+                        let size = egui::Vec2::new(38.0, 38.0);
+                        ui.add(egui::Image::new(egui::load::SizedTexture::new(
+                            tex_id, size,
+                        )));
+                    } else {
+                        ui.add_space(38.0);
+                    }
 
-                ui.add_space(8.0);
+                    ui.add_space(8.0);
 
-                // Title and subtitle (pre-computed - this is the main optimization!)
-                ui.vertical(|ui| {
-                    ui.spacing_mut().item_spacing.y = 2.0;
-                    ui.label(egui::RichText::new(&title_text).color(on_surface).size(14.0));
-                    ui.label(egui::RichText::new(&subtitle_text)
-                        .color(egui::Color32::from_rgba_unmultiplied(
-                            on_surface.r(),
-                            on_surface.g(),
-                            on_surface.b(),
-                            153,
-                        ))
-                        .size(12.0));
-                });
-            }).response;
+                    // Title and subtitle (pre-computed - this is the main optimization!)
+                    ui.vertical(|ui| {
+                        ui.spacing_mut().item_spacing.y = 2.0;
+                        ui.label(
+                            egui::RichText::new(&title_text)
+                                .color(on_surface)
+                                .size(14.0),
+                        );
+                        ui.label(
+                            egui::RichText::new(&subtitle_text)
+                                .color(egui::Color32::from_rgba_unmultiplied(
+                                    on_surface.r(),
+                                    on_surface.g(),
+                                    on_surface.b(),
+                                    153,
+                                ))
+                                .size(12.0),
+                        );
+                    });
+                })
+                .response;
 
             // Make the entire cell clickable
-            let sense_response = ui.interact(response.rect, egui::Id::new(format!("clickable_app_cell_{}", row_idx)), egui::Sense::click());
+            let sense_response = ui.interact(
+                response.rect,
+                egui::Id::new(format!("clickable_app_cell_{}", row_idx)),
+                egui::Sense::click(),
+            );
 
             if sense_response.clicked() {
                 if let Ok(mut clicked) = clicked_package_idx.lock() {
@@ -733,7 +802,8 @@ impl DlgDashCounterDetails {
         let is_system = package.flags.contains("SYSTEM");
 
         // Check if app is classified as "Unsafe" or "Expert" in debloat lists, regardless of current view
-        let actual_debloat_category = uad_ng_lists.as_ref()
+        let actual_debloat_category = uad_ng_lists
+            .as_ref()
             .and_then(|lists| lists.apps.get(pkg_id))
             .map(|entry| entry.removal.as_str());
         let is_unsafe_blocked = actual_debloat_category == Some("Unsafe") && !unsafe_app_remove;
@@ -748,56 +818,88 @@ impl DlgDashCounterDetails {
                     ui.horizontal(|ui| {
                         ui.spacing_mut().item_spacing.x = 0.0;
 
-            // Refresh button - delete scan results and re-queue (only for VT/HA tables)
-            if show_refresh_button {
-                if ui.add(icon_button_standard(ICON_REFRESH.to_string()))
-                    .on_hover_text(tr!("refresh-list")).clicked() {
-                    ui.data_mut(|data| {
-                        data.insert_temp(egui::Id::new("refresh_clicked_package"), pkg_id_clone.clone());
-                    });
-                }
-            }
+                        // Refresh button - delete scan results and re-queue (only for VT/HA tables)
+                        if show_refresh_button {
+                            if ui
+                                .add(icon_button_standard(ICON_REFRESH.to_string()))
+                                .on_hover_text(tr!("refresh-list"))
+                                .clicked()
+                            {
+                                ui.data_mut(|data| {
+                                    data.insert_temp(
+                                        egui::Id::new("refresh_clicked_package"),
+                                        pkg_id_clone.clone(),
+                                    );
+                                });
+                            }
+                        }
 
-            // Enable/disable toggle
-            let pkg_enabled = enabled_str.contains("DEFAULT") || enabled_str.contains("ENABLED");
-            let can_show_toggle = !is_blocked || !pkg_enabled;
+                        // Enable/disable toggle
+                        let pkg_enabled =
+                            enabled_str.contains("DEFAULT") || enabled_str.contains("ENABLED");
+                        let can_show_toggle = !is_blocked || !pkg_enabled;
 
-            if can_show_toggle {
-                let mut enabled = pkg_enabled;
-                if toggle_ui(ui, &mut enabled).clicked() {
-                    if enabled {
-                        ui.data_mut(|data| {
-                            data.insert_temp(egui::Id::new("enable_clicked_package"), pkg_id_clone.clone());
-                        });
-                    } else {
-                        ui.data_mut(|data| {
-                            data.insert_temp(egui::Id::new("disable_clicked_package"), pkg_id_clone.clone());
-                        });
-                    }
-                }
-            }
+                        if can_show_toggle {
+                            let mut enabled = pkg_enabled;
+                            if toggle_ui(ui, &mut enabled).clicked() {
+                                if enabled {
+                                    ui.data_mut(|data| {
+                                        data.insert_temp(
+                                            egui::Id::new("enable_clicked_package"),
+                                            pkg_id_clone.clone(),
+                                        );
+                                    });
+                                } else {
+                                    ui.data_mut(|data| {
+                                        data.insert_temp(
+                                            egui::Id::new("disable_clicked_package"),
+                                            pkg_id_clone.clone(),
+                                        );
+                                    });
+                                }
+                            }
+                        }
 
-            // Uninstall button (only for enabled apps and not blocked)
-            if (enabled_str.contains("DEFAULT") || enabled_str.contains("ENABLED")) && !is_blocked {
-                if ui.add(icon_button_standard(ICON_DELETE.to_string())
-                    .icon_color(egui::Color32::from_rgb(211, 47, 47)))
-                    .on_hover_text(tr!("uninstall")).clicked() {
-                    ui.data_mut(|data| {
-                        data.insert_temp(egui::Id::new("uninstall_clicked_package"), pkg_id_clone.clone());
-                        data.insert_temp(egui::Id::new("uninstall_clicked_is_system"), is_system);
-                    });
-                }
-            }
+                        // Uninstall button (only for enabled apps and not blocked)
+                        if (enabled_str.contains("DEFAULT") || enabled_str.contains("ENABLED"))
+                            && !is_blocked
+                        {
+                            if ui
+                                .add(
+                                    icon_button_standard(ICON_DELETE.to_string())
+                                        .icon_color(egui::Color32::from_rgb(211, 47, 47)),
+                                )
+                                .on_hover_text(tr!("uninstall"))
+                                .clicked()
+                            {
+                                ui.data_mut(|data| {
+                                    data.insert_temp(
+                                        egui::Id::new("uninstall_clicked_package"),
+                                        pkg_id_clone.clone(),
+                                    );
+                                    data.insert_temp(
+                                        egui::Id::new("uninstall_clicked_is_system"),
+                                        is_system,
+                                    );
+                                });
+                            }
+                        }
 
-            // Settings button for blocked enabled apps (when nothing else shows)
-            if is_blocked && pkg_enabled {
-                if ui.add(icon_button_standard(ICON_SETTINGS.to_string()))
-                    .on_hover_text(tr!("settings")).clicked() {
-                    ui.data_mut(|data| {
-                        data.insert_temp(egui::Id::new("settings_button_clicked"), true);
-                    });
-                }
-            }
+                        // Settings button for blocked enabled apps (when nothing else shows)
+                        if is_blocked && pkg_enabled {
+                            if ui
+                                .add(icon_button_standard(ICON_SETTINGS.to_string()))
+                                .on_hover_text(tr!("settings"))
+                                .clicked()
+                            {
+                                ui.data_mut(|data| {
+                                    data.insert_temp(
+                                        egui::Id::new("settings_button_clicked"),
+                                        true,
+                                    );
+                                });
+                            }
+                        }
                     });
                 });
         });
@@ -837,8 +939,14 @@ impl DlgDashCounterDetails {
             .min_width(800.0)
             .min_height(600.0)
             .resize(|r| {
-                r.default_size([ctx.content_rect().width() - 40.0, ctx.content_rect().height() - 40.0])
-                    .max_size([ctx.content_rect().width() - 40.0, ctx.content_rect().height() - 40.0])
+                r.default_size([
+                    ctx.content_rect().width() - 40.0,
+                    ctx.content_rect().height() - 40.0,
+                ])
+                .max_size([
+                    ctx.content_rect().width() - 40.0,
+                    ctx.content_rect().height() - 40.0,
+                ])
             })
             .show(ctx, |ui| {
                 // Show description
@@ -854,9 +962,11 @@ impl DlgDashCounterDetails {
                     toggle_ui(ui, &mut self.hide_system_app);
                     ui.add_space(10.0);
                     ui.label(tr!("filter"));
-                    let response = ui.add(egui::TextEdit::singleline(&mut self.text_filter)
-                        .hint_text(tr!("filter-hint"))
-                        .desired_width(200.0));
+                    let response = ui.add(
+                        egui::TextEdit::singleline(&mut self.text_filter)
+                            .hint_text(tr!("filter-hint"))
+                            .desired_width(200.0),
+                    );
                     #[cfg(target_os = "android")]
                     {
                         if response.gained_focus() {
@@ -866,7 +976,11 @@ impl DlgDashCounterDetails {
                             let _ = crate::android_inputmethod::hide_soft_input();
                         }
                     }
-                    crate::clipboard_popup::show_clipboard_popup(ui, &response, &mut self.text_filter);
+                    crate::clipboard_popup::show_clipboard_popup(
+                        ui,
+                        &response,
+                        &mut self.text_filter,
+                    );
                     if !self.text_filter.is_empty() && ui.button("X").clicked() {
                         self.text_filter.clear();
                     }
@@ -879,41 +993,94 @@ impl DlgDashCounterDetails {
                 egui::ScrollArea::both()
                     .id_salt("dashcounter_details_scroll")
                     .max_height(max_height)
-                    .show(ui, |ui| {
-                        match &category {
-                            DashCounterCategory::DebloatRecommend
-                            | DashCounterCategory::DebloatAdvanced
-                            | DashCounterCategory::DebloatExpert
-                            | DashCounterCategory::DebloatUnsafe
-                            | DashCounterCategory::DebloatUnknown => {
-                                self.render_debloat_table(ui, ctx, installed_packages, uad_ng_lists, &category, clicked_package_idx.clone(), unsafe_app_remove, expert_app_remove);
-                            }
-                            DashCounterCategory::StalkerwareDetected
-                            | DashCounterCategory::StalkerwareUndetected => {
-                                self.render_stalkerware_table(ui, ctx, installed_packages, stalkerware_indicators, &category, clicked_package_idx.clone(), unsafe_app_remove, expert_app_remove, uad_ng_lists);
-                            }
-                            DashCounterCategory::IzzyRiskSafe
-                            | DashCounterCategory::IzzyRiskNormal
-                            | DashCounterCategory::IzzyRiskModerate
-                            | DashCounterCategory::IzzyRiskHigh => {
-                                self.render_izzyrisk_table(ui, ctx, installed_packages, package_risk_scores, &category, clicked_package_idx.clone(), unsafe_app_remove, expert_app_remove, uad_ng_lists);
-                            }
-                            DashCounterCategory::VirusTotalMalicious
-                            | DashCounterCategory::VirusTotalSuspicious
-                            | DashCounterCategory::VirusTotalSafe
-                            | DashCounterCategory::VirusTotalNotScanned => {
-                                self.render_virustotal_table(ui, ctx, installed_packages, &category, clicked_package_idx.clone(), unsafe_app_remove, expert_app_remove, uad_ng_lists);
-                            }
-                            DashCounterCategory::HybridAnalysisMalicious
-                            | DashCounterCategory::HybridAnalysisMaliciousIgnored
-                            | DashCounterCategory::HybridAnalysisSuspicious
-                            | DashCounterCategory::HybridAnalysisSafe
-                            | DashCounterCategory::HybridAnalysisNotScanned => {
-                                self.render_hybridanalysis_table(ui, ctx, installed_packages, &category, clicked_package_idx.clone(), hybridanalysis_tag_ignorelist, unsafe_app_remove, expert_app_remove, uad_ng_lists);
-                            }
-                            DashCounterCategory::OffaCategory(_) | DashCounterCategory::FmhyCategory(_) => {
-                                self.render_apps_table(ui, ctx, installed_packages, &category, clicked_package_idx.clone());
-                            }
+                    .show(ui, |ui| match &category {
+                        DashCounterCategory::DebloatRecommend
+                        | DashCounterCategory::DebloatAdvanced
+                        | DashCounterCategory::DebloatExpert
+                        | DashCounterCategory::DebloatUnsafe
+                        | DashCounterCategory::DebloatUnknown => {
+                            self.render_debloat_table(
+                                ui,
+                                ctx,
+                                installed_packages,
+                                uad_ng_lists,
+                                &category,
+                                clicked_package_idx.clone(),
+                                unsafe_app_remove,
+                                expert_app_remove,
+                            );
+                        }
+                        DashCounterCategory::StalkerwareDetected
+                        | DashCounterCategory::StalkerwareUndetected => {
+                            self.render_stalkerware_table(
+                                ui,
+                                ctx,
+                                installed_packages,
+                                stalkerware_indicators,
+                                &category,
+                                clicked_package_idx.clone(),
+                                unsafe_app_remove,
+                                expert_app_remove,
+                                uad_ng_lists,
+                            );
+                        }
+                        DashCounterCategory::IzzyRiskSafe
+                        | DashCounterCategory::IzzyRiskNormal
+                        | DashCounterCategory::IzzyRiskModerate
+                        | DashCounterCategory::IzzyRiskHigh => {
+                            self.render_izzyrisk_table(
+                                ui,
+                                ctx,
+                                installed_packages,
+                                package_risk_scores,
+                                &category,
+                                clicked_package_idx.clone(),
+                                unsafe_app_remove,
+                                expert_app_remove,
+                                uad_ng_lists,
+                            );
+                        }
+                        DashCounterCategory::VirusTotalMalicious
+                        | DashCounterCategory::VirusTotalSuspicious
+                        | DashCounterCategory::VirusTotalSafe
+                        | DashCounterCategory::VirusTotalNotScanned => {
+                            self.render_virustotal_table(
+                                ui,
+                                ctx,
+                                installed_packages,
+                                &category,
+                                clicked_package_idx.clone(),
+                                unsafe_app_remove,
+                                expert_app_remove,
+                                uad_ng_lists,
+                            );
+                        }
+                        DashCounterCategory::HybridAnalysisMalicious
+                        | DashCounterCategory::HybridAnalysisMaliciousIgnored
+                        | DashCounterCategory::HybridAnalysisSuspicious
+                        | DashCounterCategory::HybridAnalysisSafe
+                        | DashCounterCategory::HybridAnalysisNotScanned => {
+                            self.render_hybridanalysis_table(
+                                ui,
+                                ctx,
+                                installed_packages,
+                                &category,
+                                clicked_package_idx.clone(),
+                                hybridanalysis_tag_ignorelist,
+                                unsafe_app_remove,
+                                expert_app_remove,
+                                uad_ng_lists,
+                            );
+                        }
+                        DashCounterCategory::OffaCategory(_)
+                        | DashCounterCategory::FmhyCategory(_) => {
+                            self.render_apps_table(
+                                ui,
+                                ctx,
+                                installed_packages,
+                                &category,
+                                clicked_package_idx.clone(),
+                            );
                         }
                     });
 
@@ -934,13 +1101,14 @@ impl DlgDashCounterDetails {
         }
 
         // Handle package details dialog open
-        let clicked_idx = {
-            clicked_package_idx.lock().ok().and_then(|guard| *guard)
-        };
+        let clicked_idx = { clicked_package_idx.lock().ok().and_then(|guard| *guard) };
 
         if let Some(idx) = clicked_idx {
             ctx.data_mut(|data| {
-                data.insert_temp(egui::Id::new("info_clicked_package"), installed_packages[idx].pkg.clone());
+                data.insert_temp(
+                    egui::Id::new("info_clicked_package"),
+                    installed_packages[idx].pkg.clone(),
+                );
             });
         }
     }
@@ -963,14 +1131,29 @@ impl DlgDashCounterDetails {
             DashCounterCategory::VirusTotalSafe => "VirusTotal: Safe",
             DashCounterCategory::VirusTotalNotScanned => "VirusTotal: Not Scanned",
             DashCounterCategory::HybridAnalysisMalicious => "HybridAnalysis: Malicious",
-            DashCounterCategory::HybridAnalysisMaliciousIgnored => "HybridAnalysis: Malicious (Ignored)",
+            DashCounterCategory::HybridAnalysisMaliciousIgnored => {
+                "HybridAnalysis: Malicious (Ignored)"
+            }
             DashCounterCategory::HybridAnalysisSuspicious => "HybridAnalysis: Suspicious",
             DashCounterCategory::HybridAnalysisSafe => "HybridAnalysis: Safe",
             DashCounterCategory::HybridAnalysisNotScanned => "HybridAnalysis: Not Scanned",
-            DashCounterCategory::OffaCategory(ref cat_name) => return format!("FOSS/OFFA: {} ({}/{})", cat_name, self.count_enabled, self.count_total),
-            DashCounterCategory::FmhyCategory(ref cat_name) => return format!("FOSS/FMHY: {} ({}/{})", cat_name, self.count_enabled, self.count_total),
+            DashCounterCategory::OffaCategory(ref cat_name) => {
+                return format!(
+                    "FOSS/OFFA: {} ({}/{})",
+                    cat_name, self.count_enabled, self.count_total
+                )
+            }
+            DashCounterCategory::FmhyCategory(ref cat_name) => {
+                return format!(
+                    "FOSS/FMHY: {} ({}/{})",
+                    cat_name, self.count_enabled, self.count_total
+                )
+            }
         };
-        format!("{} ({}/{})", base_title, self.count_enabled, self.count_total)
+        format!(
+            "{} ({}/{})",
+            base_title, self.count_enabled, self.count_total
+        )
     }
 
     fn render_debloat_table(
@@ -1028,7 +1211,9 @@ impl DlgDashCounterDetails {
             for pkg in &filtered_packages {
                 // Check if not already cached
                 if store.get_cached_android_package_app(&pkg.pkg).is_none() {
-                    if let Some(info) = crate::calc_androidpackage::fetch_android_package_info(&pkg.pkg) {
+                    if let Some(info) =
+                        crate::calc_androidpackage::fetch_android_package_info(&pkg.pkg)
+                    {
                         store.set_cached_android_package_app(pkg.pkg.clone(), info);
                     }
                 }
@@ -1041,13 +1226,21 @@ impl DlgDashCounterDetails {
 
         // Pagination (calculate early for cache)
         let total_items = filtered_packages.len();
-        let total_pages = if total_items == 0 { 1 } else { (total_items + self.items_per_page - 1) / self.items_per_page.max(1) };
+        let total_pages = if total_items == 0 {
+            1
+        } else {
+            (total_items + self.items_per_page - 1) / self.items_per_page.max(1)
+        };
         if self.current_page >= total_pages {
             self.current_page = total_pages.saturating_sub(1);
         }
         let start_idx = self.current_page * self.items_per_page;
         let end_idx = (start_idx + self.items_per_page).min(total_items);
-        let page_packages = if start_idx < total_items { &filtered_packages[start_idx..end_idx] } else { &[] };
+        let page_packages = if start_idx < total_items {
+            &filtered_packages[start_idx..end_idx]
+        } else {
+            &[]
+        };
 
         if self.should_refresh_cache(current_time, &new_cache_key) {
             self.prepare_row_cache(page_packages, current_time, ctx);
@@ -1085,26 +1278,52 @@ impl DlgDashCounterDetails {
             let debloat_cat = target_removal;
 
             // Find the actual index in installed_packages
-            let actual_idx = installed_packages.iter().position(|p| p.pkg == pkg.pkg).unwrap_or(idx);
+            let actual_idx = installed_packages
+                .iter()
+                .position(|p| p.pkg == pkg.pkg)
+                .unwrap_or(idx);
 
             // Use cached data if available, otherwise fall back to non-cached version
             let app_desc_cell = if cache_idx < self.cached_rows.len() {
-                Self::render_clickable_app_cell_cached(ctx, &self.cached_rows[cache_idx], clicked_idx_clone.clone(), actual_idx)
+                Self::render_clickable_app_cell_cached(
+                    ctx,
+                    &self.cached_rows[cache_idx],
+                    clicked_idx_clone.clone(),
+                    actual_idx,
+                )
             } else {
-                Self::render_clickable_app_cell(ctx, &pkg.pkg, clicked_idx_clone.clone(), actual_idx)
+                Self::render_clickable_app_cell(
+                    ctx,
+                    &pkg.pkg,
+                    clicked_idx_clone.clone(),
+                    actual_idx,
+                )
             };
             let uad_lists_clone = uad_ng_lists.clone();
             let pkg_id_for_drawer = pkg_id.clone();
             let uad_lists_for_drawer = uad_ng_lists.clone();
 
             table = table.row(|row| {
-                let mut row_builder = row.custom_cell(app_desc_cell)
-                    .custom_cell(DataTableCell::widget(move |ui: &mut egui::Ui| {
-                        Self::render_action_buttons_static(ui, &pkg_id, &pkg_clone, Some(debloat_cat), unsafe_app_remove, expert_app_remove, false, &uad_lists_clone);
-                    }));
+                let mut row_builder =
+                    row.custom_cell(app_desc_cell)
+                        .custom_cell(DataTableCell::widget(move |ui: &mut egui::Ui| {
+                            Self::render_action_buttons_static(
+                                ui,
+                                &pkg_id,
+                                &pkg_clone,
+                                Some(debloat_cat),
+                                unsafe_app_remove,
+                                expert_app_remove,
+                                false,
+                                &uad_lists_clone,
+                            );
+                        }));
 
                 // Add drawer if UAD description exists
-                if let Some(uad_entry) = uad_lists_for_drawer.as_ref().and_then(|lists| lists.apps.get(&pkg_id_for_drawer)) {
+                if let Some(uad_entry) = uad_lists_for_drawer
+                    .as_ref()
+                    .and_then(|lists| lists.apps.get(&pkg_id_for_drawer))
+                {
                     let description = uad_entry.description.clone();
                     row_builder = row_builder.drawer(move |ui| {
                         ui.add_space(8.0);
@@ -1120,7 +1339,8 @@ impl DlgDashCounterDetails {
 
         // Handle sort state sync
         let (widget_sort_col, widget_sort_dir) = table_response.sort_state;
-        let widget_sort_ascending = matches!(widget_sort_dir, egui_material3::SortDirection::Ascending);
+        let widget_sort_ascending =
+            matches!(widget_sort_dir, egui_material3::SortDirection::Ascending);
 
         if widget_sort_col != self.sort_column
             || (widget_sort_col.is_some() && widget_sort_ascending != self.sort_ascending)
@@ -1147,7 +1367,12 @@ impl DlgDashCounterDetails {
                     self.current_page -= 1;
                 }
                 ui.add_space(10.0);
-                ui.label(format!("Page {} of {} ({} items)", self.current_page + 1, total_pages, total_items));
+                ui.label(format!(
+                    "Page {} of {} ({} items)",
+                    self.current_page + 1,
+                    total_pages,
+                    total_items
+                ));
                 ui.add_space(10.0);
                 if ui.button("▶").clicked() && self.current_page + 1 < total_pages {
                     self.current_page += 1;
@@ -1205,7 +1430,9 @@ impl DlgDashCounterDetails {
             for pkg in &filtered_packages {
                 // Check if not already cached
                 if store.get_cached_android_package_app(&pkg.pkg).is_none() {
-                    if let Some(info) = crate::calc_androidpackage::fetch_android_package_info(&pkg.pkg) {
+                    if let Some(info) =
+                        crate::calc_androidpackage::fetch_android_package_info(&pkg.pkg)
+                    {
                         store.set_cached_android_package_app(pkg.pkg.clone(), info);
                     }
                 }
@@ -1218,13 +1445,21 @@ impl DlgDashCounterDetails {
 
         // Pagination (calculate early for cache)
         let total_items = filtered_packages.len();
-        let total_pages = if total_items == 0 { 1 } else { (total_items + self.items_per_page - 1) / self.items_per_page.max(1) };
+        let total_pages = if total_items == 0 {
+            1
+        } else {
+            (total_items + self.items_per_page - 1) / self.items_per_page.max(1)
+        };
         if self.current_page >= total_pages {
             self.current_page = total_pages.saturating_sub(1);
         }
         let start_idx = self.current_page * self.items_per_page;
         let end_idx = (start_idx + self.items_per_page).min(total_items);
-        let page_packages = if start_idx < total_items { &filtered_packages[start_idx..end_idx] } else { &[] };
+        let page_packages = if start_idx < total_items {
+            &filtered_packages[start_idx..end_idx]
+        } else {
+            &[]
+        };
 
         if self.should_refresh_cache(current_time, &new_cache_key) {
             self.prepare_row_cache(page_packages, current_time, ctx);
@@ -1259,26 +1494,52 @@ impl DlgDashCounterDetails {
             let pkg_id = pkg.pkg.clone();
             let pkg_clone = (*pkg).clone();
             let clicked_idx_clone = clicked_package_idx.clone();
-            let actual_idx = installed_packages.iter().position(|p| p.pkg == pkg.pkg).unwrap_or(idx);
+            let actual_idx = installed_packages
+                .iter()
+                .position(|p| p.pkg == pkg.pkg)
+                .unwrap_or(idx);
             let uad_lists_clone = uad_ng_lists.clone();
 
             // Use cached data if available, otherwise fall back to non-cached version
             let app_desc_cell = if cache_idx < self.cached_rows.len() {
-                Self::render_clickable_app_cell_cached(ctx, &self.cached_rows[cache_idx], clicked_idx_clone.clone(), actual_idx)
+                Self::render_clickable_app_cell_cached(
+                    ctx,
+                    &self.cached_rows[cache_idx],
+                    clicked_idx_clone.clone(),
+                    actual_idx,
+                )
             } else {
-                Self::render_clickable_app_cell(ctx, &pkg.pkg, clicked_idx_clone.clone(), actual_idx)
+                Self::render_clickable_app_cell(
+                    ctx,
+                    &pkg.pkg,
+                    clicked_idx_clone.clone(),
+                    actual_idx,
+                )
             };
             let pkg_id_for_drawer = pkg_id.clone();
             let uad_lists_for_drawer = uad_lists_clone.clone();
 
             table = table.row(|row| {
-                let mut row_builder = row.custom_cell(app_desc_cell)
-                    .custom_cell(DataTableCell::widget(move |ui: &mut egui::Ui| {
-                        Self::render_action_buttons_static(ui, &pkg_id, &pkg_clone, None, unsafe_app_remove, expert_app_remove, false, &uad_lists_clone);
-                    }));
+                let mut row_builder =
+                    row.custom_cell(app_desc_cell)
+                        .custom_cell(DataTableCell::widget(move |ui: &mut egui::Ui| {
+                            Self::render_action_buttons_static(
+                                ui,
+                                &pkg_id,
+                                &pkg_clone,
+                                None,
+                                unsafe_app_remove,
+                                expert_app_remove,
+                                false,
+                                &uad_lists_clone,
+                            );
+                        }));
 
                 // Add drawer if UAD description exists
-                if let Some(uad_entry) = uad_lists_for_drawer.as_ref().and_then(|lists| lists.apps.get(&pkg_id_for_drawer)) {
+                if let Some(uad_entry) = uad_lists_for_drawer
+                    .as_ref()
+                    .and_then(|lists| lists.apps.get(&pkg_id_for_drawer))
+                {
                     let description = uad_entry.description.clone();
                     row_builder = row_builder.drawer(move |ui| {
                         ui.add_space(8.0);
@@ -1294,7 +1555,8 @@ impl DlgDashCounterDetails {
 
         // Handle sort state sync
         let (widget_sort_col, widget_sort_dir) = table_response.sort_state;
-        let widget_sort_ascending = matches!(widget_sort_dir, egui_material3::SortDirection::Ascending);
+        let widget_sort_ascending =
+            matches!(widget_sort_dir, egui_material3::SortDirection::Ascending);
 
         if widget_sort_col != self.sort_column
             || (widget_sort_col.is_some() && widget_sort_ascending != self.sort_ascending)
@@ -1321,7 +1583,12 @@ impl DlgDashCounterDetails {
                     self.current_page -= 1;
                 }
                 ui.add_space(10.0);
-                ui.label(format!("Page {} of {} ({} items)", self.current_page + 1, total_pages, total_items));
+                ui.label(format!(
+                    "Page {} of {} ({} items)",
+                    self.current_page + 1,
+                    total_pages,
+                    total_items
+                ));
                 ui.add_space(10.0);
                 if ui.button("▶").clicked() && self.current_page + 1 < total_pages {
                     self.current_page += 1;
@@ -1377,7 +1644,9 @@ impl DlgDashCounterDetails {
             for pkg in &filtered_packages {
                 // Check if not already cached
                 if store.get_cached_android_package_app(&pkg.pkg).is_none() {
-                    if let Some(info) = crate::calc_androidpackage::fetch_android_package_info(&pkg.pkg) {
+                    if let Some(info) =
+                        crate::calc_androidpackage::fetch_android_package_info(&pkg.pkg)
+                    {
                         store.set_cached_android_package_app(pkg.pkg.clone(), info);
                     }
                 }
@@ -1390,13 +1659,21 @@ impl DlgDashCounterDetails {
 
         // Pagination (calculate early for cache)
         let total_items = filtered_packages.len();
-        let total_pages = if total_items == 0 { 1 } else { (total_items + self.items_per_page - 1) / self.items_per_page.max(1) };
+        let total_pages = if total_items == 0 {
+            1
+        } else {
+            (total_items + self.items_per_page - 1) / self.items_per_page.max(1)
+        };
         if self.current_page >= total_pages {
             self.current_page = total_pages.saturating_sub(1);
         }
         let start_idx = self.current_page * self.items_per_page;
         let end_idx = (start_idx + self.items_per_page).min(total_items);
-        let page_packages = if start_idx < total_items { &filtered_packages[start_idx..end_idx] } else { &[] };
+        let page_packages = if start_idx < total_items {
+            &filtered_packages[start_idx..end_idx]
+        } else {
+            &[]
+        };
 
         if self.should_refresh_cache(current_time, &new_cache_key) {
             self.prepare_row_cache(page_packages, current_time, ctx);
@@ -1412,7 +1689,11 @@ impl DlgDashCounterDetails {
 
         // Use abbreviated headers for narrow screens
         let risk_score_header = if is_narrow_screen { "RS" } else { "Risk Score" };
-        let permissions_header = if is_narrow_screen { "Perm" } else { "Caused Permissions" };
+        let permissions_header = if is_narrow_screen {
+            "Perm"
+        } else {
+            "Caused Permissions"
+        };
 
         // Columns: Apps (37.5%) + Risk Score (12.5%) + Permissions (25%) + Actions (25%) = 100%
         let mut table = data_table()
@@ -1466,28 +1747,54 @@ impl DlgDashCounterDetails {
             let pkg_id = pkg.pkg.clone();
             let pkg_clone = (*pkg).clone();
             let clicked_idx_clone = clicked_package_idx.clone();
-            let actual_idx = installed_packages.iter().position(|p| p.pkg == pkg.pkg).unwrap_or(idx);
+            let actual_idx = installed_packages
+                .iter()
+                .position(|p| p.pkg == pkg.pkg)
+                .unwrap_or(idx);
             let uad_lists_clone = uad_ng_lists.clone();
 
             // Use cached data if available, otherwise fall back to non-cached version
             let app_desc_cell = if cache_idx < self.cached_rows.len() {
-                Self::render_clickable_app_cell_cached(ctx, &self.cached_rows[cache_idx], clicked_idx_clone.clone(), actual_idx)
+                Self::render_clickable_app_cell_cached(
+                    ctx,
+                    &self.cached_rows[cache_idx],
+                    clicked_idx_clone.clone(),
+                    actual_idx,
+                )
             } else {
-                Self::render_clickable_app_cell(ctx, &pkg.pkg, clicked_idx_clone.clone(), actual_idx)
+                Self::render_clickable_app_cell(
+                    ctx,
+                    &pkg.pkg,
+                    clicked_idx_clone.clone(),
+                    actual_idx,
+                )
             };
             let pkg_id_for_drawer = pkg_id.clone();
             let uad_lists_for_drawer = uad_lists_clone.clone();
 
             table = table.row(|row| {
-                let mut row_builder = row.custom_cell(app_desc_cell)
+                let mut row_builder = row
+                    .custom_cell(app_desc_cell)
                     .cell(&risk_score.to_string())
                     .cell(&permissions_text)
                     .custom_cell(DataTableCell::widget(move |ui: &mut egui::Ui| {
-                        Self::render_action_buttons_static(ui, &pkg_id, &pkg_clone, None, unsafe_app_remove, expert_app_remove, false, &uad_lists_clone);
+                        Self::render_action_buttons_static(
+                            ui,
+                            &pkg_id,
+                            &pkg_clone,
+                            None,
+                            unsafe_app_remove,
+                            expert_app_remove,
+                            false,
+                            &uad_lists_clone,
+                        );
                     }));
 
                 // Add drawer if UAD description exists
-                if let Some(uad_entry) = uad_lists_for_drawer.as_ref().and_then(|lists| lists.apps.get(&pkg_id_for_drawer)) {
+                if let Some(uad_entry) = uad_lists_for_drawer
+                    .as_ref()
+                    .and_then(|lists| lists.apps.get(&pkg_id_for_drawer))
+                {
                     let description = uad_entry.description.clone();
                     row_builder = row_builder.drawer(move |ui| {
                         ui.add_space(8.0);
@@ -1503,7 +1810,8 @@ impl DlgDashCounterDetails {
 
         // Handle sort state sync
         let (widget_sort_col, widget_sort_dir) = table_response.sort_state;
-        let widget_sort_ascending = matches!(widget_sort_dir, egui_material3::SortDirection::Ascending);
+        let widget_sort_ascending =
+            matches!(widget_sort_dir, egui_material3::SortDirection::Ascending);
 
         if widget_sort_col != self.sort_column
             || (widget_sort_col.is_some() && widget_sort_ascending != self.sort_ascending)
@@ -1530,7 +1838,12 @@ impl DlgDashCounterDetails {
                     self.current_page -= 1;
                 }
                 ui.add_space(10.0);
-                ui.label(format!("Page {} of {} ({} items)", self.current_page + 1, total_pages, total_items));
+                ui.label(format!(
+                    "Page {} of {} ({} items)",
+                    self.current_page + 1,
+                    total_pages,
+                    total_items
+                ));
                 ui.add_space(10.0);
                 if ui.button("▶").clicked() && self.current_page + 1 < total_pages {
                     self.current_page += 1;
@@ -1562,9 +1875,11 @@ impl DlgDashCounterDetails {
                         match scanner_state.get(&pkg.pkg) {
                             Some(crate::calc_virustotal_stt::ScanStatus::Completed(result)) => {
                                 // Check file-level flags for categorization
-                                let has_not_found = result.file_results.iter().any(|fr| fr.not_found);
+                                let has_not_found =
+                                    result.file_results.iter().any(|fr| fr.not_found);
                                 let has_skipped = result.file_results.iter().any(|fr| fr.skipped);
-                                let has_error = result.file_results.iter().any(|fr| fr.error.is_some());
+                                let has_error =
+                                    result.file_results.iter().any(|fr| fr.error.is_some());
 
                                 // If any file was not found, skipped, or had error, count as not_scanned
                                 if has_not_found || has_skipped || has_error {
@@ -1574,12 +1889,14 @@ impl DlgDashCounterDetails {
                                         DashCounterCategory::VirusTotalMalicious => {
                                             result.file_results.iter().any(|f| f.malicious > 0)
                                         }
-                                        DashCounterCategory::VirusTotalSuspicious => {
-                                            result.file_results.iter().any(|f| f.suspicious > 0 && f.malicious == 0)
-                                        }
-                                        DashCounterCategory::VirusTotalSafe => {
-                                            result.file_results.iter().all(|f| f.malicious == 0 && f.suspicious == 0)
-                                        }
+                                        DashCounterCategory::VirusTotalSuspicious => result
+                                            .file_results
+                                            .iter()
+                                            .any(|f| f.suspicious > 0 && f.malicious == 0),
+                                        DashCounterCategory::VirusTotalSafe => result
+                                            .file_results
+                                            .iter()
+                                            .all(|f| f.malicious == 0 && f.suspicious == 0),
                                         DashCounterCategory::VirusTotalNotScanned => false,
                                         _ => false,
                                     }
@@ -1614,7 +1931,9 @@ impl DlgDashCounterDetails {
             for pkg in &filtered_packages {
                 // Check if not already cached
                 if store.get_cached_android_package_app(&pkg.pkg).is_none() {
-                    if let Some(info) = crate::calc_androidpackage::fetch_android_package_info(&pkg.pkg) {
+                    if let Some(info) =
+                        crate::calc_androidpackage::fetch_android_package_info(&pkg.pkg)
+                    {
                         store.set_cached_android_package_app(pkg.pkg.clone(), info);
                     }
                 }
@@ -1627,13 +1946,21 @@ impl DlgDashCounterDetails {
 
         // Pagination (calculate early for cache)
         let total_items = filtered_packages.len();
-        let total_pages = if total_items == 0 { 1 } else { (total_items + self.items_per_page - 1) / self.items_per_page.max(1) };
+        let total_pages = if total_items == 0 {
+            1
+        } else {
+            (total_items + self.items_per_page - 1) / self.items_per_page.max(1)
+        };
         if self.current_page >= total_pages {
             self.current_page = total_pages.saturating_sub(1);
         }
         let start_idx = self.current_page * self.items_per_page;
         let end_idx = (start_idx + self.items_per_page).min(total_items);
-        let page_packages = if start_idx < total_items { &filtered_packages[start_idx..end_idx] } else { &[] };
+        let page_packages = if start_idx < total_items {
+            &filtered_packages[start_idx..end_idx]
+        } else {
+            &[]
+        };
 
         if self.should_refresh_cache(current_time, &new_cache_key) {
             self.prepare_row_cache(page_packages, current_time, ctx);
@@ -1669,34 +1996,61 @@ impl DlgDashCounterDetails {
             let pkg_id = pkg.pkg.clone();
             let pkg_clone = (*pkg).clone();
             let clicked_idx_clone = clicked_package_idx.clone();
-            let actual_idx = installed_packages.iter().position(|p| p.pkg == pkg.pkg).unwrap_or(idx);
+            let actual_idx = installed_packages
+                .iter()
+                .position(|p| p.pkg == pkg.pkg)
+                .unwrap_or(idx);
 
             // Get VT scan result for this package
             let vt_scan_result = vt_state.as_ref().and_then(|state| {
-                state.lock().ok().and_then(|scanner_state| {
-                    scanner_state.get(&pkg.pkg).cloned()
-                })
+                state
+                    .lock()
+                    .ok()
+                    .and_then(|scanner_state| scanner_state.get(&pkg.pkg).cloned())
             });
 
             // Use cached data if available, otherwise fall back to non-cached version
             let app_desc_cell = if cache_idx < self.cached_rows.len() {
-                Self::render_clickable_app_cell_cached(ctx, &self.cached_rows[cache_idx], clicked_idx_clone.clone(), actual_idx)
+                Self::render_clickable_app_cell_cached(
+                    ctx,
+                    &self.cached_rows[cache_idx],
+                    clicked_idx_clone.clone(),
+                    actual_idx,
+                )
             } else {
-                Self::render_clickable_app_cell(ctx, &pkg.pkg, clicked_idx_clone.clone(), actual_idx)
+                Self::render_clickable_app_cell(
+                    ctx,
+                    &pkg.pkg,
+                    clicked_idx_clone.clone(),
+                    actual_idx,
+                )
             };
             let uad_lists_clone = uad_ng_lists.clone();
             let pkg_id_for_drawer = pkg_id.clone();
             let uad_lists_for_drawer = uad_ng_lists.clone();
 
             table = table.row(|row| {
-                let mut row_builder = row.custom_cell(app_desc_cell)
+                let mut row_builder = row
+                    .custom_cell(app_desc_cell)
                     .custom_cell(Self::render_vt_cell(vt_scan_result, idx))
                     .custom_cell(DataTableCell::widget(move |ui: &mut egui::Ui| {
-                        Self::render_action_buttons_static(ui, &pkg_id, &pkg_clone, None, unsafe_app_remove, expert_app_remove, true, &uad_lists_clone);
+                        Self::render_action_buttons_static(
+                            ui,
+                            &pkg_id,
+                            &pkg_clone,
+                            None,
+                            unsafe_app_remove,
+                            expert_app_remove,
+                            true,
+                            &uad_lists_clone,
+                        );
                     }));
 
                 // Add drawer if UAD description exists
-                if let Some(uad_entry) = uad_lists_for_drawer.as_ref().and_then(|lists| lists.apps.get(&pkg_id_for_drawer)) {
+                if let Some(uad_entry) = uad_lists_for_drawer
+                    .as_ref()
+                    .and_then(|lists| lists.apps.get(&pkg_id_for_drawer))
+                {
                     let description = uad_entry.description.clone();
                     row_builder = row_builder.drawer(move |ui| {
                         ui.add_space(8.0);
@@ -1712,7 +2066,8 @@ impl DlgDashCounterDetails {
 
         // Handle sort state sync
         let (widget_sort_col, widget_sort_dir) = table_response.sort_state;
-        let widget_sort_ascending = matches!(widget_sort_dir, egui_material3::SortDirection::Ascending);
+        let widget_sort_ascending =
+            matches!(widget_sort_dir, egui_material3::SortDirection::Ascending);
 
         if widget_sort_col != self.sort_column
             || (widget_sort_col.is_some() && widget_sort_ascending != self.sort_ascending)
@@ -1739,7 +2094,12 @@ impl DlgDashCounterDetails {
                     self.current_page -= 1;
                 }
                 ui.add_space(10.0);
-                ui.label(format!("Page {} of {} ({} items)", self.current_page + 1, total_pages, total_items));
+                ui.label(format!(
+                    "Page {} of {} ({} items)",
+                    self.current_page + 1,
+                    total_pages,
+                    total_items
+                ));
                 ui.add_space(10.0);
                 if ui.button("▶").clicked() && self.current_page + 1 < total_pages {
                     self.current_page += 1;
@@ -1853,7 +2213,9 @@ impl DlgDashCounterDetails {
             for pkg in &filtered_packages {
                 // Check if not already cached
                 if store.get_cached_android_package_app(&pkg.pkg).is_none() {
-                    if let Some(info) = crate::calc_androidpackage::fetch_android_package_info(&pkg.pkg) {
+                    if let Some(info) =
+                        crate::calc_androidpackage::fetch_android_package_info(&pkg.pkg)
+                    {
                         store.set_cached_android_package_app(pkg.pkg.clone(), info);
                     }
                 }
@@ -1866,13 +2228,21 @@ impl DlgDashCounterDetails {
 
         // Pagination (calculate early for cache)
         let total_items = filtered_packages.len();
-        let total_pages = if total_items == 0 { 1 } else { (total_items + self.items_per_page - 1) / self.items_per_page.max(1) };
+        let total_pages = if total_items == 0 {
+            1
+        } else {
+            (total_items + self.items_per_page - 1) / self.items_per_page.max(1)
+        };
         if self.current_page >= total_pages {
             self.current_page = total_pages.saturating_sub(1);
         }
         let start_idx = self.current_page * self.items_per_page;
         let end_idx = (start_idx + self.items_per_page).min(total_items);
-        let page_packages = if start_idx < total_items { &filtered_packages[start_idx..end_idx] } else { &[] };
+        let page_packages = if start_idx < total_items {
+            &filtered_packages[start_idx..end_idx]
+        } else {
+            &[]
+        };
 
         if self.should_refresh_cache(current_time, &new_cache_key) {
             self.prepare_row_cache(page_packages, current_time, ctx);
@@ -1908,20 +2278,34 @@ impl DlgDashCounterDetails {
             let pkg_id = pkg.pkg.clone();
             let pkg_clone = (*pkg).clone();
             let clicked_idx_clone = clicked_package_idx.clone();
-            let actual_idx = installed_packages.iter().position(|p| p.pkg == pkg.pkg).unwrap_or(idx);
+            let actual_idx = installed_packages
+                .iter()
+                .position(|p| p.pkg == pkg.pkg)
+                .unwrap_or(idx);
 
             // Get HA scan result for this package
             let ha_scan_result = ha_state.as_ref().and_then(|state| {
-                state.lock().ok().and_then(|scanner_state| {
-                    scanner_state.get(&pkg.pkg).cloned()
-                })
+                state
+                    .lock()
+                    .ok()
+                    .and_then(|scanner_state| scanner_state.get(&pkg.pkg).cloned())
             });
 
             // Use cached data if available, otherwise fall back to non-cached version
             let app_desc_cell = if cache_idx < self.cached_rows.len() {
-                Self::render_clickable_app_cell_cached(ctx, &self.cached_rows[cache_idx], clicked_idx_clone.clone(), actual_idx)
+                Self::render_clickable_app_cell_cached(
+                    ctx,
+                    &self.cached_rows[cache_idx],
+                    clicked_idx_clone.clone(),
+                    actual_idx,
+                )
             } else {
-                Self::render_clickable_app_cell(ctx, &pkg.pkg, clicked_idx_clone.clone(), actual_idx)
+                Self::render_clickable_app_cell(
+                    ctx,
+                    &pkg.pkg,
+                    clicked_idx_clone.clone(),
+                    actual_idx,
+                )
             };
             let ha_tag_ignorelist_clone = hybridanalysis_tag_ignorelist.to_string();
             let uad_lists_clone = uad_ng_lists.clone();
@@ -1929,14 +2313,31 @@ impl DlgDashCounterDetails {
             let uad_lists_for_drawer = uad_ng_lists.clone();
 
             table = table.row(|row| {
-                let mut row_builder = row.custom_cell(app_desc_cell)
-                    .custom_cell(Self::render_ha_cell(ha_scan_result, idx, ha_tag_ignorelist_clone))
+                let mut row_builder = row
+                    .custom_cell(app_desc_cell)
+                    .custom_cell(Self::render_ha_cell(
+                        ha_scan_result,
+                        idx,
+                        ha_tag_ignorelist_clone,
+                    ))
                     .custom_cell(DataTableCell::widget(move |ui: &mut egui::Ui| {
-                        Self::render_action_buttons_static(ui, &pkg_id, &pkg_clone, None, unsafe_app_remove, expert_app_remove, true, &uad_lists_clone);
+                        Self::render_action_buttons_static(
+                            ui,
+                            &pkg_id,
+                            &pkg_clone,
+                            None,
+                            unsafe_app_remove,
+                            expert_app_remove,
+                            true,
+                            &uad_lists_clone,
+                        );
                     }));
 
                 // Add drawer if UAD description exists
-                if let Some(uad_entry) = uad_lists_for_drawer.as_ref().and_then(|lists| lists.apps.get(&pkg_id_for_drawer)) {
+                if let Some(uad_entry) = uad_lists_for_drawer
+                    .as_ref()
+                    .and_then(|lists| lists.apps.get(&pkg_id_for_drawer))
+                {
                     let description = uad_entry.description.clone();
                     row_builder = row_builder.drawer(move |ui| {
                         ui.add_space(8.0);
@@ -1952,7 +2353,8 @@ impl DlgDashCounterDetails {
 
         // Handle sort state sync
         let (widget_sort_col, widget_sort_dir) = table_response.sort_state;
-        let widget_sort_ascending = matches!(widget_sort_dir, egui_material3::SortDirection::Ascending);
+        let widget_sort_ascending =
+            matches!(widget_sort_dir, egui_material3::SortDirection::Ascending);
 
         if widget_sort_col != self.sort_column
             || (widget_sort_col.is_some() && widget_sort_ascending != self.sort_ascending)
@@ -1979,7 +2381,12 @@ impl DlgDashCounterDetails {
                     self.current_page -= 1;
                 }
                 ui.add_space(10.0);
-                ui.label(format!("Page {} of {} ({} items)", self.current_page + 1, total_pages, total_items));
+                ui.label(format!(
+                    "Page {} of {} ({} items)",
+                    self.current_page + 1,
+                    total_pages,
+                    total_items
+                ));
                 ui.add_space(10.0);
                 if ui.button("▶").clicked() && self.current_page + 1 < total_pages {
                     self.current_page += 1;
@@ -2038,23 +2445,29 @@ impl DlgDashCounterDetails {
         category: &DashCounterCategory,
         _clicked_package_idx: Arc<Mutex<Option<usize>>>,
     ) {
-        use crate::material_symbol_icons::{ICON_DOWNLOAD, ICON_INFO, ICON_DELETE};
+        use crate::material_symbol_icons::{ICON_DELETE, ICON_DOWNLOAD, ICON_INFO};
 
         let category_name = match category {
-            DashCounterCategory::OffaCategory(ref name) | DashCounterCategory::FmhyCategory(ref name) => name.clone(),
+            DashCounterCategory::OffaCategory(ref name)
+            | DashCounterCategory::FmhyCategory(ref name) => name.clone(),
             _ => return,
         };
 
         // Filter apps by text filter
-        let mut filtered_apps: Vec<_> = self.offa_apps.iter()
+        let mut filtered_apps: Vec<_> = self
+            .offa_apps
+            .iter()
             .filter(|app| {
                 if self.text_filter.is_empty() {
                     true
                 } else {
                     let filter_lower = self.text_filter.to_lowercase();
-                    app.name.to_lowercase().contains(&filter_lower) ||
-                    app.category.to_lowercase().contains(&filter_lower) ||
-                    app.package_name.as_ref().map_or(false, |p| p.to_lowercase().contains(&filter_lower))
+                    app.name.to_lowercase().contains(&filter_lower)
+                        || app.category.to_lowercase().contains(&filter_lower)
+                        || app
+                            .package_name
+                            .as_ref()
+                            .map_or(false, |p| p.to_lowercase().contains(&filter_lower))
                 }
             })
             .collect();
@@ -2151,8 +2564,7 @@ impl DlgDashCounterDetails {
                                     };
 
                                     let response = ui
-                                        .add(icon_button_standard("")
-                                            .svg_data(svg))
+                                        .add(icon_button_standard("").svg_data(svg))
                                         .on_hover_text(url.as_str());
 
                                     if response.clicked() {
@@ -2207,48 +2619,72 @@ impl DlgDashCounterDetails {
                     });
 
                     // Check if app is installed - only use exact package name matching from URLs
-                    let (is_installed, installed_pkg_info) = if let Some(ref pkg_name) = package_name {
-                        // Exact package name match only
-                        if let Some(pkg) = installed_pkgs.iter().find(|p| &p.pkg == pkg_name) {
-                            let is_system = pkg.flags.contains("SYSTEM");
-                            let enabled_state = pkg.users.first().map(|u| {
-                                match u.enabled {
-                                    0 => if !u.installed && is_system { "REMOVED_USER" } else { "DEFAULT" },
-                                    1 => "ENABLED",
-                                    2 => "DISABLED",
-                                    3 => "DISABLED_USER",
-                                    _ => "UNKNOWN",
-                                }
-                            }).unwrap_or("UNKNOWN").to_string();
-                            (true, Some((pkg_name.clone(), is_system, enabled_state)))
+                    let (is_installed, installed_pkg_info) =
+                        if let Some(ref pkg_name) = package_name {
+                            // Exact package name match only
+                            if let Some(pkg) = installed_pkgs.iter().find(|p| &p.pkg == pkg_name) {
+                                let is_system = pkg.flags.contains("SYSTEM");
+                                let enabled_state = pkg
+                                    .users
+                                    .first()
+                                    .map(|u| match u.enabled {
+                                        0 => {
+                                            if !u.installed && is_system {
+                                                "REMOVED_USER"
+                                            } else {
+                                                "DEFAULT"
+                                            }
+                                        }
+                                        1 => "ENABLED",
+                                        2 => "DISABLED",
+                                        3 => "DISABLED_USER",
+                                        _ => "UNKNOWN",
+                                    })
+                                    .unwrap_or("UNKNOWN")
+                                    .to_string();
+                                (true, Some((pkg_name.clone(), is_system, enabled_state)))
+                            } else {
+                                (false, None)
+                            }
                         } else {
+                            // No package name extracted from URL - cannot determine if installed
                             (false, None)
-                        }
-                    } else {
-                        // No package name extracted from URL - cannot determine if installed
-                        (false, None)
-                    };
+                        };
 
-                        // Get downloadable link for install button
-                        let downloadable_link = app_for_install.links.iter()
-                            .find(|(_, link_type)| {
-                                matches!(link_type.as_str(),
-                                    "fdroid-downloadable" | "izzy-downloadable" | "github-downloadable" | "gitlab-downloadable")
+                    // Get downloadable link for install button
+                    let downloadable_link = app_for_install
+                        .links
+                        .iter()
+                        .find(|(_, link_type)| {
+                            matches!(
+                                link_type.as_str(),
+                                "fdroid-downloadable"
+                                    | "izzy-downloadable"
+                                    | "github-downloadable"
+                                    | "gitlab-downloadable"
+                            )
+                        })
+                        .or_else(|| {
+                            // Fallback to any fdroid/izzy/github link
+                            app_for_install.links.iter().find(|(_, link_type)| {
+                                matches!(
+                                    link_type.as_str(),
+                                    "fdroid" | "izzy" | "github" | "gitlab"
+                                )
                             })
-                            .or_else(|| {
-                                // Fallback to any fdroid/izzy/github link
-                                app_for_install.links.iter().find(|(_, link_type)| {
-                                    matches!(link_type.as_str(), "fdroid" | "izzy" | "github" | "gitlab")
-                                })
-                            })
-                            .map(|(url, link_type)| (url.clone(), link_type.clone()));
+                        })
+                        .map(|(url, link_type)| (url.clone(), link_type.clone()));
 
                     ui.horizontal(|ui| {
                         ui.spacing_mut().item_spacing.x = 0.0;
 
                         if is_installed {
                             // Info button - open package details dialog
-                            if ui.add(icon_button_standard(ICON_INFO.to_string())).on_hover_text(tr!("package-info")).clicked() {
+                            if ui
+                                .add(icon_button_standard(ICON_INFO.to_string()))
+                                .on_hover_text(tr!("package-info"))
+                                .clicked()
+                            {
                                 if let Some((ref pkg_name, _, _)) = installed_pkg_info {
                                     ui.data_mut(|data| {
                                         data.insert_temp(
@@ -2259,9 +2695,12 @@ impl DlgDashCounterDetails {
                                 }
                             }
 
-                            if let Some((ref pkg_name, is_system, ref enabled_state)) = installed_pkg_info {
+                            if let Some((ref pkg_name, is_system, ref enabled_state)) =
+                                installed_pkg_info
+                            {
                                 // Enable/disable toggle
-                                let pkg_enabled = enabled_state == "DEFAULT" || enabled_state == "ENABLED";
+                                let pkg_enabled =
+                                    enabled_state == "DEFAULT" || enabled_state == "ENABLED";
                                 let mut enabled = pkg_enabled;
                                 if toggle_ui(ui, &mut enabled).clicked() {
                                     if enabled {
@@ -2282,7 +2721,14 @@ impl DlgDashCounterDetails {
                                 }
 
                                 if enabled_state == "DEFAULT" || enabled_state == "ENABLED" {
-                                    if ui.add(icon_button_standard(ICON_DELETE.to_string()).icon_color(egui::Color32::from_rgb(211, 47, 47))).on_hover_text(tr!("uninstall")).clicked() {
+                                    if ui
+                                        .add(
+                                            icon_button_standard(ICON_DELETE.to_string())
+                                                .icon_color(egui::Color32::from_rgb(211, 47, 47)),
+                                        )
+                                        .on_hover_text(tr!("uninstall"))
+                                        .clicked()
+                                    {
                                         ui.data_mut(|data| {
                                             data.insert_temp(
                                                 egui::Id::new("uninstall_clicked_package"),
@@ -2303,9 +2749,16 @@ impl DlgDashCounterDetails {
                         } else if let Some((ref url, ref link_type)) = downloadable_link {
                             let hover_text = format!("[{}]\n{}", link_type, url);
 
-                            if ui.add(icon_button_standard(ICON_DOWNLOAD.to_string())).on_hover_text(&hover_text).clicked() {
+                            if ui
+                                .add(icon_button_standard(ICON_DOWNLOAD.to_string()))
+                                .on_hover_text(&hover_text)
+                                .clicked()
+                            {
                                 ui.data_mut(|data| {
-                                    data.insert_temp(egui::Id::new("install_clicked_app"), app_for_install.clone());
+                                    data.insert_temp(
+                                        egui::Id::new("install_clicked_app"),
+                                        app_for_install.clone(),
+                                    );
                                 });
                             }
                         }
@@ -2323,7 +2776,8 @@ impl DlgDashCounterDetails {
 
         // Handle sort state sync
         let (widget_sort_col, widget_sort_dir) = table_response.sort_state;
-        let widget_sort_ascending = matches!(widget_sort_dir, egui_material3::SortDirection::Ascending);
+        let widget_sort_ascending =
+            matches!(widget_sort_dir, egui_material3::SortDirection::Ascending);
 
         if widget_sort_col != self.sort_column
             || (widget_sort_col.is_some() && widget_sort_ascending != self.sort_ascending)
@@ -2422,8 +2876,8 @@ impl DlgDashCounterDetails {
                         true
                     }
                 }
-                1 => true,  // ENABLED
-                2 | 3 => false,  // DISABLED or DISABLED_USER
+                1 => true,      // ENABLED
+                2 | 3 => false, // DISABLED or DISABLED_USER
                 _ => false,
             }
         } else {
@@ -2440,8 +2894,12 @@ impl DlgDashCounterDetails {
             if let Ok(scanner_state) = state.lock() {
                 if let Some(status) = scanner_state.get(pkg_name) {
                     return match status {
-                        crate::calc_virustotal_stt::ScanStatus::Pending => "1-scan-not-scanned".to_string(),
-                        crate::calc_virustotal_stt::ScanStatus::Scanning { scanned, total, .. } => {
+                        crate::calc_virustotal_stt::ScanStatus::Pending => {
+                            "1-scan-not-scanned".to_string()
+                        }
+                        crate::calc_virustotal_stt::ScanStatus::Scanning {
+                            scanned, total, ..
+                        } => {
                             format!("2-scan-scanning-{:04}-{:04}", scanned, total)
                         }
                         crate::calc_virustotal_stt::ScanStatus::Completed(result) => {
@@ -2464,7 +2922,8 @@ impl DlgDashCounterDetails {
                                     has_404 = true;
                                 } else if file_result.malicious > 0 {
                                     has_malicious = true;
-                                    malicious_count += file_result.malicious + file_result.suspicious;
+                                    malicious_count +=
+                                        file_result.malicious + file_result.suspicious;
                                 } else if file_result.suspicious > 0 {
                                     has_suspicious = true;
                                     suspicious_count += file_result.suspicious;
@@ -2489,7 +2948,9 @@ impl DlgDashCounterDetails {
                                 "9-scan-unknown".to_string()
                             }
                         }
-                        crate::calc_virustotal_stt::ScanStatus::Error(_) => "6-scan-error".to_string(),
+                        crate::calc_virustotal_stt::ScanStatus::Error(_) => {
+                            "6-scan-error".to_string()
+                        }
                     };
                 }
             }
@@ -2506,8 +2967,14 @@ impl DlgDashCounterDetails {
             if let Ok(scanner_state) = state.lock() {
                 if let Some(status) = scanner_state.get(pkg_name) {
                     return match status {
-                        crate::calc_hybridanalysis_stt::ScanStatus::Pending => "1-scan-not-scanned".to_string(),
-                        crate::calc_hybridanalysis_stt::ScanStatus::Scanning { scanned, total, .. } => {
+                        crate::calc_hybridanalysis_stt::ScanStatus::Pending => {
+                            "1-scan-not-scanned".to_string()
+                        }
+                        crate::calc_hybridanalysis_stt::ScanStatus::Scanning {
+                            scanned,
+                            total,
+                            ..
+                        } => {
                             format!("2-scan-scanning-{:04}-{:04}", scanned, total)
                         }
                         crate::calc_hybridanalysis_stt::ScanStatus::Completed(result) => {
@@ -2520,21 +2987,22 @@ impl DlgDashCounterDetails {
                             let mut verdict_text = String::new();
 
                             for file_result in &result.file_results {
-                                let (file_priority, file_verdict) = match file_result.verdict.as_str() {
-                                    "malicious" => (3, "malicious"),
-                                    "suspicious" => (4, "suspicious"),
-                                    "whitelisted" => (5, "whitelisted"),
-                                    "no specific threat" => (6, "no-specific-threat"),
-                                    "no-result" => (7, "no-result"),
-                                    "rate_limited" => (8, "rate-limited"),
-                                    "submitted" => (9, "submitted"),
-                                    "pending_analysis" => (10, "pending-analysis"),
-                                    "upload_error" => (11, "upload-error"),
-                                    "analysis_error" => (12, "analysis-error"),
-                                    "404 Not Found" => (13, "404-not-found"),
-                                    "" => (14, "skipped"),
-                                    _ => (15, "unknown"),
-                                };
+                                let (file_priority, file_verdict) =
+                                    match file_result.verdict.as_str() {
+                                        "malicious" => (3, "malicious"),
+                                        "suspicious" => (4, "suspicious"),
+                                        "whitelisted" => (5, "whitelisted"),
+                                        "no specific threat" => (6, "no-specific-threat"),
+                                        "no-result" => (7, "no-result"),
+                                        "rate_limited" => (8, "rate-limited"),
+                                        "submitted" => (9, "submitted"),
+                                        "pending_analysis" => (10, "pending-analysis"),
+                                        "upload_error" => (11, "upload-error"),
+                                        "analysis_error" => (12, "analysis-error"),
+                                        "404 Not Found" => (13, "404-not-found"),
+                                        "" => (14, "skipped"),
+                                        _ => (15, "unknown"),
+                                    };
 
                                 if file_priority < priority {
                                     priority = file_priority;
@@ -2544,7 +3012,9 @@ impl DlgDashCounterDetails {
 
                             format!("{}-{}", priority, verdict_text)
                         }
-                        crate::calc_hybridanalysis_stt::ScanStatus::Error(_) => "12-scan-error".to_string(),
+                        crate::calc_hybridanalysis_stt::ScanStatus::Error(_) => {
+                            "12-scan-error".to_string()
+                        }
                     };
                 }
             }
@@ -2737,7 +3207,8 @@ fn toggle_ui(ui: &mut egui::Ui, on: &mut bool) -> egui::Response {
         );
         let circle_x = egui::lerp((rect.left() + radius)..=(rect.right() - radius), how_on);
         let center = egui::pos2(circle_x, rect.center().y);
-        ui.painter().circle(center, 0.75 * radius, visuals.bg_fill, visuals.fg_stroke);
+        ui.painter()
+            .circle(center, 0.75 * radius, visuals.bg_fill, visuals.fg_stroke);
     }
 
     response

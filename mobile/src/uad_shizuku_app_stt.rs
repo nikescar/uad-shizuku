@@ -89,7 +89,6 @@ pub struct UadShizukuApp {
 
     // NOTE: installed_packages and uad_ng_lists are now in shared_store_stt::SharedStore
     // Access via: crate::shared_store_stt::get_shared_store()
-
     pub tab_debloat_control: TabDebloatControl,
     pub tab_scan_control: TabScanControl,
     pub tab_usage_control: TabUsageControl,
@@ -137,7 +136,8 @@ pub struct UadShizukuApp {
     pub apkmirror_queue: Option<std::sync::Arc<crate::calc_apkmirror::ApkMirrorQueue>>,
 
     // Package loading state
-    pub package_loading_thread: Option<std::thread::JoinHandle<(Vec<crate::adb::PackageFingerprint>, Option<UadNgLists>)>>,
+    pub package_loading_thread:
+        Option<std::thread::JoinHandle<(Vec<crate::adb::PackageFingerprint>, Option<UadNgLists>)>>,
     pub package_loading_dialog_open: bool,
     pub package_loading_status: String,
 

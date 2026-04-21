@@ -25,7 +25,10 @@ pub enum SharedStoreUpdate {
     /// Update cached APKMirror app
     CachedApkMirrorApp { pkg_id: String, app: ApkMirrorApp },
     /// Update cached Android Package app
-    CachedAndroidPackageApp { pkg_id: String, app: AndroidPackageInfo },
+    CachedAndroidPackageApp {
+        pkg_id: String,
+        app: AndroidPackageInfo,
+    },
 }
 
 /// Shared store for data that is accessed by both debloat and scan tabs

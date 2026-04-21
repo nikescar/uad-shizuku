@@ -42,7 +42,12 @@ pub fn init_shizuku_bridge() {
 
     // Get the class loader from the activity
     let Ok(class_loader) = env
-        .call_method(&activity, "getClassLoader", "()Ljava/lang/ClassLoader;", &[])
+        .call_method(
+            &activity,
+            "getClassLoader",
+            "()Ljava/lang/ClassLoader;",
+            &[],
+        )
         .and_then(|v| v.l())
     else {
         log::error!("Failed to get class loader");
@@ -100,13 +105,14 @@ fn get_jni_env() -> Result<(jni::JavaVM, jni::AttachGuard<'static>), std::io::Er
     // reference for the lifetime of the process. We transmute the lifetime to
     // 'static so we can return both the VM and guard together. The guard must
     // not outlive the calling scope in practice.
-    let env: jni::AttachGuard<'static> =
-        unsafe { std::mem::transmute(vm.attach_current_thread().map_err(|e| {
+    let env: jni::AttachGuard<'static> = unsafe {
+        std::mem::transmute(vm.attach_current_thread().map_err(|e| {
             std::io::Error::new(
                 std::io::ErrorKind::Other,
                 format!("Failed to attach thread: {}", e),
             )
-        })?) };
+        })?)
+    };
     Ok((vm, env))
 }
 
@@ -164,7 +170,8 @@ pub fn shizuku_is_available() -> bool {
         return false;
     };
     let jclass: &jni::objects::JClass = class.as_obj().into();
-    match env.call_static_method(jclass, "isAvailable", "()Z", &[])
+    match env
+        .call_static_method(jclass, "isAvailable", "()Z", &[])
         .and_then(|v| v.z())
     {
         Ok(result) => result,
@@ -187,7 +194,8 @@ pub fn shizuku_has_permission() -> bool {
         return false;
     };
     let jclass: &jni::objects::JClass = class.as_obj().into();
-    match env.call_static_method(jclass, "hasPermission", "()Z", &[])
+    match env
+        .call_static_method(jclass, "hasPermission", "()Z", &[])
         .and_then(|v| v.z())
     {
         Ok(result) => result,
@@ -260,7 +268,8 @@ pub fn shizuku_bind_service() -> bool {
         return false;
     };
     let jclass: &jni::objects::JClass = class.as_obj().into();
-    match env.call_static_method(jclass, "bindService", "()Z", &[])
+    match env
+        .call_static_method(jclass, "bindService", "()Z", &[])
         .and_then(|v| v.z())
     {
         Ok(result) => result,

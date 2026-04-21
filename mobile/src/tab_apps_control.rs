@@ -7,9 +7,12 @@ use egui_i18n::tr;
 use egui_material3::{data_table, icon_button_standard, theme::get_global_color};
 
 // SVG icons as constants (moved to svg_stt.rs)
+use crate::material_symbol_icons::{
+    ICON_CANCEL, ICON_CHECK_BOX, ICON_CHECK_CIRCLE, ICON_DELETE, ICON_DOWNLOAD, ICON_ERROR,
+    ICON_HOURGLASS_EMPTY, ICON_INFO, ICON_PENDING, ICON_REFRESH, ICON_TOGGLE_OFF, ICON_TOGGLE_ON,
+};
 use crate::svg_stt::*;
-use crate::material_symbol_icons::{ICON_CANCEL, ICON_CHECK_CIRCLE, ICON_DELETE, ICON_DOWNLOAD, ICON_INFO, ICON_CHECK_BOX, ICON_REFRESH, ICON_TOGGLE_OFF, ICON_TOGGLE_ON, ICON_PENDING, ICON_HOURGLASS_EMPTY, ICON_ERROR};
-use crate::{DESKTOP_MIN_WIDTH, BASE_TABLE_WIDTH};
+use crate::{BASE_TABLE_WIDTH, DESKTOP_MIN_WIDTH};
 
 // Pre-compiled regex patterns for performance (avoid recompiling on every call)
 lazy_static::lazy_static! {
@@ -43,7 +46,9 @@ impl Default for TabAppsControl {
             text_filter: String::new(),
             sort_column: None,
             sort_ascending: true,
-            operations_queue: Some(std::sync::Arc::new(crate::app_operations_queue::AppOperationsQueue::new())),
+            operations_queue: Some(std::sync::Arc::new(
+                crate::app_operations_queue::AppOperationsQueue::new(),
+            )),
             was_worker_running: false,
             pending_refresh_after_operations: false,
             package_details_dialog: DlgPackageDetails::default(),
@@ -78,21 +83,33 @@ impl TabAppsControl {
                     // Sort by category
                     self.app_entries.sort_by(|a, b| {
                         let cmp = a.category.to_lowercase().cmp(&b.category.to_lowercase());
-                        if ascending { cmp } else { cmp.reverse() }
+                        if ascending {
+                            cmp
+                        } else {
+                            cmp.reverse()
+                        }
                     });
                 }
                 1 => {
                     // Sort by app name
                     self.app_entries.sort_by(|a, b| {
                         let cmp = a.name.to_lowercase().cmp(&b.name.to_lowercase());
-                        if ascending { cmp } else { cmp.reverse() }
+                        if ascending {
+                            cmp
+                        } else {
+                            cmp.reverse()
+                        }
                     });
                 }
                 2 => {
                     // Sort by number of links (more links = higher priority)
                     self.app_entries.sort_by(|a, b| {
                         let cmp = a.links.len().cmp(&b.links.len());
-                        if ascending { cmp } else { cmp.reverse() }
+                        if ascending {
+                            cmp
+                        } else {
+                            cmp.reverse()
+                        }
                     });
                 }
                 _ => {}
@@ -351,7 +368,11 @@ impl TabAppsControl {
         }
 
         if apk_urls.is_empty() {
-            log::warn!("No APK files found in GitHub release for {}/{}", owner, repo);
+            log::warn!(
+                "No APK files found in GitHub release for {}/{}",
+                owner,
+                repo
+            );
             return None;
         }
 
@@ -409,7 +430,10 @@ impl TabAppsControl {
                 || name.contains("x86")
                 || name.contains("mips");
             if !has_arch {
-                log::info!("Found APK without architecture suffix (likely universal): {}", url);
+                log::info!(
+                    "Found APK without architecture suffix (likely universal): {}",
+                    url
+                );
                 return Some(url.clone());
             }
         }
@@ -438,12 +462,7 @@ impl TabAppsControl {
             None => return Err("No downloadable link found".to_string()),
         };
 
-        log::info!(
-            "Installing app '{}' from {} ({})",
-            app.name,
-            url,
-            link_type
-        );
+        log::info!("Installing app '{}' from {} ({})", app.name, url, link_type);
 
         // Check if GitHub installs are disabled
         if link_type == "github-downloadable" && self.disable_github_install {
@@ -456,17 +475,17 @@ impl TabAppsControl {
 
         // Get the actual APK download URL based on link type
         let download_url = match link_type.as_str() {
-            "github-downloadable" => {
-                match self.get_github_download_url(&url) {
-                    Some(u) => u,
-                    None => return Err("Failed to get GitHub download URL".to_string()),
-                }
-            }
+            "github-downloadable" => match self.get_github_download_url(&url) {
+                Some(u) => u,
+                None => return Err("Failed to get GitHub download URL".to_string()),
+            },
             "fdroid-downloadable" => {
                 // Extract package name from fdroid URL
                 let package_name = match self.extract_package_from_url(&url) {
                     Some(p) => p,
-                    None => return Err("Failed to extract package name from F-Droid URL".to_string()),
+                    None => {
+                        return Err("Failed to extract package name from F-Droid URL".to_string())
+                    }
                 };
                 match self.get_fdroid_download_url(&package_name) {
                     Some(u) => u,
@@ -507,8 +526,10 @@ impl TabAppsControl {
 
         // Update status with platform-specific message
         #[cfg(target_os = "android")]
-        self.installing_apps
-            .insert(app.name.clone(), "Installing APK via Shizuku...".to_string());
+        self.installing_apps.insert(
+            app.name.clone(),
+            "Installing APK via Shizuku...".to_string(),
+        );
 
         #[cfg(not(target_os = "android"))]
         self.installing_apps
@@ -862,7 +883,10 @@ impl TabAppsControl {
             if self.was_worker_running && !worker_running {
                 let completed = queue.completed_count();
                 if completed > 0 {
-                    log::info!("Operations completed ({} operations), will refresh package list", completed);
+                    log::info!(
+                        "Operations completed ({} operations), will refresh package list",
+                        completed
+                    );
                     self.pending_refresh_after_operations = true;
                     // Clear results after a short delay to allow user to see status
                     // The refresh will clear the results
@@ -918,11 +942,7 @@ impl TabAppsControl {
                                 .cache_dir
                                 .join(format!("{}.md", app_list.name.replace(" ", "_")));
 
-                            log::info!(
-                                "Loading app list '{}' from index {}",
-                                app_list.name,
-                                idx
-                            );
+                            log::info!("Loading app list '{}' from index {}", app_list.name, idx);
 
                             // Check if cache file exists
                             if cache_file.exists() {
@@ -935,10 +955,7 @@ impl TabAppsControl {
                                     );
                                     self.parse_markdown_content(&content);
                                 } else {
-                                    log::error!(
-                                        "Failed to read cache file at {:?}",
-                                        cache_file
-                                    );
+                                    log::error!("Failed to read cache file at {:?}", cache_file);
                                 }
                             } else {
                                 // Download if cache doesn't exist
@@ -970,7 +987,11 @@ impl TabAppsControl {
                     }
                 }
             });
-            if ui.add(icon_button_standard(ICON_INFO.to_string())).on_hover_text(tr!("app-list-info")).clicked() {
+            if ui
+                .add(icon_button_standard(ICON_INFO.to_string()))
+                .on_hover_text(tr!("app-list-info"))
+                .clicked()
+            {
                 // open selected app list info URL
                 if let Some(idx) = self.selected_app_list {
                     if idx < self.app_lists.len() {
@@ -986,7 +1007,11 @@ impl TabAppsControl {
                     }
                 }
             }
-            if ui.add(icon_button_standard(ICON_REFRESH.to_string())).on_hover_text(tr!("refresh-list")).clicked() {
+            if ui
+                .add(icon_button_standard(ICON_REFRESH.to_string()))
+                .on_hover_text(tr!("refresh-list"))
+                .clicked()
+            {
                 self.reload_applist_and_parse_apps();
             }
 
@@ -1009,9 +1034,11 @@ impl TabAppsControl {
             toggle_ui(ui, &mut self.disable_github_install);
             ui.add_space(10.0);
             ui.label(tr!("filter"));
-            let response = ui.add(egui::TextEdit::singleline(&mut self.text_filter)
-                .hint_text(tr!("filter-hint"))
-                .desired_width(200.0));
+            let response = ui.add(
+                egui::TextEdit::singleline(&mut self.text_filter)
+                    .hint_text(tr!("filter-hint"))
+                    .desired_width(200.0),
+            );
             #[cfg(target_os = "android")]
             {
                 if response.gained_focus() {
@@ -1041,8 +1068,7 @@ impl TabAppsControl {
         // );
 
         // Use the data_table widget with proportional column widths
-        let mut interactive_table = data_table()
-            .id(egui::Id::new("apps_control_data_table"));
+        let mut interactive_table = data_table().id(egui::Id::new("apps_control_data_table"));
         if is_desktop {
             interactive_table = interactive_table
                 .column(tr!("category"), 200.0 * width_ratio, false)
@@ -1051,8 +1077,16 @@ impl TabAppsControl {
                 .column(tr!("install"), 300.0 * width_ratio, false);
         } else {
             interactive_table = interactive_table
-                .column(tr!("app-name"), (available_width * 0.65 + (50.0/available_width) * 0.65) , false)
-                .column(tr!("install"), (available_width * 0.3 + (50.0/available_width) * 0.3) , false);
+                .column(
+                    tr!("app-name"),
+                    (available_width * 0.65 + (50.0 / available_width) * 0.65),
+                    false,
+                )
+                .column(
+                    tr!("install"),
+                    (available_width * 0.3 + (50.0 / available_width) * 0.3),
+                    false,
+                );
         }
         interactive_table = interactive_table.allow_selection(false);
 
@@ -1129,12 +1163,10 @@ impl TabAppsControl {
                                         };
 
                                         let response = ui
-                                            .add(icon_button_standard("")
-                                                .svg_data(svg))
+                                            .add(icon_button_standard("").svg_data(svg))
                                             .on_hover_text(url.as_str());
 
-                                        if response.clicked()
-                                        {
+                                        if response.clicked() {
                                             #[cfg(not(target_os = "android"))]
                                             {
                                                 if let Err(e) = webbrowser::open(url) {
@@ -1160,29 +1192,44 @@ impl TabAppsControl {
                             use crate::app_operations_queue_stt::OperationStatus;
                             match status {
                                 OperationStatus::Pending => {
-                                    ui.add_enabled(false, icon_button_standard(ICON_PENDING.to_string()))
-                                        .on_hover_text(tr!("install-pending"));
+                                    ui.add_enabled(
+                                        false,
+                                        icon_button_standard(ICON_PENDING.to_string()),
+                                    )
+                                    .on_hover_text(tr!("install-pending"));
                                 }
                                 OperationStatus::Processing => {
-                                    ui.add_enabled(false, icon_button_standard(ICON_HOURGLASS_EMPTY.to_string()))
-                                        .on_hover_text(tr!("install-processing"));
+                                    ui.add_enabled(
+                                        false,
+                                        icon_button_standard(ICON_HOURGLASS_EMPTY.to_string()),
+                                    )
+                                    .on_hover_text(tr!("install-processing"));
                                 }
                                 OperationStatus::Success(msg) => {
-                                    ui.add_enabled(false, icon_button_standard(ICON_CHECK_CIRCLE.to_string())
-                                        .icon_color(egui::Color32::from_rgb(76, 175, 80)))
-                                        .on_hover_text(msg);
+                                    ui.add_enabled(
+                                        false,
+                                        icon_button_standard(ICON_CHECK_CIRCLE.to_string())
+                                            .icon_color(egui::Color32::from_rgb(76, 175, 80)),
+                                    )
+                                    .on_hover_text(msg);
                                 }
                                 OperationStatus::Error(msg) => {
-                                    ui.add_enabled(false, icon_button_standard(ICON_ERROR.to_string())
-                                        .icon_color(egui::Color32::from_rgb(211, 47, 47)))
-                                        .on_hover_text(msg);
+                                    ui.add_enabled(
+                                        false,
+                                        icon_button_standard(ICON_ERROR.to_string())
+                                            .icon_color(egui::Color32::from_rgb(211, 47, 47)),
+                                    )
+                                    .on_hover_text(msg);
                                 }
                             }
                         } else if is_installed {
-
                             // ui.add(icon_button_standard(ICON_CHECK_BOX.to_string())).on_hover_text(tr!("installed"));
                             // Info button - open package details dialog
-                            if ui.add(icon_button_standard(ICON_INFO.to_string())).on_hover_text(tr!("package-info")).clicked() {
+                            if ui
+                                .add(icon_button_standard(ICON_INFO.to_string()))
+                                .on_hover_text(tr!("package-info"))
+                                .clicked()
+                            {
                                 if let Some((ref pkg_name, _, _)) = installed_pkg_info {
                                     ui.data_mut(|data| {
                                         data.insert_temp(
@@ -1193,10 +1240,12 @@ impl TabAppsControl {
                                 }
                             }
 
-
-                            if let Some((ref pkg_name, is_system, ref enabled_state)) = installed_pkg_info {
+                            if let Some((ref pkg_name, is_system, ref enabled_state)) =
+                                installed_pkg_info
+                            {
                                 // Enable/disable toggle
-                                let pkg_enabled = enabled_state == "DEFAULT" || enabled_state == "ENABLED";
+                                let pkg_enabled =
+                                    enabled_state == "DEFAULT" || enabled_state == "ENABLED";
                                 let mut enabled = pkg_enabled;
                                 if toggle_ui(ui, &mut enabled).clicked() {
                                     if enabled {
@@ -1217,7 +1266,14 @@ impl TabAppsControl {
                                 }
 
                                 if enabled_state == "DEFAULT" || enabled_state == "ENABLED" {
-                                    if ui.add(icon_button_standard(ICON_DELETE.to_string()).icon_color(egui::Color32::from_rgb(211, 47, 47))).on_hover_text(tr!("uninstall")).clicked() {
+                                    if ui
+                                        .add(
+                                            icon_button_standard(ICON_DELETE.to_string())
+                                                .icon_color(egui::Color32::from_rgb(211, 47, 47)),
+                                        )
+                                        .on_hover_text(tr!("uninstall"))
+                                        .clicked()
+                                    {
                                         ui.data_mut(|data| {
                                             data.insert_temp(
                                                 egui::Id::new("apps_uninstall_clicked_package"),
@@ -1234,14 +1290,20 @@ impl TabAppsControl {
                                         });
                                     }
                                 }
-
                             }
                         } else if let Some((ref url, ref link_type)) = downloadable_link {
                             let hover_text = format!("[{}]\n{}", link_type, url);
 
-                            if ui.add(icon_button_standard(ICON_DOWNLOAD.to_string())).on_hover_text(&hover_text).clicked() {
+                            if ui
+                                .add(icon_button_standard(ICON_DOWNLOAD.to_string()))
+                                .on_hover_text(&hover_text)
+                                .clicked()
+                            {
                                 ui.data_mut(|data| {
-                                    data.insert_temp(egui::Id::new("install_clicked_app"), app_for_install.clone());
+                                    data.insert_temp(
+                                        egui::Id::new("install_clicked_app"),
+                                        app_for_install.clone(),
+                                    );
                                 });
                             }
                         }
@@ -1274,21 +1336,27 @@ impl TabAppsControl {
             }
 
             // Check for action button clicks
-            if let Some(pkg) = data.get_temp::<String>(egui::Id::new("apps_uninstall_clicked_package")) {
+            if let Some(pkg) =
+                data.get_temp::<String>(egui::Id::new("apps_uninstall_clicked_package"))
+            {
                 uninstall_package = Some(pkg);
                 uninstall_is_system = data
                     .get_temp::<bool>(egui::Id::new("apps_uninstall_clicked_is_system"))
                     .unwrap_or(false);
-                uninstall_app_name = data.get_temp::<String>(egui::Id::new("apps_uninstall_clicked_app_name"));
+                uninstall_app_name =
+                    data.get_temp::<String>(egui::Id::new("apps_uninstall_clicked_app_name"));
                 data.remove::<String>(egui::Id::new("apps_uninstall_clicked_package"));
                 data.remove::<bool>(egui::Id::new("apps_uninstall_clicked_is_system"));
                 data.remove::<String>(egui::Id::new("apps_uninstall_clicked_app_name"));
             }
-            if let Some(pkg) = data.get_temp::<String>(egui::Id::new("apps_enable_clicked_package")) {
+            if let Some(pkg) = data.get_temp::<String>(egui::Id::new("apps_enable_clicked_package"))
+            {
                 enable_package = Some(pkg);
                 data.remove::<String>(egui::Id::new("apps_enable_clicked_package"));
             }
-            if let Some(pkg) = data.get_temp::<String>(egui::Id::new("apps_disable_clicked_package")) {
+            if let Some(pkg) =
+                data.get_temp::<String>(egui::Id::new("apps_disable_clicked_package"))
+            {
                 disable_package = Some(pkg);
                 data.remove::<String>(egui::Id::new("apps_disable_clicked_package"));
             }
@@ -1322,9 +1390,7 @@ impl TabAppsControl {
                     if let Some(ref device) = self.selected_device {
                         // Get the actual download URL
                         let download_url = match link_type.as_str() {
-                            "github-downloadable" => {
-                                self.get_github_download_url(&url)
-                            }
+                            "github-downloadable" => self.get_github_download_url(&url),
                             "fdroid-downloadable" => {
                                 if let Some(pkg) = self.extract_package_from_url(&url) {
                                     self.get_fdroid_download_url(&pkg)
@@ -1337,11 +1403,13 @@ impl TabAppsControl {
 
                         if let Some(download_url) = download_url {
                             log::info!("Queuing install for: {} from {}", app.name, download_url);
-                            queue.enqueue(crate::app_operations_queue_stt::OperationType::Install {
-                                app_name: app.name.clone(),
-                                download_url,
-                                link_type,
-                            });
+                            queue.enqueue(
+                                crate::app_operations_queue_stt::OperationType::Install {
+                                    app_name: app.name.clone(),
+                                    download_url,
+                                    link_type,
+                                },
+                            );
 
                             // Start worker if not running
                             let is_running = queue.is_running.lock().unwrap();
@@ -1375,7 +1443,8 @@ impl TabAppsControl {
         // Open confirm dialog for uninstall
         if let Some(pkg_name) = uninstall_package {
             self.uninstall_confirm_dialog.app_names = vec![uninstall_app_name];
-            self.uninstall_confirm_dialog.open_single(pkg_name, uninstall_is_system);
+            self.uninstall_confirm_dialog
+                .open_single(pkg_name, uninstall_is_system);
         }
 
         // Perform enable if clicked
@@ -1490,13 +1559,18 @@ impl TabAppsControl {
 
         // Open package details dialog for info click
         if let Some(pkg_name) = info_package {
-            if let Some(idx) = self.installed_packages.iter().position(|p| p.pkg == pkg_name) {
+            if let Some(idx) = self
+                .installed_packages
+                .iter()
+                .position(|p| p.pkg == pkg_name)
+            {
                 self.package_details_dialog.open(idx);
             }
         }
 
         // Show package details dialog
-        self.package_details_dialog.show(ui.ctx(), &self.installed_packages, &None);
+        self.package_details_dialog
+            .show(ui.ctx(), &self.installed_packages, &None);
 
         has_error
     }

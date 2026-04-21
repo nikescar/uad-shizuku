@@ -1,17 +1,17 @@
 use crate::adb::PackageFingerprint;
-use crate::models::{ApkMirrorApp, FDroidApp, GooglePlayApp};
-use crate::shared_store_stt::get_shared_store;
-use crate::uad_shizuku_app::UadNgLists;
-pub use crate::tab_debloat_control_stt::*;
 use crate::dlg_package_details::DlgPackageDetails;
 use crate::dlg_uninstall_confirm::DlgUninstallConfirm;
+use crate::models::{ApkMirrorApp, FDroidApp, GooglePlayApp};
+use crate::shared_store_stt::get_shared_store;
+pub use crate::tab_debloat_control_stt::*;
+use crate::uad_shizuku_app::UadNgLists;
 use eframe::egui;
 use egui_i18n::tr;
 use egui_material3::{data_table, icon_button_standard, theme::get_global_color, MaterialButton};
 use std::sync::{Arc, Mutex};
 
-use crate::material_symbol_icons::{ICON_INFO, ICON_DELETE, ICON_TOGGLE_OFF, ICON_TOGGLE_ON};
-use crate::{DESKTOP_MIN_WIDTH, BASE_TABLE_WIDTH};
+use crate::material_symbol_icons::{ICON_DELETE, ICON_INFO, ICON_TOGGLE_OFF, ICON_TOGGLE_ON};
+use crate::{BASE_TABLE_WIDTH, DESKTOP_MIN_WIDTH};
 
 impl Default for TabDebloatControl {
     fn default() -> Self {
@@ -171,7 +171,9 @@ impl TabDebloatControl {
             let mut success_count = 0;
             let mut failure_count = 0;
 
-            for (i, (pkg_name, is_system)) in pkgs.into_iter().zip(sys_flags.into_iter()).enumerate() {
+            for (i, (pkg_name, is_system)) in
+                pkgs.into_iter().zip(sys_flags.into_iter()).enumerate()
+            {
                 // Check if cancelled
                 if let Ok(cancelled) = cancelled_clone.lock() {
                     if *cancelled {
@@ -251,7 +253,12 @@ impl TabDebloatControl {
     }
 
     /// Start batch disable in background thread
-    fn start_batch_disable(&mut self, pkgs: Vec<String>, device: String, uad_ng_lists: Option<&UadNgLists>) {
+    fn start_batch_disable(
+        &mut self,
+        pkgs: Vec<String>,
+        device: String,
+        uad_ng_lists: Option<&UadNgLists>,
+    ) {
         // Start state machine
         self.batch_disable_state.start();
 
@@ -458,7 +465,11 @@ impl TabDebloatControl {
     }
 
     /// Update cached category counts if version has changed
-    pub fn update_cached_counts(&mut self, installed_packages: &[PackageFingerprint], uad_ng_lists: Option<&UadNgLists>) {
+    pub fn update_cached_counts(
+        &mut self,
+        installed_packages: &[PackageFingerprint],
+        uad_ng_lists: Option<&UadNgLists>,
+    ) {
         if self.cached_counts.version == self.table_version {
             return; // Cache is still valid
         }
@@ -478,26 +489,36 @@ impl TabDebloatControl {
                     match app_entry.removal.as_str() {
                         "Recommended" => {
                             recommended.1 += 1;
-                            if is_enabled { recommended.0 += 1; }
+                            if is_enabled {
+                                recommended.0 += 1;
+                            }
                         }
                         "Advanced" => {
                             advanced.1 += 1;
-                            if is_enabled { advanced.0 += 1; }
+                            if is_enabled {
+                                advanced.0 += 1;
+                            }
                         }
                         "Expert" => {
                             expert.1 += 1;
-                            if is_enabled { expert.0 += 1; }
+                            if is_enabled {
+                                expert.0 += 1;
+                            }
                         }
                         "Unsafe" => {
                             unsafe_count.1 += 1;
-                            if is_enabled { unsafe_count.0 += 1; }
+                            if is_enabled {
+                                unsafe_count.0 += 1;
+                            }
                         }
                         _ => {}
                     }
                 } else {
                     // Unknown category
                     unknown.1 += 1;
-                    if is_enabled { unknown.0 += 1; }
+                    if is_enabled {
+                        unknown.0 += 1;
+                    }
                 }
             }
 
@@ -544,13 +565,18 @@ impl TabDebloatControl {
             .users
             .first()
             .map(|u| {
-                let display_str = Self::enabled_to_display_string(u.enabled, u.installed, is_system);
+                let display_str =
+                    Self::enabled_to_display_string(u.enabled, u.installed, is_system);
                 display_str == "ENABLED" || display_str == "DEFAULT" || display_str == "UNKNOWN"
             })
             .unwrap_or(false)
     }
 
-    fn should_show_package(&self, package: &PackageFingerprint, uad_ng_lists: Option<&UadNgLists>) -> bool {
+    fn should_show_package(
+        &self,
+        package: &PackageFingerprint,
+        uad_ng_lists: Option<&UadNgLists>,
+    ) -> bool {
         if self.hide_system_app && package.flags.contains("SYSTEM") {
             return false;
         }
@@ -577,8 +603,12 @@ impl TabDebloatControl {
 
         match &self.active_filter {
             DebloatFilter::All => true,
-            DebloatFilter::Recommended => Self::matches_category_static(package, "Recommended", uad_ng_lists),
-            DebloatFilter::Advanced => Self::matches_category_static(package, "Advanced", uad_ng_lists),
+            DebloatFilter::Recommended => {
+                Self::matches_category_static(package, "Recommended", uad_ng_lists)
+            }
+            DebloatFilter::Advanced => {
+                Self::matches_category_static(package, "Advanced", uad_ng_lists)
+            }
             DebloatFilter::Expert => Self::matches_category_static(package, "Expert", uad_ng_lists),
             DebloatFilter::Unsafe => Self::matches_category_static(package, "Unsafe", uad_ng_lists),
             DebloatFilter::Unknown => {
@@ -591,7 +621,11 @@ impl TabDebloatControl {
         }
     }
 
-    fn matches_category_static(package: &PackageFingerprint, category: &str, uad_ng_lists: Option<&UadNgLists>) -> bool {
+    fn matches_category_static(
+        package: &PackageFingerprint,
+        category: &str,
+        uad_ng_lists: Option<&UadNgLists>,
+    ) -> bool {
         if let Some(lists) = uad_ng_lists {
             lists
                 .apps
@@ -654,7 +688,10 @@ impl TabDebloatControl {
             if install_reason_value == 0 {
                 "SYSTEM".to_string()
             } else {
-                format!("{} (SYSTEM)", Self::install_reason_to_string(install_reason_value))
+                format!(
+                    "{} (SYSTEM)",
+                    Self::install_reason_to_string(install_reason_value)
+                )
             }
         } else {
             Self::install_reason_to_string(install_reason_value).to_string()
@@ -736,8 +773,16 @@ impl TabDebloatControl {
                         cat_a.cmp(&cat_b)
                     }
                     2 => {
-                        let perms_a = a.users.first().map(|u| u.runtimePermissions.len()).unwrap_or(0);
-                        let perms_b = b.users.first().map(|u| u.runtimePermissions.len()).unwrap_or(0);
+                        let perms_a = a
+                            .users
+                            .first()
+                            .map(|u| u.runtimePermissions.len())
+                            .unwrap_or(0);
+                        let perms_b = b
+                            .users
+                            .first()
+                            .map(|u| u.runtimePermissions.len())
+                            .unwrap_or(0);
                         perms_a.cmp(&perms_b)
                     }
                     3 => {
@@ -893,7 +938,6 @@ impl TabDebloatControl {
         Some(texture)
     }
 
-
     pub fn ui(
         &mut self,
         ui: &mut egui::Ui,
@@ -902,7 +946,6 @@ impl TabDebloatControl {
         apkmirror_enabled: bool,
         android_package_enabled: bool,
     ) -> Option<AdbResult> {
-
         // Get viewport width for responsive design
         let available_width = ui.ctx().content_rect().width();
         let is_desktop = available_width >= DESKTOP_MIN_WIDTH;
@@ -935,7 +978,10 @@ impl TabDebloatControl {
         if !installed_packages.is_empty() {
             ui.horizontal_wrapped(|ui| {
                 let all_total = installed_packages.len();
-                let all_enabled = installed_packages.iter().filter(|p| self.is_package_enabled(p)).count();
+                let all_enabled = installed_packages
+                    .iter()
+                    .filter(|p| self.is_package_enabled(p))
+                    .count();
                 let all_text = tr!("all", { enabled: all_enabled, total: all_total });
 
                 let (rec_enabled, rec_total) = self.get_recommended_count();
@@ -951,14 +997,17 @@ impl TabDebloatControl {
                 let unsafe_text = tr!("unsafe", { enabled: unsafe_enabled, total: unsafe_total });
 
                 let (unknown_enabled, unknown_total) = self.get_unknown_count();
-                let unknown_text = tr!("unknown", { enabled: unknown_enabled, total: unknown_total });
+                let unknown_text =
+                    tr!("unknown", { enabled: unknown_enabled, total: unknown_total });
 
                 if filter_is_mobile {
                     // Mobile: use small MaterialButton with custom colors (same as desktop)
                     let show_all_colors = self.active_filter == DebloatFilter::All;
 
                     let button = if self.active_filter == DebloatFilter::All {
-                        MaterialButton::filled(&all_text).small().fill(egui::Color32::from_rgb(158, 158, 158))
+                        MaterialButton::filled(&all_text)
+                            .small()
+                            .fill(egui::Color32::from_rgb(158, 158, 158))
                     } else {
                         MaterialButton::outlined(&all_text).small()
                     };
@@ -966,17 +1015,23 @@ impl TabDebloatControl {
                         self.active_filter = DebloatFilter::All;
                     }
 
-                    let button = if self.active_filter == DebloatFilter::Recommended || show_all_colors {
-                        MaterialButton::filled(&rec_text).small().fill(egui::Color32::from_rgb(56, 142, 60))
-                    } else {
-                        MaterialButton::outlined(&rec_text).small()
-                    };
+                    let button =
+                        if self.active_filter == DebloatFilter::Recommended || show_all_colors {
+                            MaterialButton::filled(&rec_text)
+                                .small()
+                                .fill(egui::Color32::from_rgb(56, 142, 60))
+                        } else {
+                            MaterialButton::outlined(&rec_text).small()
+                        };
                     if ui.add(button).clicked() {
                         self.active_filter = DebloatFilter::Recommended;
                     }
 
-                    let button = if self.active_filter == DebloatFilter::Advanced || show_all_colors {
-                        MaterialButton::filled(&adv_text).small().fill(egui::Color32::from_rgb(33, 150, 243))
+                    let button = if self.active_filter == DebloatFilter::Advanced || show_all_colors
+                    {
+                        MaterialButton::filled(&adv_text)
+                            .small()
+                            .fill(egui::Color32::from_rgb(33, 150, 243))
                     } else {
                         MaterialButton::outlined(&adv_text).small()
                     };
@@ -985,7 +1040,9 @@ impl TabDebloatControl {
                     }
 
                     let button = if self.active_filter == DebloatFilter::Expert || show_all_colors {
-                        MaterialButton::filled(&exp_text).small().fill(egui::Color32::from_rgb(255, 152, 0))
+                        MaterialButton::filled(&exp_text)
+                            .small()
+                            .fill(egui::Color32::from_rgb(255, 152, 0))
                     } else {
                         MaterialButton::outlined(&exp_text).small()
                     };
@@ -994,7 +1051,9 @@ impl TabDebloatControl {
                     }
 
                     let button = if self.active_filter == DebloatFilter::Unsafe || show_all_colors {
-                        MaterialButton::filled(&unsafe_text).small().fill(egui::Color32::from_rgb(255, 235, 59))
+                        MaterialButton::filled(&unsafe_text)
+                            .small()
+                            .fill(egui::Color32::from_rgb(255, 235, 59))
                     } else {
                         MaterialButton::outlined(&unsafe_text).small()
                     };
@@ -1002,8 +1061,11 @@ impl TabDebloatControl {
                         self.active_filter = DebloatFilter::Unsafe;
                     }
 
-                    let button = if self.active_filter == DebloatFilter::Unknown || show_all_colors {
-                        MaterialButton::filled(&unknown_text).small().fill(egui::Color32::from_rgb(255, 255, 255))
+                    let button = if self.active_filter == DebloatFilter::Unknown || show_all_colors
+                    {
+                        MaterialButton::filled(&unknown_text)
+                            .small()
+                            .fill(egui::Color32::from_rgb(255, 255, 255))
                     } else {
                         MaterialButton::outlined(&unknown_text).small()
                     };
@@ -1015,7 +1077,9 @@ impl TabDebloatControl {
                     let show_all_colors = self.active_filter == DebloatFilter::All;
 
                     let button = if self.active_filter == DebloatFilter::All {
-                        MaterialButton::filled(&all_text).small().fill(egui::Color32::from_rgb(158, 158, 158))
+                        MaterialButton::filled(&all_text)
+                            .small()
+                            .fill(egui::Color32::from_rgb(158, 158, 158))
                     } else {
                         MaterialButton::outlined(&all_text).small()
                     };
@@ -1023,17 +1087,23 @@ impl TabDebloatControl {
                         self.active_filter = DebloatFilter::All;
                     }
 
-                    let button = if self.active_filter == DebloatFilter::Recommended || show_all_colors {
-                        MaterialButton::filled(&rec_text).small().fill(egui::Color32::from_rgb(56, 142, 60))
-                    } else {
-                        MaterialButton::outlined(&rec_text).small()
-                    };
+                    let button =
+                        if self.active_filter == DebloatFilter::Recommended || show_all_colors {
+                            MaterialButton::filled(&rec_text)
+                                .small()
+                                .fill(egui::Color32::from_rgb(56, 142, 60))
+                        } else {
+                            MaterialButton::outlined(&rec_text).small()
+                        };
                     if ui.add(button).clicked() {
                         self.active_filter = DebloatFilter::Recommended;
                     }
 
-                    let button = if self.active_filter == DebloatFilter::Advanced || show_all_colors {
-                        MaterialButton::filled(&adv_text).small().fill(egui::Color32::from_rgb(33, 150, 243))
+                    let button = if self.active_filter == DebloatFilter::Advanced || show_all_colors
+                    {
+                        MaterialButton::filled(&adv_text)
+                            .small()
+                            .fill(egui::Color32::from_rgb(33, 150, 243))
                     } else {
                         MaterialButton::outlined(&adv_text).small()
                     };
@@ -1042,7 +1112,9 @@ impl TabDebloatControl {
                     }
 
                     let button = if self.active_filter == DebloatFilter::Expert || show_all_colors {
-                        MaterialButton::filled(&exp_text).small().fill(egui::Color32::from_rgb(255, 152, 0))
+                        MaterialButton::filled(&exp_text)
+                            .small()
+                            .fill(egui::Color32::from_rgb(255, 152, 0))
                     } else {
                         MaterialButton::outlined(&exp_text).small()
                     };
@@ -1051,7 +1123,9 @@ impl TabDebloatControl {
                     }
 
                     let button = if self.active_filter == DebloatFilter::Unsafe || show_all_colors {
-                        MaterialButton::filled(&unsafe_text).small().fill(egui::Color32::from_rgb(255, 235, 59))
+                        MaterialButton::filled(&unsafe_text)
+                            .small()
+                            .fill(egui::Color32::from_rgb(255, 235, 59))
                     } else {
                         MaterialButton::outlined(&unsafe_text).small()
                     };
@@ -1059,8 +1133,11 @@ impl TabDebloatControl {
                         self.active_filter = DebloatFilter::Unsafe;
                     }
 
-                    let button = if self.active_filter == DebloatFilter::Unknown || show_all_colors {
-                        MaterialButton::filled(&unknown_text).small().fill(egui::Color32::from_rgb(255, 255, 255))
+                    let button = if self.active_filter == DebloatFilter::Unknown || show_all_colors
+                    {
+                        MaterialButton::filled(&unknown_text)
+                            .small()
+                            .fill(egui::Color32::from_rgb(255, 255, 255))
                     } else {
                         MaterialButton::outlined(&unknown_text).small()
                     };
@@ -1091,19 +1168,28 @@ impl TabDebloatControl {
                 ui.label(tr!("selected-count", { count: selected_count }));
 
                 if selected_count > 0 {
-                    if ui.button(&tr!("uninstall-selected", { count: selected_count })).clicked() {
+                    if ui
+                        .button(&tr!("uninstall-selected", { count: selected_count }))
+                        .clicked()
+                    {
                         ui.data_mut(|data| {
                             data.insert_temp(egui::Id::new("batch_uninstall_clicked"), true);
                         });
                     }
 
-                    if ui.button(&tr!("disable-selected", { count: selected_count })).clicked() {
+                    if ui
+                        .button(&tr!("disable-selected", { count: selected_count }))
+                        .clicked()
+                    {
                         ui.data_mut(|data| {
                             data.insert_temp(egui::Id::new("batch_disable_clicked"), true);
                         });
                     }
 
-                    if ui.button(&tr!("enable-selected", { count: selected_count })).clicked() {
+                    if ui
+                        .button(&tr!("enable-selected", { count: selected_count }))
+                        .clicked()
+                    {
                         ui.data_mut(|data| {
                             data.insert_temp(egui::Id::new("batch_enable_clicked"), true);
                         });
@@ -1111,7 +1197,10 @@ impl TabDebloatControl {
                 }
             } else {
                 // Desktop: use small MaterialButton
-                if ui.add(MaterialButton::outlined(tr!("deselect-all")).small()).clicked() {
+                if ui
+                    .add(MaterialButton::outlined(tr!("deselect-all")).small())
+                    .clicked()
+                {
                     self.selected_packages.clear();
                 }
 
@@ -1121,7 +1210,12 @@ impl TabDebloatControl {
 
                 if selected_count > 0 {
                     if ui
-                        .add(MaterialButton::filled(&tr!("uninstall-selected", { count: selected_count })).small())
+                        .add(
+                            MaterialButton::filled(
+                                &tr!("uninstall-selected", { count: selected_count }),
+                            )
+                            .small(),
+                        )
                         .clicked()
                     {
                         ui.data_mut(|data| {
@@ -1130,7 +1224,12 @@ impl TabDebloatControl {
                     }
 
                     if ui
-                        .add(MaterialButton::filled(&tr!("disable-selected", { count: selected_count })).small())
+                        .add(
+                            MaterialButton::filled(
+                                &tr!("disable-selected", { count: selected_count }),
+                            )
+                            .small(),
+                        )
                         .clicked()
                     {
                         ui.data_mut(|data| {
@@ -1139,7 +1238,12 @@ impl TabDebloatControl {
                     }
 
                     if ui
-                        .add(MaterialButton::filled(&tr!("enable-selected", { count: selected_count })).small())
+                        .add(
+                            MaterialButton::filled(
+                                &tr!("enable-selected", { count: selected_count }),
+                            )
+                            .small(),
+                        )
                         .clicked()
                     {
                         ui.data_mut(|data| {
@@ -1160,9 +1264,11 @@ impl TabDebloatControl {
             toggle_ui(ui, &mut self.hide_system_app);
             ui.add_space(10.0);
             ui.label(tr!("filter"));
-            let response = ui.add(egui::TextEdit::singleline(&mut self.text_filter)
-                .hint_text(tr!("filter-hint"))
-                .desired_width(200.0));
+            let response = ui.add(
+                egui::TextEdit::singleline(&mut self.text_filter)
+                    .hint_text(tr!("filter-hint"))
+                    .desired_width(200.0),
+            );
             #[cfg(target_os = "android")]
             {
                 if response.gained_focus() {
@@ -1189,11 +1295,18 @@ impl TabDebloatControl {
             // Debloat Category sort button
             let category_selected = self.sort_column == Some(1);
             let category_label = if category_selected {
-                format!("{} {}", tr!("col-debloat-category"), if self.sort_ascending { "▲" } else { "▼" })
+                format!(
+                    "{} {}",
+                    tr!("col-debloat-category"),
+                    if self.sort_ascending { "▲" } else { "▼" }
+                )
             } else {
                 format!("{} {}", tr!("col-debloat-category"), "▲") // Default ascending
             };
-            if ui.selectable_label(category_selected, category_label).clicked() {
+            if ui
+                .selectable_label(category_selected, category_label)
+                .clicked()
+            {
                 if self.sort_column == Some(1) {
                     self.sort_ascending = !self.sort_ascending;
                 } else {
@@ -1206,7 +1319,11 @@ impl TabDebloatControl {
             // Runtime Permissions sort button
             let rp_selected = self.sort_column == Some(2);
             let rp_label = if rp_selected {
-                format!("{} {}", tr!("col-runtime-permissions"), if self.sort_ascending { "▲" } else { "▼" })
+                format!(
+                    "{} {}",
+                    tr!("col-runtime-permissions"),
+                    if self.sort_ascending { "▲" } else { "▼" }
+                )
             } else {
                 format!("{} {}", tr!("col-runtime-permissions"), "▼") // Default descending
             };
@@ -1223,11 +1340,18 @@ impl TabDebloatControl {
             // Enabled sort button
             let enabled_selected = self.sort_column == Some(3);
             let enabled_label = if enabled_selected {
-                format!("{} {}", tr!("col-enabled"), if self.sort_ascending { "▲" } else { "▼" })
+                format!(
+                    "{} {}",
+                    tr!("col-enabled"),
+                    if self.sort_ascending { "▲" } else { "▼" }
+                )
             } else {
                 format!("{} {}", tr!("col-enabled"), "▲") // Default ascending
             };
-            if ui.selectable_label(enabled_selected, enabled_label).clicked() {
+            if ui
+                .selectable_label(enabled_selected, enabled_label)
+                .clicked()
+            {
                 if self.sort_column == Some(3) {
                     self.sort_ascending = !self.sort_ascending;
                 } else {
@@ -1240,7 +1364,11 @@ impl TabDebloatControl {
             // Install Reason sort button
             let reason_selected = self.sort_column == Some(4);
             let reason_label = if reason_selected {
-                format!("{} {}", tr!("col-install-reason"), if self.sort_ascending { "▲" } else { "▼" })
+                format!(
+                    "{} {}",
+                    tr!("col-install-reason"),
+                    if self.sort_ascending { "▲" } else { "▼" }
+                )
             } else {
                 format!("{} {}", tr!("col-install-reason"), "▲") // Default ascending
             };
@@ -1267,7 +1395,15 @@ impl TabDebloatControl {
             .default_row_height(if is_desktop { 56.0 } else { 80.0 })
             .allow_drawer(true)
             // .auto_row_height(true)
-            .sortable_column(tr!("col-package-name"), if is_desktop { 350.0 * width_ratio } else { (available_width * 0.59 + (50.0/available_width) * 0.59) }, false);
+            .sortable_column(
+                tr!("col-package-name"),
+                if is_desktop {
+                    350.0 * width_ratio
+                } else {
+                    (available_width * 0.59 + (50.0 / available_width) * 0.59)
+                },
+                false,
+            );
         if is_desktop {
             debloat_table = debloat_table
                 .sortable_column(tr!("col-debloat-category"), 130.0 * width_ratio, false)
@@ -1277,17 +1413,39 @@ impl TabDebloatControl {
                 .sortable_column(tr!("col-install-reason"), 110.0 * width_ratio, false);
         }
         debloat_table = debloat_table
-            .sortable_column(tr!("col-tasks"), if is_desktop { 160.0 * width_ratio } else { (available_width * 0.3 + (50.0/available_width) * 0.3)  }, false)
+            .sortable_column(
+                tr!("col-tasks"),
+                if is_desktop {
+                    160.0 * width_ratio
+                } else {
+                    (available_width * 0.3 + (50.0 / available_width) * 0.3)
+                },
+                false,
+            )
             .allow_selection(true);
 
         // Sort column index mapping: self.sort_column uses logical (desktop) indices
         // Desktop: [0=PackageName, 1=DebloatCategory, 2=RP, 3=Stalkerware, 4=InstallReason, 5=Tasks]
         // Mobile:  [0=PackageName, 1=Tasks]
         let to_physical = |logical: usize| -> usize {
-            if is_desktop { logical } else { match logical { 0 => 0, _ => 1 } }
+            if is_desktop {
+                logical
+            } else {
+                match logical {
+                    0 => 0,
+                    _ => 1,
+                }
+            }
         };
         let to_logical = |physical: usize| -> usize {
-            if is_desktop { physical } else { match physical { 0 => 0, _ => 5 } }
+            if is_desktop {
+                physical
+            } else {
+                match physical {
+                    0 => 0,
+                    _ => 5,
+                }
+            }
         };
 
         if let Some(sort_col) = self.sort_column {
@@ -1310,11 +1468,30 @@ impl TabDebloatControl {
 
         // Collect filtered packages info first to avoid borrow issues
         // Note: uad_ng_lists_ref is pre-fetched at the start of ui()
-        let filtered_packages: Vec<(usize, String, String, bool, String, String, bool, String, String, bool)> = installed_packages
+        let filtered_packages: Vec<(
+            usize,
+            String,
+            String,
+            bool,
+            String,
+            String,
+            bool,
+            String,
+            String,
+            bool,
+        )> = installed_packages
             .iter()
             .enumerate()
             .filter(|(_, p)| self.should_show_package(p, uad_ng_lists_ref))
-            .filter(|(_, p)| self.matches_text_filter(p, uad_ng_lists_ref, &cached_fdroid_apps, &cached_google_play_apps, &cached_apkmirror_apps))
+            .filter(|(_, p)| {
+                self.matches_text_filter(
+                    p,
+                    uad_ng_lists_ref,
+                    &cached_fdroid_apps,
+                    &cached_google_play_apps,
+                    &cached_apkmirror_apps,
+                )
+            })
             .map(|(idx, package)| {
                 let is_system = package.flags.contains("SYSTEM");
                 let package_name = format!("{} ({})", package.pkg, package.versionName);
@@ -1343,18 +1520,33 @@ impl TabDebloatControl {
                     .map(|u| Self::enabled_to_display_string(u.enabled, u.installed, is_system))
                     .unwrap_or("DEFAULT")
                     .to_string();
-                let install_reason_value = package.users.first().map(|u| u.installReason).unwrap_or(0);
+                let install_reason_value =
+                    package.users.first().map(|u| u.installReason).unwrap_or(0);
                 let install_reason = if is_system {
                     if install_reason_value == 0 {
                         "SYSTEM".to_string()
                     } else {
-                        format!("{} (SYSTEM)", Self::install_reason_to_string(install_reason_value))
+                        format!(
+                            "{} (SYSTEM)",
+                            Self::install_reason_to_string(install_reason_value)
+                        )
                     }
                 } else {
                     Self::install_reason_to_string(install_reason_value).to_string()
                 };
                 let is_selected = self.selected_packages.contains(&package.pkg);
-                (idx, package.pkg.clone(), package_name, is_system, debloat_category, runtime_perms, is_stalkerware, enabled, install_reason, is_selected)
+                (
+                    idx,
+                    package.pkg.clone(),
+                    package_name,
+                    is_system,
+                    debloat_category,
+                    runtime_perms,
+                    is_stalkerware,
+                    enabled,
+                    install_reason,
+                    is_selected,
+                )
             })
             .collect();
 
@@ -1372,7 +1564,19 @@ impl TabDebloatControl {
             filtered_package_names.push(pkg_id.clone());
         }
 
-        for (idx, pkg_id, package_name, is_system, debloat_category, runtime_perms, is_stalkerware, enabled_text, install_reason, is_selected) in filtered_packages {
+        for (
+            idx,
+            pkg_id,
+            package_name,
+            is_system,
+            debloat_category,
+            runtime_perms,
+            is_stalkerware,
+            enabled_text,
+            install_reason,
+            is_selected,
+        ) in filtered_packages
+        {
             let clicked_idx_clone = clicked_package_idx.clone();
             let pkg_id_clone = pkg_id.clone();
             let package_name_clone = package_name.clone();
@@ -1392,16 +1596,21 @@ impl TabDebloatControl {
                 } else {
                     #[cfg(target_os = "android")]
                     {
-                        if let Some(info) = crate::calc_androidpackage::fetch_android_package_info(&pkg_id) {
+                        if let Some(info) =
+                            crate::calc_androidpackage::fetch_android_package_info(&pkg_id)
+                        {
                             store.set_cached_android_package_app(pkg_id.clone(), info.clone());
-                            let tex = Self::load_texture_from_bytes(ui.ctx(), &pkg_id, &info.icon_bytes);
+                            let tex =
+                                Self::load_texture_from_bytes(ui.ctx(), &pkg_id, &info.icon_bytes);
                             (tex.map(|t| t.id()), Some(info.label.clone()))
                         } else {
                             (None, None)
                         }
                     }
                     #[cfg(not(target_os = "android"))]
-                    { (None, None) }
+                    {
+                        (None, None)
+                    }
                 }
             } else {
                 (None, None)
@@ -1414,7 +1623,11 @@ impl TabDebloatControl {
                         let tex = fd_app.icon_base64.as_ref().and_then(|icon| {
                             Self::load_texture_from_base64(ui.ctx(), "fd", &pkg_id, icon)
                         });
-                        (tex.map(|t| t.id()), Some(fd_app.title.clone()), Some(fd_app.developer.clone()))
+                        (
+                            tex.map(|t| t.id()),
+                            Some(fd_app.title.clone()),
+                            Some(fd_app.developer.clone()),
+                        )
                     } else {
                         (None, None, None)
                     }
@@ -1425,22 +1638,27 @@ impl TabDebloatControl {
                 (None, None, None)
             };
 
-            let (gp_texture, gp_title, gp_developer) = if !is_system && google_play_enabled && fd_title.is_none() {
-                if let Some(gp_app) = gp_cached {
-                    if gp_app.raw_response != "404" {
-                        let tex = gp_app.icon_base64.as_ref().and_then(|icon| {
-                            Self::load_texture_from_base64(ui.ctx(), "gp", &pkg_id, icon)
-                        });
-                        (tex.map(|t| t.id()), Some(gp_app.title.clone()), Some(gp_app.developer.clone()))
+            let (gp_texture, gp_title, gp_developer) =
+                if !is_system && google_play_enabled && fd_title.is_none() {
+                    if let Some(gp_app) = gp_cached {
+                        if gp_app.raw_response != "404" {
+                            let tex = gp_app.icon_base64.as_ref().and_then(|icon| {
+                                Self::load_texture_from_base64(ui.ctx(), "gp", &pkg_id, icon)
+                            });
+                            (
+                                tex.map(|t| t.id()),
+                                Some(gp_app.title.clone()),
+                                Some(gp_app.developer.clone()),
+                            )
+                        } else {
+                            (None, None, None)
+                        }
                     } else {
                         (None, None, None)
                     }
                 } else {
                     (None, None, None)
-                }
-            } else {
-                (None, None, None)
-            };
+                };
 
             let (am_texture, am_title, am_developer) = if is_system && apkmirror_enabled {
                 if let Some(am_app) = am_cached {
@@ -1448,7 +1666,11 @@ impl TabDebloatControl {
                         let tex = am_app.icon_base64.as_ref().and_then(|icon| {
                             Self::load_texture_from_base64(ui.ctx(), "am", &pkg_id, icon)
                         });
-                        (tex.map(|t| t.id()), Some(am_app.title.clone()), Some(am_app.developer.clone()))
+                        (
+                            tex.map(|t| t.id()),
+                            Some(am_app.title.clone()),
+                            Some(am_app.developer.clone()),
+                        )
                     } else {
                         (None, None, None)
                     }
@@ -1461,14 +1683,17 @@ impl TabDebloatControl {
 
             // Helper closure to render badges
             let render_badges = |ui: &mut egui::Ui,
-                                  runtime_perms: &str,
-                                  debloat_category: &str,
-                                  is_stalkerware: bool,
-                                  enabled_text: &str,
-                                  install_reason: &str| {
+                                 runtime_perms: &str,
+                                 debloat_category: &str,
+                                 is_stalkerware: bool,
+                                 enabled_text: &str,
+                                 install_reason: &str| {
                 // Runtime permissions badge
                 egui::Frame::new()
-                    .stroke(egui::Stroke::new(1.0, egui::Color32::from_rgb(158, 158, 158)))
+                    .stroke(egui::Stroke::new(
+                        1.0,
+                        egui::Color32::from_rgb(158, 158, 158),
+                    ))
                     .corner_radius(6.0)
                     .inner_margin(egui::Margin::symmetric(8, 3))
                     .show(ui, |ui| {
@@ -1477,19 +1702,47 @@ impl TabDebloatControl {
 
                 // Debloat category badge
                 let (bg_color, text_color, label_text) = match debloat_category {
-                    "Recommended" => (egui::Color32::from_rgb(56, 142, 60), egui::Color32::WHITE, tr!("label-recommended")),
-                    "Advanced" => (egui::Color32::from_rgb(33, 150, 243), egui::Color32::WHITE, tr!("label-advanced")),
-                    "Expert" => (egui::Color32::from_rgb(255, 152, 0), egui::Color32::WHITE, tr!("label-expert")),
-                    "Unsafe" => (egui::Color32::from_rgb(255, 235, 59), egui::Color32::from_rgb(0, 0, 0), tr!("label-unsafe")),
-                    "Unknown" => (egui::Color32::from_rgb(255, 255, 255), egui::Color32::from_rgb(0, 0, 0), tr!("label-unknown")),
-                    _ => (egui::Color32::from_rgb(158, 158, 158), egui::Color32::WHITE, debloat_category.to_string()),
+                    "Recommended" => (
+                        egui::Color32::from_rgb(56, 142, 60),
+                        egui::Color32::WHITE,
+                        tr!("label-recommended"),
+                    ),
+                    "Advanced" => (
+                        egui::Color32::from_rgb(33, 150, 243),
+                        egui::Color32::WHITE,
+                        tr!("label-advanced"),
+                    ),
+                    "Expert" => (
+                        egui::Color32::from_rgb(255, 152, 0),
+                        egui::Color32::WHITE,
+                        tr!("label-expert"),
+                    ),
+                    "Unsafe" => (
+                        egui::Color32::from_rgb(255, 235, 59),
+                        egui::Color32::from_rgb(0, 0, 0),
+                        tr!("label-unsafe"),
+                    ),
+                    "Unknown" => (
+                        egui::Color32::from_rgb(255, 255, 255),
+                        egui::Color32::from_rgb(0, 0, 0),
+                        tr!("label-unknown"),
+                    ),
+                    _ => (
+                        egui::Color32::from_rgb(158, 158, 158),
+                        egui::Color32::WHITE,
+                        debloat_category.to_string(),
+                    ),
                 };
                 egui::Frame::new()
                     .fill(bg_color)
                     .corner_radius(6.0)
                     .inner_margin(egui::Margin::symmetric(8, 3))
                     .show(ui, |ui| {
-                        ui.label(egui::RichText::new(format!("D:{}", &label_text)).color(text_color).size(10.0));
+                        ui.label(
+                            egui::RichText::new(format!("D:{}", &label_text))
+                                .color(text_color)
+                                .size(10.0),
+                        );
                     });
 
                 // Stalkerware badge
@@ -1512,7 +1765,10 @@ impl TabDebloatControl {
 
                 // Install reason badge
                 egui::Frame::new()
-                    .stroke(egui::Stroke::new(1.0, egui::Color32::from_rgb(158, 158, 158)))
+                    .stroke(egui::Stroke::new(
+                        1.0,
+                        egui::Color32::from_rgb(158, 158, 158),
+                    ))
                     .corner_radius(6.0)
                     .inner_margin(egui::Margin::symmetric(8, 3))
                     .show(ui, |ui| {
@@ -1525,11 +1781,17 @@ impl TabDebloatControl {
                 let (texture, title_text, subtitle_text, use_scrollable_title) =
                     if let Some(title) = ap_title.as_ref() {
                         (ap_texture, title.clone(), pkg_id.clone(), false)
-                    } else if let (Some(title), Some(dev)) = (fd_title.as_ref(), fd_developer.as_ref()) {
+                    } else if let (Some(title), Some(dev)) =
+                        (fd_title.as_ref(), fd_developer.as_ref())
+                    {
                         (fd_texture, title.clone(), dev.clone(), false)
-                    } else if let (Some(title), Some(dev)) = (gp_title.as_ref(), gp_developer.as_ref()) {
+                    } else if let (Some(title), Some(dev)) =
+                        (gp_title.as_ref(), gp_developer.as_ref())
+                    {
                         (gp_texture, title.clone(), dev.clone(), true)
-                    } else if let (Some(title), Some(dev)) = (am_title.as_ref(), am_developer.as_ref()) {
+                    } else if let (Some(title), Some(dev)) =
+                        (am_title.as_ref(), am_developer.as_ref())
+                    {
                         (am_texture, title.clone(), dev.clone(), true)
                     } else {
                         (None, package_name_clone.clone(), String::new(), true)
@@ -1558,7 +1820,12 @@ impl TabDebloatControl {
                                         .id_salt(format!("debloat_title_scroll_{}", idx))
                                         .auto_shrink([false, true])
                                         .show(ui, |ui| {
-                                            ui.add(egui::Label::new(egui::RichText::new(&title_text).strong()).wrap_mode(egui::TextWrapMode::Extend));
+                                            ui.add(
+                                                egui::Label::new(
+                                                    egui::RichText::new(&title_text).strong(),
+                                                )
+                                                .wrap_mode(egui::TextWrapMode::Extend),
+                                            );
                                         });
                                 } else {
                                     ui.label(egui::RichText::new(&title_text).strong());
@@ -1566,7 +1833,11 @@ impl TabDebloatControl {
 
                                 // Subtitle (package ID or developer)
                                 if !subtitle_text.is_empty() {
-                                    ui.label(egui::RichText::new(&subtitle_text).small().color(egui::Color32::GRAY));
+                                    ui.label(
+                                        egui::RichText::new(&subtitle_text)
+                                            .small()
+                                            .color(egui::Color32::GRAY),
+                                    );
                                 }
                             });
                         });
@@ -1574,14 +1845,20 @@ impl TabDebloatControl {
                         // Badges (mobile only)
                         if !is_desktop {
                             ui.horizontal(|ui| {
-
                                 ui.add_space(4.0);
                                 egui::ScrollArea::horizontal()
                                     .id_salt(format!("debloat_badge_scroll_{}", idx))
                                     .auto_shrink([false, true])
                                     .show(ui, |ui| {
                                         ui.horizontal(|ui| {
-                                            render_badges(ui, &runtime_perms_clone, &debloat_category_clone2, is_stalkerware_clone, &enabled_text_clone2, &install_reason_clone);
+                                            render_badges(
+                                                ui,
+                                                &runtime_perms_clone,
+                                                &debloat_category_clone2,
+                                                is_stalkerware_clone,
+                                                &enabled_text_clone2,
+                                                &install_reason_clone,
+                                            );
                                         });
                                     });
                             });
@@ -1619,7 +1896,11 @@ impl TabDebloatControl {
                                 .corner_radius(8.0)
                                 .inner_margin(egui::Margin::symmetric(12, 6))
                                 .show(ui, |ui| {
-                                    ui.label(egui::RichText::new(&label_text).color(text_color).size(12.0));
+                                    ui.label(
+                                        egui::RichText::new(&label_text)
+                                            .color(text_color)
+                                            .size(12.0),
+                                    );
                                 });
                         });
                     });
@@ -1631,9 +1912,11 @@ impl TabDebloatControl {
                     row_builder = row_builder.widget_cell(move |ui: &mut egui::Ui| {
                         ui.horizontal(|ui| {
                             let (bg_color, text) = if is_stalkerware {
-                                (egui::Color32::from_rgb(211, 47, 47), tr!("stalkerware")) // Red warning
+                                (egui::Color32::from_rgb(211, 47, 47), tr!("stalkerware"))
+                            // Red warning
                             } else {
-                                (egui::Color32::from_rgb(76, 175, 80), tr!("not-listed")) // Green safe
+                                (egui::Color32::from_rgb(76, 175, 80), tr!("not-listed"))
+                                // Green safe
                             };
                             egui::Frame::new()
                                 .fill(bg_color)
@@ -1654,13 +1937,15 @@ impl TabDebloatControl {
                     row_builder = row_builder.widget_cell(move |ui: &mut egui::Ui| {
                         ui.horizontal(|ui| {
                             egui::Frame::new()
-                                .stroke(egui::Stroke::new(1.0, egui::Color32::from_rgb(158, 158, 158)))
+                                .stroke(egui::Stroke::new(
+                                    1.0,
+                                    egui::Color32::from_rgb(158, 158, 158),
+                                ))
                                 .corner_radius(8.0)
                                 .inner_margin(egui::Margin::symmetric(12, 6))
                                 .show(ui, |ui| {
                                     ui.label(
-                                        egui::RichText::new(&install_reason_clone2)
-                                            .size(12.0),
+                                        egui::RichText::new(&install_reason_clone2).size(12.0),
                                     );
                                 });
                         });
@@ -1677,49 +1962,77 @@ impl TabDebloatControl {
                         .id_salt(format!("debloat_task_scroll_{}", idx))
                         .auto_shrink([false, true])
                         .show(ui, |ui| {
-                        ui.horizontal(|ui| {
-                            ui.spacing_mut().item_spacing.x = 0.0;
+                            ui.horizontal(|ui| {
+                                ui.spacing_mut().item_spacing.x = 0.0;
 
-                            if ui.add(icon_button_standard(ICON_INFO.to_string())).on_hover_text(tr!("package-info")).clicked() {
-                                if let Ok(mut clicked) = clicked_idx_clone.lock() {
-                                    *clicked = Some(idx);
+                                if ui
+                                    .add(icon_button_standard(ICON_INFO.to_string()))
+                                    .on_hover_text(tr!("package-info"))
+                                    .clicked()
+                                {
+                                    if let Ok(mut clicked) = clicked_idx_clone.lock() {
+                                        *clicked = Some(idx);
+                                    }
                                 }
-                            }
 
-                            // Enable/disable toggle
-                            let pkg_enabled = enabled_str.contains("DEFAULT") || enabled_str.contains("ENABLED");
-                            let can_show_toggle = !is_blocked || !pkg_enabled;
+                                // Enable/disable toggle
+                                let pkg_enabled = enabled_str.contains("DEFAULT")
+                                    || enabled_str.contains("ENABLED");
+                                let can_show_toggle = !is_blocked || !pkg_enabled;
 
-                            if can_show_toggle {
-                                let mut enabled = pkg_enabled;
-                                if toggle_ui(ui, &mut enabled).clicked() {
-                                    if enabled {
+                                if can_show_toggle {
+                                    let mut enabled = pkg_enabled;
+                                    if toggle_ui(ui, &mut enabled).clicked() {
+                                        if enabled {
+                                            ui.data_mut(|data| {
+                                                data.insert_temp(
+                                                    egui::Id::new("enable_clicked_package"),
+                                                    pkg_id_for_buttons.clone(),
+                                                );
+                                            });
+                                        } else {
+                                            ui.data_mut(|data| {
+                                                data.insert_temp(
+                                                    egui::Id::new("disable_clicked_package"),
+                                                    pkg_id_for_buttons.clone(),
+                                                );
+                                            });
+                                        }
+                                    }
+                                }
+
+                                if (enabled_str.contains("DEFAULT")
+                                    || enabled_str.contains("ENABLED"))
+                                    && !is_blocked
+                                {
+                                    if ui
+                                        .add(
+                                            icon_button_standard(ICON_DELETE.to_string())
+                                                .icon_color(egui::Color32::from_rgb(211, 47, 47)),
+                                        )
+                                        .on_hover_text(tr!("uninstall"))
+                                        .clicked()
+                                    {
                                         ui.data_mut(|data| {
-                                            data.insert_temp(egui::Id::new("enable_clicked_package"), pkg_id_for_buttons.clone());
-                                        });
-                                    } else {
-                                        ui.data_mut(|data| {
-                                            data.insert_temp(egui::Id::new("disable_clicked_package"), pkg_id_for_buttons.clone());
+                                            data.insert_temp(
+                                                egui::Id::new("uninstall_clicked_package"),
+                                                pkg_id_for_buttons.clone(),
+                                            );
+                                            data.insert_temp(
+                                                egui::Id::new("uninstall_clicked_is_system"),
+                                                is_system,
+                                            );
                                         });
                                     }
                                 }
-                            }
-
-                            if (enabled_str.contains("DEFAULT") || enabled_str.contains("ENABLED")) && !is_blocked {
-                                if ui.add(icon_button_standard(ICON_DELETE.to_string()).icon_color(egui::Color32::from_rgb(211, 47, 47))).on_hover_text(tr!("uninstall")).clicked() {
-                                    ui.data_mut(|data| {
-                                        data.insert_temp(egui::Id::new("uninstall_clicked_package"), pkg_id_for_buttons.clone());
-                                        data.insert_temp(egui::Id::new("uninstall_clicked_is_system"), is_system);
-                                    });
-                                }
-                            }
-
+                            });
                         });
-                    });
                 });
 
                 // Add drawer for UAD description
-                if let Some(uad_entry) = uad_ng_lists_ref.and_then(|lists| lists.apps.get(&pkg_id_clone)) {
+                if let Some(uad_entry) =
+                    uad_ng_lists_ref.and_then(|lists| lists.apps.get(&pkg_id_clone))
+                {
                     let description = uad_entry.description.clone();
                     row_builder = row_builder.drawer(move |ui| {
                         ui.add_space(8.0);
@@ -1746,7 +2059,8 @@ impl TabDebloatControl {
         if !mobile_hidden_sort {
             let (widget_sort_col, widget_sort_dir) = table_response.sort_state;
             let logical_sort_col = widget_sort_col.map(|c| to_logical(c));
-            let widget_sort_ascending = matches!(widget_sort_dir, egui_material3::SortDirection::Ascending);
+            let widget_sort_ascending =
+                matches!(widget_sort_dir, egui_material3::SortDirection::Ascending);
 
             if logical_sort_col != self.sort_column
                 || (logical_sort_col.is_some() && widget_sort_ascending != self.sort_ascending)
@@ -1802,7 +2116,9 @@ impl TabDebloatControl {
         ui.data_mut(|data| {
             if let Some(pkg) = data.get_temp::<String>(egui::Id::new("uninstall_clicked_package")) {
                 uninstall_package = Some(pkg);
-                uninstall_is_system = data.get_temp::<bool>(egui::Id::new("uninstall_clicked_is_system")).unwrap_or(false);
+                uninstall_is_system = data
+                    .get_temp::<bool>(egui::Id::new("uninstall_clicked_is_system"))
+                    .unwrap_or(false);
                 data.remove::<String>(egui::Id::new("uninstall_clicked_package"));
                 data.remove::<bool>(egui::Id::new("uninstall_clicked_is_system"));
             }
@@ -1814,15 +2130,24 @@ impl TabDebloatControl {
                 disable_package = Some(pkg);
                 data.remove::<String>(egui::Id::new("disable_clicked_package"));
             }
-            if data.get_temp::<bool>(egui::Id::new("batch_uninstall_clicked")).unwrap_or(false) {
+            if data
+                .get_temp::<bool>(egui::Id::new("batch_uninstall_clicked"))
+                .unwrap_or(false)
+            {
                 batch_uninstall = true;
                 data.remove::<bool>(egui::Id::new("batch_uninstall_clicked"));
             }
-            if data.get_temp::<bool>(egui::Id::new("batch_disable_clicked")).unwrap_or(false) {
+            if data
+                .get_temp::<bool>(egui::Id::new("batch_disable_clicked"))
+                .unwrap_or(false)
+            {
                 batch_disable = true;
                 data.remove::<bool>(egui::Id::new("batch_disable_clicked"));
             }
-            if data.get_temp::<bool>(egui::Id::new("batch_enable_clicked")).unwrap_or(false) {
+            if data
+                .get_temp::<bool>(egui::Id::new("batch_enable_clicked"))
+                .unwrap_or(false)
+            {
                 batch_enable = true;
                 data.remove::<bool>(egui::Id::new("batch_enable_clicked"));
             }
@@ -1830,7 +2155,8 @@ impl TabDebloatControl {
 
         // Open confirm dialog for single uninstall
         if let Some(pkg_name) = uninstall_package {
-            self.uninstall_confirm_dialog.open_single(pkg_name, uninstall_is_system);
+            self.uninstall_confirm_dialog
+                .open_single(pkg_name, uninstall_is_system);
         }
 
         // Perform enable
@@ -1888,19 +2214,28 @@ impl TabDebloatControl {
 
         // Open confirm dialog for batch uninstall
         if batch_uninstall {
-            let packages_to_uninstall: Vec<String> = self.selected_packages.iter().cloned().collect();
+            let packages_to_uninstall: Vec<String> =
+                self.selected_packages.iter().cloned().collect();
             let installed = store.get_installed_packages();
-            let is_system_flags: Vec<bool> = packages_to_uninstall.iter().map(|pkg| {
-                installed.iter().find(|p| p.pkg == *pkg)
-                    .map(|p| p.flags.contains("SYSTEM")).unwrap_or(false)
-            }).collect();
-            self.uninstall_confirm_dialog.open_batch(packages_to_uninstall, is_system_flags);
+            let is_system_flags: Vec<bool> = packages_to_uninstall
+                .iter()
+                .map(|pkg| {
+                    installed
+                        .iter()
+                        .find(|p| p.pkg == *pkg)
+                        .map(|p| p.flags.contains("SYSTEM"))
+                        .unwrap_or(false)
+                })
+                .collect();
+            self.uninstall_confirm_dialog
+                .open_batch(packages_to_uninstall, is_system_flags);
         }
 
         // Handle batch disable
         if batch_disable {
             if let Some(ref device) = self.selected_device {
-                let packages_to_disable: Vec<String> = self.selected_packages.iter().cloned().collect();
+                let packages_to_disable: Vec<String> =
+                    self.selected_packages.iter().cloned().collect();
                 // Start background batch disable
                 self.start_batch_disable(packages_to_disable, device.clone(), uad_ng_lists_ref);
             } else {
@@ -1912,7 +2247,8 @@ impl TabDebloatControl {
         // Handle batch enable
         if batch_enable {
             if let Some(ref device) = self.selected_device {
-                let packages_to_enable: Vec<String> = self.selected_packages.iter().cloned().collect();
+                let packages_to_enable: Vec<String> =
+                    self.selected_packages.iter().cloned().collect();
                 // Start background batch enable
                 self.start_batch_enable(packages_to_enable, device.clone());
             } else {
@@ -1939,7 +2275,8 @@ impl TabDebloatControl {
         // Show package details dialog
         let packages_for_dialog = store.get_installed_packages();
         let uad_lists_for_dialog = store.get_uad_ng_lists();
-        self.package_details_dialog.show(ui.ctx(), &packages_for_dialog, &uad_lists_for_dialog);
+        self.package_details_dialog
+            .show(ui.ctx(), &packages_for_dialog, &uad_lists_for_dialog);
 
         result
     }
@@ -1971,7 +2308,8 @@ fn toggle_ui(ui: &mut egui::Ui, on: &mut bool) -> egui::Response {
         );
         let circle_x = egui::lerp((rect.left() + radius)..=(rect.right() - radius), how_on);
         let center = egui::pos2(circle_x, rect.center().y);
-        ui.painter().circle(center, 0.75 * radius, visuals.bg_fill, visuals.fg_stroke);
+        ui.painter()
+            .circle(center, 0.75 * radius, visuals.bg_fill, visuals.fg_stroke);
     }
 
     response

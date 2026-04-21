@@ -184,10 +184,7 @@ impl ApkMirrorQueue {
                         match get_apkmirror_app(&mut conn, &pkg_id_clone) {
                             Ok(Some(cached_app)) if !is_cache_stale(&cached_app) => {
                                 if cached_app.raw_response == "404" {
-                                    log::info!(
-                                        "Using cached APKMirror 404 for: {}",
-                                        pkg_id_clone
-                                    );
+                                    log::info!("Using cached APKMirror 404 for: {}", pkg_id_clone);
                                     let mut results = results_clone.lock().unwrap();
                                     results.insert(
                                         pkg_id_clone,
@@ -787,19 +784,17 @@ fn process_upload_item(
         Ok(meta) if meta.is_file() => local_path,
         Ok(meta) if meta.is_dir() => {
             // adb pull created a directory, look for the APK inside
-            let apk_found = std::fs::read_dir(&local_path)
-                .ok()
-                .and_then(|entries| {
-                    entries
-                        .filter_map(|e| e.ok())
-                        .find(|e| {
-                            e.path()
-                                .extension()
-                                .map_or(false, |ext| ext.eq_ignore_ascii_case("apk"))
-                                && e.path().is_file()
-                        })
-                        .map(|e| e.path().to_string_lossy().to_string())
-                });
+            let apk_found = std::fs::read_dir(&local_path).ok().and_then(|entries| {
+                entries
+                    .filter_map(|e| e.ok())
+                    .find(|e| {
+                        e.path()
+                            .extension()
+                            .map_or(false, |ext| ext.eq_ignore_ascii_case("apk"))
+                            && e.path().is_file()
+                    })
+                    .map(|e| e.path().to_string_lossy().to_string())
+            });
             if let Some(inner_path) = apk_found {
                 log::info!("Found APK inside pulled directory: {}", inner_path);
                 inner_path

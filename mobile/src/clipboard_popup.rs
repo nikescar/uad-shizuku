@@ -31,9 +31,7 @@ pub fn show_clipboard_popup(_ui: &egui::Ui, response: &Response, text: &mut Stri
             if ui.button("Copy").clicked() {
                 let copy_text = {
                     let mut sel: Option<String> = None;
-                    if let Some(state) =
-                        egui::TextEdit::load_state(ui.ctx(), response.id)
-                    {
+                    if let Some(state) = egui::TextEdit::load_state(ui.ctx(), response.id) {
                         if let Some(range) = state.cursor.char_range() {
                             let start = range.primary.index.min(range.secondary.index);
                             let end = range.primary.index.max(range.secondary.index);
@@ -68,14 +66,10 @@ pub fn show_clipboard_popup(_ui: &egui::Ui, response: &Response, text: &mut Stri
                     #[cfg(target_os = "android")]
                     {
                         if let Ok(Some(clip)) = crate::android_clipboard::get_text() {
-                            if let Some(state) =
-                                egui::TextEdit::load_state(ui.ctx(), response.id)
-                            {
+                            if let Some(state) = egui::TextEdit::load_state(ui.ctx(), response.id) {
                                 if let Some(range) = state.cursor.char_range() {
-                                    let start =
-                                        range.primary.index.min(range.secondary.index);
-                                    let end =
-                                        range.primary.index.max(range.secondary.index);
+                                    let start = range.primary.index.min(range.secondary.index);
+                                    let end = range.primary.index.max(range.secondary.index);
                                     let before: String = text.chars().take(start).collect();
                                     let after: String = text.chars().skip(end).collect();
                                     *text = format!("{}{}{}", before, clip, after);
