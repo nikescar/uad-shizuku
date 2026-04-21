@@ -3766,17 +3766,25 @@ impl UadShizukuApp {
                                 // Use embedded fallback
                                 match std::fs::write(&cache_file_path, UAD_LISTS_FALLBACK) {
                                     Ok(_) => {
-                                        log::info!("Successfully wrote UAD lists fallback to cache");
+                                        log::info!(
+                                            "Successfully wrote UAD lists fallback to cache"
+                                        );
                                     }
                                     Err(e) => {
-                                        log::error!("Failed to write UAD lists fallback to cache: {}", e);
+                                        log::error!(
+                                            "Failed to write UAD lists fallback to cache: {}",
+                                            e
+                                        );
                                         return;
                                     }
                                 }
                             }
                         }
                     } else {
-                        log::error!("Failed to download UAD lists: HTTP {}, using fallback", response.status);
+                        log::error!(
+                            "Failed to download UAD lists: HTTP {}, using fallback",
+                            response.status
+                        );
                         // Use embedded fallback
                         match std::fs::write(&cache_file_path, UAD_LISTS_FALLBACK) {
                             Ok(_) => {
@@ -3923,7 +3931,10 @@ impl UadShizukuApp {
                                 log::info!("Successfully wrote stalkerware IoC fallback to cache");
                             }
                             Err(e) => {
-                                log::error!("Failed to write stalkerware IoC fallback to cache: {}", e);
+                                log::error!(
+                                    "Failed to write stalkerware IoC fallback to cache: {}",
+                                    e
+                                );
                                 return;
                             }
                         }

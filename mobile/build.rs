@@ -20,7 +20,8 @@ fn main() {
 
 fn download_fallback_resources() {
     const UAD_LISTS_URL: &str = "https://cdn.jsdelivr.net/gh/0x192/universal-android-debloater@latest/resources/assets/uad_lists.json";
-    const STALKERWARE_IOC_URL: &str = "https://raw.githubusercontent.com/AssoEchap/stalkerware-indicators/master/ioc.yaml";
+    const STALKERWARE_IOC_URL: &str =
+        "https://raw.githubusercontent.com/AssoEchap/stalkerware-indicators/master/ioc.yaml";
 
     let resources_dir = Path::new("resources");
 
@@ -34,14 +35,14 @@ fn download_fallback_resources() {
     download_if_needed(
         UAD_LISTS_URL,
         &resources_dir.join("uad_lists.json"),
-        "UAD lists"
+        "UAD lists",
     );
 
     // Download Stalkerware IoC
     download_if_needed(
         STALKERWARE_IOC_URL,
         &resources_dir.join("stalkerware_ioc.yaml"),
-        "Stalkerware IoC"
+        "Stalkerware IoC",
     );
 
     // Tell Cargo to rerun this build script if the files are deleted
@@ -74,7 +75,10 @@ fn download_if_needed(url: &str, file_path: &Path, description: &str) {
     };
 
     if !should_download {
-        println!("cargo:warning={} is up-to-date at {:?}", description, file_path);
+        println!(
+            "cargo:warning={} is up-to-date at {:?}",
+            description, file_path
+        );
         return;
     }
 
@@ -92,11 +96,20 @@ fn download_if_needed(url: &str, file_path: &Path, description: &str) {
             }
 
             match fs::write(file_path, &buffer) {
-                Ok(_) => println!("cargo:warning=Successfully downloaded {} to {:?}", description, file_path),
+                Ok(_) => println!(
+                    "cargo:warning=Successfully downloaded {} to {:?}",
+                    description, file_path
+                ),
                 Err(e) => {
-                    eprintln!("Warning: Failed to write {} to {:?}: {}", description, file_path, e);
+                    eprintln!(
+                        "Warning: Failed to write {} to {:?}: {}",
+                        description, file_path, e
+                    );
                     if !file_path.exists() {
-                        eprintln!("ERROR: {} not available and cannot write file!", description);
+                        eprintln!(
+                            "ERROR: {} not available and cannot write file!",
+                            description
+                        );
                     }
                 }
             }

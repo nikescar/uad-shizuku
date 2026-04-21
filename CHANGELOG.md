@@ -1,10 +1,15 @@
 ## What's Changed
-* Merge branch 'main' into test
-* fix. change snapcraft build to dump.
-* Merge branch 'main' into test
-* fix. change github url to jsdelivr.
-* fix. update error.
+* chore. enhance release scripts.
+* fix. add fallback ioc, uad data contents.
+
+## What's Changed in 0.0.17
+* release. v0.0.17 by @nikescar
+* fix. change snapcraft build to dump. by @nikescar
+* fix. change github url to jsdelivr. by @nikescar
+* fix. update error. by @nikescar
 * chore. fix cargo build error by installing new rust version on snap build workflow. by @nikescar
+
+**Full Changelog**: https://github.com/nikescar/uad-shizuku/compare/v0.0.16...v0.0.17
 
 ## What's Changed in 0.0.16
 * release. v0.0.16 by @nikescar
@@ -26,8 +31,6 @@
 ## What's Changed in 0.0.14
 * release. v0.0.14 by @nikescar
 * fix. app installation delay. by @nikescar
-* fix. app installation delay.
-* bump
 * feat. apk installer via shizuku on android. by @nikescar
 * docs. readme update. by @nikescar
 * fix. showing foss dashboard card on android. by @nikescar
