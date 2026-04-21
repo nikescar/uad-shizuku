@@ -118,3 +118,4 @@ sqlite-wasm-rs = "0.5.1"
 
 [build-dependencies]
 winres = "0.1.12"
+ureq = "2.12"

@@ -3693,6 +3693,8 @@ impl UadShizukuApp {
     pub fn retrieve_uad_ng_lists(&mut self) {
         const UAD_LISTS_URL: &str = "https://cdn.jsdelivr.net/gh/0x192/universal-android-debloater@latest/resources/assets/uad_lists.json";
         const UAD_LISTS_FILENAME: &str = "uad_lists.json";
+        // Embedded fallback file (pre-downloaded at build time)
+        const UAD_LISTS_FALLBACK: &[u8] = include_bytes!("../resources/uad_lists.json");
 
         // Get cache directory from config
         let cache_dir = match &self.config {
@@ -3759,23 +3761,59 @@ impl UadShizukuApp {
                             }
                             None => {
                                 log::error!(
-                                    "Failed to extract embedded data from GitHub HTML response"
+                                    "Failed to extract embedded data from GitHub HTML response, using fallback"
                                 );
-                                return;
+                                // Use embedded fallback
+                                match std::fs::write(&cache_file_path, UAD_LISTS_FALLBACK) {
+                                    Ok(_) => {
+                                        log::info!("Successfully wrote UAD lists fallback to cache");
+                                    }
+                                    Err(e) => {
+                                        log::error!("Failed to write UAD lists fallback to cache: {}", e);
+                                        return;
+                                    }
+                                }
                             }
                         }
                     } else {
-                        log::error!("Failed to download UAD lists: HTTP {}", response.status);
-                        return;
+                        log::error!("Failed to download UAD lists: HTTP {}, using fallback", response.status);
+                        // Use embedded fallback
+                        match std::fs::write(&cache_file_path, UAD_LISTS_FALLBACK) {
+                            Ok(_) => {
+                                log::info!("Successfully wrote UAD lists fallback to cache");
+                            }
+                            Err(e) => {
+                                log::error!("Failed to write UAD lists fallback to cache: {}", e);
+                                return;
+                            }
+                        }
                     }
                 }
                 Ok(Err(e)) => {
-                    log::error!("Failed to download UAD lists: {}", e);
-                    return;
+                    log::error!("Failed to download UAD lists: {}, using fallback", e);
+                    // Use embedded fallback
+                    match std::fs::write(&cache_file_path, UAD_LISTS_FALLBACK) {
+                        Ok(_) => {
+                            log::info!("Successfully wrote UAD lists fallback to cache");
+                        }
+                        Err(e) => {
+                            log::error!("Failed to write UAD lists fallback to cache: {}", e);
+                            return;
+                        }
+                    }
                 }
                 Err(e) => {
-                    log::error!("Failed to receive download response: {}", e);
-                    return;
+                    log::error!("Failed to receive download response: {}, using fallback", e);
+                    // Use embedded fallback
+                    match std::fs::write(&cache_file_path, UAD_LISTS_FALLBACK) {
+                        Ok(_) => {
+                            log::info!("Successfully wrote UAD lists fallback to cache");
+                        }
+                        Err(e) => {
+                            log::error!("Failed to write UAD lists fallback to cache: {}", e);
+                            return;
+                        }
+                    }
                 }
             }
         } else {
@@ -3811,6 +3849,8 @@ impl UadShizukuApp {
         const IOC_URL: &str =
             "https://github.com/AssoEchap/stalkerware-indicators/blob/master/ioc.yaml";
         const IOC_FILENAME: &str = "stalkerware_ioc.yaml";
+        // Embedded fallback file (pre-downloaded at build time)
+        const IOC_FALLBACK: &[u8] = include_bytes!("../resources/stalkerware_ioc.yaml");
 
         // Get cache directory from config
         let cache_dir = match &self.config {
@@ -3874,19 +3914,46 @@ impl UadShizukuApp {
                         }
                     } else {
                         log::error!(
-                            "Failed to download stalkerware IoC: HTTP {}",
+                            "Failed to download stalkerware IoC: HTTP {}, using fallback",
                             response.status
                         );
-                        return;
+                        // Use embedded fallback
+                        match std::fs::write(&cache_file_path, IOC_FALLBACK) {
+                            Ok(_) => {
+                                log::info!("Successfully wrote stalkerware IoC fallback to cache");
+                            }
+                            Err(e) => {
+                                log::error!("Failed to write stalkerware IoC fallback to cache: {}", e);
+                                return;
+                            }
+                        }
                     }
                 }
                 Ok(Err(e)) => {
-                    log::error!("Failed to download stalkerware IoC: {}", e);
-                    return;
+                    log::error!("Failed to download stalkerware IoC: {}, using fallback", e);
+                    // Use embedded fallback
+                    match std::fs::write(&cache_file_path, IOC_FALLBACK) {
+                        Ok(_) => {
+                            log::info!("Successfully wrote stalkerware IoC fallback to cache");
+                        }
+                        Err(e) => {
+                            log::error!("Failed to write stalkerware IoC fallback to cache: {}", e);
+                            return;
+                        }
+                    }
                 }
                 Err(e) => {
-                    log::error!("Failed to receive download response: {}", e);
-                    return;
+                    log::error!("Failed to receive download response: {}, using fallback", e);
+                    // Use embedded fallback
+                    match std::fs::write(&cache_file_path, IOC_FALLBACK) {
+                        Ok(_) => {
+                            log::info!("Successfully wrote stalkerware IoC fallback to cache");
+                        }
+                        Err(e) => {
+                            log::error!("Failed to write stalkerware IoC fallback to cache: {}", e);
+                            return;
+                        }
+                    }
                 }
             }
         } else {
