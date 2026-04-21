@@ -1,6 +1,12 @@
 ## What's Changed
-* chore. enhance release scripts.
-* fix. add fallback ioc, uad data contents.
+* fix. update to correct jsdelivr url.
+
+## What's Changed in 0.0.18
+* release. v0.0.18 by @nikescar
+* chore. enhance release scripts. by @nikescar
+* fix. add fallback ioc, uad data contents. by @nikescar
+
+**Full Changelog**: https://github.com/nikescar/uad-shizuku/compare/v0.0.17...v0.0.18
 
 ## What's Changed in 0.0.17
 * release. v0.0.17 by @nikescar
