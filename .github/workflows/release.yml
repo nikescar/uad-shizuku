@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
 
 env:
-  RUST_VERSION: 1.86.0
+  RUST_VERSION: stable
   BIN_NAME: "uad-shizuku"
 
 jobs:
@@ -41,15 +41,12 @@ jobs:
           - name: Linux armv6
             target: arm-unknown-linux-musleabihf
             build-args: "--release"
-          
-          # even libgtk-3-dev has installed, The system library `gdk-3.0` required by crate `gdk-sys` was not found. not resolved.
-          # - name: Freebsd x86_64
-          #   target: x86_64-unknown-freebsd
-          #   build-args: "--release"
 
-          # - name: Freebsd x86
-          #   target: i686-unknown-freebsd
-          #   build-args: "--release"
+          # FreeBSD
+          - name: FreeBSD x86_64
+            target: x86_64-unknown-freebsd
+            build-args: "--release"
+            freebsd_version: "14.2"
 
           - name: Android aarch64
             target: aarch64-linux-android
@@ -105,7 +102,7 @@ jobs:
           sudo apt-get install -y musl-tools libgtk-3-dev libxdo-dev libappindicator3-dev libglib2.0-dev libgdk-pixbuf-2.0-dev libwayland-dev libcairo2-dev libpixman-1-dev libpango1.0-dev libxdo-dev librust-glib-sys-dev librust-gio-sys-dev librust-gobject-sys-dev librust-gdk-sys-dev libwebkit2gtk-4.1-dev librust-gdk-pixbuf-sys-dev librust-cairo-sys-rs-dev librust-pango-sys-dev librust-atk-sys-dev libgdk-pixbuf2.0-dev libatk1.0-dev musl-dev
           export PKG_CONFIG_ALLOW_CROSS=1
           export PKG_CONFIG_PATH="/usr/lib/x86_64-linux-musl/pkgconfig"
-          
+
       - name: Android - Install Build Dependencies
         if: contains(matrix.platform.target, 'android')
         run: |
@@ -134,7 +131,7 @@ jobs:
             VERSION=$(git describe --tags --always --dirty)
             echo "Build version: $VERSION"
           fi
-      
+
       - name: Install Rust Toolchain
         uses: dtolnay/rust-toolchain@nightly
         with:
@@ -143,12 +140,12 @@ jobs:
 
       - name: Android - Install Cross-Compilation Tool
         if: contains(matrix.platform.target, 'android')
-        run: | 
+        run: |
           cargo install cross --git https://github.com/cross-rs/cross
 
       - name: Android - Build Release APK
         if: (contains(matrix.platform.name, 'Android APK arm64'))
-        run: | 
+        run: |
           echo "storePassword=${{ secrets.STORE_PASSWORD }}" > ./mobile/app/keystore.properties
           echo "keyPassword=${{ secrets.KEY_PASSWORD }}" >> ./mobile/app/keystore.properties
           echo "keyAlias=${{ secrets.KEY_ALIAS }}" >> ./mobile/app/keystore.properties
@@ -158,13 +155,13 @@ jobs:
 
           pushd mobile
           bash ./build.gh.sh
-          
+
           # Verify outputs
           echo "=== Listing APK outputs ==="
           ls -alh ./app/build/outputs/apk/release/ || echo "APK directory not found"
           echo "=== Listing AAB outputs ==="
           ls -alh ./app/build/outputs/bundle/release/ || echo "AAB directory not found"
-          
+
           # Copy APK for artifact upload
           cp ./app/build/outputs/apk/release/app-release.apk ./app/build/outputs/apk/release/uad-shizuku-all-signed.apk
           # Copy AAB for artifact upload
@@ -172,11 +169,26 @@ jobs:
           popd
 
       - name: Build Binary for ${{ matrix.platform.name }}
-        if: (contains(matrix.platform.target, 'x86_64') || contains(matrix.platform.target, 'aarch64') || contains(matrix.platform.target, 'armv7')) && !contains(matrix.platform.name, 'Android APK arm64')
+        if: (contains(matrix.platform.target, 'x86_64') || contains(matrix.platform.target, 'i686') || contains(matrix.platform.target, 'aarch64') || contains(matrix.platform.target, 'armv7') || contains(matrix.platform.target, 'arm-')) && !contains(matrix.platform.name, 'Android APK arm64') && !contains(matrix.platform.target, 'freebsd')
         uses: actions-rs/cargo@v1
         with:
           command: build
           args: ${{ matrix.platform.build-args }} --package uad-shizuku
+
+      - name: Build FreeBSD Binary in VM
+        if: contains(matrix.platform.target, 'freebsd')
+        uses: vmactions/freebsd-vm@v1
+        with:
+          release: ${{ matrix.platform.freebsd_version }}
+          usesh: true
+          prepare: |
+            pkg install -y curl pkgconf gtk3 cairo pango gdk-pixbuf2 at-spi2-core pixman wayland
+            ln -sf /usr/local/bin/pkgconf /usr/local/bin/pkg-config || true
+            curl https://sh.rustup.rs -sSf | sh -s -- -y --profile=minimal --default-toolchain ${{ env.RUST_VERSION }}
+          run: |
+            . $HOME/.cargo/env
+            export PKG_CONFIG_PATH=/usr/local/libdata/pkgconfig:/usr/local/lib/pkgconfig
+            cargo build --release --package uad-shizuku --target ${{ matrix.platform.target }}
 
       - name: Windows - Code Signing
         if: (contains(matrix.platform.target, 'windows') && env.WINDOWS_CERT_P12_BASE64 != '' && env.WINDOWS_CERT_PASSWORD != '')
@@ -223,9 +235,9 @@ jobs:
         with:
           # Finally, we store the binary as GitHub artifact for later usage
           name: uad-shizuku-${{ matrix.platform.target }}
-          path: target/release${{ contains(matrix.platform.target, 'windows') && '-with-symbols' || '' }}/uad-shizuku*
+          path: ${{ contains(matrix.platform.target, 'freebsd') && format('target/{0}/release/uad-shizuku*', matrix.platform.target) || format('target/release{0}/uad-shizuku*', contains(matrix.platform.target, 'windows') && '-with-symbols' || '') }}
           retention-days: 1
-      
+
       - name: Android - Upload APK Artifact
         if: (contains(matrix.platform.name, 'Android APK arm64'))
         uses: actions/upload-artifact@v4
@@ -233,7 +245,7 @@ jobs:
           name: uad-shizuku-all-signed.apk
           path: ./mobile/app/build/outputs/apk/release/uad-shizuku-all-signed.apk
           retention-days: 1
-      
+
       - name: Android - Upload AAB Artifact
         if: (contains(matrix.platform.name, 'Android APK arm64'))
         uses: actions/upload-artifact@v4
@@ -241,10 +253,10 @@ jobs:
           name: uad-shizuku-all.aab
           path: ./mobile/app/build/outputs/apk/release/uad-shizuku-all.aab
           retention-days: 1
-      
+
   release:
     name: Release
-    needs: [ build ]
+    needs: [build]
     # We run the release job only if a tag starts with 'v' letter
     if: startsWith( github.ref, 'refs/tags/v' )
     runs-on: ubuntu-22.04
@@ -380,19 +392,19 @@ jobs:
           find artifacts/
           mkdir distbin/
 
-          for i in ./artifacts/* 
+          for i in ./artifacts/*
           do
               if [ -d "$i" ]
               then
                   # Handle APK separately
                   [[ "$i" == *"uad-shizuku-all-signed.apk"* ]] && cp artifacts/uad-shizuku-all-signed.apk/uad-shizuku-all-signed.apk distbin/uad-shizuku-all-signed.apk && continue
-                  
+
                   # Handle Windows executables - copy directly without compression
                   if [[ "$i" == *"windows"* ]]; then
                       cp "$i"/*.exe distbin/ 2>/dev/null || true
                       continue
                   fi
-                  
+
                   # Handle other platforms - tar compress
                   cp LICENSE* "$i"
                   cp README.md "$i"
@@ -402,7 +414,7 @@ jobs:
               fi
           done
           cp artifacts/*.tar.gz distbin/ 2>/dev/null || true
-        
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         if: github.ref_type == 'tag'
