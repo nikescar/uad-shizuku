@@ -89,10 +89,15 @@ jobs:
             target: x86_64-pc-windows-msvc
             build-args: "--profile release-with-symbols"
 
-          # - name: Windows x86
-          #   os: windows-latest
-          #   target: i686-pc-windows-msvc
-          #   build-args: "--profile release-with-symbols"
+          - name: Windows x86
+            os: windows-latest
+            target: i686-pc-windows-msvc
+            build-args: "--profile release-with-symbols"
+
+          - name: Windows aarch64
+            os: windows-latest
+            target: aarch64-pc-windows-msvc
+            build-args: "--profile release-with-symbols"
 
     steps:
       - name: Linux - Install Build Dependencies
@@ -289,6 +294,8 @@ jobs:
             ./artifacts/uad-shizuku-x86_64-apple-darwin/uad-shizuku
             ./artifacts/uad-shizuku-x86_64-unknown-linux-musl/uad-shizuku
             ./artifacts/uad-shizuku-x86_64-pc-windows-msvc/uad-shizuku.exe
+            ./artifacts/uad-shizuku-i686-pc-windows-msvc/uad-shizuku.exe
+            ./artifacts/uad-shizuku-aarch64-pc-windows-msvc/uad-shizuku.exe
 
       - name: Parse Analysis Results
         id: parse_results
@@ -399,9 +406,15 @@ jobs:
                   # Handle APK separately
                   [[ "$i" == *"uad-shizuku-all-signed.apk"* ]] && cp artifacts/uad-shizuku-all-signed.apk/uad-shizuku-all-signed.apk distbin/uad-shizuku-all-signed.apk && continue
 
-                  # Handle Windows executables - copy directly without compression
-                  if [[ "$i" == *"windows"* ]]; then
-                      cp "$i"/*.exe distbin/ 2>/dev/null || true
+                  # Handle Windows executables - rename by architecture
+                  if [[ "$i" == *"x86_64-pc-windows-msvc"* ]]; then
+                      cp "$i"/uad-shizuku.exe distbin/uad-shizuku-x86_64.exe 2>/dev/null || true
+                      continue
+                  elif [[ "$i" == *"i686-pc-windows-msvc"* ]]; then
+                      cp "$i"/uad-shizuku.exe distbin/uad-shizuku-i686.exe 2>/dev/null || true
+                      continue
+                  elif [[ "$i" == *"aarch64-pc-windows-msvc"* ]]; then
+                      cp "$i"/uad-shizuku.exe distbin/uad-shizuku-aarch64.exe 2>/dev/null || true
                       continue
                   fi
 
