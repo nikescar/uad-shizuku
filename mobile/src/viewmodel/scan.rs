@@ -2,34 +2,50 @@
 
 use crate::viewmodel::ViewModelEvent;
 use anyhow::Result;
+use std::collections::HashMap;
 
 #[derive(Debug, Clone)]
 pub enum ScanCommand {
-    ScanVirusTotal { package: String, apk_path: String, force_upload: bool },
-    ScanHybridAnalysis { package: String, apk_path: String, force_upload: bool },
-    LoadStalkerwareIndicators,
-    BatchScan { packages: Vec<String>, scanner: ScannerType },
+    RunVirusTotal {
+        device: String,
+        api_key: String,
+        submit_enabled: bool,
+    },
+    RunHybridAnalysis {
+        device: String,
+        api_key: String,
+        submit_enabled: bool,
+    },
+    CancelVirusTotal,
+    CancelHybridAnalysis,
 }
 
 #[derive(Debug, Clone)]
 pub enum ScannerType {
     VirusTotal,
     HybridAnalysis,
-    Both,
 }
 
 #[derive(Debug, Clone)]
 pub enum ScanEvent {
-    VirusTotalResult { package: String, result: String },  // Simplified for now
-    HybridAnalysisResult { package: String, result: String },
-    StalkerwareIndicatorsLoaded,
-    ScanProgress { scanner: String, progress: f32, current: usize, total: usize },
+    VirusTotalStarted,
+    HybridAnalysisStarted,
+    ScanProgress {
+        scanner: ScannerType,
+        progress: f32,
+    },
+    VirusTotalComplete,
+    HybridAnalysisComplete,
+    VirusTotalCancelled,
+    HybridAnalysisCancelled,
     Error { operation: String, error: String },
 }
 
 pub struct ScanActor {
     command_rx: smol::channel::Receiver<ScanCommand>,
     event_tx: smol::channel::Sender<ViewModelEvent>,
+    vt_cancel: std::sync::Arc<std::sync::Mutex<bool>>,
+    ha_cancel: std::sync::Arc<std::sync::Mutex<bool>>,
 }
 
 impl ScanActor {
@@ -37,7 +53,12 @@ impl ScanActor {
         command_rx: smol::channel::Receiver<ScanCommand>,
         event_tx: smol::channel::Sender<ViewModelEvent>,
     ) -> Self {
-        Self { command_rx, event_tx }
+        Self {
+            command_rx,
+            event_tx,
+            vt_cancel: std::sync::Arc::new(std::sync::Mutex::new(false)),
+            ha_cancel: std::sync::Arc::new(std::sync::Mutex::new(false)),
+        }
     }
 
     pub async fn run(mut self) {
@@ -58,29 +79,119 @@ impl ScanActor {
 
     async fn handle_command(&mut self, cmd: ScanCommand) -> Result<()> {
         match cmd {
-            ScanCommand::ScanVirusTotal { package, apk_path, force_upload } => {
-                let package_clone = package.clone();
-                let result = smol::unblock(move || {
-                    // Use existing calc_virustotal functions
-                    format!("VT scan result for {}", package_clone)  // Placeholder
-                }).await;
+            ScanCommand::RunVirusTotal { device, api_key, submit_enabled } => {
+                // Reset cancellation flag
+                if let Ok(mut cancel) = self.vt_cancel.lock() {
+                    *cancel = false;
+                }
 
                 self.event_tx.send(ViewModelEvent::Scan(
-                    ScanEvent::VirusTotalResult { package, result }
+                    ScanEvent::VirusTotalStarted
                 )).await?;
+
+                let device_clone = device.clone();
+                let api_key_clone = api_key.clone();
+                let cancel_clone = self.vt_cancel.clone();
+                let event_tx = self.event_tx.clone();
+
+                // Spawn task to run VirusTotal scan in background
+                smol::spawn(async move {
+                    let store = crate::shared_store_stt::get_shared_store();
+                    let installed_packages = store.get_installed_packages();
+                    let package_risk_scores: HashMap<String, f32> = HashMap::new();
+                    let progress = std::sync::Arc::new(std::sync::Mutex::new(Some(0.0)));
+                    let progress_clone = progress.clone();
+
+                    // Run scan using existing calc_virustotal function
+                    let (scanner_state, _rate_limiter) = smol::unblock(move || {
+                        crate::calc_virustotal::run_virustotal(
+                            installed_packages,
+                            device_clone,
+                            api_key_clone,
+                            submit_enabled,
+                            package_risk_scores,
+                            progress,
+                            cancel_clone,
+                        )
+                    }).await;
+
+                    // Store scanner state in SharedStore
+                    store.set_vt_scanner_state(Some(scanner_state));
+
+                    // Send completion event
+                    let _ = event_tx.send(ViewModelEvent::Scan(
+                        ScanEvent::VirusTotalComplete
+                    )).await;
+                }).detach();
+
+                Ok(())
             }
-            ScanCommand::LoadStalkerwareIndicators => {
-                smol::unblock(|| {
-                    // Use existing calc_stalkerware functions
-                }).await;
+            ScanCommand::RunHybridAnalysis { device, api_key, submit_enabled } => {
+                // Reset cancellation flag
+                if let Ok(mut cancel) = self.ha_cancel.lock() {
+                    *cancel = false;
+                }
 
                 self.event_tx.send(ViewModelEvent::Scan(
-                    ScanEvent::StalkerwareIndicatorsLoaded
+                    ScanEvent::HybridAnalysisStarted
                 )).await?;
+
+                let device_clone = device.clone();
+                let api_key_clone = api_key.clone();
+                let cancel_clone = self.ha_cancel.clone();
+                let event_tx = self.event_tx.clone();
+
+                // Spawn task to run HybridAnalysis scan in background
+                smol::spawn(async move {
+                    let store = crate::shared_store_stt::get_shared_store();
+                    let installed_packages = store.get_installed_packages();
+                    let package_risk_scores: HashMap<String, f32> = HashMap::new();
+                    let progress = std::sync::Arc::new(std::sync::Mutex::new(Some(0.0)));
+                    let progress_clone = progress.clone();
+
+                    // Run scan using existing calc_hybridanalysis function
+                    let (scanner_state, _rate_limiter) = smol::unblock(move || {
+                        crate::calc_hybridanalysis::run_hybridanalysis(
+                            installed_packages,
+                            device_clone,
+                            api_key_clone,
+                            submit_enabled,
+                            package_risk_scores,
+                            progress,
+                            cancel_clone,
+                        )
+                    }).await;
+
+                    // Store scanner state in SharedStore
+                    store.set_ha_scanner_state(Some(scanner_state));
+
+                    // Send completion event
+                    let _ = event_tx.send(ViewModelEvent::Scan(
+                        ScanEvent::HybridAnalysisComplete
+                    )).await;
+                }).detach();
+
+                Ok(())
             }
-            _ => {} // Other commands similar pattern
+            ScanCommand::CancelVirusTotal => {
+                if let Ok(mut cancel) = self.vt_cancel.lock() {
+                    *cancel = true;
+                }
+                self.event_tx.send(ViewModelEvent::Scan(
+                    ScanEvent::VirusTotalCancelled
+                )).await?;
+                Ok(())
+            }
+            ScanCommand::CancelHybridAnalysis => {
+                if let Ok(mut cancel) = self.ha_cancel.lock() {
+                    *cancel = true;
+                }
+                self.event_tx.send(ViewModelEvent::Scan(
+                    ScanEvent::HybridAnalysisCancelled
+                )).await?;
+                Ok(())
+            }
         }
-        Ok(())
     }
 
     async fn send_error(&self, operation: &str, error: anyhow::Error) {

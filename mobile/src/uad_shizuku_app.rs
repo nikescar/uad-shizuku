@@ -3600,7 +3600,11 @@ impl UadShizukuApp {
     fn render_scan_tab(&mut self, ui: &mut egui::Ui) {
         // Renderer settings already synced in controller
         self.tab_scan_control
-            .ui(ui, &self.settings.hybridanalysis_tag_ignorelist);
+            .ui(
+                self.viewmodel.as_mut(),
+                ui,
+                &self.settings.hybridanalysis_tag_ignorelist,
+            );
     }
 
     fn render_apps_tab(&mut self, ui: &mut egui::Ui) {
@@ -4221,7 +4225,7 @@ impl UadShizukuApp {
             let shared_store = crate::shared_store_stt::get_shared_store();
             let installed_packages = shared_store.installed_packages.lock().unwrap().clone();
             if !installed_packages.is_empty() {
-                self.tab_scan_control.update_packages(installed_packages);
+                self.tab_scan_control.update_packages(installed_packages, self.viewmodel.as_ref());
             }
         }
 
@@ -4237,7 +4241,7 @@ impl UadShizukuApp {
             let shared_store = crate::shared_store_stt::get_shared_store();
             let installed_packages = shared_store.installed_packages.lock().unwrap().clone();
             if !installed_packages.is_empty() {
-                self.tab_scan_control.update_packages(installed_packages);
+                self.tab_scan_control.update_packages(installed_packages, self.viewmodel.as_ref());
             }
         }
 
