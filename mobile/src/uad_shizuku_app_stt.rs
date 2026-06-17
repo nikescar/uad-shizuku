@@ -171,6 +171,9 @@ pub struct UadShizukuApp {
 
     // Tab controller state (shared between mobile and desktop UI)
     pub show_apps_tab: bool,
+
+    // ViewModel for MVVM architecture (lazy initialization)
+    pub viewmodel: Option<crate::viewmodel::ViewModel>,
 }
 
 pub enum AppView {

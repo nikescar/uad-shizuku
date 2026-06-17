@@ -34,6 +34,7 @@ use crate::tab_usage_control::TabUsageControl;
 use crate::LogLevel;
 
 pub use crate::uad_shizuku_app_stt::*;
+use crate::viewmodel::ViewModel;
 use crate::{Config, Settings, BASE_TABLE_WIDTH, DESKTOP_MIN_WIDTH};
 
 use crate::install;
@@ -365,6 +366,8 @@ impl Default for UadShizukuApp {
 
             // Tab controller state (shared between mobile and desktop UI)
             show_apps_tab: true,
+
+            viewmodel: None,  // Lazy initialization in update()
         };
 
         // Apply persisted theme preferences
@@ -4297,6 +4300,18 @@ impl View for UadShizukuApp {
 
 impl eframe::App for UadShizukuApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        // Lazy initialize ViewModel on first update (when we have real context)
+        if self.viewmodel.is_none() {
+            log::info!("Initializing ViewModel with real egui context");
+            self.viewmodel = Some(ViewModel::new(ctx.clone()));
+        }
+
+        // Poll ViewModel events
+        if let Some(ref mut vm) = self.viewmodel {
+            let _vm_events = vm.poll_events(ctx);
+            // TODO: Handle events when actors are implemented
+        }
+
         // On first update, initialize device list (Android only)
         // This happens after Android context is fully initialized
         #[cfg(target_os = "android")]
