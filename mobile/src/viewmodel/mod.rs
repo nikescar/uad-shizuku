@@ -32,6 +32,33 @@ pub struct ViewModel {
     _runtime_handle: Option<std::thread::JoinHandle<()>>,
 }
 
+/// Metadata cache - stores fetched app metadata
+#[derive(Default)]
+pub struct MetadataCache {
+    google_play: HashMap<String, crate::models::GooglePlayApp>,
+    fdroid: HashMap<String, crate::models::FDroidApp>,
+    apkmirror: HashMap<String, crate::models::ApkMirrorApp>,
+    android_package: HashMap<String, crate::calc_androidpackage::AndroidPackageInfo>,
+}
+
+impl MetadataCache {
+    pub fn get_google_play(&self, pkg_id: &str) -> Option<&crate::models::GooglePlayApp> {
+        self.google_play.get(pkg_id)
+    }
+
+    pub fn get_fdroid(&self, pkg_id: &str) -> Option<&crate::models::FDroidApp> {
+        self.fdroid.get(pkg_id)
+    }
+
+    pub fn get_apkmirror(&self, pkg_id: &str) -> Option<&crate::models::ApkMirrorApp> {
+        self.apkmirror.get(pkg_id)
+    }
+
+    pub fn get_android_package(&self, pkg_id: &str) -> Option<&crate::calc_androidpackage::AndroidPackageInfo> {
+        self.android_package.get(pkg_id)
+    }
+}
+
 /// ViewModel state - read-only access from UI
 #[derive(Default)]
 pub struct ViewModelState {
@@ -45,6 +72,9 @@ pub struct ViewModelState {
     // === NEW: Scanner states ===
     pub vt_scanner_state: Option<crate::calc_virustotal_stt::ScannerState>,
     pub ha_scanner_state: Option<crate::calc_hybridanalysis_stt::ScannerState>,
+
+    // === NEW: Metadata cache ===
+    pub cached_metadata: MetadataCache,
 }
 
 impl ViewModel {
@@ -158,6 +188,24 @@ impl ViewModel {
                 _ctx.request_repaint();
             }
 
+            // === NEW: Metadata cache events ===
+            ViewModelEvent::Metadata(MetadataEvent::GooglePlayMetadataFetched { pkg_id, app }) => {
+                self.state.cached_metadata.google_play.insert(pkg_id.clone(), app.clone());
+                _ctx.request_repaint();
+            }
+            ViewModelEvent::Metadata(MetadataEvent::FDroidMetadataFetched { pkg_id, app }) => {
+                self.state.cached_metadata.fdroid.insert(pkg_id.clone(), app.clone());
+                _ctx.request_repaint();
+            }
+            ViewModelEvent::Metadata(MetadataEvent::ApkMirrorMetadataFetched { pkg_id, app }) => {
+                self.state.cached_metadata.apkmirror.insert(pkg_id.clone(), app.clone());
+                _ctx.request_repaint();
+            }
+            ViewModelEvent::Metadata(MetadataEvent::AndroidPackageMetadataFetched { pkg_id, app }) => {
+                self.state.cached_metadata.android_package.insert(pkg_id.clone(), app.clone());
+                _ctx.request_repaint();
+            }
+
             _ => {}
         }
     }
@@ -251,6 +299,16 @@ impl ViewModel {
 
     pub fn fetch_fdroid_metadata(&self, package: String) -> anyhow::Result<()> {
         self.metadata_tx.send_blocking(MetadataCommand::FetchFDroid { package })
+            .map_err(|e| anyhow::anyhow!("Failed to send command: {}", e))
+    }
+
+    pub fn fetch_apkmirror_metadata(&self, package: String) -> anyhow::Result<()> {
+        self.metadata_tx.send_blocking(MetadataCommand::FetchApkMirror { package })
+            .map_err(|e| anyhow::anyhow!("Failed to send command: {}", e))
+    }
+
+    pub fn fetch_android_package_metadata(&self, package: String) -> anyhow::Result<()> {
+        self.metadata_tx.send_blocking(MetadataCommand::FetchAndroidPackage { package })
             .map_err(|e| anyhow::anyhow!("Failed to send command: {}", e))
     }
 }
