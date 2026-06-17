@@ -10,7 +10,7 @@ pub use common::*;
 pub use debloat::{DebloatCommand, DebloatEvent, DebloatActor};
 pub use scan::{ScanCommand, ScanEvent, ScanActor};
 pub use apps::{AppsCommand, AppsEvent, AppsActor};
-pub use metadata::{MetadataCommand, MetadataEvent};
+pub use metadata::{MetadataCommand, MetadataEvent, MetadataActor};
 
 use std::collections::HashMap;
 
@@ -68,11 +68,13 @@ impl ViewModel {
                 );
                 let scan_actor = ScanActor::new(scan_rx, event_tx.clone());
                 let apps_actor = AppsActor::new(apps_rx, event_tx.clone());
+                let metadata_actor = MetadataActor::new(metadata_rx, event_tx.clone());
 
                 // Run actors concurrently
                 smol::spawn(debloat_actor.run()).detach();
                 smol::spawn(scan_actor.run()).detach();
                 smol::spawn(apps_actor.run()).detach();
+                smol::spawn(metadata_actor.run()).detach();
 
                 // Keep thread alive
                 std::future::pending::<()>().await
@@ -187,6 +189,18 @@ impl ViewModel {
 
     pub fn install_app(&self, package: String, apk_url: String) -> anyhow::Result<()> {
         self.apps_tx.send_blocking(AppsCommand::InstallApp { package, apk_url })
+            .map_err(|e| anyhow::anyhow!("Failed to send command: {}", e))
+    }
+
+    // === Metadata commands ===
+
+    pub fn fetch_google_play_metadata(&self, package: String) -> anyhow::Result<()> {
+        self.metadata_tx.send_blocking(MetadataCommand::FetchGooglePlay { package })
+            .map_err(|e| anyhow::anyhow!("Failed to send command: {}", e))
+    }
+
+    pub fn fetch_fdroid_metadata(&self, package: String) -> anyhow::Result<()> {
+        self.metadata_tx.send_blocking(MetadataCommand::FetchFDroid { package })
             .map_err(|e| anyhow::anyhow!("Failed to send command: {}", e))
     }
 }
