@@ -59,6 +59,11 @@ impl BatchUninstallState {
         self.progress = None;
     }
 
+    pub fn error(&mut self) {
+        self.is_running = false;
+        self.progress = None;
+    }
+
     pub fn update_progress(&mut self, value: f32) {
         self.progress = Some(value);
     }
