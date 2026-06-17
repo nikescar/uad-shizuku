@@ -11,26 +11,11 @@ pub enum ViewModelEvent {
     Metadata(MetadataEvent),
 }
 
-/// Placeholder event types (will be defined in respective actor files)
-#[derive(Debug, Clone)]
-pub enum DebloatEvent {
-    Placeholder,
-}
-
-#[derive(Debug, Clone)]
-pub enum ScanEvent {
-    Placeholder,
-}
-
-#[derive(Debug, Clone)]
-pub enum AppsEvent {
-    Placeholder,
-}
-
-#[derive(Debug, Clone)]
-pub enum MetadataEvent {
-    Placeholder,
-}
+/// Events from each actor module
+pub use super::debloat::DebloatEvent;
+pub use super::scan::ScanEvent;
+pub use super::apps::AppsEvent;
+pub use super::metadata::MetadataEvent;
 
 /// Progress tracking for long-running operations
 #[derive(Debug, Clone, Serialize, Deserialize)]
