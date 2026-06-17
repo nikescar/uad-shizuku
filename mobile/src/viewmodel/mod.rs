@@ -9,7 +9,7 @@ pub mod metadata;
 pub use common::*;
 pub use debloat::{DebloatCommand, DebloatEvent, DebloatActor};
 pub use scan::{ScanCommand, ScanEvent, ScanActor};
-pub use apps::{AppsCommand, AppsEvent};
+pub use apps::{AppsCommand, AppsEvent, AppsActor};
 pub use metadata::{MetadataCommand, MetadataEvent};
 
 use std::collections::HashMap;
@@ -67,10 +67,12 @@ impl ViewModel {
                     metadata_tx.clone(),
                 );
                 let scan_actor = ScanActor::new(scan_rx, event_tx.clone());
+                let apps_actor = AppsActor::new(apps_rx, event_tx.clone());
 
                 // Run actors concurrently
                 smol::spawn(debloat_actor.run()).detach();
                 smol::spawn(scan_actor.run()).detach();
+                smol::spawn(apps_actor.run()).detach();
 
                 // Keep thread alive
                 std::future::pending::<()>().await
@@ -173,6 +175,18 @@ impl ViewModel {
 
     pub fn scan_virustotal(&self, package: String, apk_path: String, force_upload: bool) -> anyhow::Result<()> {
         self.scan_tx.send_blocking(ScanCommand::ScanVirusTotal { package, apk_path, force_upload })
+            .map_err(|e| anyhow::anyhow!("Failed to send command: {}", e))
+    }
+
+    // === Apps commands ===
+
+    pub fn load_foss_app_list(&self) -> anyhow::Result<()> {
+        self.apps_tx.send_blocking(AppsCommand::LoadFossAppList)
+            .map_err(|e| anyhow::anyhow!("Failed to send command: {}", e))
+    }
+
+    pub fn install_app(&self, package: String, apk_url: String) -> anyhow::Result<()> {
+        self.apps_tx.send_blocking(AppsCommand::InstallApp { package, apk_url })
             .map_err(|e| anyhow::anyhow!("Failed to send command: {}", e))
     }
 }
