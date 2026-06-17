@@ -8,7 +8,7 @@ pub mod metadata;
 
 pub use common::*;
 pub use debloat::{DebloatCommand, DebloatEvent, DebloatActor};
-pub use scan::{ScanCommand, ScanEvent, ScanActor};
+pub use scan::{ScanCommand, ScanEvent, ScanActor, ScannerType};
 pub use apps::{AppsCommand, AppsEvent, AppsActor};
 pub use metadata::{MetadataCommand, MetadataEvent, MetadataActor};
 
@@ -183,8 +183,23 @@ impl ViewModel {
 
     // === Scan commands ===
 
-    pub fn scan_virustotal(&self, package: String, apk_path: String, force_upload: bool) -> anyhow::Result<()> {
-        self.scan_tx.send_blocking(ScanCommand::ScanVirusTotal { package, apk_path, force_upload })
+    pub fn run_virustotal(&self, device: String, api_key: String, submit_enabled: bool) -> anyhow::Result<()> {
+        self.scan_tx.send_blocking(ScanCommand::RunVirusTotal { device, api_key, submit_enabled })
+            .map_err(|e| anyhow::anyhow!("Failed to send command: {}", e))
+    }
+
+    pub fn run_hybridanalysis(&self, device: String, api_key: String, submit_enabled: bool) -> anyhow::Result<()> {
+        self.scan_tx.send_blocking(ScanCommand::RunHybridAnalysis { device, api_key, submit_enabled })
+            .map_err(|e| anyhow::anyhow!("Failed to send command: {}", e))
+    }
+
+    pub fn cancel_virustotal(&self) -> anyhow::Result<()> {
+        self.scan_tx.send_blocking(ScanCommand::CancelVirusTotal)
+            .map_err(|e| anyhow::anyhow!("Failed to send command: {}", e))
+    }
+
+    pub fn cancel_hybridanalysis(&self) -> anyhow::Result<()> {
+        self.scan_tx.send_blocking(ScanCommand::CancelHybridAnalysis)
             .map_err(|e| anyhow::anyhow!("Failed to send command: {}", e))
     }
 
