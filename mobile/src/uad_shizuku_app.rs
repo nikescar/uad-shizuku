@@ -3609,7 +3609,7 @@ impl UadShizukuApp {
 
     fn render_apps_tab(&mut self, ui: &mut egui::Ui) {
         // Operations queue and refresh already handled in controller
-        let has_error = self.tab_apps_control.ui(ui);
+        let has_error = self.tab_apps_control.ui(self.viewmodel.as_mut(), ui);
 
         // Check if we need to refresh after operations completed
         if self.tab_apps_control.pending_refresh_after_operations {
