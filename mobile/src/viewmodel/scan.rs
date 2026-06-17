@@ -98,7 +98,7 @@ impl ScanActor {
                 smol::spawn(async move {
                     let store = crate::shared_store_stt::get_shared_store();
                     let installed_packages = store.get_installed_packages();
-                    let package_risk_scores: HashMap<String, f32> = HashMap::new();
+                    let package_risk_scores: HashMap<String, i32> = HashMap::new();
                     let progress = std::sync::Arc::new(std::sync::Mutex::new(Some(0.0)));
                     let progress_clone = progress.clone();
 
@@ -145,7 +145,7 @@ impl ScanActor {
                 smol::spawn(async move {
                     let store = crate::shared_store_stt::get_shared_store();
                     let installed_packages = store.get_installed_packages();
-                    let package_risk_scores: HashMap<String, f32> = HashMap::new();
+                    let package_risk_scores: HashMap<String, i32> = HashMap::new();
                     let progress = std::sync::Arc::new(std::sync::Mutex::new(Some(0.0)));
                     let progress_clone = progress.clone();
 
