@@ -1825,6 +1825,7 @@ impl UadShizukuApp {
             if let Some(ref device) = self.tab_debloat_control.selected_device {
                 // Use tab's batch uninstall to handle the operation properly
                 self.tab_debloat_control.start_batch_uninstall(
+                    self.viewmodel.as_mut(),
                     pkgs,
                     sys_flags,
                     device.clone(),
@@ -3394,6 +3395,7 @@ impl UadShizukuApp {
         };
 
         if let Some(result) = self.tab_debloat_control.ui(
+            self.viewmodel.as_mut(),
             ui,
             google_play_enabled,
             fdroid_enabled,

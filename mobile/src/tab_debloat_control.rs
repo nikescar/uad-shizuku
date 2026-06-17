@@ -111,145 +111,215 @@ impl TabDebloatControl {
         store.set_cached_apkmirror_app(pkg_id, app);
     }
 
-    /// Start batch uninstall in background thread
+    /// Start batch uninstall using ViewModel
     pub fn start_batch_uninstall(
         &mut self,
+        viewmodel: Option<&mut crate::viewmodel::ViewModel>,
         pkgs: Vec<String>,
         sys_flags: Vec<bool>,
         device: String,
         uad_ng_lists: Option<&UadNgLists>,
     ) {
-        // Start state machine
-        self.batch_uninstall_state.start();
+        // Use ViewModel if available, otherwise fall back to old implementation
+        if let Some(vm) = viewmodel {
+            // Configure actor options
+            if let Err(e) = vm.set_debloat_options(self.unsafe_app_remove, self.expert_app_remove) {
+                log::error!("Failed to set debloat options: {}", e);
+                return;
+            }
 
-        // Initialize progress
-        if let Ok(mut p) = self.batch_uninstall_progress.lock() {
-            *p = Some(0.0);
-        }
-        if let Ok(mut cancelled) = self.batch_uninstall_cancelled.lock() {
-            *cancelled = false;
-        }
+            // Build unsafe app set from uad_ng_lists
+            let unsafe_apps: std::collections::HashSet<String> = uad_ng_lists
+                .map(|lists| {
+                    lists
+                        .apps
+                        .iter()
+                        .filter(|(_, app)| app.removal == "Unsafe")
+                        .map(|(name, _)| name.clone())
+                        .collect()
+                })
+                .unwrap_or_default();
 
-        log::info!(
-            "Starting batch uninstall for {} packages in background",
-            pkgs.len()
-        );
+            // Build expert app set from uad_ng_lists
+            let expert_apps: std::collections::HashSet<String> = uad_ng_lists
+                .map(|lists| {
+                    lists
+                        .apps
+                        .iter()
+                        .filter(|(_, app)| app.removal == "Expert")
+                        .map(|(name, _)| name.clone())
+                        .collect()
+                })
+                .unwrap_or_default();
 
-        // Clone data needed for background thread
-        let progress_clone = self.batch_uninstall_progress.clone();
-        let cancelled_clone = self.batch_uninstall_cancelled.clone();
-        let unsafe_app_remove = self.unsafe_app_remove;
-        let expert_app_remove = self.expert_app_remove;
+            // Filter packages based on unsafe/expert settings
+            let filtered_pkgs: Vec<String> = pkgs.into_iter()
+                .filter(|pkg_name| {
+                    // Skip unsafe apps when unsafe_app_remove is disabled
+                    if unsafe_apps.contains(pkg_name) && !self.unsafe_app_remove {
+                        log::warn!("Skipping uninstall of unsafe app: {}", pkg_name);
+                        return false;
+                    }
+                    // Skip expert apps when expert_app_remove is disabled
+                    if expert_apps.contains(pkg_name) && !self.expert_app_remove {
+                        log::warn!("Skipping uninstall of expert app: {}", pkg_name);
+                        return false;
+                    }
+                    true
+                })
+                .collect();
 
-        // Build unsafe app set from uad_ng_lists
-        let unsafe_apps: std::collections::HashSet<String> = uad_ng_lists
-            .map(|lists| {
-                lists
-                    .apps
-                    .iter()
-                    .filter(|(_, app)| app.removal == "Unsafe")
-                    .map(|(name, _)| name.clone())
-                    .collect()
-            })
-            .unwrap_or_default();
+            log::info!(
+                "Starting batch uninstall for {} packages (filtered from {})",
+                filtered_pkgs.len(),
+                filtered_pkgs.len()
+            );
 
-        // Build expert app set from uad_ng_lists
-        let expert_apps: std::collections::HashSet<String> = uad_ng_lists
-            .map(|lists| {
-                lists
-                    .apps
-                    .iter()
-                    .filter(|(_, app)| app.removal == "Expert")
-                    .map(|(name, _)| name.clone())
-                    .collect()
-            })
-            .unwrap_or_default();
+            // Send command to ViewModel - actor handles the rest
+            if let Err(e) = vm.batch_uninstall(filtered_pkgs, device) {
+                log::error!("Failed to start batch uninstall: {}", e);
+                return;
+            }
 
-        // Spawn background thread
-        std::thread::spawn(move || {
-            let total = pkgs.len();
-            let mut success_count = 0;
-            let mut failure_count = 0;
+            // State machine will be updated via ViewModel events
+            self.batch_uninstall_state.start();
 
-            for (i, (pkg_name, is_system)) in
-                pkgs.into_iter().zip(sys_flags.into_iter()).enumerate()
-            {
-                // Check if cancelled
-                if let Ok(cancelled) = cancelled_clone.lock() {
-                    if *cancelled {
-                        log::info!("Batch uninstall cancelled by user");
-                        break;
+        } else {
+            // Fallback: old implementation for when ViewModel not available
+            log::warn!("ViewModel not available, using legacy batch uninstall");
+
+            // Start state machine
+            self.batch_uninstall_state.start();
+
+            // Initialize progress
+            if let Ok(mut p) = self.batch_uninstall_progress.lock() {
+                *p = Some(0.0);
+            }
+            if let Ok(mut cancelled) = self.batch_uninstall_cancelled.lock() {
+                *cancelled = false;
+            }
+
+            log::info!(
+                "Starting batch uninstall for {} packages in background",
+                pkgs.len()
+            );
+
+            // Clone data needed for background thread
+            let progress_clone = self.batch_uninstall_progress.clone();
+            let cancelled_clone = self.batch_uninstall_cancelled.clone();
+            let unsafe_app_remove = self.unsafe_app_remove;
+            let expert_app_remove = self.expert_app_remove;
+
+            // Build unsafe app set from uad_ng_lists
+            let unsafe_apps: std::collections::HashSet<String> = uad_ng_lists
+                .map(|lists| {
+                    lists
+                        .apps
+                        .iter()
+                        .filter(|(_, app)| app.removal == "Unsafe")
+                        .map(|(name, _)| name.clone())
+                        .collect()
+                })
+                .unwrap_or_default();
+
+            // Build expert app set from uad_ng_lists
+            let expert_apps: std::collections::HashSet<String> = uad_ng_lists
+                .map(|lists| {
+                    lists
+                        .apps
+                        .iter()
+                        .filter(|(_, app)| app.removal == "Expert")
+                        .map(|(name, _)| name.clone())
+                        .collect()
+                })
+                .unwrap_or_default();
+
+            // Spawn background thread
+            std::thread::spawn(move || {
+                let total = pkgs.len();
+                let mut success_count = 0;
+                let mut failure_count = 0;
+
+                for (i, (pkg_name, is_system)) in
+                    pkgs.into_iter().zip(sys_flags.into_iter()).enumerate()
+                {
+                    // Check if cancelled
+                    if let Ok(cancelled) = cancelled_clone.lock() {
+                        if *cancelled {
+                            log::info!("Batch uninstall cancelled by user");
+                            break;
+                        }
+                    }
+
+                    // Update progress
+                    if let Ok(mut p) = progress_clone.lock() {
+                        *p = Some(i as f32 / total as f32);
+                    }
+                    // Request UI repaint after progress update
+                    let shared_store = get_shared_store();
+                    shared_store.request_repaint();
+
+                    // Skip unsafe apps when unsafe_app_remove is disabled
+                    if unsafe_apps.contains(&pkg_name) && !unsafe_app_remove {
+                        log::warn!("Skipping uninstall of unsafe app: {}", pkg_name);
+                        continue;
+                    }
+
+                    // Skip expert apps when expert_app_remove is disabled
+                    if expert_apps.contains(&pkg_name) && !expert_app_remove {
+                        log::warn!("Skipping uninstall of expert app: {}", pkg_name);
+                        continue;
+                    }
+
+                    // Execute uninstall
+                    let uninstall_result = if is_system {
+                        crate::adb::uninstall_app_user(&pkg_name, &device, None)
+                    } else {
+                        crate::adb::uninstall_app(&pkg_name, &device)
+                    };
+
+                    match uninstall_result {
+                        Ok(output) => {
+                            log::info!("App uninstalled successfully: {}", output);
+                            success_count += 1;
+
+                            // Update package state in shared store
+                            let store = get_shared_store();
+                            let mut packages = store.get_installed_packages();
+                            if is_system {
+                                if let Some(pkg) = packages.iter_mut().find(|p| p.pkg == pkg_name) {
+                                    for user in pkg.users.iter_mut() {
+                                        user.installed = false;
+                                        user.enabled = 0;
+                                    }
+                                }
+                            } else {
+                                packages.retain(|pkg| pkg.pkg != pkg_name);
+                            }
+                            store.set_installed_packages(packages);
+                        }
+                        Err(e) => {
+                            log::error!("Failed to uninstall app({}): {}", pkg_name, e);
+                            failure_count += 1;
+                        }
                     }
                 }
 
-                // Update progress
+                // Set final progress
                 if let Ok(mut p) = progress_clone.lock() {
-                    *p = Some(i as f32 / total as f32);
+                    *p = Some(1.0);
                 }
-                // Request UI repaint after progress update
+                // Request final UI repaint when batch uninstall completes
                 let shared_store = get_shared_store();
                 shared_store.request_repaint();
 
-                // Skip unsafe apps when unsafe_app_remove is disabled
-                if unsafe_apps.contains(&pkg_name) && !unsafe_app_remove {
-                    log::warn!("Skipping uninstall of unsafe app: {}", pkg_name);
-                    continue;
-                }
-
-                // Skip expert apps when expert_app_remove is disabled
-                if expert_apps.contains(&pkg_name) && !expert_app_remove {
-                    log::warn!("Skipping uninstall of expert app: {}", pkg_name);
-                    continue;
-                }
-
-                // Execute uninstall
-                let uninstall_result = if is_system {
-                    crate::adb::uninstall_app_user(&pkg_name, &device, None)
-                } else {
-                    crate::adb::uninstall_app(&pkg_name, &device)
-                };
-
-                match uninstall_result {
-                    Ok(output) => {
-                        log::info!("App uninstalled successfully: {}", output);
-                        success_count += 1;
-
-                        // Update package state in shared store
-                        let store = get_shared_store();
-                        let mut packages = store.get_installed_packages();
-                        if is_system {
-                            if let Some(pkg) = packages.iter_mut().find(|p| p.pkg == pkg_name) {
-                                for user in pkg.users.iter_mut() {
-                                    user.installed = false;
-                                    user.enabled = 0;
-                                }
-                            }
-                        } else {
-                            packages.retain(|pkg| pkg.pkg != pkg_name);
-                        }
-                        store.set_installed_packages(packages);
-                    }
-                    Err(e) => {
-                        log::error!("Failed to uninstall app({}): {}", pkg_name, e);
-                        failure_count += 1;
-                    }
-                }
-            }
-
-            // Set final progress
-            if let Ok(mut p) = progress_clone.lock() {
-                *p = Some(1.0);
-            }
-            // Request final UI repaint when batch uninstall completes
-            let shared_store = get_shared_store();
-            shared_store.request_repaint();
-
-            log::info!(
-                "Batch uninstall completed: {} succeeded, {} failed",
-                success_count,
-                failure_count
-            );
-        });
+                log::info!(
+                    "Batch uninstall completed: {} succeeded, {} failed",
+                    success_count,
+                    failure_count
+                );
+            });
+        }
     }
 
     /// Start batch disable in background thread
@@ -940,6 +1010,7 @@ impl TabDebloatControl {
 
     pub fn ui(
         &mut self,
+        viewmodel: Option<&mut crate::viewmodel::ViewModel>,
         ui: &mut egui::Ui,
         google_play_enabled: bool,
         fdroid_enabled: bool,
@@ -2265,7 +2336,7 @@ impl TabDebloatControl {
 
             if let Some(ref device) = self.selected_device {
                 // Start background batch uninstall
-                self.start_batch_uninstall(pkgs, sys_flags, device.clone(), uad_ng_lists_ref);
+                self.start_batch_uninstall(viewmodel, pkgs, sys_flags, device.clone(), uad_ng_lists_ref);
             } else {
                 log::error!("No device selected for uninstall");
                 result = Some(AdbResult::Failure);
