@@ -55,6 +55,9 @@ impl ViewModel {
         // Unified event channel
         let (event_tx, event_rx) = smol::channel::unbounded();
 
+        // Clone channels needed inside the runtime thread
+        let metadata_tx_clone = metadata_tx.clone();
+
         // Spawn background thread with smol executor
         let runtime_handle = std::thread::spawn(move || {
             smol::block_on(async {
@@ -64,7 +67,7 @@ impl ViewModel {
                 let debloat_actor = DebloatActor::new(
                     debloat_rx,
                     event_tx.clone(),
-                    metadata_tx.clone(),
+                    metadata_tx_clone.clone(),
                 );
                 let scan_actor = ScanActor::new(scan_rx, event_tx.clone());
                 let apps_actor = AppsActor::new(apps_rx, event_tx.clone());

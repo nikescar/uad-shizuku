@@ -59,10 +59,11 @@ impl ScanActor {
     async fn handle_command(&mut self, cmd: ScanCommand) -> Result<()> {
         match cmd {
             ScanCommand::ScanVirusTotal { package, apk_path, force_upload } => {
+                let package_clone = package.clone();
                 let result = smol::unblock(move || {
                     // Use existing calc_virustotal functions
-                    format!("VT scan result for {}", package)  // Placeholder
-                }).await?;
+                    format!("VT scan result for {}", package_clone)  // Placeholder
+                }).await;
 
                 self.event_tx.send(ViewModelEvent::Scan(
                     ScanEvent::VirusTotalResult { package, result }
@@ -71,7 +72,7 @@ impl ScanActor {
             ScanCommand::LoadStalkerwareIndicators => {
                 smol::unblock(|| {
                     // Use existing calc_stalkerware functions
-                }).await?;
+                }).await;
 
                 self.event_tx.send(ViewModelEvent::Scan(
                     ScanEvent::StalkerwareIndicatorsLoaded

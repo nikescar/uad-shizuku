@@ -180,7 +180,7 @@ impl DebloatActor {
             let pkg_clone = pkg.clone();
 
             let result = smol::unblock(move || {
-                crate::adb::disable_app_current_user(&pkg_clone, &device_clone)
+                crate::adb::disable_app_current_user(&pkg_clone, &device_clone, None)
             }).await;
 
             match result {
@@ -264,7 +264,7 @@ impl DebloatActor {
             UadNgLists {
                 apps: HashMap::new(),
             }
-        }).await?;
+        }).await;
 
         self.event_tx.send(ViewModelEvent::Debloat(
             DebloatEvent::UadNgListsLoaded(lists)

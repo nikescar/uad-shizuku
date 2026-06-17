@@ -57,10 +57,11 @@ impl MetadataActor {
     async fn handle_command(&mut self, cmd: MetadataCommand) -> Result<()> {
         match cmd {
             MetadataCommand::FetchGooglePlay { package } => {
+                let package_clone = package.clone();
                 smol::unblock(move || {
                     // Use existing metadata fetching logic
-                    log::info!("Fetching Google Play metadata for {}", package);
-                }).await?;
+                    log::info!("Fetching Google Play metadata for {}", package_clone);
+                }).await;
 
                 self.event_tx.send(ViewModelEvent::Metadata(
                     MetadataEvent::MetadataFetched {
@@ -70,9 +71,10 @@ impl MetadataActor {
                 )).await?;
             }
             MetadataCommand::FetchFDroid { package } => {
+                let package_clone = package.clone();
                 smol::unblock(move || {
-                    log::info!("Fetching F-Droid metadata for {}", package);
-                }).await?;
+                    log::info!("Fetching F-Droid metadata for {}", package_clone);
+                }).await;
 
                 self.event_tx.send(ViewModelEvent::Metadata(
                     MetadataEvent::MetadataFetched {
