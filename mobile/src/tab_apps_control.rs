@@ -74,6 +74,32 @@ impl TabAppsControl {
         self.selected_device = device;
     }
 
+    /// Handle ViewModel events and update local state
+    fn handle_viewmodel_events(&mut self, vm: &mut crate::viewmodel::ViewModel, ctx: &egui::Context) {
+        use crate::viewmodel::{AppsEvent, ViewModelEvent};
+
+        let events = vm.poll_events(ctx);
+        for event in events {
+            if let ViewModelEvent::Apps(apps_event) = event {
+                match apps_event {
+                    AppsEvent::FossAppListLoaded { count } => {
+                        log::info!("FOSS app list loaded: {} apps", count);
+                    }
+                    AppsEvent::AppInstalled { package } => {
+                        log::info!("App installed: {}", package);
+                        self.recently_installed_apps.insert(package);
+                    }
+                    AppsEvent::InstallProgress { package, progress } => {
+                        log::debug!("Install progress for {}: {:.0}%", package, progress * 100.0);
+                    }
+                    AppsEvent::Error { operation, error } => {
+                        log::error!("Apps error in {}: {}", operation, error);
+                    }
+                }
+            }
+        }
+    }
+
     /// Sort app entries based on current sort column and direction
     pub fn sort_apps(&mut self) {
         if let Some(col) = self.sort_column {
@@ -870,7 +896,16 @@ impl TabAppsControl {
     }
 
     /// Returns true if an error occurred during any operation
-    pub fn ui(&mut self, ui: &mut egui::Ui) -> bool {
+    pub fn ui(
+        &mut self,
+        mut viewmodel: Option<&mut crate::viewmodel::ViewModel>,
+        ui: &mut egui::Ui,
+    ) -> bool {
+        // Handle ViewModel events first
+        if let Some(ref mut vm) = viewmodel {
+            self.handle_viewmodel_events(vm, ui.ctx());
+        }
+
         let mut has_error = false;
 
         // Check if operations just completed and trigger refresh
