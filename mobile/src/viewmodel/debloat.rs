@@ -13,6 +13,7 @@ pub enum DebloatCommand {
     BatchDisable { packages: Vec<String>, device: String },
     BatchEnable { packages: Vec<String>, device: String },
     LoadUadNgLists,
+    SetOptions { unsafe_app_remove: bool, expert_app_remove: bool },
 }
 
 /// Events sent from DebloatActor to ViewModel
@@ -102,6 +103,10 @@ impl DebloatActor {
             }
             DebloatCommand::LoadUadNgLists => {
                 self.load_uad_ng_lists().await?;
+            }
+            DebloatCommand::SetOptions { unsafe_app_remove, expert_app_remove } => {
+                self.state.unsafe_app_remove = unsafe_app_remove;
+                self.state.expert_app_remove = expert_app_remove;
             }
         }
         Ok(())

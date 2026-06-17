@@ -176,6 +176,11 @@ impl ViewModel {
             .map_err(|e| anyhow::anyhow!("Failed to send command: {}", e))
     }
 
+    pub fn set_debloat_options(&self, unsafe_app_remove: bool, expert_app_remove: bool) -> anyhow::Result<()> {
+        self.debloat_tx.send_blocking(DebloatCommand::SetOptions { unsafe_app_remove, expert_app_remove })
+            .map_err(|e| anyhow::anyhow!("Failed to send command: {}", e))
+    }
+
     // === Scan commands ===
 
     pub fn scan_virustotal(&self, package: String, apk_path: String, force_upload: bool) -> anyhow::Result<()> {
