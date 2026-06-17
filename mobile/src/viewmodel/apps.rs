@@ -53,17 +53,19 @@ impl AppsActor {
                 let count = smol::unblock(|| {
                     // Use existing calc_foss functions
                     0  // Placeholder
-                }).await?;
+                }).await;
 
                 self.event_tx.send(ViewModelEvent::Apps(
                     AppsEvent::FossAppListLoaded { count }
                 )).await?;
             }
             AppsCommand::InstallApp { package, apk_url } => {
+                let package_clone = package.clone();
+                let apk_url_clone = apk_url.clone();
                 smol::unblock(move || {
                     // Use existing installation logic
-                    log::info!("Installing {} from {}", package, apk_url);
-                }).await?;
+                    log::info!("Installing {} from {}", package_clone, apk_url_clone);
+                }).await;
 
                 self.event_tx.send(ViewModelEvent::Apps(
                     AppsEvent::AppInstalled { package }
