@@ -35,6 +35,10 @@ pub struct ViewModel {
 /// ViewModel state - read-only access from UI
 #[derive(Default)]
 pub struct ViewModelState {
+    // Debloat state
+    pub packages: Vec<crate::adb::PackageFingerprint>,
+    pub uad_ng_lists: Option<crate::uad_shizuku_app::UadNgLists>,
+
     // Progress tracking
     pub active_operations: HashMap<String, OperationProgress>,
 }
@@ -83,15 +87,57 @@ impl ViewModel {
     }
 
     /// Poll for events and update state. Call this in UadShizukuApp::update()
-    pub fn poll_events(&mut self, _ctx: &eframe::egui::Context) -> Vec<ViewModelEvent> {
+    pub fn poll_events(&mut self, ctx: &eframe::egui::Context) -> Vec<ViewModelEvent> {
         let mut events = Vec::new();
 
-        // Non-blocking receive all available events
         while let Ok(event) = self.event_rx.try_recv() {
+            self.apply_event(&event, ctx);
             events.push(event);
         }
 
         events
+    }
+
+    fn apply_event(&mut self, event: &ViewModelEvent, _ctx: &eframe::egui::Context) {
+        match event {
+            ViewModelEvent::Debloat(DebloatEvent::PackagesLoaded(packages)) => {
+                self.state.packages = packages.clone();
+            }
+            ViewModelEvent::Debloat(DebloatEvent::UadNgListsLoaded(lists)) => {
+                self.state.uad_ng_lists = Some(lists.clone());
+            }
+            ViewModelEvent::Debloat(DebloatEvent::BatchProgress { operation, progress, .. }) => {
+                self.state.active_operations.insert(
+                    operation.clone(),
+                    OperationProgress {
+                        operation: operation.clone(),
+                        progress: *progress,
+                        status: format!("In progress: {:.0}%", progress * 100.0),
+                    }
+                );
+            }
+            ViewModelEvent::Debloat(DebloatEvent::BatchComplete { operation, .. }) => {
+                self.state.active_operations.remove(operation);
+            }
+            ViewModelEvent::Debloat(DebloatEvent::Error { operation, error }) => {
+                log::error!("Debloat error in {}: {}", operation, error);
+            }
+            _ => {}
+        }
+    }
+
+    // === Read-only state accessors ===
+
+    pub fn packages(&self) -> &[crate::adb::PackageFingerprint] {
+        &self.state.packages
+    }
+
+    pub fn uad_ng_lists(&self) -> Option<&crate::uad_shizuku_app::UadNgLists> {
+        self.state.uad_ng_lists.as_ref()
+    }
+
+    pub fn operation_progress(&self, operation: &str) -> Option<&OperationProgress> {
+        self.state.active_operations.get(operation)
     }
 
     // === Debloat commands ===
