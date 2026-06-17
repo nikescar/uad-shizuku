@@ -1,14 +1,26 @@
 //! ViewModel layer - coordinates between UI and background actors
 
 pub mod common;
+pub mod debloat;
+pub mod scan;
+pub mod apps;
+pub mod metadata;
 
 pub use common::*;
+pub use debloat::{DebloatCommand, DebloatEvent, DebloatActor};
+pub use scan::{ScanCommand, ScanEvent};
+pub use apps::{AppsCommand, AppsEvent};
+pub use metadata::{MetadataCommand, MetadataEvent};
 
 use std::collections::HashMap;
 
 /// ViewModel struct - owned by UadShizukuApp, coordinates actor communication
 pub struct ViewModel {
-    // Actor communication channels (will be added in later tasks)
+    // Actor communication channels
+    debloat_tx: smol::channel::Sender<DebloatCommand>,
+    scan_tx: smol::channel::Sender<ScanCommand>,
+    apps_tx: smol::channel::Sender<AppsCommand>,
+    metadata_tx: smol::channel::Sender<MetadataCommand>,
 
     // Unified event receiver
     event_rx: smol::channel::Receiver<ViewModelEvent>,
@@ -30,13 +42,29 @@ pub struct ViewModelState {
 impl ViewModel {
     /// Create new ViewModel and spawn background runtime
     pub fn new(_ctx: eframe::egui::Context) -> Self {
-        // Create unified event channel
+        // Create channels for each actor
+        let (debloat_tx, debloat_rx) = smol::channel::unbounded();
+        let (scan_tx, scan_rx) = smol::channel::unbounded();
+        let (apps_tx, apps_rx) = smol::channel::unbounded();
+        let (metadata_tx, metadata_rx) = smol::channel::unbounded();
+
+        // Unified event channel
         let (event_tx, event_rx) = smol::channel::unbounded();
 
-        // Spawn background thread with smol executor (actors will be added later)
+        // Spawn background thread with smol executor
         let runtime_handle = std::thread::spawn(move || {
             smol::block_on(async {
                 log::info!("ViewModel runtime started");
+
+                // Create actors
+                let debloat_actor = DebloatActor::new(
+                    debloat_rx,
+                    event_tx.clone(),
+                    metadata_tx.clone(),
+                );
+
+                // Run DebloatActor concurrently
+                smol::spawn(debloat_actor.run()).detach();
 
                 // Keep thread alive
                 std::future::pending::<()>().await
@@ -44,6 +72,10 @@ impl ViewModel {
         });
 
         Self {
+            debloat_tx,
+            scan_tx,
+            apps_tx,
+            metadata_tx,
             event_rx,
             state: ViewModelState::default(),
             _runtime_handle: Some(runtime_handle),
@@ -60,5 +92,32 @@ impl ViewModel {
         }
 
         events
+    }
+
+    // === Debloat commands ===
+
+    pub fn load_packages(&self, device: String, user: u32) -> anyhow::Result<()> {
+        self.debloat_tx.send_blocking(DebloatCommand::LoadPackages { device, user })
+            .map_err(|e| anyhow::anyhow!("Failed to send command: {}", e))
+    }
+
+    pub fn batch_uninstall(&self, packages: Vec<String>, device: String) -> anyhow::Result<()> {
+        self.debloat_tx.send_blocking(DebloatCommand::BatchUninstall { packages, device })
+            .map_err(|e| anyhow::anyhow!("Failed to send command: {}", e))
+    }
+
+    pub fn batch_disable(&self, packages: Vec<String>, device: String) -> anyhow::Result<()> {
+        self.debloat_tx.send_blocking(DebloatCommand::BatchDisable { packages, device })
+            .map_err(|e| anyhow::anyhow!("Failed to send command: {}", e))
+    }
+
+    pub fn batch_enable(&self, packages: Vec<String>, device: String) -> anyhow::Result<()> {
+        self.debloat_tx.send_blocking(DebloatCommand::BatchEnable { packages, device })
+            .map_err(|e| anyhow::anyhow!("Failed to send command: {}", e))
+    }
+
+    pub fn load_uad_ng_lists(&self) -> anyhow::Result<()> {
+        self.debloat_tx.send_blocking(DebloatCommand::LoadUadNgLists)
+            .map_err(|e| anyhow::anyhow!("Failed to send command: {}", e))
     }
 }
