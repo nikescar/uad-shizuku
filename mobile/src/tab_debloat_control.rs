@@ -975,6 +975,101 @@ impl TabDebloatControl {
         Some(texture)
     }
 
+    /// Handle ViewModel events to update tab state
+    fn handle_viewmodel_events(&mut self, vm: &mut crate::viewmodel::ViewModel, ctx: &egui::Context) {
+        use crate::viewmodel::{ViewModelEvent, DebloatEvent};
+
+        // Poll events from ViewModel
+        let events = vm.poll_events(ctx);
+
+        for event in events {
+            if let ViewModelEvent::Debloat(debloat_event) = event {
+                match debloat_event {
+                    DebloatEvent::BatchProgress { operation, progress, current, total } => {
+                        log::debug!("Debloat progress: {} - {}/{} ({:.1}%)",
+                                   operation, current, total, progress * 100.0);
+
+                        match operation.as_str() {
+                            "uninstall" => {
+                                if let Ok(mut p) = self.batch_uninstall_progress.lock() {
+                                    *p = Some(progress);
+                                }
+                            }
+                            "disable" => {
+                                if let Ok(mut p) = self.batch_disable_progress.lock() {
+                                    *p = Some(progress);
+                                }
+                            }
+                            "enable" => {
+                                if let Ok(mut p) = self.batch_enable_progress.lock() {
+                                    *p = Some(progress);
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+
+                    DebloatEvent::BatchComplete { operation, succeeded, failed } => {
+                        log::info!("Batch {} complete: {} succeeded, {} failed",
+                                  operation, succeeded, failed);
+
+                        match operation.as_str() {
+                            "uninstall" => {
+                                self.batch_uninstall_state.complete();
+                                if let Ok(mut p) = self.batch_uninstall_progress.lock() {
+                                    *p = Some(1.0);
+                                }
+                            }
+                            "disable" => {
+                                self.batch_disable_state.complete();
+                                if let Ok(mut p) = self.batch_disable_progress.lock() {
+                                    *p = Some(1.0);
+                                }
+                            }
+                            "enable" => {
+                                self.batch_enable_state.complete();
+                                if let Ok(mut p) = self.batch_enable_progress.lock() {
+                                    *p = Some(1.0);
+                                }
+                            }
+                            _ => {}
+                        }
+
+                        // Request UI repaint
+                        ctx.request_repaint();
+                    }
+
+                    DebloatEvent::Error { operation, error } => {
+                        log::error!("Debloat error in {}: {}", operation, error);
+
+                        match operation.as_str() {
+                            "uninstall" => {
+                                self.batch_uninstall_state.error();
+                            }
+                            "disable" => {
+                                self.batch_disable_state.error();
+                            }
+                            "enable" => {
+                                self.batch_enable_state.error();
+                            }
+                            _ => {}
+                        }
+                    }
+
+                    DebloatEvent::PackagesLoaded(_packages) => {
+                        log::debug!("Packages loaded event received");
+                        // TODO: Update local state when we move away from SharedStore
+                    }
+
+                    DebloatEvent::UadNgListsLoaded(_lists) => {
+                        log::debug!("UAD lists loaded event received");
+                        // TODO: Update local state when we move away from SharedStore
+                    }
+                }
+            }
+        }
+    }
+
     fn load_texture_from_bytes(
         ctx: &egui::Context,
         package_id: &str,
@@ -1010,13 +1105,18 @@ impl TabDebloatControl {
 
     pub fn ui(
         &mut self,
-        viewmodel: Option<&mut crate::viewmodel::ViewModel>,
+        mut viewmodel: Option<&mut crate::viewmodel::ViewModel>,
         ui: &mut egui::Ui,
         google_play_enabled: bool,
         fdroid_enabled: bool,
         apkmirror_enabled: bool,
         android_package_enabled: bool,
     ) -> Option<AdbResult> {
+        // Handle ViewModel events first
+        if let Some(ref mut vm) = viewmodel {
+            self.handle_viewmodel_events(vm, ui.ctx());
+        }
+
         // Get viewport width for responsive design
         let available_width = ui.ctx().content_rect().width();
         let is_desktop = available_width >= DESKTOP_MIN_WIDTH;
