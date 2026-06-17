@@ -325,213 +325,265 @@ impl TabDebloatControl {
     /// Start batch disable in background thread
     fn start_batch_disable(
         &mut self,
+        viewmodel: Option<&mut crate::viewmodel::ViewModel>,
         pkgs: Vec<String>,
         device: String,
         uad_ng_lists: Option<&UadNgLists>,
     ) {
-        // Start state machine
-        self.batch_disable_state.start();
+        // Use ViewModel if available
+        if let Some(vm) = viewmodel {
+            // Configure actor options
+            if let Err(e) = vm.set_debloat_options(self.unsafe_app_remove, self.expert_app_remove) {
+                log::error!("Failed to set debloat options: {}", e);
+                return;
+            }
 
-        // Initialize progress
-        if let Ok(mut p) = self.batch_disable_progress.lock() {
-            *p = Some(0.0);
-        }
-        if let Ok(mut cancelled) = self.batch_disable_cancelled.lock() {
-            *cancelled = false;
-        }
+            // Build filter sets
+            let unsafe_apps: std::collections::HashSet<String> = uad_ng_lists
+                .map(|lists| {
+                    lists
+                        .apps
+                        .iter()
+                        .filter(|(_, app)| app.removal == "Unsafe")
+                        .map(|(name, _)| name.clone())
+                        .collect()
+                })
+                .unwrap_or_default();
 
-        log::info!(
-            "Starting batch disable for {} packages in background",
-            pkgs.len()
-        );
+            let expert_apps: std::collections::HashSet<String> = uad_ng_lists
+                .map(|lists| {
+                    lists
+                        .apps
+                        .iter()
+                        .filter(|(_, app)| app.removal == "Expert")
+                        .map(|(name, _)| name.clone())
+                        .collect()
+                })
+                .unwrap_or_default();
 
-        // Clone data needed for background thread
-        let progress_clone = self.batch_disable_progress.clone();
-        let cancelled_clone = self.batch_disable_cancelled.clone();
-        let unsafe_app_remove = self.unsafe_app_remove;
-        let expert_app_remove = self.expert_app_remove;
+            // Filter packages
+            let filtered_pkgs: Vec<String> = pkgs.into_iter()
+                .filter(|pkg_name| {
+                    if unsafe_apps.contains(pkg_name) && !self.unsafe_app_remove {
+                        log::warn!("Skipping disable of unsafe app: {}", pkg_name);
+                        return false;
+                    }
+                    if expert_apps.contains(pkg_name) && !self.expert_app_remove {
+                        log::warn!("Skipping disable of expert app: {}", pkg_name);
+                        return false;
+                    }
+                    true
+                })
+                .collect();
 
-        // Build unsafe app set from uad_ng_lists
-        let unsafe_apps: std::collections::HashSet<String> = uad_ng_lists
-            .map(|lists| {
-                lists
-                    .apps
-                    .iter()
-                    .filter(|(_, app)| app.removal == "Unsafe")
-                    .map(|(name, _)| name.clone())
-                    .collect()
-            })
-            .unwrap_or_default();
+            log::info!("Starting batch disable for {} packages", filtered_pkgs.len());
 
-        // Build expert app set from uad_ng_lists
-        let expert_apps: std::collections::HashSet<String> = uad_ng_lists
-            .map(|lists| {
-                lists
-                    .apps
-                    .iter()
-                    .filter(|(_, app)| app.removal == "Expert")
-                    .map(|(name, _)| name.clone())
-                    .collect()
-            })
-            .unwrap_or_default();
+            // Send command to ViewModel
+            if let Err(e) = vm.batch_disable(filtered_pkgs, device) {
+                log::error!("Failed to start batch disable: {}", e);
+                return;
+            }
 
-        // Spawn background thread
-        std::thread::spawn(move || {
-            let total = pkgs.len();
-            let mut success_count = 0;
-            let mut failure_count = 0;
+            self.batch_disable_state.start();
 
-            for (i, pkg_name) in pkgs.into_iter().enumerate() {
-                // Check if cancelled
-                if let Ok(cancelled) = cancelled_clone.lock() {
-                    if *cancelled {
-                        log::info!("Batch disable cancelled by user");
-                        break;
+        } else {
+            // Fallback: legacy implementation
+            log::warn!("ViewModel not available, using legacy batch disable");
+
+            self.batch_disable_state.start();
+
+            if let Ok(mut p) = self.batch_disable_progress.lock() {
+                *p = Some(0.0);
+            }
+            if let Ok(mut cancelled) = self.batch_disable_cancelled.lock() {
+                *cancelled = false;
+            }
+
+            log::info!("Starting batch disable for {} packages in background", pkgs.len());
+
+            let progress_clone = self.batch_disable_progress.clone();
+            let cancelled_clone = self.batch_disable_cancelled.clone();
+            let unsafe_app_remove = self.unsafe_app_remove;
+            let expert_app_remove = self.expert_app_remove;
+
+            let unsafe_apps: std::collections::HashSet<String> = uad_ng_lists
+                .map(|lists| {
+                    lists
+                        .apps
+                        .iter()
+                        .filter(|(_, app)| app.removal == "Unsafe")
+                        .map(|(name, _)| name.clone())
+                        .collect()
+                })
+                .unwrap_or_default();
+
+            let expert_apps: std::collections::HashSet<String> = uad_ng_lists
+                .map(|lists| {
+                    lists
+                        .apps
+                        .iter()
+                        .filter(|(_, app)| app.removal == "Expert")
+                        .map(|(name, _)| name.clone())
+                        .collect()
+                })
+                .unwrap_or_default();
+
+            std::thread::spawn(move || {
+                let total = pkgs.len();
+                let mut success_count = 0;
+                let mut failure_count = 0;
+
+                for (i, pkg_name) in pkgs.into_iter().enumerate() {
+                    if let Ok(cancelled) = cancelled_clone.lock() {
+                        if *cancelled {
+                            log::info!("Batch disable cancelled by user");
+                            break;
+                        }
+                    }
+
+                    if let Ok(mut p) = progress_clone.lock() {
+                        *p = Some(i as f32 / total as f32);
+                    }
+                    let shared_store = get_shared_store();
+                    shared_store.request_repaint();
+
+                    if unsafe_apps.contains(&pkg_name) && !unsafe_app_remove {
+                        log::warn!("Skipping disable of unsafe app: {}", pkg_name);
+                        continue;
+                    }
+
+                    if expert_apps.contains(&pkg_name) && !expert_app_remove {
+                        log::warn!("Skipping disable of expert app: {}", pkg_name);
+                        continue;
+                    }
+
+                    match crate::adb::disable_app_current_user(&pkg_name, &device, None) {
+                        Ok(output) => {
+                            log::info!("App disabled successfully: {}", output);
+                            success_count += 1;
+
+                            let store = get_shared_store();
+                            let mut packages = store.get_installed_packages();
+                            if let Some(pkg) = packages.iter_mut().find(|p| p.pkg == pkg_name) {
+                                for user in pkg.users.iter_mut() {
+                                    user.enabled = 3;
+                                }
+                            }
+                            store.set_installed_packages(packages);
+                        }
+                        Err(e) => {
+                            log::error!("Failed to disable app({}): {}", pkg_name, e);
+                            failure_count += 1;
+                        }
                     }
                 }
 
-                // Update progress
                 if let Ok(mut p) = progress_clone.lock() {
-                    *p = Some(i as f32 / total as f32);
+                    *p = Some(1.0);
                 }
-                // Request UI repaint after progress update
                 let shared_store = get_shared_store();
                 shared_store.request_repaint();
 
-                // Skip unsafe apps when unsafe_app_remove is disabled
-                if unsafe_apps.contains(&pkg_name) && !unsafe_app_remove {
-                    log::warn!("Skipping disable of unsafe app: {}", pkg_name);
-                    continue;
-                }
-
-                // Skip expert apps when expert_app_remove is disabled
-                if expert_apps.contains(&pkg_name) && !expert_app_remove {
-                    log::warn!("Skipping disable of expert app: {}", pkg_name);
-                    continue;
-                }
-
-                // Execute disable
-                match crate::adb::disable_app_current_user(&pkg_name, &device, None) {
-                    Ok(output) => {
-                        log::info!("App disabled successfully: {}", output);
-                        success_count += 1;
-
-                        // Update package state in shared store
-                        let store = get_shared_store();
-                        let mut packages = store.get_installed_packages();
-                        if let Some(pkg) = packages.iter_mut().find(|p| p.pkg == pkg_name) {
-                            for user in pkg.users.iter_mut() {
-                                user.enabled = 3;
-                            }
-                        }
-                        store.set_installed_packages(packages);
-                    }
-                    Err(e) => {
-                        log::error!("Failed to disable app({}): {}", pkg_name, e);
-                        failure_count += 1;
-                    }
-                }
-            }
-
-            // Set final progress
-            if let Ok(mut p) = progress_clone.lock() {
-                *p = Some(1.0);
-            }
-            // Request final UI repaint when batch disable completes
-            let shared_store = get_shared_store();
-            shared_store.request_repaint();
-
-            log::info!(
-                "Batch disable completed: {} succeeded, {} failed",
-                success_count,
-                failure_count
-            );
-        });
+                log::info!(
+                    "Batch disable completed: {} succeeded, {} failed",
+                    success_count,
+                    failure_count
+                );
+            });
+        }
     }
 
-    /// Start batch enable in background thread
-    fn start_batch_enable(&mut self, pkgs: Vec<String>, device: String) {
-        // Start state machine
-        self.batch_enable_state.start();
+    /// Start batch enable using ViewModel
+    fn start_batch_enable(
+        &mut self,
+        viewmodel: Option<&mut crate::viewmodel::ViewModel>,
+        pkgs: Vec<String>,
+        device: String,
+    ) {
+        // Use ViewModel if available
+        if let Some(vm) = viewmodel {
+            log::info!("Starting batch enable for {} packages", pkgs.len());
 
-        // Initialize progress
-        if let Ok(mut p) = self.batch_enable_progress.lock() {
-            *p = Some(0.0);
-        }
-        if let Ok(mut cancelled) = self.batch_enable_cancelled.lock() {
-            *cancelled = false;
-        }
+            // Send command to ViewModel (no filtering needed for enable)
+            if let Err(e) = vm.batch_enable(pkgs, device) {
+                log::error!("Failed to start batch enable: {}", e);
+                return;
+            }
 
-        log::info!(
-            "Starting batch enable for {} packages in background",
-            pkgs.len()
-        );
+            self.batch_enable_state.start();
 
-        // Clone data needed for background thread
-        let progress_clone = self.batch_enable_progress.clone();
-        let cancelled_clone = self.batch_enable_cancelled.clone();
+        } else {
+            // Fallback: legacy implementation
+            log::warn!("ViewModel not available, using legacy batch enable");
 
-        // Spawn background thread
-        std::thread::spawn(move || {
-            let total = pkgs.len();
-            let mut success_count = 0;
-            let mut failure_count = 0;
+            self.batch_enable_state.start();
 
-            for (i, pkg_name) in pkgs.into_iter().enumerate() {
-                // Check if cancelled
-                if let Ok(cancelled) = cancelled_clone.lock() {
-                    if *cancelled {
-                        log::info!("Batch enable cancelled by user");
-                        break;
+            if let Ok(mut p) = self.batch_enable_progress.lock() {
+                *p = Some(0.0);
+            }
+            if let Ok(mut cancelled) = self.batch_enable_cancelled.lock() {
+                *cancelled = false;
+            }
+
+            log::info!("Starting batch enable for {} packages in background", pkgs.len());
+
+            let progress_clone = self.batch_enable_progress.clone();
+            let cancelled_clone = self.batch_enable_cancelled.clone();
+
+            std::thread::spawn(move || {
+                let total = pkgs.len();
+                let mut success_count = 0;
+                let mut failure_count = 0;
+
+                for (i, pkg_name) in pkgs.into_iter().enumerate() {
+                    if let Ok(cancelled) = cancelled_clone.lock() {
+                        if *cancelled {
+                            log::info!("Batch enable cancelled by user");
+                            break;
+                        }
+                    }
+
+                    if let Ok(mut p) = progress_clone.lock() {
+                        *p = Some(i as f32 / total as f32);
+                    }
+                    let shared_store = get_shared_store();
+                    shared_store.request_repaint();
+
+                    match crate::adb::enable_app(&pkg_name, &device) {
+                        Ok(output) => {
+                            log::info!("App enabled successfully: {}", output);
+                            success_count += 1;
+
+                            let store = get_shared_store();
+                            let mut packages = store.get_installed_packages();
+                            if let Some(pkg) = packages.iter_mut().find(|p| p.pkg == pkg_name) {
+                                for user in pkg.users.iter_mut() {
+                                    user.enabled = 1;
+                                    user.installed = true;
+                                }
+                            }
+                            store.set_installed_packages(packages);
+                        }
+                        Err(e) => {
+                            log::error!("Failed to enable app({}): {}", pkg_name, e);
+                            failure_count += 1;
+                        }
                     }
                 }
 
-                // Update progress
                 if let Ok(mut p) = progress_clone.lock() {
-                    *p = Some(i as f32 / total as f32);
+                    *p = Some(1.0);
                 }
-                // Request UI repaint after progress update
                 let shared_store = get_shared_store();
                 shared_store.request_repaint();
 
-                // Execute enable
-                match crate::adb::enable_app(&pkg_name, &device) {
-                    Ok(output) => {
-                        log::info!("App enabled successfully: {}", output);
-                        success_count += 1;
-
-                        // Update package state in shared store
-                        let store = get_shared_store();
-                        let mut packages = store.get_installed_packages();
-                        if let Some(pkg) = packages.iter_mut().find(|p| p.pkg == pkg_name) {
-                            for user in pkg.users.iter_mut() {
-                                user.enabled = 1;
-                                user.installed = true;
-                            }
-                        }
-                        store.set_installed_packages(packages);
-                    }
-                    Err(e) => {
-                        log::error!("Failed to enable app({}): {}", pkg_name, e);
-                        failure_count += 1;
-                    }
-                }
-            }
-
-            // Set final progress
-            if let Ok(mut p) = progress_clone.lock() {
-                *p = Some(1.0);
-            }
-            // Request final UI repaint when batch enable completes
-            let shared_store = get_shared_store();
-            shared_store.request_repaint();
-
-            log::info!(
-                "Batch enable completed: {} succeeded, {} failed",
-                success_count,
-                failure_count
-            );
-        });
+                log::info!(
+                    "Batch enable completed: {} succeeded, {} failed",
+                    success_count,
+                    failure_count
+                );
+            });
+        }
     }
 
     /// Update cached category counts if version has changed
@@ -2408,7 +2460,7 @@ impl TabDebloatControl {
                 let packages_to_disable: Vec<String> =
                     self.selected_packages.iter().cloned().collect();
                 // Start background batch disable
-                self.start_batch_disable(packages_to_disable, device.clone(), uad_ng_lists_ref);
+                self.start_batch_disable(viewmodel.as_deref_mut(), packages_to_disable, device.clone(), uad_ng_lists_ref);
             } else {
                 log::error!("No device selected for batch disable");
                 result = Some(AdbResult::Failure);
@@ -2421,7 +2473,7 @@ impl TabDebloatControl {
                 let packages_to_enable: Vec<String> =
                     self.selected_packages.iter().cloned().collect();
                 // Start background batch enable
-                self.start_batch_enable(packages_to_enable, device.clone());
+                self.start_batch_enable(viewmodel.as_deref_mut(), packages_to_enable, device.clone());
             } else {
                 log::error!("No device selected for batch enable");
                 result = Some(AdbResult::Failure);
@@ -2436,7 +2488,7 @@ impl TabDebloatControl {
 
             if let Some(ref device) = self.selected_device {
                 // Start background batch uninstall
-                self.start_batch_uninstall(viewmodel, pkgs, sys_flags, device.clone(), uad_ng_lists_ref);
+                self.start_batch_uninstall(viewmodel.as_deref_mut(), pkgs, sys_flags, device.clone(), uad_ng_lists_ref);
             } else {
                 log::error!("No device selected for uninstall");
                 result = Some(AdbResult::Failure);
