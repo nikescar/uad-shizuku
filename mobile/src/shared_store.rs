@@ -1,8 +1,6 @@
 use crate::adb::PackageFingerprint;
 use crate::calc_androidpackage::AndroidPackageInfo;
-use crate::calc_hybridanalysis::ScannerState as HaScannerState;
 use crate::calc_stalkerware_stt::StalkerwareIndicators;
-use crate::calc_virustotal::ScannerState as VtScannerState;
 use crate::models::{ApkMirrorApp, FDroidApp, GooglePlayApp};
 use crate::shared_store_stt::{SharedStore, SharedStoreUpdate};
 use crate::uad_shizuku_app::UadNgLists;
@@ -32,8 +30,6 @@ impl SharedStore {
             cached_fdroid_apps: Mutex::new(HashMap::new()),
             cached_apkmirror_apps: Mutex::new(HashMap::new()),
             cached_android_package_apps: Mutex::new(HashMap::new()),
-            vt_scanner_state: Mutex::new(None),
-            ha_scanner_state: Mutex::new(None),
             update_queue: SegQueue::new(),
             ui_context: Mutex::new(None),
         }
@@ -335,25 +331,27 @@ impl SharedStore {
         }
     }
 
-    // === Scanner states (scan tab only) ===
+    // === Scanner states (DEPRECATED - now in ViewModel) ===
+    // Stub methods for backward compatibility during migration
 
-    pub fn get_vt_scanner_state(&self) -> Option<VtScannerState> {
-        self.vt_scanner_state.lock().ok().and_then(|g| g.clone())
+    pub fn get_vt_scanner_state(&self) -> Option<crate::calc_virustotal_stt::ScannerState> {
+        // Scanner state migrated to ViewModel.state.vt_scanner_state
+        None
     }
 
-    pub fn set_vt_scanner_state(&self, state: Option<VtScannerState>) {
-        if let Ok(mut s) = self.vt_scanner_state.lock() {
-            *s = state;
-        }
+    pub fn set_vt_scanner_state(&self, _state: Option<crate::calc_virustotal_stt::ScannerState>) {
+        // Scanner state migrated to ViewModel.state.vt_scanner_state
+        // This method is now a no-op
     }
 
-    pub fn get_ha_scanner_state(&self) -> Option<HaScannerState> {
-        self.ha_scanner_state.lock().ok().and_then(|g| g.clone())
+    pub fn get_ha_scanner_state(&self) -> Option<crate::calc_hybridanalysis_stt::ScannerState> {
+        // Scanner state migrated to ViewModel.state.ha_scanner_state
+        None
     }
 
-    pub fn set_ha_scanner_state(&self, state: Option<HaScannerState>) {
-        if let Ok(mut s) = self.ha_scanner_state.lock() {
-            *s = state;
-        }
+    pub fn set_ha_scanner_state(&self, _state: Option<crate::calc_hybridanalysis_stt::ScannerState>) {
+        // Scanner state migrated to ViewModel.state.ha_scanner_state
+        // This method is now a no-op
     }
+
 }

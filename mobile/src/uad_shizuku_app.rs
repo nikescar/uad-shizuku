@@ -1942,97 +1942,13 @@ impl UadShizukuApp {
                     .map(|(p, s)| (p.to_string(), s.to_string()))
                     .collect();
 
-                // Start VirusTotal scan in background
-                let vt_scanner_state = shared_store.vt_scanner_state.lock().unwrap().clone();
-                if let (
-                    Some(ref vt_state),
-                    Some(ref vt_limiter),
-                    Some(ref api_key),
-                    Some(ref serial),
-                ) = (
-                    &vt_scanner_state,
-                    &self.tab_scan_control.vt_rate_limiter,
-                    &self.tab_scan_control.vt_api_key,
-                    &self.tab_scan_control.device_serial,
-                ) {
-                    let vt_state_clone = vt_state.clone();
-                    let vt_limiter_clone = vt_limiter.clone();
-                    let api_key_clone = api_key.clone();
-                    let serial_clone = serial.clone();
-                    let pkg_name_clone = pkg_name.clone();
-                    let hashes_clone = hashes.clone();
-                    let vt_submit = self.tab_scan_control.virustotal_submit_enabled;
+                // TODO: Re-implement using ViewModel commands (RunVirusTotal)
+                // Old direct SharedStore access code removed during migration
+                log::warn!("VirusTotal refresh not yet re-implemented with ViewModel");
 
-                    // Reset state to Pending first
-                    if let Ok(mut state) = vt_state.lock() {
-                        state.insert(
-                            pkg_name.clone(),
-                            crate::calc_virustotal_stt::ScanStatus::Pending,
-                        );
-                    }
-
-                    std::thread::spawn(move || {
-                        log::info!("Starting VT re-scan for: {}", pkg_name_clone);
-                        if let Err(e) = crate::calc_virustotal::analyze_package(
-                            &pkg_name_clone,
-                            hashes_clone,
-                            &vt_state_clone,
-                            &vt_limiter_clone,
-                            &api_key_clone,
-                            &serial_clone,
-                            vt_submit,
-                            &None,
-                        ) {
-                            log::error!("Error re-scanning VT for {}: {}", pkg_name_clone, e);
-                        }
-                    });
-                }
-
-                // Start HybridAnalysis scan in background
-                let ha_scanner_state = shared_store.ha_scanner_state.lock().unwrap().clone();
-                if let (
-                    Some(ref ha_state),
-                    Some(ref ha_limiter),
-                    Some(ref api_key),
-                    Some(ref serial),
-                ) = (
-                    &ha_scanner_state,
-                    &self.tab_scan_control.ha_rate_limiter,
-                    &self.tab_scan_control.ha_api_key,
-                    &self.tab_scan_control.device_serial,
-                ) {
-                    let ha_state_clone = ha_state.clone();
-                    let ha_limiter_clone = ha_limiter.clone();
-                    let api_key_clone = api_key.clone();
-                    let serial_clone = serial.clone();
-                    let pkg_name_clone = pkg_name.clone();
-                    let hashes_clone = hashes.clone();
-                    let ha_submit = self.tab_scan_control.hybridanalysis_submit_enabled;
-
-                    // Reset state to Pending first
-                    if let Ok(mut state) = ha_state.lock() {
-                        state.insert(
-                            pkg_name.clone(),
-                            crate::calc_hybridanalysis_stt::ScanStatus::Pending,
-                        );
-                    }
-
-                    std::thread::spawn(move || {
-                        log::info!("Starting HA re-scan for: {}", pkg_name_clone);
-                        if let Err(e) = crate::calc_hybridanalysis::analyze_package(
-                            &pkg_name_clone,
-                            hashes_clone,
-                            &ha_state_clone,
-                            &ha_limiter_clone,
-                            &api_key_clone,
-                            &serial_clone,
-                            ha_submit,
-                            &None,
-                        ) {
-                            log::error!("Error re-scanning HA for {}: {}", pkg_name_clone, e);
-                        }
-                    });
-                }
+                // TODO: Re-implement using ViewModel commands (RunHybridAnalysis)
+                // Old direct SharedStore access code removed during migration
+                log::warn!("HybridAnalysis refresh not yet re-implemented with ViewModel");
             }
         }
 

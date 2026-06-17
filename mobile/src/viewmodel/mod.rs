@@ -41,6 +41,10 @@ pub struct ViewModelState {
 
     // Progress tracking
     pub active_operations: HashMap<String, OperationProgress>,
+
+    // === NEW: Scanner states ===
+    pub vt_scanner_state: Option<crate::calc_virustotal_stt::ScannerState>,
+    pub ha_scanner_state: Option<crate::calc_hybridanalysis_stt::ScannerState>,
 }
 
 impl ViewModel {
@@ -131,6 +135,29 @@ impl ViewModel {
             ViewModelEvent::Debloat(DebloatEvent::Error { operation, error }) => {
                 log::error!("Debloat error in {}: {}", operation, error);
             }
+
+            // === NEW: Scanner state events ===
+            ViewModelEvent::Scan(ScanEvent::VirusTotalStateUpdated(state)) => {
+                // Always store state, even if empty (empty = no results, not cancelled)
+                self.state.vt_scanner_state = Some(state.clone());
+                _ctx.request_repaint();
+            }
+            ViewModelEvent::Scan(ScanEvent::HybridAnalysisStateUpdated(state)) => {
+                // Always store state, even if empty (empty = no results, not cancelled)
+                self.state.ha_scanner_state = Some(state.clone());
+                _ctx.request_repaint();
+            }
+            ViewModelEvent::Scan(ScanEvent::VirusTotalCancelled) => {
+                // Clear state on cancellation
+                self.state.vt_scanner_state = None;
+                _ctx.request_repaint();
+            }
+            ViewModelEvent::Scan(ScanEvent::HybridAnalysisCancelled) => {
+                // Clear state on cancellation
+                self.state.ha_scanner_state = None;
+                _ctx.request_repaint();
+            }
+
             _ => {}
         }
     }
