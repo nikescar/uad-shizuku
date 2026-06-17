@@ -1,8 +1,6 @@
 use crate::adb::PackageFingerprint;
 use crate::calc_androidpackage::AndroidPackageInfo;
-use crate::calc_hybridanalysis::ScannerState as HaScannerState;
 use crate::calc_stalkerware_stt::StalkerwareIndicators;
-use crate::calc_virustotal::ScannerState as VtScannerState;
 use crate::models::{ApkMirrorApp, FDroidApp, GooglePlayApp};
 use crate::uad_shizuku_app::UadNgLists;
 use crossbeam_queue::SegQueue;
@@ -55,10 +53,6 @@ pub struct SharedStore {
     pub cached_apkmirror_apps: Mutex<HashMap<String, ApkMirrorApp>>,
     /// Cached Android Package app info
     pub cached_android_package_apps: Mutex<HashMap<String, AndroidPackageInfo>>,
-    /// VirusTotal scanner state (scan tab only)
-    pub vt_scanner_state: Mutex<Option<VtScannerState>>,
-    /// Hybrid Analysis scanner state (scan tab only)
-    pub ha_scanner_state: Mutex<Option<HaScannerState>>,
     /// Update queue for thread-safe updates from background threads
     pub update_queue: SegQueue<SharedStoreUpdate>,
     /// UI context for requesting repaints from background threads
