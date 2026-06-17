@@ -75,6 +75,9 @@ pub struct ViewModelState {
 
     // === NEW: Metadata cache ===
     pub cached_metadata: MetadataCache,
+
+    // === NEW: Stalkerware indicators ===
+    pub stalkerware_indicators: Option<crate::calc_stalkerware_stt::StalkerwareIndicators>,
 }
 
 impl ViewModel {
@@ -148,6 +151,10 @@ impl ViewModel {
             }
             ViewModelEvent::Debloat(DebloatEvent::UadNgListsLoaded(lists)) => {
                 self.state.uad_ng_lists = Some(lists.clone());
+            }
+            ViewModelEvent::Debloat(DebloatEvent::StalkerwareIndicatorsLoaded(indicators)) => {
+                self.state.stalkerware_indicators = Some(indicators.clone());
+                _ctx.request_repaint();
             }
             ViewModelEvent::Debloat(DebloatEvent::BatchProgress { operation, progress, .. }) => {
                 self.state.active_operations.insert(

@@ -19,7 +19,7 @@ fn test_stalkerware_indicators_in_viewmodel() {
 
     // Verify: NOT in SharedStore
     let shared_store = get_shared_store();
-    let store_indicators = shared_store.stalkerware_indicators.lock().unwrap();
+    let store_indicators = shared_store.get_stalkerware_indicators();
     assert!(store_indicators.is_none(),
         "Stalkerware indicators should NOT be in SharedStore");
 }

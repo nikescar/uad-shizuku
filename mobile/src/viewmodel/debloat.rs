@@ -21,6 +21,7 @@ pub enum DebloatCommand {
 pub enum DebloatEvent {
     PackagesLoaded(Vec<PackageFingerprint>),
     UadNgListsLoaded(UadNgLists),
+    StalkerwareIndicatorsLoaded(crate::calc_stalkerware_stt::StalkerwareIndicators),
     BatchProgress {
         operation: String,
         progress: f32,      // 0.0 to 1.0
@@ -274,6 +275,27 @@ impl DebloatActor {
         self.event_tx.send(ViewModelEvent::Debloat(
             DebloatEvent::UadNgListsLoaded(lists)
         )).await?;
+
+        // Also load stalkerware indicators
+        let event_tx = self.event_tx.clone();
+        smol::spawn(async move {
+            let indicators = smol::unblock(move || {
+                // Load stalkerware indicators from embedded resources
+                const STALKERWARE_YAML: &str = include_str!("../../resources/stalkerware_ioc.yaml");
+                crate::calc_stalkerware::parse_stalkerware_yaml(STALKERWARE_YAML)
+            }).await;
+
+            match indicators {
+                Ok(indicators) => {
+                    let _ = event_tx.send(ViewModelEvent::Debloat(
+                        DebloatEvent::StalkerwareIndicatorsLoaded(indicators)
+                    )).await;
+                }
+                Err(e) => {
+                    log::error!("Failed to load stalkerware indicators: {}", e);
+                }
+            }
+        }).detach();
 
         Ok(())
     }

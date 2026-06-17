@@ -1117,6 +1117,11 @@ impl TabDebloatControl {
                         log::debug!("UAD lists loaded event received");
                         // TODO: Update local state when we move away from SharedStore
                     }
+
+                    DebloatEvent::StalkerwareIndicatorsLoaded(_indicators) => {
+                        log::debug!("Stalkerware indicators loaded event received");
+                        // Indicators now in ViewModel.state.stalkerware_indicators
+                    }
                 }
             }
         }
