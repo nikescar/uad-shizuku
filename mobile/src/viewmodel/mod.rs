@@ -8,7 +8,7 @@ pub mod metadata;
 
 pub use common::*;
 pub use debloat::{DebloatCommand, DebloatEvent, DebloatActor};
-pub use scan::{ScanCommand, ScanEvent};
+pub use scan::{ScanCommand, ScanEvent, ScanActor};
 pub use apps::{AppsCommand, AppsEvent};
 pub use metadata::{MetadataCommand, MetadataEvent};
 
@@ -66,9 +66,11 @@ impl ViewModel {
                     event_tx.clone(),
                     metadata_tx.clone(),
                 );
+                let scan_actor = ScanActor::new(scan_rx, event_tx.clone());
 
-                // Run DebloatActor concurrently
+                // Run actors concurrently
                 smol::spawn(debloat_actor.run()).detach();
+                smol::spawn(scan_actor.run()).detach();
 
                 // Keep thread alive
                 std::future::pending::<()>().await
@@ -164,6 +166,13 @@ impl ViewModel {
 
     pub fn load_uad_ng_lists(&self) -> anyhow::Result<()> {
         self.debloat_tx.send_blocking(DebloatCommand::LoadUadNgLists)
+            .map_err(|e| anyhow::anyhow!("Failed to send command: {}", e))
+    }
+
+    // === Scan commands ===
+
+    pub fn scan_virustotal(&self, package: String, apk_path: String, force_upload: bool) -> anyhow::Result<()> {
+        self.scan_tx.send_blocking(ScanCommand::ScanVirusTotal { package, apk_path, force_upload })
             .map_err(|e| anyhow::anyhow!("Failed to send command: {}", e))
     }
 }
