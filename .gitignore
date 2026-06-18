@@ -149,8 +149,9 @@ adb_dumpsys_usagestats
 adb_sumpsys_usagestats_history
 .config
 
-.claude
 .zed
+
+**/.claude/settings.local.json
 
 # AI Rules - Generated Files
 **/.agents/commands/*-ai-rules.md
@@ -166,7 +167,6 @@ adb_sumpsys_usagestats_history
 **/.mcp.json
 **/.roo/mcp.json
 **/AGENTS.md
-**/CLAUDE.md
 **/GEMINI.md
 **/ai-rules/.generated-ai-rules
 **/firebender.json
