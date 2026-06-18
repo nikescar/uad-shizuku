@@ -19,6 +19,16 @@ pub struct AppEntry {
     pub package_name: Option<String>,
 }
 
+/// Prepared row data for Apps Control - cached to avoid recomputing on every frame
+#[derive(Clone)]
+pub struct PreparedAppsRowData {
+    pub idx: usize,
+    pub app: AppEntry,
+    pub downloadable_link: Option<(String, String)>,
+    pub is_installed: bool,
+    pub installed_pkg_info: Option<(String, bool, String)>, // (pkg_name, is_system, enabled_state)
+}
+
 pub struct TabAppsControl {
     pub open: bool,
     pub installed_packages: Vec<PackageFingerprint>,

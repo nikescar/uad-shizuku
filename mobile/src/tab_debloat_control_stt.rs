@@ -29,6 +29,28 @@ pub struct CachedCategoryCounts {
     pub version: u64, // tracks when cache was computed
 }
 
+/// Prepared row data - cached to avoid recomputing on every frame
+#[derive(Clone)]
+pub struct PreparedRowData {
+    pub idx: usize,
+    pub pkg_id: String,
+    pub package_name: String,
+    pub is_system: bool,
+    pub debloat_category: String,
+    pub runtime_perms: String,
+    pub is_stalkerware: bool,
+    pub enabled_text: String,
+    pub install_reason: String,
+    pub is_selected: bool,
+    // Texture data
+    pub texture_id: Option<egui::TextureId>,
+    pub title_text: String,
+    pub subtitle_text: String,
+    pub use_scrollable_title: bool,
+    // UAD description for drawer
+    pub uad_description: Option<String>,
+}
+
 /// State machine for batch uninstall operations
 /// Uses the same pattern as ScanStateMachine for tracking async operation state
 #[derive(Default)]
