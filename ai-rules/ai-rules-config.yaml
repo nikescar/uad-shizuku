@@ -1,5 +1,0 @@
-agents: [claude, gemini, copilot] # Generate rules only for these agents
-command_agents: [claude, gemini, copilot]   # Generate commands for these agents (defaults to agents list if not specified)
-nested_depth: 2 # Search 2 levels deep for ai-rules/ folders
-gitignore: true # Ignore the generated rules in git
-use_claude_skills: true  # Default: false
