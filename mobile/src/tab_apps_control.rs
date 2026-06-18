@@ -74,6 +74,32 @@ impl TabAppsControl {
         self.selected_device = device;
     }
 
+    /// Handle ViewModel events and update local state
+    fn handle_viewmodel_events(&mut self, vm: &mut crate::viewmodel::ViewModel, ctx: &egui::Context) {
+        use crate::viewmodel::{AppsEvent, ViewModelEvent};
+
+        let events = vm.poll_events(ctx);
+        for event in events {
+            if let ViewModelEvent::Apps(apps_event) = event {
+                match apps_event {
+                    AppsEvent::FossAppListLoaded { count } => {
+                        log::info!("FOSS app list loaded: {} apps", count);
+                    }
+                    AppsEvent::AppInstalled { package } => {
+                        log::info!("App installed: {}", package);
+                        self.recently_installed_apps.insert(package);
+                    }
+                    AppsEvent::InstallProgress { package, progress } => {
+                        log::debug!("Install progress for {}: {:.0}%", package, progress * 100.0);
+                    }
+                    AppsEvent::Error { operation, error } => {
+                        log::error!("Apps error in {}: {}", operation, error);
+                    }
+                }
+            }
+        }
+    }
+
     /// Sort app entries based on current sort column and direction
     pub fn sort_apps(&mut self) {
         if let Some(col) = self.sort_column {
@@ -870,7 +896,16 @@ impl TabAppsControl {
     }
 
     /// Returns true if an error occurred during any operation
-    pub fn ui(&mut self, ui: &mut egui::Ui) -> bool {
+    pub fn ui(
+        &mut self,
+        mut viewmodel: Option<&mut crate::viewmodel::ViewModel>,
+        ui: &mut egui::Ui,
+    ) -> bool {
+        // Handle ViewModel events first
+        if let Some(ref mut vm) = viewmodel {
+            self.handle_viewmodel_events(vm, ui.ctx());
+        }
+
         let mut has_error = false;
 
         // Check if operations just completed and trigger refresh
@@ -1093,28 +1128,64 @@ impl TabAppsControl {
         // Track which app's install button was clicked
         let mut install_clicked_app: Option<AppEntry> = None;
 
-        // Add rows to the table
-        for (idx, app) in self.app_entries.clone().iter().enumerate() {
-            // Filter based on show_only_installable setting
-            let downloadable_link = self.get_downloadable_link(&app);
-            if self.show_only_installable && downloadable_link.is_none() {
-                continue; // Skip apps without downloadable links
-            }
+        // Cache key for filtered app entries
+        let cache_key = format!(
+            "apps_filtered_entries_{}_{}_{}_{}",
+            self.app_entries.len(),
+            self.show_only_installable,
+            self.text_filter,
+            self.selected_app_list.unwrap_or(usize::MAX)
+        );
 
-            // Filter based on text filter
-            if !self.matches_text_filter(&app) {
-                continue;
-            }
+        // Cache prepared row data to avoid expensive operations every frame
+        let prepared_rows: Vec<PreparedAppsRowData> = ui.data_mut(|data| {
+            data.get_temp_mut_or_insert_with(egui::Id::new(&cache_key), || {
+                log::debug!("Preparing app row data (cache miss) from {} total apps", self.app_entries.len());
+                self.app_entries
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(idx, app)| {
+                        // Filter based on show_only_installable setting
+                        let downloadable_link = self.get_downloadable_link(&app);
+                        if self.show_only_installable && downloadable_link.is_none() {
+                            return None;
+                        }
+                        // Filter based on text filter
+                        if !self.matches_text_filter(&app) {
+                            return None;
+                        }
+
+                        // Prepare all row data here (runs once, not every frame)
+                        let is_installed = self.is_app_installed(&app);
+                        let installed_pkg_info = self.get_installed_package_info(&app);
+
+                        Some(PreparedAppsRowData {
+                            idx,
+                            app: app.clone(),
+                            downloadable_link,
+                            is_installed,
+                            installed_pkg_info,
+                        })
+                    })
+                    .collect::<Vec<PreparedAppsRowData>>()
+            }).clone()
+        });
+
+        // Add rows to the table using cached prepared data
+        for row_data in prepared_rows {
+            let PreparedAppsRowData {
+                idx,
+                app,
+                downloadable_link,
+                is_installed,
+                installed_pkg_info,
+            } = row_data;
 
             let app_for_links = app.clone();
             let app_for_install = app.clone();
             let app_name = app.name.clone();
-            let is_installed = self.is_app_installed(&app);
 
-            // Get installed package info for action buttons
-            let installed_pkg_info = self.get_installed_package_info(&app);
-
-            // Check if this app has an operation in progress (install/uninstall)
+            // Only check operation status per frame (this is dynamic and can't be cached)
             let operation_status = if let Some(ref queue) = self.operations_queue {
                 queue.get_status(&app_name)
             } else {

@@ -111,357 +111,479 @@ impl TabDebloatControl {
         store.set_cached_apkmirror_app(pkg_id, app);
     }
 
-    /// Start batch uninstall in background thread
+    /// Start batch uninstall using ViewModel
     pub fn start_batch_uninstall(
         &mut self,
+        viewmodel: Option<&mut crate::viewmodel::ViewModel>,
         pkgs: Vec<String>,
         sys_flags: Vec<bool>,
         device: String,
         uad_ng_lists: Option<&UadNgLists>,
     ) {
-        // Start state machine
-        self.batch_uninstall_state.start();
+        // Use ViewModel if available, otherwise fall back to old implementation
+        if let Some(vm) = viewmodel {
+            // Configure actor options
+            if let Err(e) = vm.set_debloat_options(self.unsafe_app_remove, self.expert_app_remove) {
+                log::error!("Failed to set debloat options: {}", e);
+                return;
+            }
 
-        // Initialize progress
-        if let Ok(mut p) = self.batch_uninstall_progress.lock() {
-            *p = Some(0.0);
-        }
-        if let Ok(mut cancelled) = self.batch_uninstall_cancelled.lock() {
-            *cancelled = false;
-        }
+            // Build unsafe app set from uad_ng_lists
+            let unsafe_apps: std::collections::HashSet<String> = uad_ng_lists
+                .map(|lists| {
+                    lists
+                        .apps
+                        .iter()
+                        .filter(|(_, app)| app.removal == "Unsafe")
+                        .map(|(name, _)| name.clone())
+                        .collect()
+                })
+                .unwrap_or_default();
 
-        log::info!(
-            "Starting batch uninstall for {} packages in background",
-            pkgs.len()
-        );
+            // Build expert app set from uad_ng_lists
+            let expert_apps: std::collections::HashSet<String> = uad_ng_lists
+                .map(|lists| {
+                    lists
+                        .apps
+                        .iter()
+                        .filter(|(_, app)| app.removal == "Expert")
+                        .map(|(name, _)| name.clone())
+                        .collect()
+                })
+                .unwrap_or_default();
 
-        // Clone data needed for background thread
-        let progress_clone = self.batch_uninstall_progress.clone();
-        let cancelled_clone = self.batch_uninstall_cancelled.clone();
-        let unsafe_app_remove = self.unsafe_app_remove;
-        let expert_app_remove = self.expert_app_remove;
+            // Filter packages based on unsafe/expert settings
+            let filtered_pkgs: Vec<String> = pkgs.into_iter()
+                .filter(|pkg_name| {
+                    // Skip unsafe apps when unsafe_app_remove is disabled
+                    if unsafe_apps.contains(pkg_name) && !self.unsafe_app_remove {
+                        log::warn!("Skipping uninstall of unsafe app: {}", pkg_name);
+                        return false;
+                    }
+                    // Skip expert apps when expert_app_remove is disabled
+                    if expert_apps.contains(pkg_name) && !self.expert_app_remove {
+                        log::warn!("Skipping uninstall of expert app: {}", pkg_name);
+                        return false;
+                    }
+                    true
+                })
+                .collect();
 
-        // Build unsafe app set from uad_ng_lists
-        let unsafe_apps: std::collections::HashSet<String> = uad_ng_lists
-            .map(|lists| {
-                lists
-                    .apps
-                    .iter()
-                    .filter(|(_, app)| app.removal == "Unsafe")
-                    .map(|(name, _)| name.clone())
-                    .collect()
-            })
-            .unwrap_or_default();
+            log::info!(
+                "Starting batch uninstall for {} packages (filtered from {})",
+                filtered_pkgs.len(),
+                filtered_pkgs.len()
+            );
 
-        // Build expert app set from uad_ng_lists
-        let expert_apps: std::collections::HashSet<String> = uad_ng_lists
-            .map(|lists| {
-                lists
-                    .apps
-                    .iter()
-                    .filter(|(_, app)| app.removal == "Expert")
-                    .map(|(name, _)| name.clone())
-                    .collect()
-            })
-            .unwrap_or_default();
+            // Send command to ViewModel - actor handles the rest
+            if let Err(e) = vm.batch_uninstall(filtered_pkgs, device) {
+                log::error!("Failed to start batch uninstall: {}", e);
+                return;
+            }
 
-        // Spawn background thread
-        std::thread::spawn(move || {
-            let total = pkgs.len();
-            let mut success_count = 0;
-            let mut failure_count = 0;
+            // State machine will be updated via ViewModel events
+            self.batch_uninstall_state.start();
 
-            for (i, (pkg_name, is_system)) in
-                pkgs.into_iter().zip(sys_flags.into_iter()).enumerate()
-            {
-                // Check if cancelled
-                if let Ok(cancelled) = cancelled_clone.lock() {
-                    if *cancelled {
-                        log::info!("Batch uninstall cancelled by user");
-                        break;
+        } else {
+            // Fallback: old implementation for when ViewModel not available
+            log::warn!("ViewModel not available, using legacy batch uninstall");
+
+            // Start state machine
+            self.batch_uninstall_state.start();
+
+            // Initialize progress
+            if let Ok(mut p) = self.batch_uninstall_progress.lock() {
+                *p = Some(0.0);
+            }
+            if let Ok(mut cancelled) = self.batch_uninstall_cancelled.lock() {
+                *cancelled = false;
+            }
+
+            log::info!(
+                "Starting batch uninstall for {} packages in background",
+                pkgs.len()
+            );
+
+            // Clone data needed for background thread
+            let progress_clone = self.batch_uninstall_progress.clone();
+            let cancelled_clone = self.batch_uninstall_cancelled.clone();
+            let unsafe_app_remove = self.unsafe_app_remove;
+            let expert_app_remove = self.expert_app_remove;
+
+            // Build unsafe app set from uad_ng_lists
+            let unsafe_apps: std::collections::HashSet<String> = uad_ng_lists
+                .map(|lists| {
+                    lists
+                        .apps
+                        .iter()
+                        .filter(|(_, app)| app.removal == "Unsafe")
+                        .map(|(name, _)| name.clone())
+                        .collect()
+                })
+                .unwrap_or_default();
+
+            // Build expert app set from uad_ng_lists
+            let expert_apps: std::collections::HashSet<String> = uad_ng_lists
+                .map(|lists| {
+                    lists
+                        .apps
+                        .iter()
+                        .filter(|(_, app)| app.removal == "Expert")
+                        .map(|(name, _)| name.clone())
+                        .collect()
+                })
+                .unwrap_or_default();
+
+            // Spawn background thread
+            std::thread::spawn(move || {
+                let total = pkgs.len();
+                let mut success_count = 0;
+                let mut failure_count = 0;
+
+                for (i, (pkg_name, is_system)) in
+                    pkgs.into_iter().zip(sys_flags.into_iter()).enumerate()
+                {
+                    // Check if cancelled
+                    if let Ok(cancelled) = cancelled_clone.lock() {
+                        if *cancelled {
+                            log::info!("Batch uninstall cancelled by user");
+                            break;
+                        }
+                    }
+
+                    // Update progress
+                    if let Ok(mut p) = progress_clone.lock() {
+                        *p = Some(i as f32 / total as f32);
+                    }
+                    // Request UI repaint after progress update
+                    let shared_store = get_shared_store();
+                    shared_store.request_repaint();
+
+                    // Skip unsafe apps when unsafe_app_remove is disabled
+                    if unsafe_apps.contains(&pkg_name) && !unsafe_app_remove {
+                        log::warn!("Skipping uninstall of unsafe app: {}", pkg_name);
+                        continue;
+                    }
+
+                    // Skip expert apps when expert_app_remove is disabled
+                    if expert_apps.contains(&pkg_name) && !expert_app_remove {
+                        log::warn!("Skipping uninstall of expert app: {}", pkg_name);
+                        continue;
+                    }
+
+                    // Execute uninstall
+                    let uninstall_result = if is_system {
+                        crate::adb::uninstall_app_user(&pkg_name, &device, None)
+                    } else {
+                        crate::adb::uninstall_app(&pkg_name, &device)
+                    };
+
+                    match uninstall_result {
+                        Ok(output) => {
+                            log::info!("App uninstalled successfully: {}", output);
+                            success_count += 1;
+
+                            // Update package state in shared store
+                            let store = get_shared_store();
+                            let mut packages = store.get_installed_packages();
+                            if is_system {
+                                if let Some(pkg) = packages.iter_mut().find(|p| p.pkg == pkg_name) {
+                                    for user in pkg.users.iter_mut() {
+                                        user.installed = false;
+                                        user.enabled = 0;
+                                    }
+                                }
+                            } else {
+                                packages.retain(|pkg| pkg.pkg != pkg_name);
+                            }
+                            store.set_installed_packages(packages);
+                        }
+                        Err(e) => {
+                            log::error!("Failed to uninstall app({}): {}", pkg_name, e);
+                            failure_count += 1;
+                        }
                     }
                 }
 
-                // Update progress
+                // Set final progress
                 if let Ok(mut p) = progress_clone.lock() {
-                    *p = Some(i as f32 / total as f32);
+                    *p = Some(1.0);
                 }
-                // Request UI repaint after progress update
+                // Request final UI repaint when batch uninstall completes
                 let shared_store = get_shared_store();
                 shared_store.request_repaint();
 
-                // Skip unsafe apps when unsafe_app_remove is disabled
-                if unsafe_apps.contains(&pkg_name) && !unsafe_app_remove {
-                    log::warn!("Skipping uninstall of unsafe app: {}", pkg_name);
-                    continue;
-                }
-
-                // Skip expert apps when expert_app_remove is disabled
-                if expert_apps.contains(&pkg_name) && !expert_app_remove {
-                    log::warn!("Skipping uninstall of expert app: {}", pkg_name);
-                    continue;
-                }
-
-                // Execute uninstall
-                let uninstall_result = if is_system {
-                    crate::adb::uninstall_app_user(&pkg_name, &device, None)
-                } else {
-                    crate::adb::uninstall_app(&pkg_name, &device)
-                };
-
-                match uninstall_result {
-                    Ok(output) => {
-                        log::info!("App uninstalled successfully: {}", output);
-                        success_count += 1;
-
-                        // Update package state in shared store
-                        let store = get_shared_store();
-                        let mut packages = store.get_installed_packages();
-                        if is_system {
-                            if let Some(pkg) = packages.iter_mut().find(|p| p.pkg == pkg_name) {
-                                for user in pkg.users.iter_mut() {
-                                    user.installed = false;
-                                    user.enabled = 0;
-                                }
-                            }
-                        } else {
-                            packages.retain(|pkg| pkg.pkg != pkg_name);
-                        }
-                        store.set_installed_packages(packages);
-                    }
-                    Err(e) => {
-                        log::error!("Failed to uninstall app({}): {}", pkg_name, e);
-                        failure_count += 1;
-                    }
-                }
-            }
-
-            // Set final progress
-            if let Ok(mut p) = progress_clone.lock() {
-                *p = Some(1.0);
-            }
-            // Request final UI repaint when batch uninstall completes
-            let shared_store = get_shared_store();
-            shared_store.request_repaint();
-
-            log::info!(
-                "Batch uninstall completed: {} succeeded, {} failed",
-                success_count,
-                failure_count
-            );
-        });
+                log::info!(
+                    "Batch uninstall completed: {} succeeded, {} failed",
+                    success_count,
+                    failure_count
+                );
+            });
+        }
     }
 
     /// Start batch disable in background thread
     fn start_batch_disable(
         &mut self,
+        viewmodel: Option<&mut crate::viewmodel::ViewModel>,
         pkgs: Vec<String>,
         device: String,
         uad_ng_lists: Option<&UadNgLists>,
     ) {
-        // Start state machine
-        self.batch_disable_state.start();
+        // Use ViewModel if available
+        if let Some(vm) = viewmodel {
+            // Configure actor options
+            if let Err(e) = vm.set_debloat_options(self.unsafe_app_remove, self.expert_app_remove) {
+                log::error!("Failed to set debloat options: {}", e);
+                return;
+            }
 
-        // Initialize progress
-        if let Ok(mut p) = self.batch_disable_progress.lock() {
-            *p = Some(0.0);
-        }
-        if let Ok(mut cancelled) = self.batch_disable_cancelled.lock() {
-            *cancelled = false;
-        }
+            // Build filter sets
+            let unsafe_apps: std::collections::HashSet<String> = uad_ng_lists
+                .map(|lists| {
+                    lists
+                        .apps
+                        .iter()
+                        .filter(|(_, app)| app.removal == "Unsafe")
+                        .map(|(name, _)| name.clone())
+                        .collect()
+                })
+                .unwrap_or_default();
 
-        log::info!(
-            "Starting batch disable for {} packages in background",
-            pkgs.len()
-        );
+            let expert_apps: std::collections::HashSet<String> = uad_ng_lists
+                .map(|lists| {
+                    lists
+                        .apps
+                        .iter()
+                        .filter(|(_, app)| app.removal == "Expert")
+                        .map(|(name, _)| name.clone())
+                        .collect()
+                })
+                .unwrap_or_default();
 
-        // Clone data needed for background thread
-        let progress_clone = self.batch_disable_progress.clone();
-        let cancelled_clone = self.batch_disable_cancelled.clone();
-        let unsafe_app_remove = self.unsafe_app_remove;
-        let expert_app_remove = self.expert_app_remove;
+            // Filter packages
+            let filtered_pkgs: Vec<String> = pkgs.into_iter()
+                .filter(|pkg_name| {
+                    if unsafe_apps.contains(pkg_name) && !self.unsafe_app_remove {
+                        log::warn!("Skipping disable of unsafe app: {}", pkg_name);
+                        return false;
+                    }
+                    if expert_apps.contains(pkg_name) && !self.expert_app_remove {
+                        log::warn!("Skipping disable of expert app: {}", pkg_name);
+                        return false;
+                    }
+                    true
+                })
+                .collect();
 
-        // Build unsafe app set from uad_ng_lists
-        let unsafe_apps: std::collections::HashSet<String> = uad_ng_lists
-            .map(|lists| {
-                lists
-                    .apps
-                    .iter()
-                    .filter(|(_, app)| app.removal == "Unsafe")
-                    .map(|(name, _)| name.clone())
-                    .collect()
-            })
-            .unwrap_or_default();
+            log::info!("Starting batch disable for {} packages", filtered_pkgs.len());
 
-        // Build expert app set from uad_ng_lists
-        let expert_apps: std::collections::HashSet<String> = uad_ng_lists
-            .map(|lists| {
-                lists
-                    .apps
-                    .iter()
-                    .filter(|(_, app)| app.removal == "Expert")
-                    .map(|(name, _)| name.clone())
-                    .collect()
-            })
-            .unwrap_or_default();
+            // Send command to ViewModel
+            if let Err(e) = vm.batch_disable(filtered_pkgs, device) {
+                log::error!("Failed to start batch disable: {}", e);
+                return;
+            }
 
-        // Spawn background thread
-        std::thread::spawn(move || {
-            let total = pkgs.len();
-            let mut success_count = 0;
-            let mut failure_count = 0;
+            self.batch_disable_state.start();
 
-            for (i, pkg_name) in pkgs.into_iter().enumerate() {
-                // Check if cancelled
-                if let Ok(cancelled) = cancelled_clone.lock() {
-                    if *cancelled {
-                        log::info!("Batch disable cancelled by user");
-                        break;
+        } else {
+            // Fallback: legacy implementation
+            log::warn!("ViewModel not available, using legacy batch disable");
+
+            self.batch_disable_state.start();
+
+            if let Ok(mut p) = self.batch_disable_progress.lock() {
+                *p = Some(0.0);
+            }
+            if let Ok(mut cancelled) = self.batch_disable_cancelled.lock() {
+                *cancelled = false;
+            }
+
+            log::info!("Starting batch disable for {} packages in background", pkgs.len());
+
+            let progress_clone = self.batch_disable_progress.clone();
+            let cancelled_clone = self.batch_disable_cancelled.clone();
+            let unsafe_app_remove = self.unsafe_app_remove;
+            let expert_app_remove = self.expert_app_remove;
+
+            let unsafe_apps: std::collections::HashSet<String> = uad_ng_lists
+                .map(|lists| {
+                    lists
+                        .apps
+                        .iter()
+                        .filter(|(_, app)| app.removal == "Unsafe")
+                        .map(|(name, _)| name.clone())
+                        .collect()
+                })
+                .unwrap_or_default();
+
+            let expert_apps: std::collections::HashSet<String> = uad_ng_lists
+                .map(|lists| {
+                    lists
+                        .apps
+                        .iter()
+                        .filter(|(_, app)| app.removal == "Expert")
+                        .map(|(name, _)| name.clone())
+                        .collect()
+                })
+                .unwrap_or_default();
+
+            std::thread::spawn(move || {
+                let total = pkgs.len();
+                let mut success_count = 0;
+                let mut failure_count = 0;
+
+                for (i, pkg_name) in pkgs.into_iter().enumerate() {
+                    if let Ok(cancelled) = cancelled_clone.lock() {
+                        if *cancelled {
+                            log::info!("Batch disable cancelled by user");
+                            break;
+                        }
+                    }
+
+                    if let Ok(mut p) = progress_clone.lock() {
+                        *p = Some(i as f32 / total as f32);
+                    }
+                    let shared_store = get_shared_store();
+                    shared_store.request_repaint();
+
+                    if unsafe_apps.contains(&pkg_name) && !unsafe_app_remove {
+                        log::warn!("Skipping disable of unsafe app: {}", pkg_name);
+                        continue;
+                    }
+
+                    if expert_apps.contains(&pkg_name) && !expert_app_remove {
+                        log::warn!("Skipping disable of expert app: {}", pkg_name);
+                        continue;
+                    }
+
+                    match crate::adb::disable_app_current_user(&pkg_name, &device, None) {
+                        Ok(output) => {
+                            log::info!("App disabled successfully: {}", output);
+                            success_count += 1;
+
+                            let store = get_shared_store();
+                            let mut packages = store.get_installed_packages();
+                            if let Some(pkg) = packages.iter_mut().find(|p| p.pkg == pkg_name) {
+                                for user in pkg.users.iter_mut() {
+                                    user.enabled = 3;
+                                }
+                            }
+                            store.set_installed_packages(packages);
+                        }
+                        Err(e) => {
+                            log::error!("Failed to disable app({}): {}", pkg_name, e);
+                            failure_count += 1;
+                        }
                     }
                 }
 
-                // Update progress
                 if let Ok(mut p) = progress_clone.lock() {
-                    *p = Some(i as f32 / total as f32);
+                    *p = Some(1.0);
                 }
-                // Request UI repaint after progress update
                 let shared_store = get_shared_store();
                 shared_store.request_repaint();
 
-                // Skip unsafe apps when unsafe_app_remove is disabled
-                if unsafe_apps.contains(&pkg_name) && !unsafe_app_remove {
-                    log::warn!("Skipping disable of unsafe app: {}", pkg_name);
-                    continue;
-                }
-
-                // Skip expert apps when expert_app_remove is disabled
-                if expert_apps.contains(&pkg_name) && !expert_app_remove {
-                    log::warn!("Skipping disable of expert app: {}", pkg_name);
-                    continue;
-                }
-
-                // Execute disable
-                match crate::adb::disable_app_current_user(&pkg_name, &device, None) {
-                    Ok(output) => {
-                        log::info!("App disabled successfully: {}", output);
-                        success_count += 1;
-
-                        // Update package state in shared store
-                        let store = get_shared_store();
-                        let mut packages = store.get_installed_packages();
-                        if let Some(pkg) = packages.iter_mut().find(|p| p.pkg == pkg_name) {
-                            for user in pkg.users.iter_mut() {
-                                user.enabled = 3;
-                            }
-                        }
-                        store.set_installed_packages(packages);
-                    }
-                    Err(e) => {
-                        log::error!("Failed to disable app({}): {}", pkg_name, e);
-                        failure_count += 1;
-                    }
-                }
-            }
-
-            // Set final progress
-            if let Ok(mut p) = progress_clone.lock() {
-                *p = Some(1.0);
-            }
-            // Request final UI repaint when batch disable completes
-            let shared_store = get_shared_store();
-            shared_store.request_repaint();
-
-            log::info!(
-                "Batch disable completed: {} succeeded, {} failed",
-                success_count,
-                failure_count
-            );
-        });
+                log::info!(
+                    "Batch disable completed: {} succeeded, {} failed",
+                    success_count,
+                    failure_count
+                );
+            });
+        }
     }
 
-    /// Start batch enable in background thread
-    fn start_batch_enable(&mut self, pkgs: Vec<String>, device: String) {
-        // Start state machine
-        self.batch_enable_state.start();
+    /// Start batch enable using ViewModel
+    fn start_batch_enable(
+        &mut self,
+        viewmodel: Option<&mut crate::viewmodel::ViewModel>,
+        pkgs: Vec<String>,
+        device: String,
+    ) {
+        // Use ViewModel if available
+        if let Some(vm) = viewmodel {
+            log::info!("Starting batch enable for {} packages", pkgs.len());
 
-        // Initialize progress
-        if let Ok(mut p) = self.batch_enable_progress.lock() {
-            *p = Some(0.0);
-        }
-        if let Ok(mut cancelled) = self.batch_enable_cancelled.lock() {
-            *cancelled = false;
-        }
+            // Send command to ViewModel (no filtering needed for enable)
+            if let Err(e) = vm.batch_enable(pkgs, device) {
+                log::error!("Failed to start batch enable: {}", e);
+                return;
+            }
 
-        log::info!(
-            "Starting batch enable for {} packages in background",
-            pkgs.len()
-        );
+            self.batch_enable_state.start();
 
-        // Clone data needed for background thread
-        let progress_clone = self.batch_enable_progress.clone();
-        let cancelled_clone = self.batch_enable_cancelled.clone();
+        } else {
+            // Fallback: legacy implementation
+            log::warn!("ViewModel not available, using legacy batch enable");
 
-        // Spawn background thread
-        std::thread::spawn(move || {
-            let total = pkgs.len();
-            let mut success_count = 0;
-            let mut failure_count = 0;
+            self.batch_enable_state.start();
 
-            for (i, pkg_name) in pkgs.into_iter().enumerate() {
-                // Check if cancelled
-                if let Ok(cancelled) = cancelled_clone.lock() {
-                    if *cancelled {
-                        log::info!("Batch enable cancelled by user");
-                        break;
+            if let Ok(mut p) = self.batch_enable_progress.lock() {
+                *p = Some(0.0);
+            }
+            if let Ok(mut cancelled) = self.batch_enable_cancelled.lock() {
+                *cancelled = false;
+            }
+
+            log::info!("Starting batch enable for {} packages in background", pkgs.len());
+
+            let progress_clone = self.batch_enable_progress.clone();
+            let cancelled_clone = self.batch_enable_cancelled.clone();
+
+            std::thread::spawn(move || {
+                let total = pkgs.len();
+                let mut success_count = 0;
+                let mut failure_count = 0;
+
+                for (i, pkg_name) in pkgs.into_iter().enumerate() {
+                    if let Ok(cancelled) = cancelled_clone.lock() {
+                        if *cancelled {
+                            log::info!("Batch enable cancelled by user");
+                            break;
+                        }
+                    }
+
+                    if let Ok(mut p) = progress_clone.lock() {
+                        *p = Some(i as f32 / total as f32);
+                    }
+                    let shared_store = get_shared_store();
+                    shared_store.request_repaint();
+
+                    match crate::adb::enable_app(&pkg_name, &device) {
+                        Ok(output) => {
+                            log::info!("App enabled successfully: {}", output);
+                            success_count += 1;
+
+                            let store = get_shared_store();
+                            let mut packages = store.get_installed_packages();
+                            if let Some(pkg) = packages.iter_mut().find(|p| p.pkg == pkg_name) {
+                                for user in pkg.users.iter_mut() {
+                                    user.enabled = 1;
+                                    user.installed = true;
+                                }
+                            }
+                            store.set_installed_packages(packages);
+                        }
+                        Err(e) => {
+                            log::error!("Failed to enable app({}): {}", pkg_name, e);
+                            failure_count += 1;
+                        }
                     }
                 }
 
-                // Update progress
                 if let Ok(mut p) = progress_clone.lock() {
-                    *p = Some(i as f32 / total as f32);
+                    *p = Some(1.0);
                 }
-                // Request UI repaint after progress update
                 let shared_store = get_shared_store();
                 shared_store.request_repaint();
 
-                // Execute enable
-                match crate::adb::enable_app(&pkg_name, &device) {
-                    Ok(output) => {
-                        log::info!("App enabled successfully: {}", output);
-                        success_count += 1;
-
-                        // Update package state in shared store
-                        let store = get_shared_store();
-                        let mut packages = store.get_installed_packages();
-                        if let Some(pkg) = packages.iter_mut().find(|p| p.pkg == pkg_name) {
-                            for user in pkg.users.iter_mut() {
-                                user.enabled = 1;
-                                user.installed = true;
-                            }
-                        }
-                        store.set_installed_packages(packages);
-                    }
-                    Err(e) => {
-                        log::error!("Failed to enable app({}): {}", pkg_name, e);
-                        failure_count += 1;
-                    }
-                }
-            }
-
-            // Set final progress
-            if let Ok(mut p) = progress_clone.lock() {
-                *p = Some(1.0);
-            }
-            // Request final UI repaint when batch enable completes
-            let shared_store = get_shared_store();
-            shared_store.request_repaint();
-
-            log::info!(
-                "Batch enable completed: {} succeeded, {} failed",
-                success_count,
-                failure_count
-            );
-        });
+                log::info!(
+                    "Batch enable completed: {} succeeded, {} failed",
+                    success_count,
+                    failure_count
+                );
+            });
+        }
     }
 
     /// Update cached category counts if version has changed
@@ -905,6 +1027,106 @@ impl TabDebloatControl {
         Some(texture)
     }
 
+    /// Handle ViewModel events to update tab state
+    fn handle_viewmodel_events(&mut self, vm: &mut crate::viewmodel::ViewModel, ctx: &egui::Context) {
+        use crate::viewmodel::{ViewModelEvent, DebloatEvent};
+
+        // Poll events from ViewModel
+        let events = vm.poll_events(ctx);
+
+        for event in events {
+            if let ViewModelEvent::Debloat(debloat_event) = event {
+                match debloat_event {
+                    DebloatEvent::BatchProgress { operation, progress, current, total } => {
+                        log::debug!("Debloat progress: {} - {}/{} ({:.1}%)",
+                                   operation, current, total, progress * 100.0);
+
+                        match operation.as_str() {
+                            "uninstall" => {
+                                if let Ok(mut p) = self.batch_uninstall_progress.lock() {
+                                    *p = Some(progress);
+                                }
+                            }
+                            "disable" => {
+                                if let Ok(mut p) = self.batch_disable_progress.lock() {
+                                    *p = Some(progress);
+                                }
+                            }
+                            "enable" => {
+                                if let Ok(mut p) = self.batch_enable_progress.lock() {
+                                    *p = Some(progress);
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+
+                    DebloatEvent::BatchComplete { operation, succeeded, failed } => {
+                        log::info!("Batch {} complete: {} succeeded, {} failed",
+                                  operation, succeeded, failed);
+
+                        match operation.as_str() {
+                            "uninstall" => {
+                                self.batch_uninstall_state.complete();
+                                if let Ok(mut p) = self.batch_uninstall_progress.lock() {
+                                    *p = Some(1.0);
+                                }
+                            }
+                            "disable" => {
+                                self.batch_disable_state.complete();
+                                if let Ok(mut p) = self.batch_disable_progress.lock() {
+                                    *p = Some(1.0);
+                                }
+                            }
+                            "enable" => {
+                                self.batch_enable_state.complete();
+                                if let Ok(mut p) = self.batch_enable_progress.lock() {
+                                    *p = Some(1.0);
+                                }
+                            }
+                            _ => {}
+                        }
+
+                        // Request UI repaint
+                        ctx.request_repaint();
+                    }
+
+                    DebloatEvent::Error { operation, error } => {
+                        log::error!("Debloat error in {}: {}", operation, error);
+
+                        match operation.as_str() {
+                            "uninstall" => {
+                                self.batch_uninstall_state.error();
+                            }
+                            "disable" => {
+                                self.batch_disable_state.error();
+                            }
+                            "enable" => {
+                                self.batch_enable_state.error();
+                            }
+                            _ => {}
+                        }
+                    }
+
+                    DebloatEvent::PackagesLoaded(_packages) => {
+                        log::debug!("Packages loaded event received");
+                        // TODO: Update local state when we move away from SharedStore
+                    }
+
+                    DebloatEvent::UadNgListsLoaded(_lists) => {
+                        log::debug!("UAD lists loaded event received");
+                        // TODO: Update local state when we move away from SharedStore
+                    }
+
+                    DebloatEvent::StalkerwareIndicatorsLoaded(_indicators) => {
+                        log::debug!("Stalkerware indicators loaded event received");
+                        // Indicators now in ViewModel.state.stalkerware_indicators
+                    }
+                }
+            }
+        }
+    }
+
     fn load_texture_from_bytes(
         ctx: &egui::Context,
         package_id: &str,
@@ -938,14 +1160,228 @@ impl TabDebloatControl {
         Some(texture)
     }
 
+    /// Prepare all row data - expensive operation cached per table_version
+    fn prepare_all_rows(
+        &self,
+        ctx: &egui::Context,
+        installed_packages: &[crate::adb::PackageFingerprint],
+        uad_ng_lists_ref: Option<&crate::uad_shizuku_app::UadNgLists>,
+        stalkerware_indicators: &Option<crate::calc_stalkerware::StalkerwareIndicators>,
+        cached_fdroid_apps: &std::collections::HashMap<String, crate::models::FDroidApp>,
+        cached_google_play_apps: &std::collections::HashMap<String, crate::models::GooglePlayApp>,
+        cached_apkmirror_apps: &std::collections::HashMap<String, crate::models::ApkMirrorApp>,
+        cached_android_package_apps: &std::collections::HashMap<String, crate::calc_androidpackage::AndroidPackageInfo>,
+        google_play_enabled: bool,
+        fdroid_enabled: bool,
+        apkmirror_enabled: bool,
+        android_package_enabled: bool,
+    ) -> Vec<PreparedRowData> {
+        use crate::tab_debloat_control_stt::PreparedRowData;
+
+        installed_packages
+            .iter()
+            .enumerate()
+            .filter(|(_, p)| self.should_show_package(p, uad_ng_lists_ref))
+            .filter(|(_, p)| {
+                self.matches_text_filter(
+                    p,
+                    uad_ng_lists_ref,
+                    cached_fdroid_apps,
+                    cached_google_play_apps,
+                    cached_apkmirror_apps,
+                )
+            })
+            .map(|(idx, package)| {
+                let store = get_shared_store();
+                let pkg_id = package.pkg.clone();
+                let is_system = package.flags.contains("SYSTEM");
+                let package_name = format!("{} ({})", package.pkg, package.versionName);
+
+                let debloat_category = if let Some(ref lists) = uad_ng_lists_ref {
+                    lists
+                        .apps
+                        .get(&pkg_id)
+                        .map(|app| app.removal.clone())
+                        .unwrap_or_else(|| "Unknown".to_string())
+                } else {
+                    "Unknown".to_string()
+                };
+
+                let runtime_perms = package
+                    .users
+                    .first()
+                    .map(|u| u.runtimePermissions.len())
+                    .unwrap_or(0)
+                    .to_string();
+
+                let is_stalkerware = stalkerware_indicators
+                    .as_ref()
+                    .map(|ind| ind.is_stalkerware(&pkg_id))
+                    .unwrap_or(false);
+
+                let enabled = package
+                    .users
+                    .first()
+                    .map(|u| Self::enabled_to_display_string(u.enabled, u.installed, is_system))
+                    .unwrap_or("DEFAULT")
+                    .to_string();
+
+                let install_reason_value = package.users.first().map(|u| u.installReason).unwrap_or(0);
+                let install_reason = if is_system {
+                    if install_reason_value == 0 {
+                        "SYSTEM".to_string()
+                    } else {
+                        format!(
+                            "{} (SYSTEM)",
+                            Self::install_reason_to_string(install_reason_value)
+                        )
+                    }
+                } else {
+                    Self::install_reason_to_string(install_reason_value).to_string()
+                };
+
+                let is_selected = self.selected_packages.contains(&pkg_id);
+
+                // Load textures (already cached internally)
+                let (ap_texture, ap_title) = if android_package_enabled {
+                    if let Some(ap_app) = cached_android_package_apps.get(&pkg_id) {
+                        let tex = Self::load_texture_from_bytes(ctx, &pkg_id, &ap_app.icon_bytes);
+                        (tex.map(|t| t.id()), Some(ap_app.label.clone()))
+                    } else {
+                        #[cfg(target_os = "android")]
+                        {
+                            if let Some(info) = crate::calc_androidpackage::fetch_android_package_info(&pkg_id) {
+                                store.set_cached_android_package_app(pkg_id.clone(), info.clone());
+                                let tex = Self::load_texture_from_bytes(ctx, &pkg_id, &info.icon_bytes);
+                                (tex.map(|t| t.id()), Some(info.label.clone()))
+                            } else {
+                                (None, None)
+                            }
+                        }
+                        #[cfg(not(target_os = "android"))]
+                        {
+                            (None, None)
+                        }
+                    }
+                } else {
+                    (None, None)
+                };
+
+                let (fd_texture, fd_title, fd_developer) = if !is_system && fdroid_enabled {
+                    if let Some(fd_app) = cached_fdroid_apps.get(&pkg_id) {
+                        if fd_app.raw_response != "404" {
+                            let tex = fd_app.icon_base64.as_ref().and_then(|icon| {
+                                Self::load_texture_from_base64(ctx, "fd", &pkg_id, icon)
+                            });
+                            (
+                                tex.map(|t| t.id()),
+                                Some(fd_app.title.clone()),
+                                Some(fd_app.developer.clone()),
+                            )
+                        } else {
+                            (None, None, None)
+                        }
+                    } else {
+                        (None, None, None)
+                    }
+                } else {
+                    (None, None, None)
+                };
+
+                let (gp_texture, gp_title, gp_developer) = if !is_system && google_play_enabled && fd_title.is_none() {
+                    if let Some(gp_app) = cached_google_play_apps.get(&pkg_id) {
+                        if gp_app.raw_response != "404" {
+                            let tex = gp_app.icon_base64.as_ref().and_then(|icon| {
+                                Self::load_texture_from_base64(ctx, "gp", &pkg_id, icon)
+                            });
+                            (
+                                tex.map(|t| t.id()),
+                                Some(gp_app.title.clone()),
+                                Some(gp_app.developer.clone()),
+                            )
+                        } else {
+                            (None, None, None)
+                        }
+                    } else {
+                        (None, None, None)
+                    }
+                } else {
+                    (None, None, None)
+                };
+
+                let (am_texture, am_title, am_developer) = if is_system && apkmirror_enabled {
+                    if let Some(am_app) = cached_apkmirror_apps.get(&pkg_id) {
+                        if am_app.raw_response != "404" {
+                            let tex = am_app.icon_base64.as_ref().and_then(|icon| {
+                                Self::load_texture_from_base64(ctx, "am", &pkg_id, icon)
+                            });
+                            (
+                                tex.map(|t| t.id()),
+                                Some(am_app.title.clone()),
+                                Some(am_app.developer.clone()),
+                            )
+                        } else {
+                            (None, None, None)
+                        }
+                    } else {
+                        (None, None, None)
+                    }
+                } else {
+                    (None, None, None)
+                };
+
+                // Determine display info
+                let (texture_id, title_text, subtitle_text, use_scrollable_title) = if let Some(title) = ap_title.as_ref() {
+                    (ap_texture, title.clone(), pkg_id.clone(), false)
+                } else if let (Some(title), Some(dev)) = (fd_title.as_ref(), fd_developer.as_ref()) {
+                    (fd_texture, title.clone(), dev.clone(), false)
+                } else if let (Some(title), Some(dev)) = (gp_title.as_ref(), gp_developer.as_ref()) {
+                    (gp_texture, title.clone(), dev.clone(), true)
+                } else if let (Some(title), Some(dev)) = (am_title.as_ref(), am_developer.as_ref()) {
+                    (am_texture, title.clone(), dev.clone(), true)
+                } else {
+                    (None, package_name.clone(), String::new(), true)
+                };
+
+                let uad_description = uad_ng_lists_ref
+                    .and_then(|lists| lists.apps.get(&pkg_id))
+                    .map(|entry| entry.description.clone());
+
+                PreparedRowData {
+                    idx,
+                    pkg_id,
+                    package_name,
+                    is_system,
+                    debloat_category,
+                    runtime_perms,
+                    is_stalkerware,
+                    enabled_text: enabled,
+                    install_reason,
+                    is_selected,
+                    texture_id,
+                    title_text,
+                    subtitle_text,
+                    use_scrollable_title,
+                    uad_description,
+                }
+            })
+            .collect()
+    }
+
     pub fn ui(
         &mut self,
+        mut viewmodel: Option<&mut crate::viewmodel::ViewModel>,
         ui: &mut egui::Ui,
         google_play_enabled: bool,
         fdroid_enabled: bool,
         apkmirror_enabled: bool,
         android_package_enabled: bool,
     ) -> Option<AdbResult> {
+        // Handle ViewModel events first
+        if let Some(ref mut vm) = viewmodel {
+            self.handle_viewmodel_events(vm, ui.ctx());
+        }
+
         // Get viewport width for responsive design
         let available_width = ui.ctx().content_rect().width();
         let is_desktop = available_width >= DESKTOP_MIN_WIDTH;
@@ -1466,93 +1902,41 @@ impl TabDebloatControl {
         let shared_store = crate::shared_store_stt::get_shared_store();
         let stalkerware_indicators = shared_store.get_stalkerware_indicators();
 
-        // Collect filtered packages info first to avoid borrow issues
-        // Note: uad_ng_lists_ref is pre-fetched at the start of ui()
-        let filtered_packages: Vec<(
-            usize,
-            String,
-            String,
-            bool,
-            String,
-            String,
-            bool,
-            String,
-            String,
-            bool,
-        )> = installed_packages
-            .iter()
-            .enumerate()
-            .filter(|(_, p)| self.should_show_package(p, uad_ng_lists_ref))
-            .filter(|(_, p)| {
-                self.matches_text_filter(
-                    p,
+        // Create cache key that includes all filter state
+        let cache_key = format!(
+            "debloat_prepared_rows_v{}_f{:?}_t{}_h{}_s{}",
+            self.table_version,
+            self.active_filter,
+            self.text_filter,
+            self.hide_system_app,
+            self.show_only_enabled
+        );
+
+        // Get or prepare row data (cached to avoid recomputing every frame)
+        let prepared_rows: Vec<PreparedRowData> = ui.data_mut(|data| {
+            data.get_temp_mut_or_insert_with(egui::Id::new(&cache_key), || {
+                log::debug!("Preparing row data (cache miss) for {} packages", installed_packages.len());
+                self.prepare_all_rows(
+                    ui.ctx(),
+                    &installed_packages,
                     uad_ng_lists_ref,
+                    &stalkerware_indicators,
                     &cached_fdroid_apps,
                     &cached_google_play_apps,
                     &cached_apkmirror_apps,
+                    &cached_android_package_apps,
+                    google_play_enabled,
+                    fdroid_enabled,
+                    apkmirror_enabled,
+                    android_package_enabled,
                 )
             })
-            .map(|(idx, package)| {
-                let is_system = package.flags.contains("SYSTEM");
-                let package_name = format!("{} ({})", package.pkg, package.versionName);
-                let debloat_category = if let Some(ref lists) = uad_ng_lists_ref {
-                    lists
-                        .apps
-                        .get(&package.pkg)
-                        .map(|app| app.removal.clone())
-                        .unwrap_or_else(|| "Unknown".to_string())
-                } else {
-                    "Unknown".to_string()
-                };
-                let runtime_perms = package
-                    .users
-                    .first()
-                    .map(|u| u.runtimePermissions.len())
-                    .unwrap_or(0)
-                    .to_string();
-                let is_stalkerware = stalkerware_indicators
-                    .as_ref()
-                    .map(|ind| ind.is_stalkerware(&package.pkg))
-                    .unwrap_or(false);
-                let enabled = package
-                    .users
-                    .first()
-                    .map(|u| Self::enabled_to_display_string(u.enabled, u.installed, is_system))
-                    .unwrap_or("DEFAULT")
-                    .to_string();
-                let install_reason_value =
-                    package.users.first().map(|u| u.installReason).unwrap_or(0);
-                let install_reason = if is_system {
-                    if install_reason_value == 0 {
-                        "SYSTEM".to_string()
-                    } else {
-                        format!(
-                            "{} (SYSTEM)",
-                            Self::install_reason_to_string(install_reason_value)
-                        )
-                    }
-                } else {
-                    Self::install_reason_to_string(install_reason_value).to_string()
-                };
-                let is_selected = self.selected_packages.contains(&package.pkg);
-                (
-                    idx,
-                    package.pkg.clone(),
-                    package_name,
-                    is_system,
-                    debloat_category,
-                    runtime_perms,
-                    is_stalkerware,
-                    enabled,
-                    install_reason,
-                    is_selected,
-                )
-            })
-            .collect();
+            .clone()
+        });
 
         log::debug!(
             "TabDebloatControl: Displaying {} of {} packages (filter: {:?}, hide_system: {}, show_only_enabled: {})",
-            filtered_packages.len(),
+            prepared_rows.len(),
             installed_packages.len(),
             self.active_filter,
             self.hide_system_app,
@@ -1560,126 +1944,35 @@ impl TabDebloatControl {
         );
 
         // Collect filtered package names for both views
-        for (_, pkg_id, _, _, _, _, _, _, _, _) in &filtered_packages {
-            filtered_package_names.push(pkg_id.clone());
+        for row in &prepared_rows {
+            filtered_package_names.push(row.pkg_id.clone());
         }
 
-        for (
-            idx,
-            pkg_id,
-            package_name,
-            is_system,
-            debloat_category,
-            runtime_perms,
-            is_stalkerware,
-            enabled_text,
-            install_reason,
-            is_selected,
-        ) in filtered_packages
-        {
+        // Render rows using prepared (cached) data
+        for row in prepared_rows {
+            let PreparedRowData {
+                idx,
+                pkg_id,
+                package_name,
+                is_system,
+                debloat_category,
+                runtime_perms,
+                is_stalkerware,
+                enabled_text,
+                install_reason,
+                is_selected,
+                texture_id,
+                title_text,
+                subtitle_text,
+                use_scrollable_title,
+                uad_description,
+            } = row;
+
             let clicked_idx_clone = clicked_package_idx.clone();
             let pkg_id_clone = pkg_id.clone();
             let package_name_clone = package_name.clone();
             let enabled_str = enabled_text.clone();
             let debloat_category_clone = debloat_category.clone();
-
-            // Get cached app info from pre-fetched maps (avoids repeated mutex locks)
-            let fd_cached = cached_fdroid_apps.get(&pkg_id);
-            let gp_cached = cached_google_play_apps.get(&pkg_id);
-            let am_cached = cached_apkmirror_apps.get(&pkg_id);
-
-            // Prepare Android Package texture data (highest priority on Android)
-            let (ap_texture, ap_title) = if android_package_enabled {
-                if let Some(ap_app) = cached_android_package_apps.get(&pkg_id) {
-                    let tex = Self::load_texture_from_bytes(ui.ctx(), &pkg_id, &ap_app.icon_bytes);
-                    (tex.map(|t| t.id()), Some(ap_app.label.clone()))
-                } else {
-                    #[cfg(target_os = "android")]
-                    {
-                        if let Some(info) =
-                            crate::calc_androidpackage::fetch_android_package_info(&pkg_id)
-                        {
-                            store.set_cached_android_package_app(pkg_id.clone(), info.clone());
-                            let tex =
-                                Self::load_texture_from_bytes(ui.ctx(), &pkg_id, &info.icon_bytes);
-                            (tex.map(|t| t.id()), Some(info.label.clone()))
-                        } else {
-                            (None, None)
-                        }
-                    }
-                    #[cfg(not(target_os = "android"))]
-                    {
-                        (None, None)
-                    }
-                }
-            } else {
-                (None, None)
-            };
-
-            // Prepare texture data
-            let (fd_texture, fd_title, fd_developer) = if !is_system && fdroid_enabled {
-                if let Some(fd_app) = fd_cached {
-                    if fd_app.raw_response != "404" {
-                        let tex = fd_app.icon_base64.as_ref().and_then(|icon| {
-                            Self::load_texture_from_base64(ui.ctx(), "fd", &pkg_id, icon)
-                        });
-                        (
-                            tex.map(|t| t.id()),
-                            Some(fd_app.title.clone()),
-                            Some(fd_app.developer.clone()),
-                        )
-                    } else {
-                        (None, None, None)
-                    }
-                } else {
-                    (None, None, None)
-                }
-            } else {
-                (None, None, None)
-            };
-
-            let (gp_texture, gp_title, gp_developer) =
-                if !is_system && google_play_enabled && fd_title.is_none() {
-                    if let Some(gp_app) = gp_cached {
-                        if gp_app.raw_response != "404" {
-                            let tex = gp_app.icon_base64.as_ref().and_then(|icon| {
-                                Self::load_texture_from_base64(ui.ctx(), "gp", &pkg_id, icon)
-                            });
-                            (
-                                tex.map(|t| t.id()),
-                                Some(gp_app.title.clone()),
-                                Some(gp_app.developer.clone()),
-                            )
-                        } else {
-                            (None, None, None)
-                        }
-                    } else {
-                        (None, None, None)
-                    }
-                } else {
-                    (None, None, None)
-                };
-
-            let (am_texture, am_title, am_developer) = if is_system && apkmirror_enabled {
-                if let Some(am_app) = am_cached {
-                    if am_app.raw_response != "404" {
-                        let tex = am_app.icon_base64.as_ref().and_then(|icon| {
-                            Self::load_texture_from_base64(ui.ctx(), "am", &pkg_id, icon)
-                        });
-                        (
-                            tex.map(|t| t.id()),
-                            Some(am_app.title.clone()),
-                            Some(am_app.developer.clone()),
-                        )
-                    } else {
-                        (None, None, None)
-                    }
-                } else {
-                    (None, None, None)
-                }
-            } else {
-                (None, None, None)
-            };
 
             // Helper closure to render badges
             let render_badges = |ui: &mut egui::Ui,
@@ -1777,25 +2070,11 @@ impl TabDebloatControl {
             };
 
             debloat_table = debloat_table.row(|table_row| {
-                // Determine app info to display
-                let (texture, title_text, subtitle_text, use_scrollable_title) =
-                    if let Some(title) = ap_title.as_ref() {
-                        (ap_texture, title.clone(), pkg_id.clone(), false)
-                    } else if let (Some(title), Some(dev)) =
-                        (fd_title.as_ref(), fd_developer.as_ref())
-                    {
-                        (fd_texture, title.clone(), dev.clone(), false)
-                    } else if let (Some(title), Some(dev)) =
-                        (gp_title.as_ref(), gp_developer.as_ref())
-                    {
-                        (gp_texture, title.clone(), dev.clone(), true)
-                    } else if let (Some(title), Some(dev)) =
-                        (am_title.as_ref(), am_developer.as_ref())
-                    {
-                        (am_texture, title.clone(), dev.clone(), true)
-                    } else {
-                        (None, package_name_clone.clone(), String::new(), true)
-                    };
+                // Use prepared display data (already computed and cached)
+                let texture = texture_id;
+                let title_text_for_cell = title_text.clone();
+                let subtitle_text_for_cell = subtitle_text.clone();
+                let use_scrollable_title_for_cell = use_scrollable_title;
 
                 let debloat_category_clone2 = debloat_category.clone();
                 let is_stalkerware_clone = is_stalkerware;
@@ -1815,26 +2094,26 @@ impl TabDebloatControl {
                                 ui.style_mut().spacing.item_spacing.y = 0.1;
 
                                 // Title (with optional scroll area)
-                                if use_scrollable_title {
+                                if use_scrollable_title_for_cell {
                                     egui::ScrollArea::horizontal()
                                         .id_salt(format!("debloat_title_scroll_{}", idx))
                                         .auto_shrink([false, true])
                                         .show(ui, |ui| {
                                             ui.add(
                                                 egui::Label::new(
-                                                    egui::RichText::new(&title_text).strong(),
+                                                    egui::RichText::new(&title_text_for_cell).strong(),
                                                 )
                                                 .wrap_mode(egui::TextWrapMode::Extend),
                                             );
                                         });
                                 } else {
-                                    ui.label(egui::RichText::new(&title_text).strong());
+                                    ui.label(egui::RichText::new(&title_text_for_cell).strong());
                                 }
 
                                 // Subtitle (package ID or developer)
-                                if !subtitle_text.is_empty() {
+                                if !subtitle_text_for_cell.is_empty() {
                                     ui.label(
-                                        egui::RichText::new(&subtitle_text)
+                                        egui::RichText::new(&subtitle_text_for_cell)
                                             .small()
                                             .color(egui::Color32::GRAY),
                                     );
@@ -2029,11 +2308,8 @@ impl TabDebloatControl {
                         });
                 });
 
-                // Add drawer for UAD description
-                if let Some(uad_entry) =
-                    uad_ng_lists_ref.and_then(|lists| lists.apps.get(&pkg_id_clone))
-                {
-                    let description = uad_entry.description.clone();
+                // Add drawer for UAD description (from prepared data)
+                if let Some(description) = uad_description {
                     row_builder = row_builder.drawer(move |ui| {
                         ui.add_space(8.0);
                         ui.label("Description:");
@@ -2237,7 +2513,7 @@ impl TabDebloatControl {
                 let packages_to_disable: Vec<String> =
                     self.selected_packages.iter().cloned().collect();
                 // Start background batch disable
-                self.start_batch_disable(packages_to_disable, device.clone(), uad_ng_lists_ref);
+                self.start_batch_disable(viewmodel.as_deref_mut(), packages_to_disable, device.clone(), uad_ng_lists_ref);
             } else {
                 log::error!("No device selected for batch disable");
                 result = Some(AdbResult::Failure);
@@ -2250,7 +2526,7 @@ impl TabDebloatControl {
                 let packages_to_enable: Vec<String> =
                     self.selected_packages.iter().cloned().collect();
                 // Start background batch enable
-                self.start_batch_enable(packages_to_enable, device.clone());
+                self.start_batch_enable(viewmodel.as_deref_mut(), packages_to_enable, device.clone());
             } else {
                 log::error!("No device selected for batch enable");
                 result = Some(AdbResult::Failure);
@@ -2265,7 +2541,7 @@ impl TabDebloatControl {
 
             if let Some(ref device) = self.selected_device {
                 // Start background batch uninstall
-                self.start_batch_uninstall(pkgs, sys_flags, device.clone(), uad_ng_lists_ref);
+                self.start_batch_uninstall(viewmodel.as_deref_mut(), pkgs, sys_flags, device.clone(), uad_ng_lists_ref);
             } else {
                 log::error!("No device selected for uninstall");
                 result = Some(AdbResult::Failure);

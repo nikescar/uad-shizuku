@@ -368,7 +368,7 @@ pub fn retrieve_adb_devices(app: &mut UadShizukuApp) {
         app.tab_debloat_control.update_uad_ng_lists(UadNgLists {
             apps: HashMap::new(),
         });
-        app.tab_scan_control.update_packages(Vec::new());
+        app.tab_scan_control.update_packages(Vec::new(), app.viewmodel.as_ref());
         app.tab_scan_control.update_uad_ng_lists(UadNgLists {
             apps: HashMap::new(),
         });
@@ -730,7 +730,7 @@ pub fn handle_package_loading_result(app: &mut UadShizukuApp) {
                     let installed_packages =
                         shared_store.installed_packages.lock().unwrap().clone();
                     app.tab_scan_control
-                        .update_packages(installed_packages.clone());
+                        .update_packages(installed_packages.clone(), app.viewmodel.as_ref());
 
                     app.tab_apps_control
                         .update_packages(installed_packages.clone());
