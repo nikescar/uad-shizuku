@@ -33,7 +33,6 @@ impl DlgDashCounterDetails {
         self.count_total = count_total;
         self.sort_column = None;
         self.sort_ascending = true;
-        self.current_page = 0;
         self.open = true;
         self.invalidate_cache();
     }
@@ -56,8 +55,6 @@ impl DlgDashCounterDetails {
         self.show_only_enabled.hash(&mut hasher);
         self.hide_system_app.hash(&mut hasher);
         self.text_filter.hash(&mut hasher);
-        self.current_page.hash(&mut hasher);
-        self.items_per_page.hash(&mut hasher);
 
         // Hash package list length (lightweight proxy for package changes)
         installed_packages.len().hash(&mut hasher);
@@ -1224,26 +1221,9 @@ impl DlgDashCounterDetails {
         let current_time = ui.input(|i| i.time);
         let new_cache_key = self.generate_cache_key(installed_packages);
 
-        // Pagination (calculate early for cache)
-        let total_items = filtered_packages.len();
-        let total_pages = if total_items == 0 {
-            1
-        } else {
-            (total_items + self.items_per_page - 1) / self.items_per_page.max(1)
-        };
-        if self.current_page >= total_pages {
-            self.current_page = total_pages.saturating_sub(1);
-        }
-        let start_idx = self.current_page * self.items_per_page;
-        let end_idx = (start_idx + self.items_per_page).min(total_items);
-        let page_packages = if start_idx < total_items {
-            &filtered_packages[start_idx..end_idx]
-        } else {
-            &[]
-        };
-
+        // No pagination - show all filtered packages
         if self.should_refresh_cache(current_time, &new_cache_key) {
-            self.prepare_row_cache(page_packages, current_time, ctx);
+            self.prepare_row_cache(&filtered_packages, current_time, ctx);
             self.cache_key = new_cache_key;
         }
 
@@ -1270,8 +1250,7 @@ impl DlgDashCounterDetails {
         }
 
         // Build table rows from cached data
-        for (cache_idx, pkg) in page_packages.iter().enumerate() {
-            let idx = start_idx + cache_idx;
+        for (idx, pkg) in filtered_packages.iter().enumerate() {
             let pkg_id = pkg.pkg.clone();
             let pkg_clone = (*pkg).clone();
             let clicked_idx_clone = clicked_package_idx.clone();
@@ -1284,10 +1263,10 @@ impl DlgDashCounterDetails {
                 .unwrap_or(idx);
 
             // Use cached data if available, otherwise fall back to non-cached version
-            let app_desc_cell = if cache_idx < self.cached_rows.len() {
+            let app_desc_cell = if idx < self.cached_rows.len() {
                 Self::render_clickable_app_cell_cached(
                     ctx,
-                    &self.cached_rows[cache_idx],
+                    &self.cached_rows[idx],
                     clicked_idx_clone.clone(),
                     actual_idx,
                 )
@@ -1359,26 +1338,7 @@ impl DlgDashCounterDetails {
             }
         }
 
-        // Pagination controls
-        if total_pages > 1 {
-            ui.add_space(20.0);
-            ui.horizontal(|ui| {
-                if ui.button("◀").clicked() && self.current_page > 0 {
-                    self.current_page -= 1;
-                }
-                ui.add_space(10.0);
-                ui.label(format!(
-                    "Page {} of {} ({} items)",
-                    self.current_page + 1,
-                    total_pages,
-                    total_items
-                ));
-                ui.add_space(10.0);
-                if ui.button("▶").clicked() && self.current_page + 1 < total_pages {
-                    self.current_page += 1;
-                }
-            });
-        }
+        // Pagination removed - showing all items
     }
 
     fn render_stalkerware_table(
@@ -1443,26 +1403,9 @@ impl DlgDashCounterDetails {
         let current_time = ui.input(|i| i.time);
         let new_cache_key = self.generate_cache_key(installed_packages);
 
-        // Pagination (calculate early for cache)
-        let total_items = filtered_packages.len();
-        let total_pages = if total_items == 0 {
-            1
-        } else {
-            (total_items + self.items_per_page - 1) / self.items_per_page.max(1)
-        };
-        if self.current_page >= total_pages {
-            self.current_page = total_pages.saturating_sub(1);
-        }
-        let start_idx = self.current_page * self.items_per_page;
-        let end_idx = (start_idx + self.items_per_page).min(total_items);
-        let page_packages = if start_idx < total_items {
-            &filtered_packages[start_idx..end_idx]
-        } else {
-            &[]
-        };
-
+        // No pagination - show all filtered packages
         if self.should_refresh_cache(current_time, &new_cache_key) {
-            self.prepare_row_cache(page_packages, current_time, ctx);
+            self.prepare_row_cache(&filtered_packages, current_time, ctx);
             self.cache_key = new_cache_key;
         }
 
@@ -1489,8 +1432,7 @@ impl DlgDashCounterDetails {
         }
 
         // Build table rows from cached data
-        for (cache_idx, pkg) in page_packages.iter().enumerate() {
-            let idx = start_idx + cache_idx;
+        for (idx, pkg) in filtered_packages.iter().enumerate() {
             let pkg_id = pkg.pkg.clone();
             let pkg_clone = (*pkg).clone();
             let clicked_idx_clone = clicked_package_idx.clone();
@@ -1501,10 +1443,10 @@ impl DlgDashCounterDetails {
             let uad_lists_clone = uad_ng_lists.clone();
 
             // Use cached data if available, otherwise fall back to non-cached version
-            let app_desc_cell = if cache_idx < self.cached_rows.len() {
+            let app_desc_cell = if idx < self.cached_rows.len() {
                 Self::render_clickable_app_cell_cached(
                     ctx,
-                    &self.cached_rows[cache_idx],
+                    &self.cached_rows[idx],
                     clicked_idx_clone.clone(),
                     actual_idx,
                 )
@@ -1575,26 +1517,7 @@ impl DlgDashCounterDetails {
             }
         }
 
-        // Pagination controls
-        if total_pages > 1 {
-            ui.add_space(20.0);
-            ui.horizontal(|ui| {
-                if ui.button("◀").clicked() && self.current_page > 0 {
-                    self.current_page -= 1;
-                }
-                ui.add_space(10.0);
-                ui.label(format!(
-                    "Page {} of {} ({} items)",
-                    self.current_page + 1,
-                    total_pages,
-                    total_items
-                ));
-                ui.add_space(10.0);
-                if ui.button("▶").clicked() && self.current_page + 1 < total_pages {
-                    self.current_page += 1;
-                }
-            });
-        }
+        // Pagination removed - showing all items
     }
 
     fn render_izzyrisk_table(
@@ -1657,26 +1580,9 @@ impl DlgDashCounterDetails {
         let current_time = ui.input(|i| i.time);
         let new_cache_key = self.generate_cache_key(installed_packages);
 
-        // Pagination (calculate early for cache)
-        let total_items = filtered_packages.len();
-        let total_pages = if total_items == 0 {
-            1
-        } else {
-            (total_items + self.items_per_page - 1) / self.items_per_page.max(1)
-        };
-        if self.current_page >= total_pages {
-            self.current_page = total_pages.saturating_sub(1);
-        }
-        let start_idx = self.current_page * self.items_per_page;
-        let end_idx = (start_idx + self.items_per_page).min(total_items);
-        let page_packages = if start_idx < total_items {
-            &filtered_packages[start_idx..end_idx]
-        } else {
-            &[]
-        };
-
+        // No pagination - show all filtered packages
         if self.should_refresh_cache(current_time, &new_cache_key) {
-            self.prepare_row_cache(page_packages, current_time, ctx);
+            self.prepare_row_cache(&filtered_packages, current_time, ctx);
             self.cache_key = new_cache_key;
         }
 
@@ -1733,8 +1639,7 @@ impl DlgDashCounterDetails {
         }
 
         // Build table rows from cached data
-        for (cache_idx, pkg) in page_packages.iter().enumerate() {
-            let idx = start_idx + cache_idx;
+        for (idx, pkg) in filtered_packages.iter().enumerate() {
             let risk_score = package_risk_scores.get(&pkg.pkg).copied().unwrap_or(0);
 
             // Get caused permissions (install permissions)
@@ -1754,10 +1659,10 @@ impl DlgDashCounterDetails {
             let uad_lists_clone = uad_ng_lists.clone();
 
             // Use cached data if available, otherwise fall back to non-cached version
-            let app_desc_cell = if cache_idx < self.cached_rows.len() {
+            let app_desc_cell = if idx < self.cached_rows.len() {
                 Self::render_clickable_app_cell_cached(
                     ctx,
-                    &self.cached_rows[cache_idx],
+                    &self.cached_rows[idx],
                     clicked_idx_clone.clone(),
                     actual_idx,
                 )
@@ -1830,26 +1735,7 @@ impl DlgDashCounterDetails {
             }
         }
 
-        // Pagination controls
-        if total_pages > 1 {
-            ui.add_space(20.0);
-            ui.horizontal(|ui| {
-                if ui.button("◀").clicked() && self.current_page > 0 {
-                    self.current_page -= 1;
-                }
-                ui.add_space(10.0);
-                ui.label(format!(
-                    "Page {} of {} ({} items)",
-                    self.current_page + 1,
-                    total_pages,
-                    total_items
-                ));
-                ui.add_space(10.0);
-                if ui.button("▶").clicked() && self.current_page + 1 < total_pages {
-                    self.current_page += 1;
-                }
-            });
-        }
+        // Pagination removed - showing all items
     }
 
     fn render_virustotal_table(
@@ -1944,26 +1830,9 @@ impl DlgDashCounterDetails {
         let current_time = ui.input(|i| i.time);
         let new_cache_key = self.generate_cache_key(installed_packages);
 
-        // Pagination (calculate early for cache)
-        let total_items = filtered_packages.len();
-        let total_pages = if total_items == 0 {
-            1
-        } else {
-            (total_items + self.items_per_page - 1) / self.items_per_page.max(1)
-        };
-        if self.current_page >= total_pages {
-            self.current_page = total_pages.saturating_sub(1);
-        }
-        let start_idx = self.current_page * self.items_per_page;
-        let end_idx = (start_idx + self.items_per_page).min(total_items);
-        let page_packages = if start_idx < total_items {
-            &filtered_packages[start_idx..end_idx]
-        } else {
-            &[]
-        };
-
+        // No pagination - show all filtered packages
         if self.should_refresh_cache(current_time, &new_cache_key) {
-            self.prepare_row_cache(page_packages, current_time, ctx);
+            self.prepare_row_cache(&filtered_packages, current_time, ctx);
             self.cache_key = new_cache_key;
         }
 
@@ -1991,8 +1860,7 @@ impl DlgDashCounterDetails {
         }
 
         // Build table rows from cached data
-        for (cache_idx, pkg) in page_packages.iter().enumerate() {
-            let idx = start_idx + cache_idx;
+        for (idx, pkg) in filtered_packages.iter().enumerate() {
             let pkg_id = pkg.pkg.clone();
             let pkg_clone = (*pkg).clone();
             let clicked_idx_clone = clicked_package_idx.clone();
@@ -2010,10 +1878,10 @@ impl DlgDashCounterDetails {
             });
 
             // Use cached data if available, otherwise fall back to non-cached version
-            let app_desc_cell = if cache_idx < self.cached_rows.len() {
+            let app_desc_cell = if idx < self.cached_rows.len() {
                 Self::render_clickable_app_cell_cached(
                     ctx,
-                    &self.cached_rows[cache_idx],
+                    &self.cached_rows[idx],
                     clicked_idx_clone.clone(),
                     actual_idx,
                 )
@@ -2086,26 +1954,7 @@ impl DlgDashCounterDetails {
             }
         }
 
-        // Pagination controls
-        if total_pages > 1 {
-            ui.add_space(20.0);
-            ui.horizontal(|ui| {
-                if ui.button("◀").clicked() && self.current_page > 0 {
-                    self.current_page -= 1;
-                }
-                ui.add_space(10.0);
-                ui.label(format!(
-                    "Page {} of {} ({} items)",
-                    self.current_page + 1,
-                    total_pages,
-                    total_items
-                ));
-                ui.add_space(10.0);
-                if ui.button("▶").clicked() && self.current_page + 1 < total_pages {
-                    self.current_page += 1;
-                }
-            });
-        }
+        // Pagination removed - showing all items
     }
 
     fn render_hybridanalysis_table(
@@ -2226,26 +2075,9 @@ impl DlgDashCounterDetails {
         let current_time = ui.input(|i| i.time);
         let new_cache_key = self.generate_cache_key(installed_packages);
 
-        // Pagination (calculate early for cache)
-        let total_items = filtered_packages.len();
-        let total_pages = if total_items == 0 {
-            1
-        } else {
-            (total_items + self.items_per_page - 1) / self.items_per_page.max(1)
-        };
-        if self.current_page >= total_pages {
-            self.current_page = total_pages.saturating_sub(1);
-        }
-        let start_idx = self.current_page * self.items_per_page;
-        let end_idx = (start_idx + self.items_per_page).min(total_items);
-        let page_packages = if start_idx < total_items {
-            &filtered_packages[start_idx..end_idx]
-        } else {
-            &[]
-        };
-
+        // No pagination - show all filtered packages
         if self.should_refresh_cache(current_time, &new_cache_key) {
-            self.prepare_row_cache(page_packages, current_time, ctx);
+            self.prepare_row_cache(&filtered_packages, current_time, ctx);
             self.cache_key = new_cache_key;
         }
 
@@ -2273,8 +2105,7 @@ impl DlgDashCounterDetails {
         }
 
         // Build table rows from cached data
-        for (cache_idx, pkg) in page_packages.iter().enumerate() {
-            let idx = start_idx + cache_idx;
+        for (idx, pkg) in filtered_packages.iter().enumerate() {
             let pkg_id = pkg.pkg.clone();
             let pkg_clone = (*pkg).clone();
             let clicked_idx_clone = clicked_package_idx.clone();
@@ -2292,10 +2123,10 @@ impl DlgDashCounterDetails {
             });
 
             // Use cached data if available, otherwise fall back to non-cached version
-            let app_desc_cell = if cache_idx < self.cached_rows.len() {
+            let app_desc_cell = if idx < self.cached_rows.len() {
                 Self::render_clickable_app_cell_cached(
                     ctx,
-                    &self.cached_rows[cache_idx],
+                    &self.cached_rows[idx],
                     clicked_idx_clone.clone(),
                     actual_idx,
                 )
@@ -2373,26 +2204,7 @@ impl DlgDashCounterDetails {
             }
         }
 
-        // Pagination controls
-        if total_pages > 1 {
-            ui.add_space(20.0);
-            ui.horizontal(|ui| {
-                if ui.button("◀").clicked() && self.current_page > 0 {
-                    self.current_page -= 1;
-                }
-                ui.add_space(10.0);
-                ui.label(format!(
-                    "Page {} of {} ({} items)",
-                    self.current_page + 1,
-                    total_pages,
-                    total_items
-                ));
-                ui.add_space(10.0);
-                if ui.button("▶").clicked() && self.current_page + 1 < total_pages {
-                    self.current_page += 1;
-                }
-            });
-        }
+        // Pagination removed - showing all items
     }
 
     // Sorting helper methods
@@ -2487,15 +2299,7 @@ impl DlgDashCounterDetails {
             });
         }
 
-        // Apply pagination
-        let total_filtered = filtered_apps.len();
-        let start_idx = self.current_page * self.items_per_page;
-        let end_idx = (start_idx + self.items_per_page).min(total_filtered);
-        let paginated_apps = if start_idx < total_filtered {
-            &filtered_apps[start_idx..end_idx]
-        } else {
-            &[]
-        };
+        // No pagination - show all filtered apps
 
         // Cache management for performance (time-based throttling)
         let current_time = ui.input(|i| i.time);
@@ -2523,7 +2327,7 @@ impl DlgDashCounterDetails {
         }
 
         // Build rows
-        for app in paginated_apps {
+        for app in &filtered_apps {
             let app_clone = (*app).clone();
             let installed_packages_clone = installed_packages.to_vec();
 
@@ -2796,24 +2600,7 @@ impl DlgDashCounterDetails {
             }
         }
 
-        // Pagination controls
-        if total_filtered > self.items_per_page {
-            ui.add_space(8.0);
-            ui.horizontal(|ui| {
-                let total_pages = (total_filtered + self.items_per_page - 1) / self.items_per_page;
-                if self.current_page > 0 {
-                    if ui.button("Previous").clicked() {
-                        self.current_page -= 1;
-                    }
-                }
-                ui.label(format!("Page {} of {}", self.current_page + 1, total_pages));
-                if self.current_page + 1 < total_pages {
-                    if ui.button("Next").clicked() {
-                        self.current_page += 1;
-                    }
-                }
-            });
-        }
+        // Pagination removed - showing all items
     }
 
     /// Check if package matches text filter

@@ -1728,8 +1728,25 @@ impl TabScanControl {
             .map(|p| p.pkg.clone())
             .collect();
 
-        let app_data_map =
-            self.prepare_app_info_for_display(ui.ctx(), &visible_package_ids, &system_packages);
+        // Cache key includes package count and renderer settings to detect changes
+        let cache_key = format!(
+            "scan_app_data_map_{}_{}_{}_{}_{}_{}",
+            visible_package_ids.len(),
+            installed_packages.len(),
+            self.google_play_renderer_enabled,
+            self.fdroid_renderer_enabled,
+            self.apkmirror_renderer_enabled,
+            self.android_package_renderer_enabled
+        );
+
+        // Cache the expensive app_data_map preparation (texture loading)
+        let app_data_map: HashMap<String, (Option<egui::TextureHandle>, String, String, Option<String>)> =
+            ui.data_mut(|data| {
+                data.get_temp_mut_or_insert_with(egui::Id::new(&cache_key), || {
+                    log::debug!("Preparing app display data (cache miss) for {} packages", visible_package_ids.len());
+                    self.prepare_app_info_for_display(ui.ctx(), &visible_package_ids, &system_packages)
+                }).clone()
+            });
 
         // Note: vt_scanner_state and ha_scanner_state are already pre-fetched at the start of ui()
 
