@@ -3664,30 +3664,17 @@ impl UadShizukuApp {
             match receiver.recv() {
                 Ok(Ok(response)) => {
                     if response.ok {
-                        // Extract data from GitHub HTML response
-                        let html_content = String::from_utf8_lossy(&response.bytes);
-                        let extracted_data = Self::extract_github_embedded_data(&html_content);
-
-                        match extracted_data {
-                            Some(data) => {
-                                // Save to cache
-                                match std::fs::write(&cache_file_path, data.as_bytes()) {
-                                    Ok(_) => {
-                                        log::info!(
-                                            "Successfully downloaded and cached UAD lists to {:?}",
-                                            cache_file_path
-                                        );
-                                    }
-                                    Err(e) => {
-                                        log::error!("Failed to write UAD lists to cache: {}", e);
-                                        return;
-                                    }
-                                }
-                            }
-                            None => {
-                                log::error!(
-                                    "Failed to extract embedded data from GitHub HTML response, using fallback"
+                        // jsdelivr CDN returns raw JSON, not GitHub HTML
+                        // Save the response directly to cache
+                        match std::fs::write(&cache_file_path, &response.bytes) {
+                            Ok(_) => {
+                                log::info!(
+                                    "Successfully downloaded and cached UAD lists to {:?}",
+                                    cache_file_path
                                 );
+                            }
+                            Err(e) => {
+                                log::error!("Failed to write UAD lists to cache: {}", e);
                                 // Use embedded fallback
                                 match std::fs::write(&cache_file_path, UAD_LISTS_FALLBACK) {
                                     Ok(_) => {
@@ -3816,7 +3803,7 @@ impl UadShizukuApp {
     // Stalkerware IOC : https://github.com/AssoEchap/stalkerware-indicators
     pub fn retrieve_stalkerware_indicators(&mut self) {
         const IOC_URL: &str =
-            "https://github.com/AssoEchap/stalkerware-indicators/blob/master/ioc.yaml";
+            "https://fastly.jsdelivr.net/gh/AssoEchap/stalkerware-indicators@master/ioc.yaml";
         const IOC_FILENAME: &str = "stalkerware_ioc.yaml";
         // Embedded fallback file (pre-downloaded at build time)
         const IOC_FALLBACK: &[u8] = include_bytes!("../resources/stalkerware_ioc.yaml");
@@ -3864,12 +3851,9 @@ impl UadShizukuApp {
             match receiver.recv() {
                 Ok(Ok(response)) => {
                     if response.ok {
-                        // Extract data from GitHub HTML response
-                        let html_content = String::from_utf8_lossy(&response.bytes);
-                        // let extracted_data = Self::extract_github_embedded_data(&html_content);
-
-                        // Save to cache
-                        match std::fs::write(&cache_file_path, html_content.as_bytes()) {
+                        // jsdelivr CDN returns raw YAML, not GitHub HTML
+                        // Save the response directly to cache
+                        match std::fs::write(&cache_file_path, &response.bytes) {
                             Ok(_) => {
                                 log::info!(
                                     "Successfully downloaded and cached stalkerware IoC to {:?}",
@@ -3878,7 +3862,19 @@ impl UadShizukuApp {
                             }
                             Err(e) => {
                                 log::error!("Failed to write stalkerware IoC to cache: {}", e);
-                                return;
+                                // Use embedded fallback
+                                match std::fs::write(&cache_file_path, IOC_FALLBACK) {
+                                    Ok(_) => {
+                                        log::info!("Successfully wrote stalkerware IoC fallback to cache");
+                                    }
+                                    Err(e) => {
+                                        log::error!(
+                                            "Failed to write stalkerware IoC fallback to cache: {}",
+                                            e
+                                        );
+                                        return;
+                                    }
+                                }
                             }
                         }
                     } else {
