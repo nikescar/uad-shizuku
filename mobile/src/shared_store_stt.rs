@@ -1,8 +1,6 @@
 use crate::adb::PackageFingerprint;
 use crate::calc_androidpackage::AndroidPackageInfo;
-use crate::calc_hybridanalysis::ScannerState as HaScannerState;
 use crate::calc_stalkerware_stt::StalkerwareIndicators;
-use crate::calc_virustotal::ScannerState as VtScannerState;
 use crate::models::{ApkMirrorApp, FDroidApp, GooglePlayApp};
 use crate::uad_shizuku_app::UadNgLists;
 use crossbeam_queue::SegQueue;
@@ -31,14 +29,29 @@ pub enum SharedStoreUpdate {
     },
 }
 
-/// Shared store for data that is accessed by both debloat and scan tabs
+/// Shared store for UI resources and legacy state
+///
+/// # Migration Status
+/// This store is transitioning to texture-only storage. Business state has been
+/// migrated to ViewModel following MVVM pattern:
+/// - Scanner states → ViewModel.state.vt_scanner_state / ha_scanner_state
+/// - Metadata cache → ViewModel.state.cached_metadata
+/// - Stalkerware → ViewModel.state.stalkerware_indicators
+///
+/// ## Current State
+/// - Texture caches: ACTIVE (egui::TextureHandle lifetime requires special handling)
+/// - Metadata caches: LEGACY (checked for backward compat, ViewModel is source of truth)
+/// - Business state: LEGACY (ViewModel is authoritative, SharedStore has stubs)
 pub struct SharedStore {
-    /// Installed packages list
+    // === LEGACY: Migrated to ViewModel.state ===
+    /// LEGACY: Use ViewModel.state.packages instead
     pub installed_packages: Mutex<Vec<PackageFingerprint>>,
-    /// UAD-NG bloat lists
+    /// LEGACY: Use ViewModel.state.uad_ng_lists instead
     pub uad_ng_lists: Mutex<Option<UadNgLists>>,
-    /// Stalkerware indicators for package detection
+    /// LEGACY: Use ViewModel.state.stalkerware_indicators instead
     pub stalkerware_indicators: Mutex<Option<StalkerwareIndicators>>,
+
+    // === ACTIVE: Texture caches (egui lifetime constraints) ===
     /// Texture cache for Google Play icons
     pub google_play_textures: Mutex<HashMap<String, egui::TextureHandle>>,
     /// Texture cache for F-Droid icons
@@ -47,18 +60,18 @@ pub struct SharedStore {
     pub apkmirror_textures: Mutex<HashMap<String, egui::TextureHandle>>,
     /// Texture cache for Android Package icons
     pub android_package_textures: Mutex<HashMap<String, egui::TextureHandle>>,
-    /// Cached Google Play app info
+
+    // === LEGACY: Metadata caches (ViewModel is source of truth) ===
+    /// LEGACY: Use ViewModel.state.cached_metadata.google_play instead
     pub cached_google_play_apps: Mutex<HashMap<String, GooglePlayApp>>,
-    /// Cached F-Droid app info
+    /// LEGACY: Use ViewModel.state.cached_metadata.fdroid instead
     pub cached_fdroid_apps: Mutex<HashMap<String, FDroidApp>>,
-    /// Cached APKMirror app info
+    /// LEGACY: Use ViewModel.state.cached_metadata.apkmirror instead
     pub cached_apkmirror_apps: Mutex<HashMap<String, ApkMirrorApp>>,
-    /// Cached Android Package app info
+    /// LEGACY: Use ViewModel.state.cached_metadata.android_package instead
     pub cached_android_package_apps: Mutex<HashMap<String, AndroidPackageInfo>>,
-    /// VirusTotal scanner state (scan tab only)
-    pub vt_scanner_state: Mutex<Option<VtScannerState>>,
-    /// Hybrid Analysis scanner state (scan tab only)
-    pub ha_scanner_state: Mutex<Option<HaScannerState>>,
+
+    // === Infrastructure ===
     /// Update queue for thread-safe updates from background threads
     pub update_queue: SegQueue<SharedStoreUpdate>,
     /// UI context for requesting repaints from background threads

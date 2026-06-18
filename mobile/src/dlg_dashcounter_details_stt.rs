@@ -42,8 +42,6 @@ pub struct DlgDashCounterDetails {
     pub show_only_enabled: bool,
     pub hide_system_app: bool,
     pub text_filter: String,
-    pub current_page: usize,
-    pub items_per_page: usize,
     pub offa_apps: Vec<crate::tab_apps_control_stt::AppEntry>,
     // Cache fields for performance
     pub cache_key: String,
@@ -72,8 +70,6 @@ impl Default for DlgDashCounterDetails {
             show_only_enabled: false,
             hide_system_app: false,
             text_filter: String::new(),
-            current_page: 0,
-            items_per_page: 100,
             offa_apps: Vec::new(),
             cache_key: String::new(),
             cached_rows: Vec::new(),

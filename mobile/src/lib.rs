@@ -85,6 +85,7 @@ pub mod shared_store_stt;
 pub mod svg_stt;
 pub mod uad_shizuku_app;
 pub mod uad_shizuku_app_stt;
+pub mod viewmodel;
 
 // Installation management for desktop platforms
 // (check_update function is available on all platforms)

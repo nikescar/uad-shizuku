@@ -72,7 +72,7 @@ impl Default for TabScanControl {
 }
 
 impl TabScanControl {
-    pub fn update_packages(&mut self, packages: Vec<PackageFingerprint>) {
+    pub fn update_packages(&mut self, packages: Vec<PackageFingerprint>, viewmodel: Option<&crate::viewmodel::ViewModel>) {
         // Store packages in shared store
         let store = get_shared_store();
         store.set_installed_packages(packages.clone());
@@ -86,17 +86,84 @@ impl TabScanControl {
         // Initialize VirusTotal scanner state
         if self.vt_api_key.as_ref().map_or(false, |k| k.len() >= 10) && self.device_serial.is_some()
         {
-            self.run_virustotal();
+            self.run_virustotal(viewmodel);
         }
 
         // Initialize Hybrid Analysis scanner state
         if self.ha_api_key.as_ref().map_or(false, |k| k.len() >= 10) && self.device_serial.is_some()
         {
-            self.run_hybridanalysis();
+            self.run_hybridanalysis(viewmodel);
         }
 
         // Clear textures cache when packages are updated (will be reloaded on demand)
         store.clear_all_textures();
+    }
+
+    /// Handle ViewModel events and update local state machines
+    fn handle_viewmodel_events(&mut self, vm: &mut crate::viewmodel::ViewModel, ctx: &egui::Context) {
+        use crate::viewmodel::{ScanEvent, ViewModelEvent};
+
+        let events = vm.poll_events(ctx);
+        for event in events {
+            if let ViewModelEvent::Scan(scan_event) = event {
+                match scan_event {
+                    ScanEvent::VirusTotalStarted => {
+                        log::info!("VirusTotal scan started");
+                        self.vt_scan_state.start();
+                    }
+                    ScanEvent::HybridAnalysisStarted => {
+                        log::info!("HybridAnalysis scan started");
+                        self.ha_scan_state.start();
+                    }
+                    ScanEvent::ScanProgress { scanner, progress } => {
+                        match scanner {
+                            crate::viewmodel::ScannerType::VirusTotal => {
+                                if let Ok(mut p) = self.vt_scan_progress.lock() {
+                                    *p = Some(progress);
+                                }
+                            }
+                            crate::viewmodel::ScannerType::HybridAnalysis => {
+                                if let Ok(mut p) = self.ha_scan_progress.lock() {
+                                    *p = Some(progress);
+                                }
+                            }
+                        }
+                    }
+                    ScanEvent::VirusTotalComplete => {
+                        log::info!("VirusTotal scan complete");
+                        self.vt_scan_state.complete();
+                    }
+                    ScanEvent::HybridAnalysisComplete => {
+                        log::info!("HybridAnalysis scan complete");
+                        self.ha_scan_state.complete();
+                    }
+                    ScanEvent::VirusTotalCancelled => {
+                        log::info!("VirusTotal scan cancelled");
+                        self.vt_scan_state.cancel();
+                    }
+                    ScanEvent::HybridAnalysisCancelled => {
+                        log::info!("HybridAnalysis scan cancelled");
+                        self.ha_scan_state.cancel();
+                    }
+                    ScanEvent::Error { operation, error } => {
+                        log::error!("Scan error in {}: {}", operation, error);
+                        if operation.contains("virustotal") || operation.contains("VirusTotal") {
+                            self.vt_scan_state.error();
+                        } else if operation.contains("hybridanalysis") || operation.contains("HybridAnalysis") {
+                            self.ha_scan_state.error();
+                        }
+                    }
+                    ScanEvent::VirusTotalStateUpdated(_state) => {
+                        // Scanner state now in ViewModel, handled by ViewModel
+                        log::debug!("VirusTotal scanner state updated in ViewModel");
+                    }
+                    ScanEvent::HybridAnalysisStateUpdated(_state) => {
+                        // Scanner state now in ViewModel, handled by ViewModel
+                        log::debug!("HybridAnalysis scanner state updated in ViewModel");
+                    }
+                }
+            }
+        }
     }
 
     /// Update cached app info in shared store
@@ -316,57 +383,89 @@ impl TabScanControl {
         app_data_map
     }
 
-    fn run_virustotal(&mut self) {
-        let store = get_shared_store();
-        let installed_packages = store.get_installed_packages();
+    fn run_virustotal(&mut self, viewmodel: Option<&crate::viewmodel::ViewModel>) {
+        if let Some(vm) = viewmodel {
+            // Use ViewModel for async scanning
+            if let (Some(ref device), Some(ref api_key)) = (&self.device_serial, &self.vt_api_key) {
+                if let Err(e) = vm.run_virustotal(
+                    device.clone(),
+                    api_key.clone(),
+                    self.virustotal_submit_enabled,
+                ) {
+                    log::error!("Failed to start VirusTotal scan: {}", e);
+                    return;
+                }
+                // State machine will be updated via events
+            }
+        } else {
+            // Legacy fallback: direct call to calc_virustotal
+            let store = get_shared_store();
+            let installed_packages = store.get_installed_packages();
 
-        if let Some(ref device) = self.device_serial {
-            let api_key = self.vt_api_key.clone().unwrap();
+            if let Some(ref device) = self.device_serial {
+                let api_key = self.vt_api_key.clone().unwrap();
 
-            // Start state machine
-            self.vt_scan_state.start();
+                // Start state machine
+                self.vt_scan_state.start();
 
-            // Call the new function from calc_virustotal
-            let (scanner_state, rate_limiter) = calc_virustotal::run_virustotal(
-                installed_packages,
-                device.clone(),
-                api_key,
-                self.virustotal_submit_enabled,
-                self.package_risk_scores.clone(),
-                self.vt_scan_progress.clone(),
-                self.vt_scan_cancelled.clone(),
-            );
+                // Call the new function from calc_virustotal
+                let (scanner_state, rate_limiter) = calc_virustotal::run_virustotal(
+                    installed_packages,
+                    device.clone(),
+                    api_key,
+                    self.virustotal_submit_enabled,
+                    self.package_risk_scores.clone(),
+                    self.vt_scan_progress.clone(),
+                    self.vt_scan_cancelled.clone(),
+                );
 
-            // Store scanner state in shared store
-            store.set_vt_scanner_state(Some(scanner_state));
-            self.vt_rate_limiter = Some(rate_limiter);
+                // Store scanner state in shared store
+                store.set_vt_scanner_state(Some(scanner_state));
+                self.vt_rate_limiter = Some(rate_limiter);
+            }
         }
     }
 
-    fn run_hybridanalysis(&mut self) {
-        let store = get_shared_store();
-        let installed_packages = store.get_installed_packages();
+    fn run_hybridanalysis(&mut self, viewmodel: Option<&crate::viewmodel::ViewModel>) {
+        if let Some(vm) = viewmodel {
+            // Use ViewModel for async scanning
+            if let (Some(ref device), Some(ref api_key)) = (&self.device_serial, &self.ha_api_key) {
+                if let Err(e) = vm.run_hybridanalysis(
+                    device.clone(),
+                    api_key.clone(),
+                    self.hybridanalysis_submit_enabled,
+                ) {
+                    log::error!("Failed to start HybridAnalysis scan: {}", e);
+                    return;
+                }
+                // State machine will be updated via events
+            }
+        } else {
+            // Legacy fallback: direct call to calc_hybridanalysis
+            let store = get_shared_store();
+            let installed_packages = store.get_installed_packages();
 
-        if let Some(ref device) = self.device_serial {
-            let api_key = self.ha_api_key.clone().unwrap();
+            if let Some(ref device) = self.device_serial {
+                let api_key = self.ha_api_key.clone().unwrap();
 
-            // Start state machine
-            self.ha_scan_state.start();
+                // Start state machine
+                self.ha_scan_state.start();
 
-            // Call the new function from calc_hybridanalysis
-            let (scanner_state, rate_limiter) = calc_hybridanalysis::run_hybridanalysis(
-                installed_packages,
-                device.clone(),
-                api_key,
-                self.hybridanalysis_submit_enabled,
-                self.package_risk_scores.clone(),
-                self.ha_scan_progress.clone(),
-                self.ha_scan_cancelled.clone(),
-            );
+                // Call the new function from calc_hybridanalysis
+                let (scanner_state, rate_limiter) = calc_hybridanalysis::run_hybridanalysis(
+                    installed_packages,
+                    device.clone(),
+                    api_key,
+                    self.hybridanalysis_submit_enabled,
+                    self.package_risk_scores.clone(),
+                    self.ha_scan_progress.clone(),
+                    self.ha_scan_cancelled.clone(),
+                );
 
-            // Store scanner state in shared store
-            store.set_ha_scanner_state(Some(scanner_state));
-            self.ha_rate_limiter = Some(rate_limiter);
+                // Store scanner state in shared store
+                store.set_ha_scanner_state(Some(scanner_state));
+                self.ha_rate_limiter = Some(rate_limiter);
+            }
         }
     }
 
@@ -1174,7 +1273,16 @@ impl TabScanControl {
         )
     }
 
-    pub fn ui(&mut self, ui: &mut egui::Ui, hybridanalysis_tag_ignorelist: &str) {
+    pub fn ui(
+        &mut self,
+        mut viewmodel: Option<&mut crate::viewmodel::ViewModel>,
+        ui: &mut egui::Ui,
+        hybridanalysis_tag_ignorelist: &str,
+    ) {
+        // Handle ViewModel events first
+        if let Some(ref mut vm) = viewmodel {
+            self.handle_viewmodel_events(vm, ui.ctx());
+        }
         // Note: Progress sync is now done in uad_shizuku_app.sync_scan_progress() before rendering
         // to ensure progress bars hide immediately when background tasks complete
 
@@ -1620,8 +1728,25 @@ impl TabScanControl {
             .map(|p| p.pkg.clone())
             .collect();
 
-        let app_data_map =
-            self.prepare_app_info_for_display(ui.ctx(), &visible_package_ids, &system_packages);
+        // Cache key includes package count and renderer settings to detect changes
+        let cache_key = format!(
+            "scan_app_data_map_{}_{}_{}_{}_{}_{}",
+            visible_package_ids.len(),
+            installed_packages.len(),
+            self.google_play_renderer_enabled,
+            self.fdroid_renderer_enabled,
+            self.apkmirror_renderer_enabled,
+            self.android_package_renderer_enabled
+        );
+
+        // Cache the expensive app_data_map preparation (texture loading)
+        let app_data_map: HashMap<String, (Option<egui::TextureHandle>, String, String, Option<String>)> =
+            ui.data_mut(|data| {
+                data.get_temp_mut_or_insert_with(egui::Id::new(&cache_key), || {
+                    log::debug!("Preparing app display data (cache miss) for {} packages", visible_package_ids.len());
+                    self.prepare_app_info_for_display(ui.ctx(), &visible_package_ids, &system_packages)
+                }).clone()
+            });
 
         // Note: vt_scanner_state and ha_scanner_state are already pre-fetched at the start of ui()
 
@@ -2664,93 +2789,25 @@ impl TabScanControl {
                     .map(|(p, s)| (p.to_string(), s.to_string()))
                     .collect();
 
+                // TODO: Re-implement using ViewModel commands (RunVirusTotal)
+                // Old direct SharedStore access code removed during migration
+                /*
                 // Start VirusTotal scan in background
                 let shared_store = crate::shared_store_stt::get_shared_store();
                 let vt_scanner_state = shared_store.vt_scanner_state.lock().unwrap().clone();
-                if let (
-                    Some(ref vt_state),
-                    Some(ref vt_limiter),
-                    Some(ref api_key),
-                    Some(ref serial),
-                ) = (
-                    &vt_scanner_state,
-                    &self.vt_rate_limiter,
-                    &self.vt_api_key,
-                    &self.device_serial,
-                ) {
-                    let vt_state_clone = vt_state.clone();
-                    let vt_limiter_clone = vt_limiter.clone();
-                    let api_key_clone = api_key.clone();
-                    let serial_clone = serial.clone();
-                    let pkg_name_clone = pkg_name.clone();
-                    let hashes_clone = hashes.clone();
-                    let vt_submit = self.virustotal_submit_enabled;
+                ...
+                */
+                log::warn!("VirusTotal refresh not yet re-implemented with ViewModel");
 
-                    // Reset state to Pending first
-                    if let Ok(mut state) = vt_state.lock() {
-                        state.insert(pkg_name.clone(), calc_virustotal::ScanStatus::Pending);
-                    }
-
-                    thread::spawn(move || {
-                        log::info!("Starting VT re-scan for: {}", pkg_name_clone);
-                        if let Err(e) = calc_virustotal::analyze_package(
-                            &pkg_name_clone,
-                            hashes_clone,
-                            &vt_state_clone,
-                            &vt_limiter_clone,
-                            &api_key_clone,
-                            &serial_clone,
-                            vt_submit,
-                            &None,
-                        ) {
-                            log::error!("Error re-scanning VT for {}: {}", pkg_name_clone, e);
-                        }
-                    });
-                }
-
+                // TODO: Re-implement using ViewModel commands (RunHybridAnalysis)
+                // Old direct SharedStore access code removed during migration
+                /*
                 // Start HybridAnalysis scan in background
                 let shared_store = crate::shared_store_stt::get_shared_store();
                 let ha_scanner_state = shared_store.ha_scanner_state.lock().unwrap().clone();
-                if let (
-                    Some(ref ha_state),
-                    Some(ref ha_limiter),
-                    Some(ref api_key),
-                    Some(ref serial),
-                ) = (
-                    &ha_scanner_state,
-                    &self.ha_rate_limiter,
-                    &self.ha_api_key,
-                    &self.device_serial,
-                ) {
-                    let ha_state_clone = ha_state.clone();
-                    let ha_limiter_clone = ha_limiter.clone();
-                    let api_key_clone = api_key.clone();
-                    let serial_clone = serial.clone();
-                    let pkg_name_clone = pkg_name.clone();
-                    let hashes_clone = hashes.clone();
-                    let ha_submit = self.hybridanalysis_submit_enabled;
-
-                    // Reset state to Pending first
-                    if let Ok(mut state) = ha_state.lock() {
-                        state.insert(pkg_name.clone(), calc_hybridanalysis::ScanStatus::Pending);
-                    }
-
-                    thread::spawn(move || {
-                        log::info!("Starting HA re-scan for: {}", pkg_name_clone);
-                        if let Err(e) = calc_hybridanalysis::analyze_package(
-                            &pkg_name_clone,
-                            hashes_clone,
-                            &ha_state_clone,
-                            &ha_limiter_clone,
-                            &api_key_clone,
-                            &serial_clone,
-                            ha_submit,
-                            &None,
-                        ) {
-                            log::error!("Error re-scanning HA for {}: {}", pkg_name_clone, e);
-                        }
-                    });
-                }
+                ...
+                */
+                log::warn!("HybridAnalysis refresh not yet re-implemented with ViewModel");
             }
         }
 

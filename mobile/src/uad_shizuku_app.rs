@@ -34,6 +34,7 @@ use crate::tab_usage_control::TabUsageControl;
 use crate::LogLevel;
 
 pub use crate::uad_shizuku_app_stt::*;
+use crate::viewmodel::ViewModel;
 use crate::{Config, Settings, BASE_TABLE_WIDTH, DESKTOP_MIN_WIDTH};
 
 use crate::install;
@@ -365,6 +366,8 @@ impl Default for UadShizukuApp {
 
             // Tab controller state (shared between mobile and desktop UI)
             show_apps_tab: true,
+
+            viewmodel: None,  // Lazy initialization in update()
         };
 
         // Apply persisted theme preferences
@@ -1822,6 +1825,7 @@ impl UadShizukuApp {
             if let Some(ref device) = self.tab_debloat_control.selected_device {
                 // Use tab's batch uninstall to handle the operation properly
                 self.tab_debloat_control.start_batch_uninstall(
+                    self.viewmodel.as_mut(),
                     pkgs,
                     sys_flags,
                     device.clone(),
@@ -1938,97 +1942,13 @@ impl UadShizukuApp {
                     .map(|(p, s)| (p.to_string(), s.to_string()))
                     .collect();
 
-                // Start VirusTotal scan in background
-                let vt_scanner_state = shared_store.vt_scanner_state.lock().unwrap().clone();
-                if let (
-                    Some(ref vt_state),
-                    Some(ref vt_limiter),
-                    Some(ref api_key),
-                    Some(ref serial),
-                ) = (
-                    &vt_scanner_state,
-                    &self.tab_scan_control.vt_rate_limiter,
-                    &self.tab_scan_control.vt_api_key,
-                    &self.tab_scan_control.device_serial,
-                ) {
-                    let vt_state_clone = vt_state.clone();
-                    let vt_limiter_clone = vt_limiter.clone();
-                    let api_key_clone = api_key.clone();
-                    let serial_clone = serial.clone();
-                    let pkg_name_clone = pkg_name.clone();
-                    let hashes_clone = hashes.clone();
-                    let vt_submit = self.tab_scan_control.virustotal_submit_enabled;
+                // TODO: Re-implement using ViewModel commands (RunVirusTotal)
+                // Old direct SharedStore access code removed during migration
+                log::warn!("VirusTotal refresh not yet re-implemented with ViewModel");
 
-                    // Reset state to Pending first
-                    if let Ok(mut state) = vt_state.lock() {
-                        state.insert(
-                            pkg_name.clone(),
-                            crate::calc_virustotal_stt::ScanStatus::Pending,
-                        );
-                    }
-
-                    std::thread::spawn(move || {
-                        log::info!("Starting VT re-scan for: {}", pkg_name_clone);
-                        if let Err(e) = crate::calc_virustotal::analyze_package(
-                            &pkg_name_clone,
-                            hashes_clone,
-                            &vt_state_clone,
-                            &vt_limiter_clone,
-                            &api_key_clone,
-                            &serial_clone,
-                            vt_submit,
-                            &None,
-                        ) {
-                            log::error!("Error re-scanning VT for {}: {}", pkg_name_clone, e);
-                        }
-                    });
-                }
-
-                // Start HybridAnalysis scan in background
-                let ha_scanner_state = shared_store.ha_scanner_state.lock().unwrap().clone();
-                if let (
-                    Some(ref ha_state),
-                    Some(ref ha_limiter),
-                    Some(ref api_key),
-                    Some(ref serial),
-                ) = (
-                    &ha_scanner_state,
-                    &self.tab_scan_control.ha_rate_limiter,
-                    &self.tab_scan_control.ha_api_key,
-                    &self.tab_scan_control.device_serial,
-                ) {
-                    let ha_state_clone = ha_state.clone();
-                    let ha_limiter_clone = ha_limiter.clone();
-                    let api_key_clone = api_key.clone();
-                    let serial_clone = serial.clone();
-                    let pkg_name_clone = pkg_name.clone();
-                    let hashes_clone = hashes.clone();
-                    let ha_submit = self.tab_scan_control.hybridanalysis_submit_enabled;
-
-                    // Reset state to Pending first
-                    if let Ok(mut state) = ha_state.lock() {
-                        state.insert(
-                            pkg_name.clone(),
-                            crate::calc_hybridanalysis_stt::ScanStatus::Pending,
-                        );
-                    }
-
-                    std::thread::spawn(move || {
-                        log::info!("Starting HA re-scan for: {}", pkg_name_clone);
-                        if let Err(e) = crate::calc_hybridanalysis::analyze_package(
-                            &pkg_name_clone,
-                            hashes_clone,
-                            &ha_state_clone,
-                            &ha_limiter_clone,
-                            &api_key_clone,
-                            &serial_clone,
-                            ha_submit,
-                            &None,
-                        ) {
-                            log::error!("Error re-scanning HA for {}: {}", pkg_name_clone, e);
-                        }
-                    });
-                }
+                // TODO: Re-implement using ViewModel commands (RunHybridAnalysis)
+                // Old direct SharedStore access code removed during migration
+                log::warn!("HybridAnalysis refresh not yet re-implemented with ViewModel");
             }
         }
 
@@ -3391,6 +3311,7 @@ impl UadShizukuApp {
         };
 
         if let Some(result) = self.tab_debloat_control.ui(
+            self.viewmodel.as_mut(),
             ui,
             google_play_enabled,
             fdroid_enabled,
@@ -3595,12 +3516,16 @@ impl UadShizukuApp {
     fn render_scan_tab(&mut self, ui: &mut egui::Ui) {
         // Renderer settings already synced in controller
         self.tab_scan_control
-            .ui(ui, &self.settings.hybridanalysis_tag_ignorelist);
+            .ui(
+                self.viewmodel.as_mut(),
+                ui,
+                &self.settings.hybridanalysis_tag_ignorelist,
+            );
     }
 
     fn render_apps_tab(&mut self, ui: &mut egui::Ui) {
         // Operations queue and refresh already handled in controller
-        let has_error = self.tab_apps_control.ui(ui);
+        let has_error = self.tab_apps_control.ui(self.viewmodel.as_mut(), ui);
 
         // Check if we need to refresh after operations completed
         if self.tab_apps_control.pending_refresh_after_operations {
@@ -3728,7 +3653,11 @@ impl UadShizukuApp {
             );
 
             // Download the file
-            let request = ehttp::Request::get(UAD_LISTS_URL);
+            let mut request = ehttp::Request::get(UAD_LISTS_URL);
+            request.headers.insert(
+                "User-Agent".to_string(),
+                format!("uad-shizuku/{}", env!("CARGO_PKG_VERSION")),
+            );
             let (sender, receiver) = std::sync::mpsc::channel();
 
             ehttp::fetch(request, move |result| {
@@ -3739,30 +3668,17 @@ impl UadShizukuApp {
             match receiver.recv() {
                 Ok(Ok(response)) => {
                     if response.ok {
-                        // Extract data from GitHub HTML response
-                        let html_content = String::from_utf8_lossy(&response.bytes);
-                        let extracted_data = Self::extract_github_embedded_data(&html_content);
-
-                        match extracted_data {
-                            Some(data) => {
-                                // Save to cache
-                                match std::fs::write(&cache_file_path, data.as_bytes()) {
-                                    Ok(_) => {
-                                        log::info!(
-                                            "Successfully downloaded and cached UAD lists to {:?}",
-                                            cache_file_path
-                                        );
-                                    }
-                                    Err(e) => {
-                                        log::error!("Failed to write UAD lists to cache: {}", e);
-                                        return;
-                                    }
-                                }
-                            }
-                            None => {
-                                log::error!(
-                                    "Failed to extract embedded data from GitHub HTML response, using fallback"
+                        // jsdelivr CDN returns raw JSON, not GitHub HTML
+                        // Save the response directly to cache
+                        match std::fs::write(&cache_file_path, &response.bytes) {
+                            Ok(_) => {
+                                log::info!(
+                                    "Successfully downloaded and cached UAD lists to {:?}",
+                                    cache_file_path
                                 );
+                            }
+                            Err(e) => {
+                                log::error!("Failed to write UAD lists to cache: {}", e);
                                 // Use embedded fallback
                                 match std::fs::write(&cache_file_path, UAD_LISTS_FALLBACK) {
                                     Ok(_) => {
@@ -3891,7 +3807,7 @@ impl UadShizukuApp {
     // Stalkerware IOC : https://github.com/AssoEchap/stalkerware-indicators
     pub fn retrieve_stalkerware_indicators(&mut self) {
         const IOC_URL: &str =
-            "https://github.com/AssoEchap/stalkerware-indicators/blob/master/ioc.yaml";
+            "https://fastly.jsdelivr.net/gh/AssoEchap/stalkerware-indicators@master/ioc.yaml";
         const IOC_FILENAME: &str = "stalkerware_ioc.yaml";
         // Embedded fallback file (pre-downloaded at build time)
         const IOC_FALLBACK: &[u8] = include_bytes!("../resources/stalkerware_ioc.yaml");
@@ -3928,7 +3844,11 @@ impl UadShizukuApp {
             );
 
             // Download the file
-            let request = ehttp::Request::get(IOC_URL);
+            let mut request = ehttp::Request::get(IOC_URL);
+            request.headers.insert(
+                "User-Agent".to_string(),
+                format!("uad-shizuku/{}", env!("CARGO_PKG_VERSION")),
+            );
             let (sender, receiver) = std::sync::mpsc::channel();
 
             ehttp::fetch(request, move |result| {
@@ -3939,12 +3859,9 @@ impl UadShizukuApp {
             match receiver.recv() {
                 Ok(Ok(response)) => {
                     if response.ok {
-                        // Extract data from GitHub HTML response
-                        let html_content = String::from_utf8_lossy(&response.bytes);
-                        // let extracted_data = Self::extract_github_embedded_data(&html_content);
-
-                        // Save to cache
-                        match std::fs::write(&cache_file_path, html_content.as_bytes()) {
+                        // jsdelivr CDN returns raw YAML, not GitHub HTML
+                        // Save the response directly to cache
+                        match std::fs::write(&cache_file_path, &response.bytes) {
                             Ok(_) => {
                                 log::info!(
                                     "Successfully downloaded and cached stalkerware IoC to {:?}",
@@ -3953,7 +3870,19 @@ impl UadShizukuApp {
                             }
                             Err(e) => {
                                 log::error!("Failed to write stalkerware IoC to cache: {}", e);
-                                return;
+                                // Use embedded fallback
+                                match std::fs::write(&cache_file_path, IOC_FALLBACK) {
+                                    Ok(_) => {
+                                        log::info!("Successfully wrote stalkerware IoC fallback to cache");
+                                    }
+                                    Err(e) => {
+                                        log::error!(
+                                            "Failed to write stalkerware IoC fallback to cache: {}",
+                                            e
+                                        );
+                                        return;
+                                    }
+                                }
                             }
                         }
                     } else {
@@ -4216,7 +4145,7 @@ impl UadShizukuApp {
             let shared_store = crate::shared_store_stt::get_shared_store();
             let installed_packages = shared_store.installed_packages.lock().unwrap().clone();
             if !installed_packages.is_empty() {
-                self.tab_scan_control.update_packages(installed_packages);
+                self.tab_scan_control.update_packages(installed_packages, self.viewmodel.as_ref());
             }
         }
 
@@ -4232,7 +4161,7 @@ impl UadShizukuApp {
             let shared_store = crate::shared_store_stt::get_shared_store();
             let installed_packages = shared_store.installed_packages.lock().unwrap().clone();
             if !installed_packages.is_empty() {
-                self.tab_scan_control.update_packages(installed_packages);
+                self.tab_scan_control.update_packages(installed_packages, self.viewmodel.as_ref());
             }
         }
 
@@ -4297,6 +4226,18 @@ impl View for UadShizukuApp {
 
 impl eframe::App for UadShizukuApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        // Lazy initialize ViewModel on first update (when we have real context)
+        if self.viewmodel.is_none() {
+            log::info!("Initializing ViewModel with real egui context");
+            self.viewmodel = Some(ViewModel::new(ctx.clone()));
+        }
+
+        // Poll ViewModel events
+        if let Some(ref mut vm) = self.viewmodel {
+            let _vm_events = vm.poll_events(ctx);
+            // TODO: Handle events when actors are implemented
+        }
+
         // On first update, initialize device list (Android only)
         // This happens after Android context is fully initialized
         #[cfg(target_os = "android")]
