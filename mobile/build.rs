@@ -84,7 +84,10 @@ fn download_if_needed(url: &str, file_path: &Path, description: &str) {
 
     println!("cargo:warning=Downloading {} from {}", description, url);
 
-    match ureq::get(url).call() {
+    match ureq::get(url)
+        .set("User-Agent", "uad-shizuku/1.0")
+        .call()
+    {
         Ok(response) => {
             let mut buffer = Vec::new();
             if let Err(e) = response.into_reader().read_to_end(&mut buffer) {

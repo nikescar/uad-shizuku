@@ -26,21 +26,73 @@ pub struct LogSettings {
     pub log_level: LogLevel,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct UadNgLists {
-    #[serde(flatten)]
     pub apps: HashMap<String, AppEntry>,
+}
+
+impl<'de> Deserialize<'de> for UadNgLists {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        struct AppEntryWithId {
+            id: String,
+            #[serde(flatten)]
+            entry: AppEntry,
+        }
+
+        let entries = Vec::<AppEntryWithId>::deserialize(deserializer)?;
+        let apps = entries
+            .into_iter()
+            .map(|e| (e.id, e.entry))
+            .collect();
+
+        Ok(UadNgLists { apps })
+    }
+}
+
+impl Serialize for UadNgLists {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::SerializeSeq;
+
+        #[derive(Serialize)]
+        struct AppEntryWithId<'a> {
+            id: &'a str,
+            #[serde(flatten)]
+            entry: &'a AppEntry,
+        }
+
+        let mut seq = serializer.serialize_seq(Some(self.apps.len()))?;
+        for (id, entry) in &self.apps {
+            seq.serialize_element(&AppEntryWithId { id, entry })?;
+        }
+        seq.end()
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppEntry {
     pub list: String,
     pub description: String,
+    #[serde(default, deserialize_with = "null_to_empty_vec")]
     pub dependencies: Vec<String>,
-    #[serde(rename = "neededBy")]
+    #[serde(rename = "neededBy", default, deserialize_with = "null_to_empty_vec")]
     pub needed_by: Vec<String>,
+    #[serde(default, deserialize_with = "null_to_empty_vec")]
     pub labels: Vec<String>,
     pub removal: String,
+}
+
+fn null_to_empty_vec<'de, D>(deserializer: D) -> Result<Vec<String>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    Option::<Vec<String>>::deserialize(deserializer).map(|opt| opt.unwrap_or_default())
 }
 
 #[doc(hidden)]
