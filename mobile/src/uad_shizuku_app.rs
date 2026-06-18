@@ -3653,7 +3653,11 @@ impl UadShizukuApp {
             );
 
             // Download the file
-            let request = ehttp::Request::get(UAD_LISTS_URL);
+            let mut request = ehttp::Request::get(UAD_LISTS_URL);
+            request.headers.insert(
+                "User-Agent".to_string(),
+                format!("uad-shizuku/{}", env!("CARGO_PKG_VERSION")),
+            );
             let (sender, receiver) = std::sync::mpsc::channel();
 
             ehttp::fetch(request, move |result| {
@@ -3840,7 +3844,11 @@ impl UadShizukuApp {
             );
 
             // Download the file
-            let request = ehttp::Request::get(IOC_URL);
+            let mut request = ehttp::Request::get(IOC_URL);
+            request.headers.insert(
+                "User-Agent".to_string(),
+                format!("uad-shizuku/{}", env!("CARGO_PKG_VERSION")),
+            );
             let (sender, receiver) = std::sync::mpsc::channel();
 
             ehttp::fetch(request, move |result| {
