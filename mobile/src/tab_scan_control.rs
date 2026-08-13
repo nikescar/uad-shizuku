@@ -12,7 +12,7 @@ pub use crate::tab_scan_control_stt::*;
 use eframe::egui;
 use egui_async::Bind;
 use egui_i18n::tr;
-use egui_material3::{data_table, icon_button_standard, theme::get_global_color, MaterialButton};
+use egui_material3::{data_table, icon_button_standard, DataTableCell, MaterialButton};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -1882,7 +1882,7 @@ impl TabScanControl {
                         (false, None, package_name_for_cell.clone(), String::new())
                     };
 
-                let row_builder = table_row.widget_cell(move |ui: &mut egui::Ui| {
+                let row_builder = table_row.custom_cell(DataTableCell::widget(move |ui: &mut egui::Ui| {
                         if !is_desktop {
                             ui.add_space(8.0);
                         }
@@ -2165,20 +2165,20 @@ impl TabScanControl {
                                 });
                             }
                         });
-                    });
+                    }));
 
 
 
                 // IzzyRisk column (desktop only)
                 let row_builder = if is_desktop {
-                row_builder.widget_cell(move |ui: &mut egui::Ui| {
+                row_builder.custom_cell(DataTableCell::widget(move |ui: &mut egui::Ui| {
                     ui.label(&izzyrisk);
-                })
+                }))
                 } else { row_builder };
 
                 // VirusTotal column (desktop only)
                 let vt_result = vt_scan_result.clone();
-                let row_builder = if is_desktop { row_builder.widget_cell(move |ui: &mut egui::Ui| {
+                let row_builder = if is_desktop { row_builder.custom_cell(DataTableCell::widget(move |ui: &mut egui::Ui| {
                     egui::ScrollArea::horizontal()
                         .id_salt(format!("vt_scroll_{}", idx))
                         .auto_shrink([false, true])
@@ -2248,13 +2248,13 @@ impl TabScanControl {
                                 }
                             });
                         });
-                })
+                }))
                 } else { row_builder };
 
                 // HybridAnalysis column (desktop only)
                 let ha_result = ha_scan_result.clone();
                 let ha_tag_ignorelist = hybridanalysis_tag_ignorelist.clone();
-                let row_builder = if is_desktop { row_builder.widget_cell(move |ui: &mut egui::Ui| {
+                let row_builder = if is_desktop { row_builder.custom_cell(DataTableCell::widget(move |ui: &mut egui::Ui| {
                     egui::ScrollArea::horizontal()
                         .id_salt(format!("ha_scroll_{}", idx))
                         .auto_shrink([false, true])
@@ -2469,11 +2469,11 @@ impl TabScanControl {
                                 }
                             });
                         });
-                })
+                }))
                 } else { row_builder };
 
                 // Tasks column
-                let row_builder = row_builder.widget_cell(move |ui: &mut egui::Ui| {
+                let row_builder = row_builder.custom_cell(DataTableCell::widget(move |ui: &mut egui::Ui| {
                     egui::ScrollArea::horizontal()
                         .id_salt(format!("scan_task_scroll_{}", idx))
                         .auto_shrink([false, true])
@@ -2525,7 +2525,7 @@ impl TabScanControl {
                             }
                         });
                     });
-                })
+                }))
                 .id(format!("scan_table_row_{}", idx));
 
                 row_builder

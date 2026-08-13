@@ -7,7 +7,7 @@ pub use crate::tab_debloat_control_stt::*;
 use crate::uad_shizuku_app::UadNgLists;
 use eframe::egui;
 use egui_i18n::tr;
-use egui_material3::{data_table, icon_button_standard, theme::get_global_color, MaterialButton};
+use egui_material3::{data_table, icon_button_standard, DataTableCell, MaterialButton};
 use std::sync::{Arc, Mutex};
 
 use crate::material_symbol_icons::{ICON_DELETE, ICON_INFO, ICON_TOGGLE_OFF, ICON_TOGGLE_ON};
@@ -2088,7 +2088,7 @@ impl TabDebloatControl {
                 let install_reason_clone = install_reason.clone();
                 let runtime_perms_clone = runtime_perms.clone();
 
-                let mut row_builder = table_row.widget_cell(move |ui: &mut egui::Ui| {
+                let mut row_builder = table_row.custom_cell(DataTableCell::widget(move |ui: &mut egui::Ui| {
                     ui.vertical(|ui| {
                         ui.horizontal(|ui| {
                             // App icon
@@ -2149,12 +2149,12 @@ impl TabDebloatControl {
                             });
                         }
                     });
-                });
+                }));
 
                 // Desktop-only columns
                 if is_desktop {
                     // Debloat category column
-                    row_builder = row_builder.widget_cell(move |ui: &mut egui::Ui| {
+                    row_builder = row_builder.custom_cell(DataTableCell::widget(move |ui: &mut egui::Ui| {
                         let bg_color = match debloat_category_clone.as_str() {
                             "Recommended" => egui::Color32::from_rgb(56, 142, 60),
                             "Advanced" => egui::Color32::from_rgb(33, 150, 243),
@@ -2188,13 +2188,13 @@ impl TabDebloatControl {
                                     );
                                 });
                         });
-                    });
+                    }));
 
                     // Runtime permissions column
                     row_builder = row_builder.cell(&runtime_perms);
 
                     // Stalkerware column
-                    row_builder = row_builder.widget_cell(move |ui: &mut egui::Ui| {
+                    row_builder = row_builder.custom_cell(DataTableCell::widget(move |ui: &mut egui::Ui| {
                         ui.horizontal(|ui| {
                             let (bg_color, text) = if is_stalkerware {
                                 (egui::Color32::from_rgb(211, 47, 47), tr!("stalkerware"))
@@ -2215,11 +2215,11 @@ impl TabDebloatControl {
                                     );
                                 });
                         });
-                    });
+                    }));
 
                     // Install reason column
                     let install_reason_clone2 = install_reason.clone();
-                    row_builder = row_builder.widget_cell(move |ui: &mut egui::Ui| {
+                    row_builder = row_builder.custom_cell(DataTableCell::widget(move |ui: &mut egui::Ui| {
                         ui.horizontal(|ui| {
                             egui::Frame::new()
                                 .stroke(egui::Stroke::new(
@@ -2234,7 +2234,7 @@ impl TabDebloatControl {
                                     );
                                 });
                         });
-                    });
+                    }));
                 }
 
                 // Tasks column
@@ -2242,7 +2242,7 @@ impl TabDebloatControl {
                 let is_unsafe_blocked = debloat_category == "Unsafe" && !self.unsafe_app_remove;
                 let is_expert_blocked = debloat_category == "Expert" && !self.expert_app_remove;
                 let is_blocked = is_unsafe_blocked || is_expert_blocked;
-                row_builder = row_builder.widget_cell(move |ui: &mut egui::Ui| {
+                row_builder = row_builder.custom_cell(DataTableCell::widget(move |ui: &mut egui::Ui| {
                     egui::ScrollArea::horizontal()
                         .id_salt(format!("debloat_task_scroll_{}", idx))
                         .auto_shrink([false, true])
@@ -2312,7 +2312,7 @@ impl TabDebloatControl {
                                 }
                             });
                         });
-                });
+                }));
 
                 // Add drawer for UAD description (from prepared data)
                 if let Some(description) = uad_description {

@@ -4,7 +4,7 @@ use crate::dlg_uninstall_confirm::DlgUninstallConfirm;
 pub use crate::tab_apps_control_stt::*;
 use eframe::egui;
 use egui_i18n::tr;
-use egui_material3::{data_table, icon_button_standard, theme::get_global_color};
+use egui_material3::{data_table, icon_button_standard, DataTableCell};
 
 // SVG icons as constants (moved to svg_stt.rs)
 use crate::material_symbol_icons::{
@@ -1202,7 +1202,7 @@ impl TabAppsControl {
 
                 // Links column (desktop only)
                 let row_builder = if is_desktop {
-                    row_builder.widget_cell(move |ui: &mut egui::Ui| {
+                    row_builder.custom_cell(DataTableCell::widget(move |ui: &mut egui::Ui| {
                         egui::ScrollArea::horizontal()
                             .id_salt(format!("links_scroll_{}_{}", idx, app_for_links.category))
                             .auto_shrink([false, true])
@@ -1248,13 +1248,13 @@ impl TabAppsControl {
                                     }
                                 });
                             });
-                    })
+                    }))
                 } else {
                     row_builder
                 };
 
                 // Install/Actions column (always)
-                row_builder.widget_cell(move |ui: &mut egui::Ui| {
+                row_builder.custom_cell(DataTableCell::widget(move |ui: &mut egui::Ui| {
                     ui.horizontal(|ui| {
                         ui.spacing_mut().item_spacing.x = 0.0;
 
@@ -1379,7 +1379,7 @@ impl TabAppsControl {
                             }
                         }
                     });
-                })
+                }))
             });
         }
 
