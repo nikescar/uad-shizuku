@@ -31,6 +31,7 @@ mod tab_apps_control;
 pub mod tab_apps_control_stt;
 mod tab_debloat_control;
 pub mod tab_debloat_control_stt;
+pub mod tab_debloat;
 mod tab_scan_control;
 pub mod tab_scan_control_stt;
 mod tab_usage_control;
