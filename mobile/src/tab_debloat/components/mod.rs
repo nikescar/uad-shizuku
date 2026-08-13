@@ -4,14 +4,11 @@
 //! including desktop and mobile views.
 //!
 //! Components are organized by layout:
-//! - `desktop.rs` - Optimized layout for wide screens (800px+)
-//! - `mobile.rs` - Optimized layout for narrow screens (<800px)
-//! - `package_table.rs` - Virtual scrolling table component
+//! - `package_table.rs` - Virtual scrolling table component (desktop)
+//! - `package_cards.rs` - Card-based list component (mobile)
 
 pub mod package_table;
+pub mod package_cards;
 
 pub use package_table::render_package_table;
-
-// Placeholder for future component implementations
-// pub mod desktop;
-// pub mod mobile;
+pub use package_cards::render_package_cards;

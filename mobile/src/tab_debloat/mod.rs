@@ -4,14 +4,16 @@
 //! - `state.rs` - UI state (selection, filters, sorting, dialogs)
 //! - `components/mod.rs` - Reusable UI components (desktop, mobile)
 //! - `view_desktop.rs` - Desktop layout (800px+) with sidebar
+//! - `view_mobile.rs` - Mobile layout (<800px) with card layout
 //!
 //! The main `TabDebloat` struct implements width-based responsive routing:
 //! - Desktop view (800px+): Full-featured data table with all controls
-//! - Mobile view (<800px): Simplified list view for small screens
+//! - Mobile view (<800px): Card-based list view for small screens
 
 pub mod state;
 pub mod components;
 pub mod view_desktop;
+pub mod view_mobile;
 
 pub use state::{TabDebloatState, SortColumn, DebloatFilter, BatchUninstallState, CachedCategoryCounts};
 
@@ -87,13 +89,12 @@ impl TabDebloat {
     /// Render mobile view (<800px)
     ///
     /// Simplified interface with:
-    /// - List-based presentation
-    /// - Single-column layout
-    /// - Touch-friendly spacing
-    /// - Bottom sheet dialogs
-    fn render_mobile(&mut self, ui: &mut egui::Ui, _vm_state: &crate::viewmodel::ViewModelState) {
-        ui.label("Mobile View - Coming Soon");
-        // TODO: Implement mobile view with simplified list interface
+    /// - Stacked vertical layout
+    /// - Collapsible filter section
+    /// - Card-based list (48px minimum per card)
+    /// - Batch actions at bottom
+    fn render_mobile(&mut self, ui: &mut egui::Ui, vm_state: &crate::viewmodel::ViewModelState) {
+        view_mobile::render(ui, vm_state, &mut self.state);
     }
 }
 
