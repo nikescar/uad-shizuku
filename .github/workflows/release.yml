@@ -226,7 +226,7 @@ jobs:
             curl https://sh.rustup.rs -sSf | sh -s -- -y --profile=minimal --default-toolchain ${{ env.RUST_VERSION }}
           run: |
             . $HOME/.cargo/env
-            export PKG_CONFIG_PATH=/usr/local/libdata/pkgconfig:/usr/local/lib/pkgconfig
+            export PKG_CONFIG_PATH=/usr/local/libdata/pkgconfig:/usr/local/lib/pkgconfig:/usr/local/share/pkgconfig
             cargo build --release --package uad-shizuku --target ${{ matrix.platform.target }}
 
       - name: Windows - Code Signing
