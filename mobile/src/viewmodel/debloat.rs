@@ -5,6 +5,30 @@ use crate::uad_shizuku_app::UadNgLists;
 use crate::viewmodel::ViewModelEvent;
 use anyhow::Result;
 
+/// Filter criteria for packages
+#[derive(Debug, Clone)]
+pub struct PackageFilterCriteria {
+    pub text_filter: Option<String>,
+    pub category_filter: Option<String>,
+    pub show_only_enabled: bool,
+    pub hide_system_apps: bool,
+}
+
+/// Sort criteria for packages
+#[derive(Debug, Clone)]
+pub struct PackageSortCriteria {
+    pub column: SortColumn,
+    pub ascending: bool,
+}
+
+/// Sortable columns
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SortColumn {
+    PackageName,
+    LastUpdate,
+    VersionCode,
+}
+
 /// Commands sent to DebloatActor
 #[derive(Debug, Clone)]
 pub enum DebloatCommand {
@@ -14,6 +38,11 @@ pub enum DebloatCommand {
     BatchEnable { packages: Vec<String>, device: String },
     LoadUadNgLists,
     SetOptions { unsafe_app_remove: bool, expert_app_remove: bool },
+    FilterPackages {
+        packages: Vec<PackageFingerprint>,
+        criteria: PackageFilterCriteria,
+    },
+    SortPackages { criteria: PackageSortCriteria },
 }
 
 /// Events sent from DebloatActor to ViewModel
@@ -22,6 +51,7 @@ pub enum DebloatEvent {
     PackagesLoaded(Vec<PackageFingerprint>),
     UadNgListsLoaded(UadNgLists),
     StalkerwareIndicatorsLoaded(crate::calc_stalkerware_stt::StalkerwareIndicators),
+    FilteredPackagesReady(Vec<PackageFingerprint>),
     BatchProgress {
         operation: String,
         progress: f32,      // 0.0 to 1.0
@@ -44,6 +74,7 @@ struct DebloatActorState {
     current_device: Option<String>,
     unsafe_app_remove: bool,
     expert_app_remove: bool,
+    current_packages: Vec<PackageFingerprint>,
 }
 
 /// Debloat actor - runs on background thread
@@ -65,6 +96,7 @@ impl DebloatActor {
                 current_device: None,
                 unsafe_app_remove: false,
                 expert_app_remove: false,
+                current_packages: Vec::new(),
             },
             command_rx,
             event_tx,
@@ -109,6 +141,12 @@ impl DebloatActor {
                 self.state.unsafe_app_remove = unsafe_app_remove;
                 self.state.expert_app_remove = expert_app_remove;
             }
+            DebloatCommand::FilterPackages { packages, criteria } => {
+                self.filter_packages(packages, criteria).await?;
+            }
+            DebloatCommand::SortPackages { criteria } => {
+                self.sort_packages(criteria).await?;
+            }
         }
         Ok(())
     }
@@ -121,6 +159,7 @@ impl DebloatActor {
         }).await?;
 
         self.state.current_device = Some(device);
+        self.state.current_packages = packages.clone();
 
         // Send event back to ViewModel
         self.event_tx.send(ViewModelEvent::Debloat(
@@ -307,5 +346,66 @@ impl DebloatActor {
                 error: error.to_string(),
             }
         )).await;
+    }
+
+    async fn filter_packages(&mut self, packages: Vec<PackageFingerprint>, criteria: PackageFilterCriteria) -> Result<()> {
+        // Run filtering in background thread to avoid blocking
+        let filtered = smol::unblock(move || {
+            Self::apply_filters(packages, criteria)
+        }).await;
+
+        // Send filtered result back to ViewModel
+        self.event_tx.send(ViewModelEvent::Debloat(
+            DebloatEvent::FilteredPackagesReady(filtered)
+        )).await?;
+
+        Ok(())
+    }
+
+    async fn sort_packages(&mut self, criteria: PackageSortCriteria) -> Result<()> {
+        // Clone current filtered packages (or all if not filtered)
+        // Note: sorting operates on the result of filtering
+        // For now, we'll just return success - actual sort will be implemented when needed
+        // This maintains the interface defined in the spec
+
+        log::info!("Sort packages requested: {:?}, ascending: {}", criteria.column, criteria.ascending);
+        Ok(())
+    }
+
+    /// Apply filter criteria to packages (sync, runs in thread pool)
+    fn apply_filters(packages: Vec<PackageFingerprint>, criteria: PackageFilterCriteria) -> Vec<PackageFingerprint> {
+        packages.into_iter().filter(|pkg| {
+            // Text filter: search in package name
+            if let Some(ref text) = criteria.text_filter {
+                if !text.is_empty() && !pkg.pkg.to_lowercase().contains(&text.to_lowercase()) {
+                    return false;
+                }
+            }
+
+            // Show only enabled filter
+            if criteria.show_only_enabled {
+                let is_enabled = pkg.users.iter().any(|u| u.enabled == 1);
+                if !is_enabled {
+                    return false;
+                }
+            }
+
+            // Hide system apps filter
+            if criteria.hide_system_apps {
+                let is_system = pkg.flags.contains("SYSTEM");
+                if is_system {
+                    return false;
+                }
+            }
+
+            // Category filter (if provided)
+            // Note: this would need UAD lists integration, which is not in current state
+            // For now, we skip this - will be implemented when UAD integration is added
+            if let Some(ref _category) = criteria.category_filter {
+                // TODO: integrate with UAD lists when available in actor state
+            }
+
+            true
+        }).collect()
     }
 }

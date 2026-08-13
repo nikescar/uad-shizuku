@@ -1122,6 +1122,12 @@ impl TabDebloatControl {
                         log::debug!("Stalkerware indicators loaded event received");
                         // Indicators now in ViewModel.state.stalkerware_indicators
                     }
+
+                    DebloatEvent::FilteredPackagesReady(_packages) => {
+                        log::debug!("Filtered packages ready event received");
+                        // Filtered packages now in ViewModel.state.filtered_packages
+                        ctx.request_repaint();
+                    }
                 }
             }
         }

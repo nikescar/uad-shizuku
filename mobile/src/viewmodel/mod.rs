@@ -65,6 +65,7 @@ pub struct ViewModelState {
     // Debloat state
     pub packages: Vec<crate::adb::PackageFingerprint>,
     pub uad_ng_lists: Option<crate::uad_shizuku_app::UadNgLists>,
+    pub filtered_packages: Vec<crate::adb::PackageFingerprint>,
 
     // Progress tracking
     pub active_operations: HashMap<String, OperationProgress>,
@@ -154,6 +155,10 @@ impl ViewModel {
             }
             ViewModelEvent::Debloat(DebloatEvent::StalkerwareIndicatorsLoaded(indicators)) => {
                 self.state.stalkerware_indicators = Some(indicators.clone());
+                _ctx.request_repaint();
+            }
+            ViewModelEvent::Debloat(DebloatEvent::FilteredPackagesReady(packages)) => {
+                self.state.filtered_packages = packages.clone();
                 _ctx.request_repaint();
             }
             ViewModelEvent::Debloat(DebloatEvent::BatchProgress { operation, progress, .. }) => {
@@ -261,6 +266,30 @@ impl ViewModel {
     pub fn set_debloat_options(&self, unsafe_app_remove: bool, expert_app_remove: bool) -> anyhow::Result<()> {
         self.debloat_tx.send_blocking(DebloatCommand::SetOptions { unsafe_app_remove, expert_app_remove })
             .map_err(|e| anyhow::anyhow!("Failed to send command: {}", e))
+    }
+
+    pub fn filter_packages(
+        &self,
+        text_filter: Option<String>,
+        category_filter: Option<String>,
+        show_only_enabled: bool,
+        hide_system_apps: bool,
+    ) -> anyhow::Result<()> {
+        let criteria = debloat::PackageFilterCriteria {
+            text_filter,
+            category_filter,
+            show_only_enabled,
+            hide_system_apps,
+        };
+        let packages = self.state.packages.clone();
+        self.debloat_tx.send_blocking(DebloatCommand::FilterPackages { packages, criteria })
+            .map_err(|e| anyhow::anyhow!("Failed to send filter command: {}", e))
+    }
+
+    pub fn sort_packages(&self, column: debloat::SortColumn, ascending: bool) -> anyhow::Result<()> {
+        let criteria = debloat::PackageSortCriteria { column, ascending };
+        self.debloat_tx.send_blocking(DebloatCommand::SortPackages { criteria })
+            .map_err(|e| anyhow::anyhow!("Failed to send sort command: {}", e))
     }
 
     // === Scan commands ===
