@@ -175,3 +175,8 @@ adb_sumpsys_usagestats_history
 
 /mobile/app/tmp/
 /scripts/certificate*
+# Runtime and debug files
+*.core
+*.db
+node.core
+mobile/*.db
