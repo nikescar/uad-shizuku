@@ -187,7 +187,7 @@ jobs:
           release: ${{ matrix.platform.freebsd_version }}
           usesh: true
           prepare: |
-            pkg install -y curl pkgconf gtk3 cairo pango gdk-pixbuf2 at-spi2-core pixman wayland
+            pkg install -y curl pkgconf gtk3 cairo pango gdk-pixbuf2 at-spi2-core pixman wayland bzip2
             ln -sf /usr/local/bin/pkgconf /usr/local/bin/pkg-config || true
             curl https://sh.rustup.rs -sSf | sh -s -- -y --profile=minimal --default-toolchain ${{ env.RUST_VERSION }}
           run: |
