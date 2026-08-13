@@ -77,22 +77,25 @@ fn test_filter_packages_command() {
     // Assert: Command sent successfully
     assert!(filter_result.is_ok(), "Filter command should succeed");
 
-    // Give background thread time to process (async operations)
-    std::thread::sleep(std::time::Duration::from_millis(100));
-
-    // Poll events to process the filter
-    let events = vm.poll_events(&ctx);
-
-    // Should receive FilteredPackagesReady event
+    // Poll with timeout until filter event arrives
     let mut found_filter_event = false;
-    for event in events {
-        if let ViewModelEvent::Debloat(DebloatEvent::FilteredPackagesReady(_)) = event {
-            found_filter_event = true;
-            break;
+    let timeout = std::time::Duration::from_secs(2);
+    let start = std::time::Instant::now();
+
+    while !found_filter_event && start.elapsed() < timeout {
+        let events = vm.poll_events(&ctx);
+        for event in events {
+            if let ViewModelEvent::Debloat(DebloatEvent::FilteredPackagesReady(_)) = event {
+                found_filter_event = true;
+                break;
+            }
+        }
+        if !found_filter_event {
+            std::thread::sleep(std::time::Duration::from_millis(10));
         }
     }
 
-    assert!(found_filter_event, "Should receive FilteredPackagesReady event");
+    assert!(found_filter_event, "Should receive FilteredPackagesReady event within timeout");
 
     // Check that filtered_packages contains only matching packages
     assert_eq!(vm.state.filtered_packages.len(), 2, "Should have 2 packages matching 'example'");
@@ -126,11 +129,20 @@ fn test_filter_by_enabled_state() {
 
     assert!(filter_result.is_ok());
 
-    std::thread::sleep(std::time::Duration::from_millis(100));
-    let _events = vm.poll_events(&ctx);
+    // Poll with timeout until filter completes
+    let timeout = std::time::Duration::from_secs(2);
+    let start = std::time::Instant::now();
+    while vm.state.filtered_packages.is_empty() && start.elapsed() < timeout {
+        let _events = vm.poll_events(&ctx);
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
 
     // Assert: Should only show enabled packages (enabled == 1)
     assert_eq!(vm.state.filtered_packages.len(), 1, "Should have 1 enabled package");
+    assert!(
+        !vm.state.filtered_packages.is_empty(),
+        "filtered_packages should not be empty"
+    );
     assert_eq!(vm.state.filtered_packages[0].pkg, "com.example.enabled");
 }
 
@@ -157,11 +169,20 @@ fn test_filter_hide_system_apps() {
 
     assert!(filter_result.is_ok());
 
-    std::thread::sleep(std::time::Duration::from_millis(100));
-    let _events = vm.poll_events(&ctx);
+    // Poll with timeout until filter completes
+    let timeout = std::time::Duration::from_secs(2);
+    let start = std::time::Instant::now();
+    while vm.state.filtered_packages.is_empty() && start.elapsed() < timeout {
+        let _events = vm.poll_events(&ctx);
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
 
     // Assert: Should only show user apps
     assert_eq!(vm.state.filtered_packages.len(), 1, "Should have 1 user app");
+    assert!(
+        !vm.state.filtered_packages.is_empty(),
+        "filtered_packages should not be empty"
+    );
     assert_eq!(vm.state.filtered_packages[0].pkg, "com.example.user");
 }
 
@@ -184,8 +205,13 @@ fn test_filter_no_filters_returns_all() {
 
     assert!(filter_result.is_ok());
 
-    std::thread::sleep(std::time::Duration::from_millis(100));
-    let _events = vm.poll_events(&ctx);
+    // Poll with timeout until filter completes
+    let timeout = std::time::Duration::from_secs(2);
+    let start = std::time::Instant::now();
+    while vm.state.filtered_packages.len() < packages.len() && start.elapsed() < timeout {
+        let _events = vm.poll_events(&ctx);
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
 
     // Assert: Should return all packages
     assert_eq!(vm.state.filtered_packages.len(), packages.len(), "Should return all packages when no filters applied");

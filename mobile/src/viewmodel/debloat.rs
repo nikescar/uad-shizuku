@@ -74,7 +74,6 @@ struct DebloatActorState {
     current_device: Option<String>,
     unsafe_app_remove: bool,
     expert_app_remove: bool,
-    current_packages: Vec<PackageFingerprint>,
 }
 
 /// Debloat actor - runs on background thread
@@ -96,7 +95,6 @@ impl DebloatActor {
                 current_device: None,
                 unsafe_app_remove: false,
                 expert_app_remove: false,
-                current_packages: Vec::new(),
             },
             command_rx,
             event_tx,
@@ -159,7 +157,6 @@ impl DebloatActor {
         }).await?;
 
         self.state.current_device = Some(device);
-        self.state.current_packages = packages.clone();
 
         // Send event back to ViewModel
         self.event_tx.send(ViewModelEvent::Debloat(
