@@ -150,7 +150,7 @@ echo "sdk.dir=$HOME/.android" > local.properties
 if [[ -x "$HOME/.android/cmdline-tools/latest/bin/sdkmanager" ]]; then
     echo "Installing Android SDK packages..."
     # Install SDK components
-    yes | $HOME/.android/cmdline-tools/latest/bin/sdkmanager --sdk_root=$HOME/.android "platform-tools" "platforms;android-35" "build-tools;34.0.0"
+    yes | $HOME/.android/cmdline-tools/latest/bin/sdkmanager --sdk_root=$HOME/.android "platform-tools" "platforms;android-36" "build-tools;34.0.0"
     # Accept all licenses
     yes | $HOME/.android/cmdline-tools/latest/bin/sdkmanager --sdk_root=$HOME/.android --licenses
     echo "Android SDK setup complete."

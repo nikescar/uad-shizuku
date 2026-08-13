@@ -4,14 +4,14 @@ plugins {
 
 android {
     ndkVersion "28.2.13676358"
-    compileSdk 35
+    compileSdk 36
 
     def appVersionCode = System.getenv("APPLICATION_VERSION_CODE") ?: "1"
     def appVersionName = System.getenv("APPLICATION_VERSION_NAME") ?: "1.0.0"
     defaultConfig {
         applicationId "pe.nikescar.uad_shizuku"
         minSdk 24
-        targetSdk 35
+        targetSdk 36
         versionCode appVersionCode.toInteger()
         versionName appVersionName
 
