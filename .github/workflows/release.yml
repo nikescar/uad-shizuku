@@ -30,11 +30,6 @@ jobs:
     name: Build - ${{ matrix.platform.name }}
     # By default, runs on Ubuntu, otherwise, override with the desired os
     runs-on: ${{ matrix.platform.os || 'ubuntu-22.04' }}
-    # Skip builds based on platform selection
-    if: |
-      github.event.inputs.platforms == 'all' ||
-      github.event.inputs.platforms == matrix.platform.platform_type ||
-      github.event.inputs.platforms == ''
     strategy:
       matrix:
         # Set platforms you want to build your binaries on
@@ -181,7 +176,9 @@ jobs:
           cargo install cross --git https://github.com/cross-rs/cross
 
       - name: Android - Build Release APK
-        if: (contains(matrix.platform.name, 'Android APK arm64'))
+        if: |
+          (contains(matrix.platform.name, 'Android APK arm64')) &&
+          (github.event.inputs.platforms == 'all' || github.event.inputs.platforms == 'android' || github.event.inputs.platforms == '')
         run: |
           echo "storePassword=${{ secrets.STORE_PASSWORD }}" > ./mobile/app/keystore.properties
           echo "keyPassword=${{ secrets.KEY_PASSWORD }}" >> ./mobile/app/keystore.properties
@@ -206,14 +203,19 @@ jobs:
           popd
 
       - name: Build Binary for ${{ matrix.platform.name }}
-        if: (contains(matrix.platform.target, 'x86_64') || contains(matrix.platform.target, 'i686') || contains(matrix.platform.target, 'aarch64') || contains(matrix.platform.target, 'armv7') || contains(matrix.platform.target, 'arm-')) && !contains(matrix.platform.name, 'Android APK arm64') && !contains(matrix.platform.target, 'freebsd')
+        if: |
+          (contains(matrix.platform.target, 'x86_64') || contains(matrix.platform.target, 'i686') || contains(matrix.platform.target, 'aarch64') || contains(matrix.platform.target, 'armv7') || contains(matrix.platform.target, 'arm-')) &&
+          !contains(matrix.platform.name, 'Android APK arm64') && !contains(matrix.platform.target, 'freebsd') &&
+          (github.event.inputs.platforms == 'all' || github.event.inputs.platforms == matrix.platform.platform_type || github.event.inputs.platforms == '')
         uses: actions-rs/cargo@v1
         with:
           command: build
           args: ${{ matrix.platform.build-args }} --package uad-shizuku
 
       - name: Build FreeBSD Binary in VM
-        if: contains(matrix.platform.target, 'freebsd')
+        if: |
+          contains(matrix.platform.target, 'freebsd') &&
+          (github.event.inputs.platforms == 'all' || github.event.inputs.platforms == 'freebsd' || github.event.inputs.platforms == '')
         uses: vmactions/freebsd-vm@v1
         with:
           release: ${{ matrix.platform.freebsd_version }}
@@ -228,7 +230,9 @@ jobs:
             cargo build --release --package uad-shizuku --target ${{ matrix.platform.target }}
 
       - name: Windows - Code Signing
-        if: (contains(matrix.platform.target, 'windows') && env.WINDOWS_CERT_P12_BASE64 != '' && env.WINDOWS_CERT_PASSWORD != '')
+        if: |
+          (contains(matrix.platform.target, 'windows') && env.WINDOWS_CERT_P12_BASE64 != '' && env.WINDOWS_CERT_PASSWORD != '') &&
+          (github.event.inputs.platforms == 'all' || github.event.inputs.platforms == 'windows' || github.event.inputs.platforms == '')
         id: sign_exe
         env:
           WINDOWS_CERT_P12_BASE64: ${{ secrets.WINDOWS_CERT_P12_BASE64 }}
