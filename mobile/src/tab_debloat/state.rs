@@ -108,6 +108,15 @@ pub struct TabDebloatState {
     /// Table version for cache invalidation
     pub table_version: u64,
 
+    /// Filter debounce: timestamp of last text input change (for 300ms debounce)
+    pub last_filter_input: Option<std::time::Instant>,
+
+    /// Filter debounce: pending filter text (user is still typing)
+    pub pending_filter_text: String,
+
+    /// Filter debounce: last applied filter text (already sent to ViewModel)
+    pub applied_filter_text: String,
+
     /// Package details dialog state
     pub package_details_dialog: DlgPackageDetails,
 
@@ -176,6 +185,9 @@ impl Default for TabDebloatState {
             sort_ascending: true,
             selected_device: None,
             table_version: 0,
+            last_filter_input: None,
+            pending_filter_text: String::new(),
+            applied_filter_text: String::new(),
             package_details_dialog: DlgPackageDetails::new(),
             uninstall_confirm_dialog: DlgUninstallConfirm::default(),
             cached_counts: CachedCategoryCounts::default(),

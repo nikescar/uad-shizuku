@@ -56,17 +56,21 @@ pub fn render(
     });
 }
 
-/// Render search bar for text filtering
+/// Render search bar for text filtering with debouncing
 fn render_search_bar(ui: &mut egui::Ui, local_state: &mut TabDebloatState) {
     ui.horizontal(|ui| {
         ui.label("Search:");
-        let response = ui.text_edit_singleline(&mut local_state.active_filter.text_filter);
+        let response = ui.text_edit_singleline(&mut local_state.pending_filter_text);
         if response.changed() {
-            local_state.table_version += 1;
+            // User typed something - start/reset debounce timer
+            local_state.last_filter_input = Some(std::time::Instant::now());
+            local_state.active_filter.text_filter = local_state.pending_filter_text.clone();
         }
         if ui.button("Clear").clicked() {
+            local_state.pending_filter_text.clear();
+            local_state.applied_filter_text.clear();
             local_state.active_filter.text_filter.clear();
-            local_state.table_version += 1;
+            local_state.last_filter_input = Some(std::time::Instant::now());
         }
     });
 }

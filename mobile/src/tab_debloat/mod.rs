@@ -22,6 +22,9 @@ use eframe::egui;
 /// Width threshold (pixels) for switching between desktop and mobile views
 const RESPONSIVE_WIDTH_THRESHOLD: f32 = 800.0;
 
+/// Filter debounce duration (milliseconds) - prevents excessive filtering while typing
+const FILTER_DEBOUNCE_MS: u64 = 300;
+
 /// Debloat tab controller - coordinates UI rendering and state management
 ///
 /// This struct is responsible for:
@@ -59,16 +62,48 @@ impl TabDebloat {
     /// - If width >= 800px: render desktop view with full data table
     /// - If width < 800px: render mobile view with simplified interface
     ///
+    /// It also handles filter debouncing (300ms) to prevent excessive filtering
+    /// when the user is typing in the search box.
+    ///
     /// # Arguments
     /// * `ui` - egui context for rendering
     /// * `vm_state` - ViewModel state (read-only access to packages and UAD lists)
     /// * `available_width` - available width in pixels for layout
+    /// * `viewmodel` - ViewModel reference for sending filter commands
     pub fn render(
         &mut self,
         ui: &mut egui::Ui,
         vm_state: &crate::viewmodel::ViewModelState,
         available_width: f32,
+        viewmodel: &crate::viewmodel::ViewModel,
     ) {
+        // Check if filter debounce has elapsed and we need to apply the filter
+        if let Some(last_input_time) = self.state.last_filter_input {
+            let elapsed = last_input_time.elapsed();
+            if elapsed.as_millis() >= FILTER_DEBOUNCE_MS as u128
+                && self.state.pending_filter_text != self.state.applied_filter_text {
+                // Debounce elapsed, apply the pending filter
+                let text_filter = if self.state.pending_filter_text.is_empty() {
+                    None
+                } else {
+                    Some(self.state.pending_filter_text.clone())
+                };
+
+                if let Err(e) = viewmodel.filter_packages(
+                    text_filter,
+                    self.state.active_filter.category_filter.clone(),
+                    self.state.active_filter.show_only_enabled,
+                    self.state.active_filter.hide_system_apps,
+                ) {
+                    log::error!("Failed to send filter command: {}", e);
+                } else {
+                    // Mark filter as applied
+                    self.state.applied_filter_text = self.state.pending_filter_text.clone();
+                    self.state.last_filter_input = None;
+                }
+            }
+        }
+
         if available_width >= RESPONSIVE_WIDTH_THRESHOLD {
             self.render_desktop(ui, vm_state);
         } else {
