@@ -173,13 +173,12 @@ fn render_search_bar(ui: &mut egui::Ui, local_state: &mut TabDebloatState) {
         if response.changed() {
             // User typed something - start/reset debounce timer
             local_state.last_filter_input = Some(std::time::Instant::now());
-            local_state.active_filter.text_filter = local_state.pending_filter_text.clone();
         }
         if ui.button("Clear").clicked() {
             local_state.pending_filter_text.clear();
             local_state.applied_filter_text.clear();
             local_state.active_filter.text_filter.clear();
-            local_state.last_filter_input = Some(std::time::Instant::now());
+            local_state.last_filter_input = None;
         }
     });
 }
