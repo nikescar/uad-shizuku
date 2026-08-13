@@ -28,7 +28,8 @@ use crate::adb::{get_users, UserInfo};
 // use crate::android_packagemanager::get_installed_packages;
 use crate::dlg_dashcounter_details::DlgDashCounterDetails;
 use crate::tab_apps_control::TabAppsControl;
-use crate::tab_debloat_control::TabDebloatControl;
+use crate::tab_debloat::TabDebloat;
+use crate::tab_debloat_control::TabDebloatControl;  // TRANSITIONAL: Being phased out
 use crate::tab_scan_control::TabScanControl;
 use crate::tab_usage_control::TabUsageControl;
 use crate::LogLevel;
@@ -266,7 +267,8 @@ impl Default for UadShizukuApp {
             current_user: None,
 
             // NOTE: installed_packages and uad_ng_lists are now in shared_store_stt::SharedStore
-            tab_debloat_control: TabDebloatControl::default(),
+            tab_debloat: TabDebloat::default(),  // REFACTORED: New MVVM-based tab
+            tab_debloat_control: TabDebloatControl::default(),  // TRANSITIONAL: Being phased out
             tab_scan_control: TabScanControl::default(),
             tab_usage_control: TabUsageControl::default(),
             tab_apps_control: TabAppsControl::new(cache_dir, tmp_dir),
@@ -3293,51 +3295,21 @@ impl UadShizukuApp {
     }
 
     fn render_debloat_tab(&mut self, ui: &mut egui::Ui) {
-        use crate::tab_debloat_control::AdbResult;
+        // Get available width for responsive layout
+        let available_width = ui.ctx().content_rect().width();
 
-        // Use pre-calculated renderer flags from controller
-        #[cfg(target_os = "android")]
-        let (google_play_enabled, fdroid_enabled, apkmirror_enabled, android_package_enabled) =
-            { (false, false, false, true) };
-
-        #[cfg(not(target_os = "android"))]
-        let (google_play_enabled, fdroid_enabled, apkmirror_enabled, android_package_enabled) = {
-            (
-                self.google_play_renderer.is_enabled,
-                self.fdroid_renderer.is_enabled,
-                self.apkmirror_renderer.is_enabled,
-                false,
-            )
-        };
-
-        if let Some(result) = self.tab_debloat_control.ui(
-            self.viewmodel.as_mut(),
-            ui,
-            google_play_enabled,
-            fdroid_enabled,
-            apkmirror_enabled,
-            android_package_enabled,
-        ) {
-            match result {
-                AdbResult::Success(_pkg_name) => {
-                    // Package already removed in tab_debloat_control
-                }
-                AdbResult::Failure => {
-                    // Open log box if it's closed
-                    if !self.settings.show_logs {
-                        self.settings.show_logs = true;
-                        // Update global log settings
-                        update_log_settings(LogSettings {
-                            show_logs: true,
-                            log_level: Self::string_to_log_level(&self.settings.log_level),
-                        });
-                    }
-                }
-            }
+        // Render the refactored debloat tab with MVVM architecture
+        if let Some(ref viewmodel) = self.viewmodel {
+            // Use the new refactored TabDebloat with responsive width-based routing
+            self.tab_debloat.render(
+                ui,
+                &viewmodel.state,
+                available_width,
+                viewmodel,
+            );
+        } else {
+            ui.label("Error: ViewModel not initialized");
         }
-
-        // NOTE: Cached app info is now in shared_store_stt::SharedStore
-        // Both tabs access the same shared cache, no need to sync
     }
 
     fn enqueue_visible_packages_for_debloat(

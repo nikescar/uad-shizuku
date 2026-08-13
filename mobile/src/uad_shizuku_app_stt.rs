@@ -2,7 +2,8 @@ use crate::adb::UserInfo;
 #[cfg(not(target_os = "android"))]
 use crate::install_stt::InstallStatus;
 use crate::tab_apps_control::TabAppsControl;
-use crate::tab_debloat_control::TabDebloatControl;
+use crate::tab_debloat::TabDebloat;
+use crate::tab_debloat_control::TabDebloatControl;  // TRANSITIONAL: Being phased out
 use crate::tab_scan_control::TabScanControl;
 use crate::tab_usage_control::TabUsageControl;
 use crate::Config;
@@ -141,7 +142,8 @@ pub struct UadShizukuApp {
 
     // NOTE: installed_packages and uad_ng_lists are now in shared_store_stt::SharedStore
     // Access via: crate::shared_store_stt::get_shared_store()
-    pub tab_debloat_control: TabDebloatControl,
+    pub tab_debloat: TabDebloat,  // REFACTORED: New MVVM-based tab
+    pub tab_debloat_control: TabDebloatControl,  // TRANSITIONAL: Being phased out
     pub tab_scan_control: TabScanControl,
     pub tab_usage_control: TabUsageControl,
     pub tab_apps_control: TabAppsControl,
