@@ -7,6 +7,19 @@ on:
     branches:
       - test
   workflow_dispatch:
+    inputs:
+      platforms:
+        description: 'Platforms to build'
+        required: true
+        type: choice
+        default: 'all'
+        options:
+          - all
+          - linux
+          - windows
+          - macos
+          - freebsd
+          - android
 
 env:
   RUST_VERSION: stable
@@ -17,6 +30,11 @@ jobs:
     name: Build - ${{ matrix.platform.name }}
     # By default, runs on Ubuntu, otherwise, override with the desired os
     runs-on: ${{ matrix.platform.os || 'ubuntu-22.04' }}
+    # Skip builds based on platform selection
+    if: |
+      github.event.inputs.platforms == 'all' ||
+      github.event.inputs.platforms == matrix.platform.platform_type ||
+      github.event.inputs.platforms == ''
     strategy:
       matrix:
         # Set platforms you want to build your binaries on
@@ -25,40 +43,49 @@ jobs:
           - name: Linux x86_64
             target: x86_64-unknown-linux-musl
             build-args: "--release"
+            platform_type: linux
 
           - name: Linux x86
             target: i686-unknown-linux-musl
             build-args: "--release"
+            platform_type: linux
 
           - name: Linux aarch64
             target: aarch64-unknown-linux-musl
             build-args: "--release"
+            platform_type: linux
 
           - name: Linux armv7hf
             target: armv7-unknown-linux-musleabihf
             build-args: "--release"
+            platform_type: linux
 
           - name: Linux armv6
             target: arm-unknown-linux-musleabihf
             build-args: "--release"
+            platform_type: linux
 
           # FreeBSD
           - name: FreeBSD x86_64
             target: x86_64-unknown-freebsd
             build-args: "--release"
             freebsd_version: "14.2"
+            platform_type: freebsd
 
           - name: Android aarch64
             target: aarch64-linux-android
             build-args: "--release"
+            platform_type: android
 
           - name: Android APK arm64
             target: aarch64-linux-android
             build-args: "--release"
+            platform_type: android
 
           - name: Android armv7
             target: armv7-linux-androideabi
             build-args: "--release"
+            platform_type: android
 
           #- name: Linux mips
           #  target: mips-unknown-linux-musl
@@ -71,11 +98,13 @@ jobs:
             os: macos-latest
             target: x86_64-apple-darwin
             build-args: "--release"
+            platform_type: macos
 
           - name: MacOS aarch64
             os: macos-latest
             target: aarch64-apple-darwin
             build-args: "--release"
+            platform_type: macos
 
           # - name: iOS x86_64
           #   target: x86_64-apple-ios
@@ -88,16 +117,19 @@ jobs:
             os: windows-latest
             target: x86_64-pc-windows-msvc
             build-args: "--profile release-with-symbols"
+            platform_type: windows
 
           - name: Windows x86
             os: windows-latest
             target: i686-pc-windows-msvc
             build-args: "--profile release-with-symbols"
+            platform_type: windows
 
           - name: Windows aarch64
             os: windows-latest
             target: aarch64-pc-windows-msvc
             build-args: "--profile release-with-symbols"
+            platform_type: windows
 
     steps:
       - name: Linux - Install Build Dependencies
