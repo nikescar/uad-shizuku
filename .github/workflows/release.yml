@@ -60,12 +60,12 @@ jobs:
             build-args: "--release"
             platform_type: linux
 
-          # FreeBSD
-          - name: FreeBSD x86_64
-            target: x86_64-unknown-freebsd
-            build-args: "--release"
-            freebsd_version: "14.2"
-            platform_type: freebsd
+          # FreeBSD - Temporarily disabled
+          # - name: FreeBSD x86_64
+          #   target: x86_64-unknown-freebsd
+          #   build-args: "--release"
+          #   freebsd_version: "14.2"
+          #   platform_type: freebsd
 
           - name: Android aarch64
             target: aarch64-linux-android
