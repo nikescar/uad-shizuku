@@ -230,6 +230,7 @@ jobs:
             cargo build --release --package uad-shizuku --target ${{ matrix.platform.target }}
 
       - name: Windows - Code Signing
+        continue-on-error: true
         if: |
           (contains(matrix.platform.target, 'windows') && env.WINDOWS_CERT_P12_BASE64 != '' && env.WINDOWS_CERT_PASSWORD != '') &&
           (github.event.inputs.platforms == 'all' || github.event.inputs.platforms == 'windows' || github.event.inputs.platforms == '')
