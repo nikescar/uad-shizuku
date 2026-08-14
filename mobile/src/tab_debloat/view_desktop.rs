@@ -31,10 +31,12 @@ type AppDisplayData = HashMap<String, (Option<egui::TextureHandle>, String)>;
 /// * `ui` - egui context for rendering
 /// * `vm_state` - ViewModel state (read-only access to packages and UAD lists)
 /// * `local_state` - Tab-local UI state (mutable for selection, filters, etc.)
+/// * `viewmodel` - ViewModel reference for sending commands
 pub fn render(
     ui: &mut egui::Ui,
     vm_state: &ViewModelState,
     local_state: &mut TabDebloatState,
+    viewmodel: &crate::viewmodel::ViewModel,
     google_play_enabled: bool,
     fdroid_enabled: bool,
     apkmirror_enabled: bool,
@@ -52,6 +54,7 @@ pub fn render(
             ui,
             vm_state,
             local_state,
+            viewmodel,
             google_play_enabled,
             fdroid_enabled,
             apkmirror_enabled,
@@ -398,6 +401,7 @@ fn render_main_content(
     ui: &mut egui::Ui,
     vm_state: &ViewModelState,
     local_state: &mut TabDebloatState,
+    viewmodel: &crate::viewmodel::ViewModel,
     google_play_enabled: bool,
     fdroid_enabled: bool,
     apkmirror_enabled: bool,
@@ -410,7 +414,7 @@ fn render_main_content(
         ui.add_space(8.0);
 
         // Batch action buttons
-        render_batch_actions(ui, local_state, vm_state);
+        render_batch_actions(ui, local_state, vm_state, viewmodel);
 
         ui.add_space(8.0);
 
@@ -450,13 +454,34 @@ fn render_main_content(
 
         let mut on_refresh_clicked = |pkg_id: &str| {
             log::info!("Refresh requested for package: {}", pkg_id);
-            // TODO: Send DebloatCommand::RefreshPackage to ViewModel
+            // Refresh single package by reloading all packages
+            if let Some(device) = &local_state.selected_device {
+                if let Err(e) = viewmodel.load_packages(device.clone(), 0) {
+                    log::error!("Failed to refresh packages: {}", e);
+                }
+            } else {
+                log::warn!("Cannot refresh package: no device selected");
+            }
         };
 
         let mut on_toggle_clicked = |pkg_id: &str, is_enabled: bool| {
             let action = if is_enabled { "disable" } else { "enable" };
             log::info!("Toggle {} for package: {}", action, pkg_id);
-            // TODO: Send enable/disable command to ViewModel or add to batch queue
+
+            if let Some(device) = &local_state.selected_device {
+                let packages = vec![pkg_id.to_string()];
+                let result = if is_enabled {
+                    viewmodel.batch_disable(packages, device.clone())
+                } else {
+                    viewmodel.batch_enable(packages, device.clone())
+                };
+
+                if let Err(e) = result {
+                    log::error!("Failed to {} package {}: {}", action, pkg_id, e);
+                }
+            } else {
+                log::warn!("Cannot {} package: no device selected", action);
+            }
         };
 
         let mut on_delete_clicked = |pkg_id: &str| {
@@ -506,6 +531,7 @@ fn render_batch_actions(
     ui: &mut egui::Ui,
     local_state: &mut TabDebloatState,
     vm_state: &ViewModelState,
+    viewmodel: &crate::viewmodel::ViewModel,
 ) {
     ui.horizontal(|ui| {
         let selection_count = local_state.selected_packages.len();
@@ -531,14 +557,28 @@ fn render_batch_actions(
 
             if ui.button("Disable").clicked() {
                 log::info!("Batch disable requested for {} packages", selection_count);
-                // TODO: Trigger batch disable via ViewModel command
-                // For now, just log - full implementation requires ViewModel integration
+
+                if let Some(device) = &local_state.selected_device {
+                    let packages: Vec<String> = local_state.selected_packages.iter().cloned().collect();
+                    if let Err(e) = viewmodel.batch_disable(packages, device.clone()) {
+                        log::error!("Failed to send batch disable command: {}", e);
+                    }
+                } else {
+                    log::warn!("Cannot disable packages: no device selected");
+                }
             }
 
             if ui.button("Enable").clicked() {
                 log::info!("Batch enable requested for {} packages", selection_count);
-                // TODO: Trigger batch enable via ViewModel command
-                // For now, just log - full implementation requires ViewModel integration
+
+                if let Some(device) = &local_state.selected_device {
+                    let packages: Vec<String> = local_state.selected_packages.iter().cloned().collect();
+                    if let Err(e) = viewmodel.batch_enable(packages, device.clone()) {
+                        log::error!("Failed to send batch enable command: {}", e);
+                    }
+                } else {
+                    log::warn!("Cannot enable packages: no device selected");
+                }
             }
         });
 

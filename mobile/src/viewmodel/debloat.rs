@@ -472,9 +472,24 @@ impl DebloatActor {
                 }
 
                 // Show only enabled filter
-                // Android enabled states: 0=default(enabled), 1=explicitly enabled, 2+=disabled
+                // Uses same logic as is_package_enabled() in tab_debloat/mod.rs:236-248
+                // A package is disabled if:
+                // - enabled == 2 (disabled)
+                // - enabled == 3 (disabled-user)
+                // - enabled == 0 && !installed && is_system (removed system user)
                 if criteria.show_only_enabled {
-                    let is_enabled = pkg.users.iter().any(|u| u.enabled < 2);
+                    let is_enabled = pkg.users.first().map(|user| {
+                        let enabled = user.enabled;
+                        let installed = user.installed;
+                        let is_system = pkg.flags.contains("SYSTEM");
+
+                        let is_removed_user = enabled == 0 && !installed && is_system;
+                        let is_disabled = enabled == 2;
+                        let is_disabled_user = enabled == 3;
+
+                        !(is_removed_user || is_disabled || is_disabled_user)
+                    }).unwrap_or(false);
+
                     if !is_enabled {
                         return false;
                     }

@@ -152,6 +152,7 @@ impl TabDebloat {
             self.render_desktop(
                 ui,
                 vm_state,
+                viewmodel,
                 google_play_enabled,
                 fdroid_enabled,
                 apkmirror_enabled,
@@ -179,6 +180,7 @@ impl TabDebloat {
         &mut self,
         ui: &mut egui::Ui,
         vm_state: &crate::viewmodel::ViewModelState,
+        viewmodel: &crate::viewmodel::ViewModel,
         google_play_enabled: bool,
         fdroid_enabled: bool,
         apkmirror_enabled: bool,
@@ -188,11 +190,21 @@ impl TabDebloat {
             ui,
             vm_state,
             &mut self.state,
+            viewmodel,
             google_play_enabled,
             fdroid_enabled,
             apkmirror_enabled,
             android_package_enabled,
         );
+
+        // Render dialogs on top of content
+        self.state.package_details_dialog.show(
+            ui.ctx(),
+            &vm_state.filtered_packages,
+            &vm_state.uad_ng_lists,
+        );
+
+        self.state.uninstall_confirm_dialog.show(ui.ctx());
     }
 
     /// Render mobile view (<800px)
@@ -220,6 +232,15 @@ impl TabDebloat {
             apkmirror_enabled,
             android_package_enabled,
         );
+
+        // Render dialogs on top of content
+        self.state.package_details_dialog.show(
+            ui.ctx(),
+            &vm_state.filtered_packages,
+            &vm_state.uad_ng_lists,
+        );
+
+        self.state.uninstall_confirm_dialog.show(ui.ctx());
     }
 }
 

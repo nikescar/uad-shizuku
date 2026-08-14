@@ -8,7 +8,7 @@
 //! - Name (remainder): Package ID (e.g., com.example.app)
 //! - Category (100px): UAD debloat category (placeholder for now)
 //! - Status (80px): Enabled/Disabled based on users field
-//! - Actions (80px): Future action buttons (placeholder for now)
+//! - Tasks (80px): Future action buttons (placeholder for now)
 
 use eframe::egui;
 use egui_extras::{Column, TableBuilder};
@@ -18,6 +18,7 @@ use std::collections::HashSet;
 use crate::adb_stt::PackageFingerprint;
 use crate::material_symbol_icons::{ICON_DELETE, ICON_INFO, ICON_REFRESH, ICON_TOGGLE_OFF, ICON_TOGGLE_ON};
 use crate::uad_shizuku_app::UadNgLists;
+use egui_material3::icon_button_standard;
 
 /// Row height for table entries (56.0px for desktop with icons)
 const ROW_HEIGHT: f32 = 56.0;
@@ -47,7 +48,7 @@ pub type AppDisplayData = HashMap<String, (Option<egui::TextureHandle>, String)>
 /// 2. Name (remainder): Package identifier with icon (if available)
 /// 3. Category (100px exact): UAD debloat category
 /// 4. Status (120px exact): Enabled/Disabled state
-/// 5. Actions (160px exact): Action buttons (info, refresh, toggle, delete)
+/// 5. Tasks (160px exact): Task buttons (info, refresh, toggle, delete)
 pub fn render_package_table(
     ui: &mut egui::Ui,
     packages: &[PackageFingerprint],
@@ -71,7 +72,7 @@ pub fn render_package_table(
         .column(Column::remainder()) // Name
         .column(Column::exact(100.0)) // Category
         .column(Column::exact(120.0)) // Status
-        .column(Column::exact(160.0)) // Actions
+        .column(Column::exact(160.0)) // Tasks
         .header(20.0, |mut header| {
             header.col(|ui| {
                 ui.label("");
@@ -86,7 +87,7 @@ pub fn render_package_table(
                 ui.label("Status");
             });
             header.col(|ui| {
-                ui.label("Actions");
+                ui.label("Tasks");
             });
         })
         .body(|body| {
@@ -167,13 +168,13 @@ pub fn render_package_table(
                     ui.label(egui::RichText::new(status_text).color(status_color));
                 });
 
-                // Column 5: Actions (info, refresh, enable/disable toggle, delete)
+                // Column 5: Tasks (info, refresh, enable/disable toggle, delete)
                 row.col(|ui| {
                     ui.horizontal(|ui| {
                         ui.spacing_mut().item_spacing.x = 4.0; // Reduce spacing between buttons
 
                         // Info button - Opens package details dialog
-                        if ui.button(ICON_INFO.to_string()).on_hover_text("Package details").clicked() {
+                        if ui.add(icon_button_standard(ICON_INFO.to_string())).on_hover_text("Package details").clicked() {
                             on_info_clicked(&package.pkg);
                         }
 
