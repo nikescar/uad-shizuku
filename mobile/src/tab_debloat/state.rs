@@ -214,9 +214,15 @@ impl Default for TabDebloatState {
 #[derive(Debug, Clone, Default)]
 pub struct CachedCategoryCounts {
     pub all: usize,
+    pub all_enabled: usize,
     pub recommended: usize,
+    pub recommended_enabled: usize,
+    pub advanced: usize,
+    pub advanced_enabled: usize,
     pub unsafe_apps: usize,
+    pub unsafe_apps_enabled: usize,
     pub expert: usize,
+    pub expert_enabled: usize,
 }
 
 #[cfg(test)]

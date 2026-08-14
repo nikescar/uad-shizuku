@@ -76,7 +76,7 @@ fn render_sidebar(ui: &mut egui::Ui, vm_state: &ViewModelState, local_state: &mu
                 local_state.active_filter.category_filter = None;
                 local_state.table_version += 1;
             }
-            ui.label(format!("({})", local_state.cached_counts.all));
+            ui.label(format!("({}/{})", local_state.cached_counts.all_enabled, local_state.cached_counts.all));
         });
 
         ui.horizontal(|ui| {
@@ -90,7 +90,7 @@ fn render_sidebar(ui: &mut egui::Ui, vm_state: &ViewModelState, local_state: &mu
                 local_state.active_filter.category_filter = Some("recommended".to_string());
                 local_state.table_version += 1;
             }
-            ui.label(format!("({})", local_state.cached_counts.recommended));
+            ui.label(format!("({}/{})", local_state.cached_counts.recommended_enabled, local_state.cached_counts.recommended));
         });
 
         ui.horizontal(|ui| {
@@ -104,7 +104,7 @@ fn render_sidebar(ui: &mut egui::Ui, vm_state: &ViewModelState, local_state: &mu
                 local_state.active_filter.category_filter = Some("unsafe".to_string());
                 local_state.table_version += 1;
             }
-            ui.label(format!("({})", local_state.cached_counts.unsafe_apps));
+            ui.label(format!("({}/{})", local_state.cached_counts.unsafe_apps_enabled, local_state.cached_counts.unsafe_apps));
         });
 
         ui.horizontal(|ui| {
@@ -118,7 +118,21 @@ fn render_sidebar(ui: &mut egui::Ui, vm_state: &ViewModelState, local_state: &mu
                 local_state.active_filter.category_filter = Some("expert".to_string());
                 local_state.table_version += 1;
             }
-            ui.label(format!("({})", local_state.cached_counts.expert));
+            ui.label(format!("({}/{})", local_state.cached_counts.expert_enabled, local_state.cached_counts.expert));
+        });
+
+        ui.horizontal(|ui| {
+            if ui
+                .selectable_label(
+                    local_state.active_filter.category_filter.as_deref() == Some("advanced"),
+                    "Advanced",
+                )
+                .clicked()
+            {
+                local_state.active_filter.category_filter = Some("advanced".to_string());
+                local_state.table_version += 1;
+            }
+            ui.label(format!("({}/{})", local_state.cached_counts.advanced_enabled, local_state.cached_counts.advanced));
         });
 
         ui.add_space(16.0);
@@ -396,7 +410,7 @@ fn render_main_content(
         ui.add_space(8.0);
 
         // Batch action buttons
-        render_batch_actions(ui, local_state);
+        render_batch_actions(ui, local_state, vm_state);
 
         ui.add_space(8.0);
 
@@ -421,12 +435,50 @@ fn render_main_content(
             "DEBUG: view_desktop rendering package table with {} filtered packages",
             vm_state.filtered_packages.len()
         );
+
+        // Define action button callbacks
+        let mut on_info_clicked = |pkg_id: &str| {
+            log::info!("Opening package details for: {}", pkg_id);
+            // Find package index in filtered list
+            let pkg_index = vm_state.filtered_packages.iter()
+                .position(|p| p.pkg == pkg_id);
+            if let Some(index) = pkg_index {
+                local_state.package_details_dialog.selected_package_index = Some(index);
+                local_state.package_details_dialog.open = true;
+            }
+        };
+
+        let mut on_refresh_clicked = |pkg_id: &str| {
+            log::info!("Refresh requested for package: {}", pkg_id);
+            // TODO: Send DebloatCommand::RefreshPackage to ViewModel
+        };
+
+        let mut on_toggle_clicked = |pkg_id: &str, is_enabled: bool| {
+            let action = if is_enabled { "disable" } else { "enable" };
+            log::info!("Toggle {} for package: {}", action, pkg_id);
+            // TODO: Send enable/disable command to ViewModel or add to batch queue
+        };
+
+        let mut on_delete_clicked = |pkg_id: &str| {
+            log::info!("Uninstall requested for package: {}", pkg_id);
+            // Find if package is a system app
+            let is_system = vm_state.filtered_packages.iter()
+                .find(|p| p.pkg == pkg_id)
+                .map(|p| p.flags.contains("SYSTEM"))
+                .unwrap_or(false);
+            local_state.uninstall_confirm_dialog.open_single(pkg_id.to_string(), is_system);
+        };
+
         render_package_table(
             ui,
             &vm_state.filtered_packages,
             &mut local_state.selected_packages,
             vm_state.uad_ng_lists.as_ref(),
             &app_display_data,
+            &mut on_info_clicked,
+            &mut on_refresh_clicked,
+            &mut on_toggle_clicked,
+            &mut on_delete_clicked,
         );
     });
 }
@@ -450,25 +502,43 @@ fn render_search_bar(ui: &mut egui::Ui, local_state: &mut TabDebloatState) {
 }
 
 /// Render batch action buttons
-fn render_batch_actions(ui: &mut egui::Ui, local_state: &mut TabDebloatState) {
+fn render_batch_actions(
+    ui: &mut egui::Ui,
+    local_state: &mut TabDebloatState,
+    vm_state: &ViewModelState,
+) {
     ui.horizontal(|ui| {
         let selection_count = local_state.selected_packages.len();
         ui.label(format!("Selected: {}", selection_count));
 
         ui.add_enabled_ui(selection_count > 0, |ui| {
             if ui.button("Uninstall").clicked() {
-                // TODO: Trigger batch uninstall via ViewModel command
                 log::info!("Batch uninstall requested for {} packages", selection_count);
+                // Collect selected packages and their system status
+                let packages: Vec<String> = local_state.selected_packages.iter().cloned().collect();
+                let is_system: Vec<bool> = packages.iter()
+                    .map(|pkg| {
+                        vm_state.packages.iter()
+                            .find(|p| &p.pkg == pkg)
+                            .map(|p| p.flags.contains("SYSTEM"))
+                            .unwrap_or(false)
+                    })
+                    .collect();
+
+                // Open batch uninstall confirmation dialog
+                local_state.uninstall_confirm_dialog.open_batch(packages, is_system);
             }
 
             if ui.button("Disable").clicked() {
-                // TODO: Trigger batch disable via ViewModel command
                 log::info!("Batch disable requested for {} packages", selection_count);
+                // TODO: Trigger batch disable via ViewModel command
+                // For now, just log - full implementation requires ViewModel integration
             }
 
             if ui.button("Enable").clicked() {
-                // TODO: Trigger batch enable via ViewModel command
                 log::info!("Batch enable requested for {} packages", selection_count);
+                // TODO: Trigger batch enable via ViewModel command
+                // For now, just log - full implementation requires ViewModel integration
             }
         });
 
@@ -478,10 +548,12 @@ fn render_batch_actions(ui: &mut egui::Ui, local_state: &mut TabDebloatState) {
             }
         }
 
-        // Select all / Deselect all buttons
+        // Select all filtered packages
         if ui.button("Select All").clicked() {
-            // TODO: Select all filtered packages
-            log::info!("Select all requested");
+            for pkg in &vm_state.filtered_packages {
+                local_state.selected_packages.insert(pkg.pkg.clone());
+            }
+            log::info!("Selected all {} filtered packages", vm_state.filtered_packages.len());
         }
     });
 }

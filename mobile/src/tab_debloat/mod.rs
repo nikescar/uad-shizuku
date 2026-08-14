@@ -223,25 +223,81 @@ impl TabDebloat {
     }
 }
 
+/// Check if a package is enabled (not disabled, not removed)
+///
+/// Uses the same logic as scan table (tab_scan_control.rs:1189-1209):
+/// A package is disabled if:
+/// - enabled == 2 (disabled)
+/// - enabled == 3 (disabled-user)
+/// - enabled == 0 && !installed && is_system (removed system user)
+fn is_package_enabled(package: &crate::adb::PackageFingerprint) -> bool {
+    package.users.first().map(|user| {
+        let enabled = user.enabled;
+        let installed = user.installed;
+        let is_system = package.flags.contains("SYSTEM");
+
+        let is_removed_user = enabled == 0 && !installed && is_system;
+        let is_disabled = enabled == 2;
+        let is_disabled_user = enabled == 3;
+
+        !(is_removed_user || is_disabled || is_disabled_user)
+    }).unwrap_or(false)
+}
+
 /// Compute per-category package counts from the UAD-NG lists (matches
-/// `AppEntry.removal`: "Recommended" / "Unsafe" / "Expert").
+/// `AppEntry.removal`: "Recommended" / "Advanced" / "Unsafe" / "Expert").
 fn compute_category_counts(
     packages: &[crate::adb::PackageFingerprint],
     uad_ng_lists: Option<&crate::uad_shizuku_app::UadNgLists>,
 ) -> CachedCategoryCounts {
     let mut counts = CachedCategoryCounts {
         all: packages.len(),
+        all_enabled: 0,
         recommended: 0,
+        recommended_enabled: 0,
+        advanced: 0,
+        advanced_enabled: 0,
         unsafe_apps: 0,
+        unsafe_apps_enabled: 0,
         expert: 0,
+        expert_enabled: 0,
     };
+
+    // Count enabled packages using correct logic
+    for pkg in packages {
+        if is_package_enabled(pkg) {
+            counts.all_enabled += 1;
+        }
+    }
 
     if let Some(lists) = uad_ng_lists {
         for pkg in packages {
+            let is_enabled = is_package_enabled(pkg);
             match lists.apps.get(&pkg.pkg).map(|app| app.removal.as_str()) {
-                Some("Recommended") => counts.recommended += 1,
-                Some("Unsafe") => counts.unsafe_apps += 1,
-                Some("Expert") => counts.expert += 1,
+                Some("Recommended") => {
+                    counts.recommended += 1;
+                    if is_enabled {
+                        counts.recommended_enabled += 1;
+                    }
+                }
+                Some("Advanced") => {
+                    counts.advanced += 1;
+                    if is_enabled {
+                        counts.advanced_enabled += 1;
+                    }
+                }
+                Some("Unsafe") => {
+                    counts.unsafe_apps += 1;
+                    if is_enabled {
+                        counts.unsafe_apps_enabled += 1;
+                    }
+                }
+                Some("Expert") => {
+                    counts.expert += 1;
+                    if is_enabled {
+                        counts.expert_enabled += 1;
+                    }
+                }
                 _ => {}
             }
         }

@@ -16,6 +16,7 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 
 use crate::adb_stt::PackageFingerprint;
+use crate::material_symbol_icons::{ICON_DELETE, ICON_INFO, ICON_REFRESH, ICON_TOGGLE_OFF, ICON_TOGGLE_ON};
 use crate::uad_shizuku_app::UadNgLists;
 
 /// Row height for table entries (56.0px for desktop with icons)
@@ -36,19 +37,27 @@ pub type AppDisplayData = HashMap<String, (Option<egui::TextureHandle>, String)>
 /// * `selected_packages` - Mutable reference to selected package set
 /// * `uad_ng_lists` - UAD-NG debloat lists for category display
 /// * `app_display_data` - Pre-loaded app icons and titles (to avoid egui RwLock deadlock)
+/// * `on_info_clicked` - Callback when info button clicked (receives package ID)
+/// * `on_refresh_clicked` - Callback when refresh button clicked (receives package ID)
+/// * `on_toggle_clicked` - Callback when enable/disable toggle clicked (receives package ID, is_enabled)
+/// * `on_delete_clicked` - Callback when delete button clicked (receives package ID)
 ///
 /// # Column Layout
 /// 1. Checkbox (30px exact): Multi-select for batch operations
 /// 2. Name (remainder): Package identifier with icon (if available)
 /// 3. Category (100px exact): UAD debloat category
-/// 4. Status (80px exact): Enabled/Disabled state
-/// 5. Actions (80px exact): Action buttons placeholder
+/// 4. Status (120px exact): Enabled/Disabled state
+/// 5. Actions (160px exact): Action buttons (info, refresh, toggle, delete)
 pub fn render_package_table(
     ui: &mut egui::Ui,
     packages: &[PackageFingerprint],
     selected_packages: &mut HashSet<String>,
     uad_ng_lists: Option<&UadNgLists>,
     app_display_data: &AppDisplayData,
+    on_info_clicked: &mut dyn FnMut(&str),
+    on_refresh_clicked: &mut dyn FnMut(&str),
+    on_toggle_clicked: &mut dyn FnMut(&str, bool),
+    on_delete_clicked: &mut dyn FnMut(&str),
 ) {
     log::debug!(
         "DEBUG: render_package_table called with {} packages",
@@ -61,8 +70,8 @@ pub fn render_package_table(
         .column(Column::exact(30.0)) // Checkbox
         .column(Column::remainder()) // Name
         .column(Column::exact(100.0)) // Category
-        .column(Column::exact(80.0)) // Status
-        .column(Column::exact(80.0)) // Actions
+        .column(Column::exact(120.0)) // Status
+        .column(Column::exact(160.0)) // Actions
         .header(20.0, |mut header| {
             header.col(|ui| {
                 ui.label("");
@@ -130,19 +139,76 @@ pub fn render_package_table(
                     ui.label(category);
                 });
 
-                // Column 4: Status (enabled/disabled based on users field)
+                // Column 4: Status (using same logic as scan table)
                 row.col(|ui| {
-                    let status = if package.users.is_empty() {
-                        "Disabled"
+                    let (status_text, status_color) = if package.users.is_empty() {
+                        ("Uninstalled", egui::Color32::from_rgb(128, 128, 128))
                     } else {
-                        "Enabled"
+                        // Use same logic as scan table (tab_scan_control.rs:1189-1209)
+                        let user = package.users.first().unwrap();
+                        let enabled = user.enabled;
+                        let installed = user.installed;
+                        let is_system = package.flags.contains("SYSTEM");
+
+                        let is_removed_user = enabled == 0 && !installed && is_system;
+                        let is_disabled = enabled == 2;
+                        let is_disabled_user = enabled == 3;
+
+                        if is_removed_user {
+                            ("Removed", egui::Color32::from_rgb(158, 158, 158))
+                        } else if is_disabled {
+                            ("Disabled", egui::Color32::from_rgb(211, 47, 47))
+                        } else if is_disabled_user {
+                            ("Disabled-User", egui::Color32::from_rgb(244, 67, 54))
+                        } else {
+                            ("Enabled", egui::Color32::from_rgb(56, 142, 60))
+                        }
                     };
-                    ui.label(status);
+                    ui.label(egui::RichText::new(status_text).color(status_color));
                 });
 
-                // Column 5: Actions (placeholder)
+                // Column 5: Actions (info, refresh, enable/disable toggle, delete)
                 row.col(|ui| {
-                    ui.label("...");
+                    ui.horizontal(|ui| {
+                        ui.spacing_mut().item_spacing.x = 4.0; // Reduce spacing between buttons
+
+                        // Info button - Opens package details dialog
+                        if ui.button(ICON_INFO.to_string()).on_hover_text("Package details").clicked() {
+                            on_info_clicked(&package.pkg);
+                        }
+
+                        // Refresh button - Refreshes package data
+                        if ui.button(ICON_REFRESH.to_string()).on_hover_text("Refresh package").clicked() {
+                            on_refresh_clicked(&package.pkg);
+                        }
+
+                        // Enable/Disable toggle button (using correct enabled logic)
+                        let user = package.users.first();
+                        let is_enabled = if let Some(user) = user {
+                            let enabled = user.enabled;
+                            let installed = user.installed;
+                            let is_system = package.flags.contains("SYSTEM");
+
+                            let is_removed_user = enabled == 0 && !installed && is_system;
+                            let is_disabled = enabled == 2;
+                            let is_disabled_user = enabled == 3;
+
+                            !(is_removed_user || is_disabled || is_disabled_user)
+                        } else {
+                            false
+                        };
+
+                        let toggle_icon = if is_enabled { ICON_TOGGLE_ON } else { ICON_TOGGLE_OFF };
+                        let toggle_text = if is_enabled { "Disable" } else { "Enable" };
+                        if ui.button(toggle_icon.to_string()).on_hover_text(toggle_text).clicked() {
+                            on_toggle_clicked(&package.pkg, is_enabled);
+                        }
+
+                        // Delete/Uninstall button - Opens uninstall confirmation dialog
+                        if ui.button(ICON_DELETE.to_string()).on_hover_text("Uninstall package").clicked() {
+                            on_delete_clicked(&package.pkg);
+                        }
+                    });
                 });
             });
         });
