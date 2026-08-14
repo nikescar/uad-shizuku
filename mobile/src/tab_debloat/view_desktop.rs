@@ -214,7 +214,20 @@ fn prepare_app_display_data(
 
         // Try F-Droid for non-system apps
         if !is_system && fdroid_enabled {
+            // Try ViewModel cache first
             if let Some(fd_app) = vm_state.cached_metadata.get_fdroid(&package.pkg) {
+                if fd_app.raw_response != "404" {
+                    if let Some(icon_base64) = &fd_app.icon_base64 {
+                        let texture =
+                            load_texture_from_base64(ctx, "fd", &package.pkg, icon_base64, &store);
+                        app_data.insert(package.pkg.clone(), (texture, fd_app.title.clone()));
+                        continue;
+                    }
+                }
+            }
+
+            // Fall back to SharedStore (legacy queues)
+            if let Some(fd_app) = store.get_cached_fdroid_app(&package.pkg) {
                 if fd_app.raw_response != "404" {
                     if let Some(icon_base64) = &fd_app.icon_base64 {
                         let texture =
@@ -228,7 +241,20 @@ fn prepare_app_display_data(
 
         // Try Google Play for non-system apps
         if !is_system && google_play_enabled {
+            // Try ViewModel cache first
             if let Some(gp_app) = vm_state.cached_metadata.get_google_play(&package.pkg) {
+                if gp_app.raw_response != "404" {
+                    if let Some(icon_base64) = &gp_app.icon_base64 {
+                        let texture =
+                            load_texture_from_base64(ctx, "gp", &package.pkg, icon_base64, &store);
+                        app_data.insert(package.pkg.clone(), (texture, gp_app.title.clone()));
+                        continue;
+                    }
+                }
+            }
+
+            // Fall back to SharedStore (legacy queues)
+            if let Some(gp_app) = store.get_cached_google_play_app(&package.pkg) {
                 if gp_app.raw_response != "404" {
                     if let Some(icon_base64) = &gp_app.icon_base64 {
                         let texture =
@@ -242,7 +268,20 @@ fn prepare_app_display_data(
 
         // Try APKMirror for system apps
         if is_system && apkmirror_enabled {
+            // Try ViewModel cache first
             if let Some(am_app) = vm_state.cached_metadata.get_apkmirror(&package.pkg) {
+                if am_app.raw_response != "404" {
+                    if let Some(icon_base64) = &am_app.icon_base64 {
+                        let texture =
+                            load_texture_from_base64(ctx, "am", &package.pkg, icon_base64, &store);
+                        app_data.insert(package.pkg.clone(), (texture, am_app.title.clone()));
+                        continue;
+                    }
+                }
+            }
+
+            // Fall back to SharedStore (legacy queues)
+            if let Some(am_app) = store.get_cached_apkmirror_app(&package.pkg) {
                 if am_app.raw_response != "404" {
                     if let Some(icon_base64) = &am_app.icon_base64 {
                         let texture =
