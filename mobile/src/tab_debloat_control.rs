@@ -41,6 +41,10 @@ impl Default for TabDebloatControl {
             batch_enable_state: BatchUninstallState::default(),
             batch_enable_progress: Arc::new(Mutex::new(None)),
             batch_enable_cancelled: Arc::new(Mutex::new(false)),
+            google_play_renderer_enabled: false,
+            fdroid_renderer_enabled: false,
+            apkmirror_renderer_enabled: false,
+            android_package_renderer_enabled: false,
         }
     }
 }

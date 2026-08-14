@@ -284,6 +284,9 @@ impl TabScanControl {
         package_ids: &[String],
         system_packages: &std::collections::HashSet<String>,
     ) -> HashMap<String, (Option<egui::TextureHandle>, String, String, Option<String>)> {
+        let start_time = std::time::Instant::now();
+        log::debug!("[RENDER] prepare_app_info_for_display started for {} packages", package_ids.len());
+
         let mut app_data_map = HashMap::new();
 
         if !self.google_play_renderer_enabled
@@ -291,13 +294,16 @@ impl TabScanControl {
             && !self.apkmirror_renderer_enabled
             && !self.android_package_renderer_enabled
         {
+            log::debug!("[RENDER] No renderers enabled, returning empty map ({:?})", start_time.elapsed());
             return app_data_map;
         }
 
+        let cache_fetch_start = std::time::Instant::now();
         let store = get_shared_store();
         let cached_fdroid_apps = store.get_cached_fdroid_apps();
         let cached_google_play_apps = store.get_cached_google_play_apps();
         let cached_apkmirror_apps = store.get_cached_apkmirror_apps();
+        log::debug!("[RENDER] Cache fetch took {:?}", cache_fetch_start.elapsed());
 
         let mut apps_to_load: Vec<(String, Option<String>, String, String, Option<String>)> =
             Vec::new();
@@ -381,12 +387,38 @@ impl TabScanControl {
             }
         }
 
+        let texture_load_start = std::time::Instant::now();
+        let mut texture_count = 0;
+        let mut texture_load_times = Vec::new();
+
         for (pkg_id, icon_base64, title, developer, version) in apps_to_load {
+            let tex_start = std::time::Instant::now();
             let texture = icon_base64
                 .as_ref()
                 .and_then(|b64| self.load_texture_from_base64(ctx, &pkg_id, b64));
+            let tex_elapsed = tex_start.elapsed();
+
+            if texture.is_some() {
+                texture_count += 1;
+                texture_load_times.push(tex_elapsed);
+                log::debug!("[RENDER] Loaded texture for {} in {:?}", pkg_id, tex_elapsed);
+            }
+
             app_data_map.insert(pkg_id, (texture, title, developer, version));
         }
+
+        let total_elapsed = start_time.elapsed();
+        log::info!(
+            "[RENDER] prepare_app_info_for_display completed: {} packages, {} textures loaded in {:?} (avg: {:?}/texture)",
+            package_ids.len(),
+            texture_count,
+            total_elapsed,
+            if texture_count > 0 {
+                texture_load_times.iter().sum::<std::time::Duration>() / texture_count as u32
+            } else {
+                std::time::Duration::ZERO
+            }
+        );
 
         app_data_map
     }

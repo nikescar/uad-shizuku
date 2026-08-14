@@ -149,4 +149,10 @@ pub struct TabDebloatControl {
     pub batch_enable_progress: Arc<Mutex<Option<f32>>>,
     // Cancellation flag for batch enable
     pub batch_enable_cancelled: Arc<Mutex<bool>>,
+
+    // Renderer enabled flags (synced from settings)
+    pub google_play_renderer_enabled: bool,
+    pub fdroid_renderer_enabled: bool,
+    pub apkmirror_renderer_enabled: bool,
+    pub android_package_renderer_enabled: bool,
 }

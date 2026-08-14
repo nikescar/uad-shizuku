@@ -3863,6 +3863,14 @@ impl UadShizukuApp {
         self.tab_scan_control.virustotal_submit_enabled = self.settings.virustotal_submit;
         self.tab_scan_control.hybridanalysis_submit_enabled = self.settings.hybridanalysis_submit;
 
+        // Sync renderer enabled flags to both tabs
+        self.tab_scan_control.google_play_renderer_enabled = self.settings.google_play_renderer;
+        self.tab_scan_control.fdroid_renderer_enabled = self.settings.fdroid_renderer;
+        self.tab_scan_control.apkmirror_renderer_enabled = self.settings.apkmirror_renderer;
+        self.tab_debloat_control.google_play_renderer_enabled = self.settings.google_play_renderer;
+        self.tab_debloat_control.fdroid_renderer_enabled = self.settings.fdroid_renderer;
+        self.tab_debloat_control.apkmirror_renderer_enabled = self.settings.apkmirror_renderer;
+
         // Check if VirusTotal API key was removed -> stop running scans
         if !old_vt_apikey.is_empty() && self.settings.virustotal_apikey.is_empty() {
             log::info!("VirusTotal API key removed, cancelling running scans");
@@ -3927,25 +3935,76 @@ impl UadShizukuApp {
             log::info!("APKMirror auto upload disabled");
         }
 
-        // Check if Google Play renderer was enabled -> enable renderer
+        // Check if Google Play renderer was enabled -> enable renderer and start crawling
         if !old_google_play_renderer && self.settings.google_play_renderer {
-            log::info!("Google Play renderer enabled");
+            log::info!("Google Play renderer enabled, starting metadata crawling");
             self.google_play_renderer.is_enabled = true;
             self.tab_scan_control.google_play_renderer_enabled = true;
+
+            // Start worker queue and enqueue packages for metadata fetching
+            if let Some(ref queue) = self.google_play_queue {
+                let shared_store = crate::shared_store_stt::get_shared_store();
+                let installed_packages = shared_store.installed_packages.lock().unwrap().clone();
+                if !installed_packages.is_empty() {
+                    log::info!("Enqueueing {} packages for Google Play metadata fetch", installed_packages.len());
+                    let package_ids: Vec<String> = installed_packages.iter().map(|p| p.pkg.clone()).collect();
+                    queue.enqueue_batch(package_ids);
+
+                    // Start worker if not already running
+                    if let Ok(config) = crate::Config::new() {
+                        let db_path = config.db_dir.join("uad.db");
+                        queue.start_worker(db_path.to_string_lossy().to_string());
+                    }
+                }
+            }
         }
 
-        // Check if F-Droid renderer was enabled -> enable renderer
+        // Check if F-Droid renderer was enabled -> enable renderer and start crawling
         if !old_fdroid_renderer && self.settings.fdroid_renderer {
-            log::info!("F-Droid renderer enabled");
+            log::info!("F-Droid renderer enabled, starting metadata crawling");
             self.fdroid_renderer.is_enabled = true;
             self.tab_scan_control.fdroid_renderer_enabled = true;
+
+            // Start worker queue and enqueue packages for metadata fetching
+            if let Some(ref queue) = self.fdroid_queue {
+                let shared_store = crate::shared_store_stt::get_shared_store();
+                let installed_packages = shared_store.installed_packages.lock().unwrap().clone();
+                if !installed_packages.is_empty() {
+                    log::info!("Enqueueing {} packages for F-Droid metadata fetch", installed_packages.len());
+                    let package_ids: Vec<String> = installed_packages.iter().map(|p| p.pkg.clone()).collect();
+                    queue.enqueue_batch(package_ids);
+
+                    // Start worker if not already running
+                    if let Ok(config) = crate::Config::new() {
+                        let db_path = config.db_dir.join("uad.db");
+                        queue.start_worker(db_path.to_string_lossy().to_string());
+                    }
+                }
+            }
         }
 
-        // Check if APKMirror renderer was enabled -> enable renderer
+        // Check if APKMirror renderer was enabled -> enable renderer and start crawling
         if !old_apkmirror_renderer && self.settings.apkmirror_renderer {
-            log::info!("APKMirror renderer enabled");
+            log::info!("APKMirror renderer enabled, starting metadata crawling");
             self.apkmirror_renderer.is_enabled = true;
             self.tab_scan_control.apkmirror_renderer_enabled = true;
+
+            // Start worker queue and enqueue packages for metadata fetching
+            if let Some(ref queue) = self.apkmirror_queue {
+                let shared_store = crate::shared_store_stt::get_shared_store();
+                let installed_packages = shared_store.installed_packages.lock().unwrap().clone();
+                if !installed_packages.is_empty() {
+                    log::info!("Enqueueing {} packages for APKMirror metadata fetch", installed_packages.len());
+                    let package_ids: Vec<String> = installed_packages.iter().map(|p| p.pkg.clone()).collect();
+                    queue.enqueue_batch(package_ids);
+
+                    // Start worker if not already running
+                    if let Ok(config) = crate::Config::new() {
+                        let db_path = config.db_dir.join("uad.db");
+                        queue.start_worker(db_path.to_string_lossy().to_string());
+                    }
+                }
+            }
         }
 
         // Check if VirusTotal API key was added -> start scan
