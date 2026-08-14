@@ -752,6 +752,13 @@ pub fn handle_package_loading_result(app: &mut UadShizukuApp) {
                                 log::error!("Failed to update ViewModel with packages: {}", e);
                             } else {
                                 log::debug!("Updated ViewModel with packages for device: {}, user: {}", device, user_id);
+
+                                // Apply initial filter (show all packages) to populate filtered_packages
+                                if let Err(e) = viewmodel.filter_packages(None, None, false, false) {
+                                    log::error!("Failed to apply initial filter: {}", e);
+                                } else {
+                                    log::debug!("Applied initial filter to populate datatable");
+                                }
                             }
                         }
                     }
