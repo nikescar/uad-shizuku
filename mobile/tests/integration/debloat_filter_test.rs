@@ -1,15 +1,11 @@
 //! Integration test for debloat filtering functionality
 
-use uad_shizuku::adb_stt::{PackageFingerprint, AdbPackageInfoUser};
-use uad_shizuku::viewmodel::{DebloatEvent, ViewModelEvent, ViewModel};
+use uad_shizuku::adb_stt::{AdbPackageInfoUser, PackageFingerprint};
+use uad_shizuku::viewmodel::{DebloatEvent, ViewModel, ViewModelEvent};
 
 /// Helper to create test package
 fn create_test_package(name: &str, enabled: i32, is_system: bool) -> PackageFingerprint {
-    let flags = if is_system {
-        "SYSTEM"
-    } else {
-        ""
-    }.to_string();
+    let flags = if is_system { "SYSTEM" } else { "" }.to_string();
 
     PackageFingerprint {
         pkg: name.to_string(),
@@ -68,10 +64,10 @@ fn test_filter_packages_command() {
     // Act: Send FilterPackages command
     // For now, we'll test basic text filter
     let filter_result = vm.filter_packages(
-        Some("example".to_string()),  // text_filter
-        None,                          // category_filter
-        false,                         // show_only_enabled
-        false,                         // hide_system_apps
+        Some("example".to_string()), // text_filter
+        None,                        // category_filter
+        false,                       // show_only_enabled
+        false,                       // hide_system_apps
     );
 
     // Assert: Command sent successfully
@@ -95,12 +91,22 @@ fn test_filter_packages_command() {
         }
     }
 
-    assert!(found_filter_event, "Should receive FilteredPackagesReady event within timeout");
+    assert!(
+        found_filter_event,
+        "Should receive FilteredPackagesReady event within timeout"
+    );
 
     // Check that filtered_packages contains only matching packages
-    assert_eq!(vm.state.filtered_packages.len(), 2, "Should have 2 packages matching 'example'");
+    assert_eq!(
+        vm.state.filtered_packages.len(),
+        2,
+        "Should have 2 packages matching 'example'"
+    );
     assert!(
-        vm.state.filtered_packages.iter().all(|p| p.pkg.contains("example")),
+        vm.state
+            .filtered_packages
+            .iter()
+            .all(|p| p.pkg.contains("example")),
         "All filtered packages should contain 'example'"
     );
 }
@@ -112,18 +118,16 @@ fn test_filter_by_enabled_state() {
     let mut vm = ViewModel::new(ctx.clone());
 
     let packages = vec![
-        create_test_package("com.example.enabled", 1, false),    // enabled
-        create_test_package("com.example.disabled", 2, false),   // disabled
-        create_test_package("com.example.default", 0, false),    // default
+        create_test_package("com.example.enabled", 1, false), // enabled
+        create_test_package("com.example.disabled", 2, false), // disabled
+        create_test_package("com.example.default", 0, false), // default
     ];
 
     vm.state.packages = packages;
 
     // Act: Filter to show only enabled
     let filter_result = vm.filter_packages(
-        None,
-        None,
-        true,  // show_only_enabled
+        None, None, true, // show_only_enabled
         false,
     );
 
@@ -138,7 +142,11 @@ fn test_filter_by_enabled_state() {
     }
 
     // Assert: Should only show enabled packages (enabled == 1)
-    assert_eq!(vm.state.filtered_packages.len(), 1, "Should have 1 enabled package");
+    assert_eq!(
+        vm.state.filtered_packages.len(),
+        1,
+        "Should have 1 enabled package"
+    );
     assert!(
         !vm.state.filtered_packages.is_empty(),
         "filtered_packages should not be empty"
@@ -161,10 +169,7 @@ fn test_filter_hide_system_apps() {
 
     // Act: Filter to hide system apps
     let filter_result = vm.filter_packages(
-        None,
-        None,
-        false,
-        true,  // hide_system_apps
+        None, None, false, true, // hide_system_apps
     );
 
     assert!(filter_result.is_ok());
@@ -178,7 +183,11 @@ fn test_filter_hide_system_apps() {
     }
 
     // Assert: Should only show user apps
-    assert_eq!(vm.state.filtered_packages.len(), 1, "Should have 1 user app");
+    assert_eq!(
+        vm.state.filtered_packages.len(),
+        1,
+        "Should have 1 user app"
+    );
     assert!(
         !vm.state.filtered_packages.is_empty(),
         "filtered_packages should not be empty"
@@ -214,5 +223,9 @@ fn test_filter_no_filters_returns_all() {
     }
 
     // Assert: Should return all packages
-    assert_eq!(vm.state.filtered_packages.len(), packages.len(), "Should return all packages when no filters applied");
+    assert_eq!(
+        vm.state.filtered_packages.len(),
+        packages.len(),
+        "Should return all packages when no filters applied"
+    );
 }

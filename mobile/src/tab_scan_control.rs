@@ -72,7 +72,11 @@ impl Default for TabScanControl {
 }
 
 impl TabScanControl {
-    pub fn update_packages(&mut self, packages: Vec<PackageFingerprint>, viewmodel: Option<&crate::viewmodel::ViewModel>) {
+    pub fn update_packages(
+        &mut self,
+        packages: Vec<PackageFingerprint>,
+        viewmodel: Option<&crate::viewmodel::ViewModel>,
+    ) {
         // Store packages in shared store
         let store = get_shared_store();
         store.set_installed_packages(packages.clone());
@@ -100,7 +104,11 @@ impl TabScanControl {
     }
 
     /// Handle ViewModel events and update local state machines
-    fn handle_viewmodel_events(&mut self, vm: &mut crate::viewmodel::ViewModel, ctx: &egui::Context) {
+    fn handle_viewmodel_events(
+        &mut self,
+        vm: &mut crate::viewmodel::ViewModel,
+        ctx: &egui::Context,
+    ) {
         use crate::viewmodel::{ScanEvent, ViewModelEvent};
 
         let events = vm.poll_events(ctx);
@@ -115,20 +123,18 @@ impl TabScanControl {
                         log::info!("HybridAnalysis scan started");
                         self.ha_scan_state.start();
                     }
-                    ScanEvent::ScanProgress { scanner, progress } => {
-                        match scanner {
-                            crate::viewmodel::ScannerType::VirusTotal => {
-                                if let Ok(mut p) = self.vt_scan_progress.lock() {
-                                    *p = Some(progress);
-                                }
-                            }
-                            crate::viewmodel::ScannerType::HybridAnalysis => {
-                                if let Ok(mut p) = self.ha_scan_progress.lock() {
-                                    *p = Some(progress);
-                                }
+                    ScanEvent::ScanProgress { scanner, progress } => match scanner {
+                        crate::viewmodel::ScannerType::VirusTotal => {
+                            if let Ok(mut p) = self.vt_scan_progress.lock() {
+                                *p = Some(progress);
                             }
                         }
-                    }
+                        crate::viewmodel::ScannerType::HybridAnalysis => {
+                            if let Ok(mut p) = self.ha_scan_progress.lock() {
+                                *p = Some(progress);
+                            }
+                        }
+                    },
                     ScanEvent::VirusTotalComplete => {
                         log::info!("VirusTotal scan complete");
                         self.vt_scan_state.complete();
@@ -149,7 +155,9 @@ impl TabScanControl {
                         log::error!("Scan error in {}: {}", operation, error);
                         if operation.contains("virustotal") || operation.contains("VirusTotal") {
                             self.vt_scan_state.error();
-                        } else if operation.contains("hybridanalysis") || operation.contains("HybridAnalysis") {
+                        } else if operation.contains("hybridanalysis")
+                            || operation.contains("HybridAnalysis")
+                        {
                             self.ha_scan_state.error();
                         }
                     }
@@ -1749,13 +1757,21 @@ impl TabScanControl {
         // and deadlocks. The cache-miss recomputation must happen outside of any
         // `data_mut`/`memory_mut` closure.
         let cache_id = egui::Id::new(&cache_key);
-        type AppDataMap = HashMap<String, (Option<egui::TextureHandle>, String, String, Option<String>)>;
+        type AppDataMap =
+            HashMap<String, (Option<egui::TextureHandle>, String, String, Option<String>)>;
         let cached_map = ui.data_mut(|data| data.get_temp::<AppDataMap>(cache_id));
         let app_data_map: AppDataMap = match cached_map {
             Some(map) => map,
             None => {
-                log::debug!("Preparing app display data (cache miss) for {} packages", visible_package_ids.len());
-                let map = self.prepare_app_info_for_display(ui.ctx(), &visible_package_ids, &system_packages);
+                log::debug!(
+                    "Preparing app display data (cache miss) for {} packages",
+                    visible_package_ids.len()
+                );
+                let map = self.prepare_app_info_for_display(
+                    ui.ctx(),
+                    &visible_package_ids,
+                    &system_packages,
+                );
                 ui.data_mut(|data| data.insert_temp(cache_id, map.clone()));
                 map
             }

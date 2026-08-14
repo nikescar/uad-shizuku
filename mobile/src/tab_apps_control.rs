@@ -75,7 +75,11 @@ impl TabAppsControl {
     }
 
     /// Handle ViewModel events and update local state
-    fn handle_viewmodel_events(&mut self, vm: &mut crate::viewmodel::ViewModel, ctx: &egui::Context) {
+    fn handle_viewmodel_events(
+        &mut self,
+        vm: &mut crate::viewmodel::ViewModel,
+        ctx: &egui::Context,
+    ) {
         use crate::viewmodel::{AppsEvent, ViewModelEvent};
 
         let events = vm.poll_events(ctx);
@@ -1140,7 +1144,10 @@ impl TabAppsControl {
         // Cache prepared row data to avoid expensive operations every frame
         let prepared_rows: Vec<PreparedAppsRowData> = ui.data_mut(|data| {
             data.get_temp_mut_or_insert_with(egui::Id::new(&cache_key), || {
-                log::debug!("Preparing app row data (cache miss) from {} total apps", self.app_entries.len());
+                log::debug!(
+                    "Preparing app row data (cache miss) from {} total apps",
+                    self.app_entries.len()
+                );
                 self.app_entries
                     .iter()
                     .enumerate()
@@ -1168,7 +1175,8 @@ impl TabAppsControl {
                         })
                     })
                     .collect::<Vec<PreparedAppsRowData>>()
-            }).clone()
+            })
+            .clone()
         });
 
         // Add rows to the table using cached prepared data

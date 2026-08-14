@@ -11,17 +11,17 @@ pub enum ViewModelEvent {
     Metadata(MetadataEvent),
 }
 
+pub use super::apps::AppsEvent;
 /// Events from each actor module
 pub use super::debloat::DebloatEvent;
-pub use super::scan::ScanEvent;
-pub use super::apps::AppsEvent;
 pub use super::metadata::MetadataEvent;
+pub use super::scan::ScanEvent;
 
 /// Progress tracking for long-running operations
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OperationProgress {
     pub operation: String,
-    pub progress: f32,  // 0.0 to 1.0
+    pub progress: f32, // 0.0 to 1.0
     pub status: String,
 }
 

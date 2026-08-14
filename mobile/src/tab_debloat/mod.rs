@@ -10,12 +10,14 @@
 //! - Desktop view (800px+): Full-featured data table with all controls
 //! - Mobile view (<800px): Card-based list view for small screens
 
-pub mod state;
 pub mod components;
+pub mod state;
 pub mod view_desktop;
 pub mod view_mobile;
 
-pub use state::{TabDebloatState, SortColumn, DebloatFilter, BatchUninstallState, CachedCategoryCounts};
+pub use state::{
+    BatchUninstallState, CachedCategoryCounts, DebloatFilter, SortColumn, TabDebloatState,
+};
 
 use eframe::egui;
 
@@ -85,7 +87,8 @@ impl TabDebloat {
         if let Some(last_input_time) = self.state.last_filter_input {
             let elapsed = last_input_time.elapsed();
             if elapsed.as_millis() >= FILTER_DEBOUNCE_MS as u128
-                && self.state.pending_filter_text != self.state.applied_filter_text {
+                && self.state.pending_filter_text != self.state.applied_filter_text
+            {
                 // Debounce elapsed, apply the pending filter
                 let text_filter = if self.state.pending_filter_text.is_empty() {
                     None
@@ -112,9 +115,23 @@ impl TabDebloat {
             compute_category_counts(&vm_state.packages, vm_state.uad_ng_lists.as_ref());
 
         if available_width >= RESPONSIVE_WIDTH_THRESHOLD {
-            self.render_desktop(ui, vm_state, google_play_enabled, fdroid_enabled, apkmirror_enabled, android_package_enabled);
+            self.render_desktop(
+                ui,
+                vm_state,
+                google_play_enabled,
+                fdroid_enabled,
+                apkmirror_enabled,
+                android_package_enabled,
+            );
         } else {
-            self.render_mobile(ui, vm_state, google_play_enabled, fdroid_enabled, apkmirror_enabled, android_package_enabled);
+            self.render_mobile(
+                ui,
+                vm_state,
+                google_play_enabled,
+                fdroid_enabled,
+                apkmirror_enabled,
+                android_package_enabled,
+            );
         }
     }
 
@@ -124,8 +141,24 @@ impl TabDebloat {
     /// - Left sidebar: Category filters, options, advanced settings
     /// - Main content: Search bar, batch actions, error banner, virtual table
     /// - Virtual scrolling data table for performance
-    fn render_desktop(&mut self, ui: &mut egui::Ui, vm_state: &crate::viewmodel::ViewModelState, google_play_enabled: bool, fdroid_enabled: bool, apkmirror_enabled: bool, android_package_enabled: bool) {
-        view_desktop::render(ui, vm_state, &mut self.state, google_play_enabled, fdroid_enabled, apkmirror_enabled, android_package_enabled);
+    fn render_desktop(
+        &mut self,
+        ui: &mut egui::Ui,
+        vm_state: &crate::viewmodel::ViewModelState,
+        google_play_enabled: bool,
+        fdroid_enabled: bool,
+        apkmirror_enabled: bool,
+        android_package_enabled: bool,
+    ) {
+        view_desktop::render(
+            ui,
+            vm_state,
+            &mut self.state,
+            google_play_enabled,
+            fdroid_enabled,
+            apkmirror_enabled,
+            android_package_enabled,
+        );
     }
 
     /// Render mobile view (<800px)
@@ -135,8 +168,24 @@ impl TabDebloat {
     /// - Collapsible filter section
     /// - Card-based list (48px minimum per card)
     /// - Batch actions at bottom
-    fn render_mobile(&mut self, ui: &mut egui::Ui, vm_state: &crate::viewmodel::ViewModelState, google_play_enabled: bool, fdroid_enabled: bool, apkmirror_enabled: bool, android_package_enabled: bool) {
-        view_mobile::render(ui, vm_state, &mut self.state, google_play_enabled, fdroid_enabled, apkmirror_enabled, android_package_enabled);
+    fn render_mobile(
+        &mut self,
+        ui: &mut egui::Ui,
+        vm_state: &crate::viewmodel::ViewModelState,
+        google_play_enabled: bool,
+        fdroid_enabled: bool,
+        apkmirror_enabled: bool,
+        android_package_enabled: bool,
+    ) {
+        view_mobile::render(
+            ui,
+            vm_state,
+            &mut self.state,
+            google_play_enabled,
+            fdroid_enabled,
+            apkmirror_enabled,
+            android_package_enabled,
+        );
     }
 }
 

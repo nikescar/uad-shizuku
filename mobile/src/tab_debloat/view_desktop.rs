@@ -9,11 +9,11 @@
 use eframe::egui;
 use std::collections::HashMap;
 
-use crate::viewmodel::ViewModelState;
-use crate::shared_store_stt::get_shared_store;
-use crate::adb_stt::PackageFingerprint;
-use super::state::TabDebloatState;
 use super::components::render_package_table;
+use super::state::TabDebloatState;
+use crate::adb_stt::PackageFingerprint;
+use crate::shared_store_stt::get_shared_store;
+use crate::viewmodel::ViewModelState;
 
 /// Sidebar width in pixels
 const SIDEBAR_WIDTH: f32 = 200.0;
@@ -48,16 +48,20 @@ pub fn render(
         });
 
     egui::CentralPanel::default().show_inside(ui, |ui| {
-        render_main_content(ui, vm_state, local_state, google_play_enabled, fdroid_enabled, apkmirror_enabled, android_package_enabled);
+        render_main_content(
+            ui,
+            vm_state,
+            local_state,
+            google_play_enabled,
+            fdroid_enabled,
+            apkmirror_enabled,
+            android_package_enabled,
+        );
     });
 }
 
 /// Render the left sidebar with filter controls
-fn render_sidebar(
-    ui: &mut egui::Ui,
-    vm_state: &ViewModelState,
-    local_state: &mut TabDebloatState,
-) {
+fn render_sidebar(ui: &mut egui::Ui, vm_state: &ViewModelState, local_state: &mut TabDebloatState) {
     ui.vertical(|ui| {
         ui.heading("Filters");
         ui.separator();
@@ -65,7 +69,10 @@ fn render_sidebar(
         // Category filters section
         ui.label("Category");
         ui.horizontal(|ui| {
-            if ui.selectable_label(local_state.active_filter.category_filter.is_none(), "All").clicked() {
+            if ui
+                .selectable_label(local_state.active_filter.category_filter.is_none(), "All")
+                .clicked()
+            {
                 local_state.active_filter.category_filter = None;
                 local_state.table_version += 1;
             }
@@ -73,10 +80,13 @@ fn render_sidebar(
         });
 
         ui.horizontal(|ui| {
-            if ui.selectable_label(
-                local_state.active_filter.category_filter.as_deref() == Some("recommended"),
-                "Recommended"
-            ).clicked() {
+            if ui
+                .selectable_label(
+                    local_state.active_filter.category_filter.as_deref() == Some("recommended"),
+                    "Recommended",
+                )
+                .clicked()
+            {
                 local_state.active_filter.category_filter = Some("recommended".to_string());
                 local_state.table_version += 1;
             }
@@ -84,10 +94,13 @@ fn render_sidebar(
         });
 
         ui.horizontal(|ui| {
-            if ui.selectable_label(
-                local_state.active_filter.category_filter.as_deref() == Some("unsafe"),
-                "Unsafe"
-            ).clicked() {
+            if ui
+                .selectable_label(
+                    local_state.active_filter.category_filter.as_deref() == Some("unsafe"),
+                    "Unsafe",
+                )
+                .clicked()
+            {
                 local_state.active_filter.category_filter = Some("unsafe".to_string());
                 local_state.table_version += 1;
             }
@@ -95,10 +108,13 @@ fn render_sidebar(
         });
 
         ui.horizontal(|ui| {
-            if ui.selectable_label(
-                local_state.active_filter.category_filter.as_deref() == Some("expert"),
-                "Expert"
-            ).clicked() {
+            if ui
+                .selectable_label(
+                    local_state.active_filter.category_filter.as_deref() == Some("expert"),
+                    "Expert",
+                )
+                .clicked()
+            {
                 local_state.active_filter.category_filter = Some("expert".to_string());
                 local_state.table_version += 1;
             }
@@ -111,11 +127,23 @@ fn render_sidebar(
         ui.separator();
         ui.heading("Options");
 
-        if ui.checkbox(&mut local_state.active_filter.show_only_enabled, "Show only enabled").changed() {
+        if ui
+            .checkbox(
+                &mut local_state.active_filter.show_only_enabled,
+                "Show only enabled",
+            )
+            .changed()
+        {
             local_state.table_version += 1;
         }
 
-        if ui.checkbox(&mut local_state.active_filter.hide_system_apps, "Hide system apps").changed() {
+        if ui
+            .checkbox(
+                &mut local_state.active_filter.hide_system_apps,
+                "Hide system apps",
+            )
+            .changed()
+        {
             local_state.table_version += 1;
         }
 
@@ -173,7 +201,8 @@ fn prepare_app_display_data(
         // Try Android Package first (if enabled)
         if android_package_enabled {
             if let Some(ap_app) = vm_state.cached_metadata.get_android_package(&package.pkg) {
-                let texture = load_texture_from_bytes(ctx, &package.pkg, &ap_app.icon_bytes, &store);
+                let texture =
+                    load_texture_from_bytes(ctx, &package.pkg, &ap_app.icon_bytes, &store);
                 app_data.insert(package.pkg.clone(), (texture, ap_app.label.clone()));
                 continue;
             }
@@ -184,7 +213,8 @@ fn prepare_app_display_data(
             if let Some(fd_app) = vm_state.cached_metadata.get_fdroid(&package.pkg) {
                 if fd_app.raw_response != "404" {
                     if let Some(icon_base64) = &fd_app.icon_base64 {
-                        let texture = load_texture_from_base64(ctx, "fd", &package.pkg, icon_base64, &store);
+                        let texture =
+                            load_texture_from_base64(ctx, "fd", &package.pkg, icon_base64, &store);
                         app_data.insert(package.pkg.clone(), (texture, fd_app.title.clone()));
                         continue;
                     }
@@ -197,7 +227,8 @@ fn prepare_app_display_data(
             if let Some(gp_app) = vm_state.cached_metadata.get_google_play(&package.pkg) {
                 if gp_app.raw_response != "404" {
                     if let Some(icon_base64) = &gp_app.icon_base64 {
-                        let texture = load_texture_from_base64(ctx, "gp", &package.pkg, icon_base64, &store);
+                        let texture =
+                            load_texture_from_base64(ctx, "gp", &package.pkg, icon_base64, &store);
                         app_data.insert(package.pkg.clone(), (texture, gp_app.title.clone()));
                         continue;
                     }
@@ -210,7 +241,8 @@ fn prepare_app_display_data(
             if let Some(am_app) = vm_state.cached_metadata.get_apkmirror(&package.pkg) {
                 if am_app.raw_response != "404" {
                     if let Some(icon_base64) = &am_app.icon_base64 {
-                        let texture = load_texture_from_base64(ctx, "am", &package.pkg, icon_base64, &store);
+                        let texture =
+                            load_texture_from_base64(ctx, "am", &package.pkg, icon_base64, &store);
                         app_data.insert(package.pkg.clone(), (texture, am_app.title.clone()));
                         continue;
                     }
@@ -341,7 +373,10 @@ fn render_main_content(
         );
 
         // Package table (virtual scrolling)
-        log::debug!("DEBUG: view_desktop rendering package table with {} filtered packages", vm_state.filtered_packages.len());
+        log::debug!(
+            "DEBUG: view_desktop rendering package table with {} filtered packages",
+            vm_state.filtered_packages.len()
+        );
         render_package_table(
             ui,
             &vm_state.filtered_packages,
@@ -421,15 +456,24 @@ fn render_error_banner(ui: &mut egui::Ui, local_state: &TabDebloatState) {
         );
 
         if !local_state.batch_uninstall_state.status_message.is_empty() {
-            ui.label(format!("Uninstall: {}", local_state.batch_uninstall_state.status_message));
+            ui.label(format!(
+                "Uninstall: {}",
+                local_state.batch_uninstall_state.status_message
+            ));
         }
 
         if !local_state.batch_disable_state.status_message.is_empty() {
-            ui.label(format!("Disable: {}", local_state.batch_disable_state.status_message));
+            ui.label(format!(
+                "Disable: {}",
+                local_state.batch_disable_state.status_message
+            ));
         }
 
         if !local_state.batch_enable_state.status_message.is_empty() {
-            ui.label(format!("Enable: {}", local_state.batch_enable_state.status_message));
+            ui.label(format!(
+                "Enable: {}",
+                local_state.batch_enable_state.status_message
+            ));
         }
 
         ui.separator();

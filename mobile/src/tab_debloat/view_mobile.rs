@@ -10,9 +10,9 @@
 
 use eframe::egui;
 
-use crate::viewmodel::ViewModelState;
-use super::state::TabDebloatState;
 use super::components::package_cards::render_package_cards;
+use super::state::TabDebloatState;
+use crate::viewmodel::ViewModelState;
 
 /// Render mobile view with stacked layout
 ///
@@ -91,34 +91,46 @@ fn render_filter_section(
             ui.label("Category");
 
             ui.horizontal_wrapped(|ui| {
-                if ui.selectable_label(
-                    local_state.active_filter.category_filter.is_none(),
-                    format!("All ({})", local_state.cached_counts.all)
-                ).clicked() {
+                if ui
+                    .selectable_label(
+                        local_state.active_filter.category_filter.is_none(),
+                        format!("All ({})", local_state.cached_counts.all),
+                    )
+                    .clicked()
+                {
                     local_state.active_filter.category_filter = None;
                     local_state.table_version += 1;
                 }
 
-                if ui.selectable_label(
-                    local_state.active_filter.category_filter.as_deref() == Some("recommended"),
-                    format!("Recommended ({})", local_state.cached_counts.recommended)
-                ).clicked() {
+                if ui
+                    .selectable_label(
+                        local_state.active_filter.category_filter.as_deref() == Some("recommended"),
+                        format!("Recommended ({})", local_state.cached_counts.recommended),
+                    )
+                    .clicked()
+                {
                     local_state.active_filter.category_filter = Some("recommended".to_string());
                     local_state.table_version += 1;
                 }
 
-                if ui.selectable_label(
-                    local_state.active_filter.category_filter.as_deref() == Some("unsafe"),
-                    format!("Unsafe ({})", local_state.cached_counts.unsafe_apps)
-                ).clicked() {
+                if ui
+                    .selectable_label(
+                        local_state.active_filter.category_filter.as_deref() == Some("unsafe"),
+                        format!("Unsafe ({})", local_state.cached_counts.unsafe_apps),
+                    )
+                    .clicked()
+                {
                     local_state.active_filter.category_filter = Some("unsafe".to_string());
                     local_state.table_version += 1;
                 }
 
-                if ui.selectable_label(
-                    local_state.active_filter.category_filter.as_deref() == Some("expert"),
-                    format!("Expert ({})", local_state.cached_counts.expert)
-                ).clicked() {
+                if ui
+                    .selectable_label(
+                        local_state.active_filter.category_filter.as_deref() == Some("expert"),
+                        format!("Expert ({})", local_state.cached_counts.expert),
+                    )
+                    .clicked()
+                {
                     local_state.active_filter.category_filter = Some("expert".to_string());
                     local_state.table_version += 1;
                 }
@@ -130,11 +142,23 @@ fn render_filter_section(
             ui.separator();
             ui.label("Options");
 
-            if ui.checkbox(&mut local_state.active_filter.show_only_enabled, "Show only enabled").changed() {
+            if ui
+                .checkbox(
+                    &mut local_state.active_filter.show_only_enabled,
+                    "Show only enabled",
+                )
+                .changed()
+            {
                 local_state.table_version += 1;
             }
 
-            if ui.checkbox(&mut local_state.active_filter.hide_system_apps, "Hide system apps").changed() {
+            if ui
+                .checkbox(
+                    &mut local_state.active_filter.hide_system_apps,
+                    "Hide system apps",
+                )
+                .changed()
+            {
                 local_state.table_version += 1;
             }
 
@@ -157,7 +181,8 @@ fn render_filter_section(
             // Package count
             ui.add_space(8.0);
             ui.separator();
-            ui.label(format!("Total: {} | Filtered: {}",
+            ui.label(format!(
+                "Total: {} | Filtered: {}",
                 vm_state.packages.len(),
                 vm_state.filtered_packages.len()
             ));
@@ -198,15 +223,24 @@ fn render_error_banner(ui: &mut egui::Ui, local_state: &TabDebloatState) {
         );
 
         if !local_state.batch_uninstall_state.status_message.is_empty() {
-            ui.label(format!("Uninstall: {}", local_state.batch_uninstall_state.status_message));
+            ui.label(format!(
+                "Uninstall: {}",
+                local_state.batch_uninstall_state.status_message
+            ));
         }
 
         if !local_state.batch_disable_state.status_message.is_empty() {
-            ui.label(format!("Disable: {}", local_state.batch_disable_state.status_message));
+            ui.label(format!(
+                "Disable: {}",
+                local_state.batch_disable_state.status_message
+            ));
         }
 
         if !local_state.batch_enable_state.status_message.is_empty() {
-            ui.label(format!("Enable: {}", local_state.batch_enable_state.status_message));
+            ui.label(format!(
+                "Enable: {}",
+                local_state.batch_enable_state.status_message
+            ));
         }
 
         ui.separator();

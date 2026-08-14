@@ -50,7 +50,10 @@ pub fn render_package_table(
     uad_ng_lists: Option<&UadNgLists>,
     app_display_data: &AppDisplayData,
 ) {
-    log::debug!("DEBUG: render_package_table called with {} packages", packages.len());
+    log::debug!(
+        "DEBUG: render_package_table called with {} packages",
+        packages.len()
+    );
     TableBuilder::new(ui)
         .striped(true)
         .resizable(false)
@@ -160,42 +163,40 @@ mod tests {
         // This test ensures the function signature is correct
         // Actual rendering tests would require egui context
 
-        let packages = vec![
-            PackageFingerprint {
-                pkg: "com.example.test".to_string(),
-                codePath: "/data/app/test".to_string(),
-                versionCode: 1,
-                versionName: "1.0".to_string(),
-                flags: "0".to_string(),
-                privateFlags: "0".to_string(),
-                installPermissions: vec![],
-                users: vec![AdbPackageInfoUser {
-                    userId: 0,
-                    ceDataInode: 0,
-                    deDataInode: 0,
-                    installed: true,
-                    hidden: false,
-                    suspended: false,
-                    distractionFlags: 0,
-                    stopped: false,
-                    notLaunched: false,
-                    enabled: 1,
-                    instant: false,
-                    virtualField: false,
-                    quarantined: false,
-                    installReason: 0,
-                    dataDir: "/data/user/0/com.example.test".to_string(),
-                    firstInstallTime: "2024-01-01".to_string(),
-                    uninstallReason: 0,
-                    lastDisabledCaller: String::new(),
-                    gids: vec![],
-                    runtimePermissions: vec![],
-                }],
-                lastUpdateTime: "2024-01-01".to_string(),
-                pkgChecksum: "abc123".to_string(),
-                dumpText: "".to_string(),
-            },
-        ];
+        let packages = vec![PackageFingerprint {
+            pkg: "com.example.test".to_string(),
+            codePath: "/data/app/test".to_string(),
+            versionCode: 1,
+            versionName: "1.0".to_string(),
+            flags: "0".to_string(),
+            privateFlags: "0".to_string(),
+            installPermissions: vec![],
+            users: vec![AdbPackageInfoUser {
+                userId: 0,
+                ceDataInode: 0,
+                deDataInode: 0,
+                installed: true,
+                hidden: false,
+                suspended: false,
+                distractionFlags: 0,
+                stopped: false,
+                notLaunched: false,
+                enabled: 1,
+                instant: false,
+                virtualField: false,
+                quarantined: false,
+                installReason: 0,
+                dataDir: "/data/user/0/com.example.test".to_string(),
+                firstInstallTime: "2024-01-01".to_string(),
+                uninstallReason: 0,
+                lastDisabledCaller: String::new(),
+                gids: vec![],
+                runtimePermissions: vec![],
+            }],
+            lastUpdateTime: "2024-01-01".to_string(),
+            pkgChecksum: "abc123".to_string(),
+            dumpText: "".to_string(),
+        }];
 
         let mut selected: HashSet<String> = HashSet::new();
 

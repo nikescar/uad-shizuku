@@ -2262,4 +2262,140 @@ mod tests {
         // Clean up directory
         let _ = std::fs::remove_dir(tmp_dir);
     }
+
+    /// End-to-end test against `mock_adb` (see `bin/mock_adb.rs` and
+    /// `tests/fixtures/adb/README.md`) instead of a real device. Prepends a
+    /// directory holding `mock_adb` (renamed to `adb`/`adb.exe`) to PATH so
+    /// every `Command::new("adb")` call in this file resolves to the mock,
+    /// then drives the real functions above against it.
+    /// Builds `mock_adb` (idempotent — cargo no-ops if already up to date)
+    /// and returns its executable path, read straight from cargo's own
+    /// `--message-format=json` artifact report. `cargo test` does not build
+    /// plain `[[bin]]` targets as a side effect of running a single named
+    /// unit test, and this crate's unusual `crate-type = ["cdylib",
+    /// "rlib"]` build layout makes guessing the path relative to
+    /// `current_exe()` unreliable, so ask cargo directly instead.
+    fn locate_or_build_mock_adb() -> PathBuf {
+        let output = std::process::Command::new(env!("CARGO"))
+            .args(["build", "--bin", "mock_adb", "--message-format=json"])
+            .output()
+            .expect("failed to invoke cargo to build mock_adb");
+        assert!(
+            output.status.success(),
+            "cargo build --bin mock_adb failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        for line in stdout.lines() {
+            let Ok(msg) = serde_json::from_str::<serde_json::Value>(line) else {
+                continue;
+            };
+            if msg.get("reason").and_then(|v| v.as_str()) != Some("compiler-artifact") {
+                continue;
+            }
+            let is_mock_adb_bin = msg
+                .get("target")
+                .and_then(|t| t.get("name"))
+                .and_then(|n| n.as_str())
+                == Some("mock_adb")
+                && msg
+                    .get("target")
+                    .and_then(|t| t.get("kind"))
+                    .and_then(|k| k.as_array())
+                    .is_some_and(|kinds| kinds.iter().any(|k| k.as_str() == Some("bin")));
+            if !is_mock_adb_bin {
+                continue;
+            }
+            if let Some(exe) = msg.get("executable").and_then(|v| v.as_str()) {
+                return PathBuf::from(exe);
+            }
+        }
+        panic!("cargo build --bin mock_adb did not report an executable path");
+    }
+
+    #[test]
+    fn test_against_mock_adb() {
+        const MOCK_SERIAL: &str = "MOCKDEVICE01";
+
+        let mock_adb_exe = locate_or_build_mock_adb();
+        let dir = std::env::temp_dir().join("uad_shizuku_mock_adb_bin");
+        fs::create_dir_all(&dir).expect("create mock adb dir");
+        let adb_name = if cfg!(target_os = "windows") {
+            "adb.exe"
+        } else {
+            "adb"
+        };
+        let target = dir.join(adb_name);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::symlink;
+            let _ = fs::remove_file(&target);
+            symlink(mock_adb_exe, &target).expect("symlink mock adb");
+        }
+        #[cfg(not(unix))]
+        {
+            let _ = fs::remove_file(&target);
+            fs::copy(mock_adb_exe, &target).expect("copy mock adb");
+        }
+        let existing_path = std::env::var("PATH").unwrap_or_default();
+        let separator = if cfg!(windows) { ';' } else { ':' };
+        let new_path = format!("{}{}{}", dir.display(), separator, existing_path);
+        // SAFETY: this test does not run concurrently with other tests in
+        // this module that spawn `adb` with conflicting PATH expectations.
+        unsafe {
+            std::env::set_var("PATH", new_path);
+        }
+
+        let devices = get_devices().expect("get_devices should succeed against mock");
+        assert!(
+            devices.contains(&MOCK_SERIAL.to_string()),
+            "expected mock serial in {:?}",
+            devices
+        );
+
+        let users = get_users(MOCK_SERIAL).expect("get_users should succeed");
+        assert!(!users.is_empty(), "should parse at least one user");
+        assert!(users.iter().any(|u| u.user_id == 0), "should have user 0");
+
+        let abis = get_cpu_abi_list(MOCK_SERIAL).expect("get_cpu_abi_list should succeed");
+        assert_eq!(abis, vec!["arm64-v8a".to_string()]);
+
+        let fingerprints = get_all_packages_fingerprints(MOCK_SERIAL)
+            .expect("get_all_packages_fingerprints should succeed");
+        assert!(
+            !fingerprints.is_empty(),
+            "should parse at least one package"
+        );
+        assert!(
+            fingerprints.iter().any(|p| p.pkg == "io.heckel.ntfy"),
+            "should find io.heckel.ntfy in the captured dump"
+        );
+
+        let out = uninstall_app_user("io.heckel.ntfy", MOCK_SERIAL, Some("0"))
+            .expect("uninstall_app_user should succeed");
+        assert!(out.contains("Success"));
+
+        let out = disable_app_current_user("io.heckel.ntfy", MOCK_SERIAL, Some("0"))
+            .expect("disable_app_current_user should succeed");
+        assert!(out.contains("disabled-user"));
+
+        let out = enable_app("io.heckel.ntfy", MOCK_SERIAL).expect("enable_app should succeed");
+        assert!(out.contains("enabled"));
+
+        let pull_tmp_dir = std::env::temp_dir().join("uad_shizuku_mock_adb_pull_test");
+        fs::create_dir_all(&pull_tmp_dir).expect("create pull tmp dir");
+        let pulled = pull_file_to_temp(
+            MOCK_SERIAL,
+            "/data/app/some/base.apk",
+            pull_tmp_dir.to_str().expect("tmp dir should be valid utf8"),
+            "io.heckel.ntfy",
+        )
+        .expect("pull_file_to_temp should succeed");
+        assert!(
+            std::path::Path::new(&pulled).exists(),
+            "pulled file should exist at {}",
+            pulled
+        );
+    }
 }

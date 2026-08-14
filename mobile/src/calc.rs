@@ -368,7 +368,8 @@ pub fn retrieve_adb_devices(app: &mut UadShizukuApp) {
         app.tab_debloat_control.update_uad_ng_lists(UadNgLists {
             apps: HashMap::new(),
         });
-        app.tab_scan_control.update_packages(Vec::new(), app.viewmodel.as_ref());
+        app.tab_scan_control
+            .update_packages(Vec::new(), app.viewmodel.as_ref());
         app.tab_scan_control.update_uad_ng_lists(UadNgLists {
             apps: HashMap::new(),
         });
@@ -751,10 +752,15 @@ pub fn handle_package_loading_result(app: &mut UadShizukuApp) {
                             if let Err(e) = viewmodel.load_packages(device.clone(), user_id) {
                                 log::error!("Failed to update ViewModel with packages: {}", e);
                             } else {
-                                log::debug!("Updated ViewModel with packages for device: {}, user: {}", device, user_id);
+                                log::debug!(
+                                    "Updated ViewModel with packages for device: {}, user: {}",
+                                    device,
+                                    user_id
+                                );
 
                                 // Apply initial filter (show all packages) to populate filtered_packages
-                                if let Err(e) = viewmodel.filter_packages(None, None, false, false) {
+                                if let Err(e) = viewmodel.filter_packages(None, None, false, false)
+                                {
                                     log::error!("Failed to apply initial filter: {}", e);
                                 } else {
                                     log::debug!("Applied initial filter to populate datatable");

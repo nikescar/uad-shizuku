@@ -28,7 +28,10 @@ impl AppsActor {
         command_rx: smol::channel::Receiver<AppsCommand>,
         event_tx: smol::channel::Sender<ViewModelEvent>,
     ) -> Self {
-        Self { command_rx, event_tx }
+        Self {
+            command_rx,
+            event_tx,
+        }
     }
 
     pub async fn run(mut self) {
@@ -52,12 +55,13 @@ impl AppsActor {
             AppsCommand::LoadFossAppList => {
                 let count = smol::unblock(|| {
                     // Use existing calc_foss functions
-                    0  // Placeholder
-                }).await;
+                    0 // Placeholder
+                })
+                .await;
 
-                self.event_tx.send(ViewModelEvent::Apps(
-                    AppsEvent::FossAppListLoaded { count }
-                )).await?;
+                self.event_tx
+                    .send(ViewModelEvent::Apps(AppsEvent::FossAppListLoaded { count }))
+                    .await?;
             }
             AppsCommand::InstallApp { package, apk_url } => {
                 let package_clone = package.clone();
@@ -65,11 +69,12 @@ impl AppsActor {
                 smol::unblock(move || {
                     // Use existing installation logic
                     log::info!("Installing {} from {}", package_clone, apk_url_clone);
-                }).await;
+                })
+                .await;
 
-                self.event_tx.send(ViewModelEvent::Apps(
-                    AppsEvent::AppInstalled { package }
-                )).await?;
+                self.event_tx
+                    .send(ViewModelEvent::Apps(AppsEvent::AppInstalled { package }))
+                    .await?;
             }
             _ => {} // Other commands similar pattern
         }
@@ -77,11 +82,12 @@ impl AppsActor {
     }
 
     async fn send_error(&self, operation: &str, error: anyhow::Error) {
-        let _ = self.event_tx.send(ViewModelEvent::Apps(
-            AppsEvent::Error {
+        let _ = self
+            .event_tx
+            .send(ViewModelEvent::Apps(AppsEvent::Error {
                 operation: operation.to_string(),
                 error: error.to_string(),
-            }
-        )).await;
+            }))
+            .await;
     }
 }

@@ -30,10 +30,7 @@ pub enum ScannerType {
 pub enum ScanEvent {
     VirusTotalStarted,
     HybridAnalysisStarted,
-    ScanProgress {
-        scanner: ScannerType,
-        progress: f32,
-    },
+    ScanProgress { scanner: ScannerType, progress: f32 },
     VirusTotalComplete,
     HybridAnalysisComplete,
     VirusTotalCancelled,
@@ -83,15 +80,19 @@ impl ScanActor {
 
     async fn handle_command(&mut self, cmd: ScanCommand) -> Result<()> {
         match cmd {
-            ScanCommand::RunVirusTotal { device, api_key, submit_enabled } => {
+            ScanCommand::RunVirusTotal {
+                device,
+                api_key,
+                submit_enabled,
+            } => {
                 // Reset cancellation flag
                 if let Ok(mut cancel) = self.vt_cancel.lock() {
                     *cancel = false;
                 }
 
-                self.event_tx.send(ViewModelEvent::Scan(
-                    ScanEvent::VirusTotalStarted
-                )).await?;
+                self.event_tx
+                    .send(ViewModelEvent::Scan(ScanEvent::VirusTotalStarted))
+                    .await?;
 
                 // Send initial empty state to indicate scan in progress
                 use std::sync::{Arc, Mutex};
@@ -99,15 +100,20 @@ impl ScanActor {
                 // Mark with a placeholder to indicate scan is running (not cancelled/empty)
                 {
                     let mut state = initial_state.lock().unwrap();
-                    state.insert("__scanning__".to_string(), crate::calc_virustotal_stt::ScanStatus::Scanning {
-                        scanned: 0,
-                        total: 0,
-                        operation: "Initializing...".to_string(),
-                    });
+                    state.insert(
+                        "__scanning__".to_string(),
+                        crate::calc_virustotal_stt::ScanStatus::Scanning {
+                            scanned: 0,
+                            total: 0,
+                            operation: "Initializing...".to_string(),
+                        },
+                    );
                 }
-                self.event_tx.send(ViewModelEvent::Scan(
-                    ScanEvent::VirusTotalStateUpdated(initial_state)
-                )).await?;
+                self.event_tx
+                    .send(ViewModelEvent::Scan(ScanEvent::VirusTotalStateUpdated(
+                        initial_state,
+                    )))
+                    .await?;
 
                 let device_clone = device.clone();
                 let api_key_clone = api_key.clone();
@@ -133,30 +139,38 @@ impl ScanActor {
                             progress,
                             cancel_clone,
                         )
-                    }).await;
+                    })
+                    .await;
 
                     // Send scanner state update event to ViewModel
-                    let _ = event_tx.send(ViewModelEvent::Scan(
-                        ScanEvent::VirusTotalStateUpdated(scanner_state.clone())
-                    )).await;
+                    let _ = event_tx
+                        .send(ViewModelEvent::Scan(ScanEvent::VirusTotalStateUpdated(
+                            scanner_state.clone(),
+                        )))
+                        .await;
 
                     // Send completion event
-                    let _ = event_tx.send(ViewModelEvent::Scan(
-                        ScanEvent::VirusTotalComplete
-                    )).await;
-                }).detach();
+                    let _ = event_tx
+                        .send(ViewModelEvent::Scan(ScanEvent::VirusTotalComplete))
+                        .await;
+                })
+                .detach();
 
                 Ok(())
             }
-            ScanCommand::RunHybridAnalysis { device, api_key, submit_enabled } => {
+            ScanCommand::RunHybridAnalysis {
+                device,
+                api_key,
+                submit_enabled,
+            } => {
                 // Reset cancellation flag
                 if let Ok(mut cancel) = self.ha_cancel.lock() {
                     *cancel = false;
                 }
 
-                self.event_tx.send(ViewModelEvent::Scan(
-                    ScanEvent::HybridAnalysisStarted
-                )).await?;
+                self.event_tx
+                    .send(ViewModelEvent::Scan(ScanEvent::HybridAnalysisStarted))
+                    .await?;
 
                 // Send initial empty state to indicate scan in progress
                 use std::sync::{Arc, Mutex};
@@ -164,15 +178,20 @@ impl ScanActor {
                 // Mark with a placeholder to indicate scan is running (not cancelled/empty)
                 {
                     let mut state = initial_state.lock().unwrap();
-                    state.insert("__scanning__".to_string(), crate::calc_hybridanalysis_stt::ScanStatus::Scanning {
-                        scanned: 0,
-                        total: 0,
-                        operation: "Initializing...".to_string(),
-                    });
+                    state.insert(
+                        "__scanning__".to_string(),
+                        crate::calc_hybridanalysis_stt::ScanStatus::Scanning {
+                            scanned: 0,
+                            total: 0,
+                            operation: "Initializing...".to_string(),
+                        },
+                    );
                 }
-                self.event_tx.send(ViewModelEvent::Scan(
-                    ScanEvent::HybridAnalysisStateUpdated(initial_state)
-                )).await?;
+                self.event_tx
+                    .send(ViewModelEvent::Scan(ScanEvent::HybridAnalysisStateUpdated(
+                        initial_state,
+                    )))
+                    .await?;
 
                 let device_clone = device.clone();
                 let api_key_clone = api_key.clone();
@@ -198,18 +217,22 @@ impl ScanActor {
                             progress,
                             cancel_clone,
                         )
-                    }).await;
+                    })
+                    .await;
 
                     // Send scanner state update event to ViewModel
-                    let _ = event_tx.send(ViewModelEvent::Scan(
-                        ScanEvent::HybridAnalysisStateUpdated(scanner_state.clone())
-                    )).await;
+                    let _ = event_tx
+                        .send(ViewModelEvent::Scan(ScanEvent::HybridAnalysisStateUpdated(
+                            scanner_state.clone(),
+                        )))
+                        .await;
 
                     // Send completion event
-                    let _ = event_tx.send(ViewModelEvent::Scan(
-                        ScanEvent::HybridAnalysisComplete
-                    )).await;
-                }).detach();
+                    let _ = event_tx
+                        .send(ViewModelEvent::Scan(ScanEvent::HybridAnalysisComplete))
+                        .await;
+                })
+                .detach();
 
                 Ok(())
             }
@@ -219,9 +242,9 @@ impl ScanActor {
                 }
 
                 // Send cancellation event (state will be cleared by ViewModel)
-                self.event_tx.send(ViewModelEvent::Scan(
-                    ScanEvent::VirusTotalCancelled
-                )).await?;
+                self.event_tx
+                    .send(ViewModelEvent::Scan(ScanEvent::VirusTotalCancelled))
+                    .await?;
                 Ok(())
             }
             ScanCommand::CancelHybridAnalysis => {
@@ -230,20 +253,21 @@ impl ScanActor {
                 }
 
                 // Send cancellation event (state will be cleared by ViewModel)
-                self.event_tx.send(ViewModelEvent::Scan(
-                    ScanEvent::HybridAnalysisCancelled
-                )).await?;
+                self.event_tx
+                    .send(ViewModelEvent::Scan(ScanEvent::HybridAnalysisCancelled))
+                    .await?;
                 Ok(())
             }
         }
     }
 
     async fn send_error(&self, operation: &str, error: anyhow::Error) {
-        let _ = self.event_tx.send(ViewModelEvent::Scan(
-            ScanEvent::Error {
+        let _ = self
+            .event_tx
+            .send(ViewModelEvent::Scan(ScanEvent::Error {
                 operation: operation.to_string(),
                 error: error.to_string(),
-            }
-        )).await;
+            }))
+            .await;
     }
 }

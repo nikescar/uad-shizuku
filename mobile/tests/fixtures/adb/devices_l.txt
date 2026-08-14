@@ -1,0 +1,3 @@
+List of devices attached
+MOCKDEVICE01         device usb:3-4.1 product:akita model:Pixel_8a device:akita transport_id:1
+

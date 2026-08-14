@@ -29,7 +29,7 @@ use crate::adb::{get_users, UserInfo};
 use crate::dlg_dashcounter_details::DlgDashCounterDetails;
 use crate::tab_apps_control::TabAppsControl;
 use crate::tab_debloat::TabDebloat;
-use crate::tab_debloat_control::TabDebloatControl;  // TRANSITIONAL: Being phased out
+use crate::tab_debloat_control::TabDebloatControl; // TRANSITIONAL: Being phased out
 use crate::tab_scan_control::TabScanControl;
 use crate::tab_usage_control::TabUsageControl;
 use crate::LogLevel;
@@ -267,8 +267,8 @@ impl Default for UadShizukuApp {
             current_user: None,
 
             // NOTE: installed_packages and uad_ng_lists are now in shared_store_stt::SharedStore
-            tab_debloat: TabDebloat::default(),  // REFACTORED: New MVVM-based tab
-            tab_debloat_control: TabDebloatControl::default(),  // TRANSITIONAL: Being phased out
+            tab_debloat: TabDebloat::default(), // REFACTORED: New MVVM-based tab
+            tab_debloat_control: TabDebloatControl::default(), // TRANSITIONAL: Being phased out
             tab_scan_control: TabScanControl::default(),
             tab_usage_control: TabUsageControl::default(),
             tab_apps_control: TabAppsControl::new(cache_dir, tmp_dir),
@@ -369,7 +369,7 @@ impl Default for UadShizukuApp {
             // Tab controller state (shared between mobile and desktop UI)
             show_apps_tab: true,
 
-            viewmodel: None,  // Lazy initialization in update()
+            viewmodel: None, // Lazy initialization in update()
         };
 
         // Apply persisted theme preferences
@@ -3501,12 +3501,11 @@ impl UadShizukuApp {
 
     fn render_scan_tab(&mut self, ui: &mut egui::Ui) {
         // Renderer settings already synced in controller
-        self.tab_scan_control
-            .ui(
-                self.viewmodel.as_mut(),
-                ui,
-                &self.settings.hybridanalysis_tag_ignorelist,
-            );
+        self.tab_scan_control.ui(
+            self.viewmodel.as_mut(),
+            ui,
+            &self.settings.hybridanalysis_tag_ignorelist,
+        );
     }
 
     fn render_apps_tab(&mut self, ui: &mut egui::Ui) {
@@ -3687,7 +3686,9 @@ impl UadShizukuApp {
                                 // Use embedded fallback
                                 match std::fs::write(&cache_file_path, IOC_FALLBACK) {
                                     Ok(_) => {
-                                        log::info!("Successfully wrote stalkerware IoC fallback to cache");
+                                        log::info!(
+                                            "Successfully wrote stalkerware IoC fallback to cache"
+                                        );
                                     }
                                     Err(e) => {
                                         log::error!(
@@ -3959,7 +3960,8 @@ impl UadShizukuApp {
             let shared_store = crate::shared_store_stt::get_shared_store();
             let installed_packages = shared_store.installed_packages.lock().unwrap().clone();
             if !installed_packages.is_empty() {
-                self.tab_scan_control.update_packages(installed_packages, self.viewmodel.as_ref());
+                self.tab_scan_control
+                    .update_packages(installed_packages, self.viewmodel.as_ref());
             }
         }
 
@@ -3975,7 +3977,8 @@ impl UadShizukuApp {
             let shared_store = crate::shared_store_stt::get_shared_store();
             let installed_packages = shared_store.installed_packages.lock().unwrap().clone();
             if !installed_packages.is_empty() {
-                self.tab_scan_control.update_packages(installed_packages, self.viewmodel.as_ref());
+                self.tab_scan_control
+                    .update_packages(installed_packages, self.viewmodel.as_ref());
             }
         }
 

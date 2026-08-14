@@ -153,7 +153,8 @@ impl TabDebloatControl {
                 .unwrap_or_default();
 
             // Filter packages based on unsafe/expert settings
-            let filtered_pkgs: Vec<String> = pkgs.into_iter()
+            let filtered_pkgs: Vec<String> = pkgs
+                .into_iter()
                 .filter(|pkg_name| {
                     // Skip unsafe apps when unsafe_app_remove is disabled
                     if unsafe_apps.contains(pkg_name) && !self.unsafe_app_remove {
@@ -183,7 +184,6 @@ impl TabDebloatControl {
 
             // State machine will be updated via ViewModel events
             self.batch_uninstall_state.start();
-
         } else {
             // Fallback: old implementation for when ViewModel not available
             log::warn!("ViewModel not available, using legacy batch uninstall");
@@ -362,7 +362,8 @@ impl TabDebloatControl {
                 .unwrap_or_default();
 
             // Filter packages
-            let filtered_pkgs: Vec<String> = pkgs.into_iter()
+            let filtered_pkgs: Vec<String> = pkgs
+                .into_iter()
                 .filter(|pkg_name| {
                     if unsafe_apps.contains(pkg_name) && !self.unsafe_app_remove {
                         log::warn!("Skipping disable of unsafe app: {}", pkg_name);
@@ -376,7 +377,10 @@ impl TabDebloatControl {
                 })
                 .collect();
 
-            log::info!("Starting batch disable for {} packages", filtered_pkgs.len());
+            log::info!(
+                "Starting batch disable for {} packages",
+                filtered_pkgs.len()
+            );
 
             // Send command to ViewModel
             if let Err(e) = vm.batch_disable(filtered_pkgs, device) {
@@ -385,7 +389,6 @@ impl TabDebloatControl {
             }
 
             self.batch_disable_state.start();
-
         } else {
             // Fallback: legacy implementation
             log::warn!("ViewModel not available, using legacy batch disable");
@@ -399,7 +402,10 @@ impl TabDebloatControl {
                 *cancelled = false;
             }
 
-            log::info!("Starting batch disable for {} packages in background", pkgs.len());
+            log::info!(
+                "Starting batch disable for {} packages in background",
+                pkgs.len()
+            );
 
             let progress_clone = self.batch_disable_progress.clone();
             let cancelled_clone = self.batch_disable_cancelled.clone();
@@ -511,7 +517,6 @@ impl TabDebloatControl {
             }
 
             self.batch_enable_state.start();
-
         } else {
             // Fallback: legacy implementation
             log::warn!("ViewModel not available, using legacy batch enable");
@@ -525,7 +530,10 @@ impl TabDebloatControl {
                 *cancelled = false;
             }
 
-            log::info!("Starting batch enable for {} packages in background", pkgs.len());
+            log::info!(
+                "Starting batch enable for {} packages in background",
+                pkgs.len()
+            );
 
             let progress_clone = self.batch_enable_progress.clone();
             let cancelled_clone = self.batch_enable_cancelled.clone();
@@ -1028,8 +1036,12 @@ impl TabDebloatControl {
     }
 
     /// Handle ViewModel events to update tab state
-    fn handle_viewmodel_events(&mut self, vm: &mut crate::viewmodel::ViewModel, ctx: &egui::Context) {
-        use crate::viewmodel::{ViewModelEvent, DebloatEvent};
+    fn handle_viewmodel_events(
+        &mut self,
+        vm: &mut crate::viewmodel::ViewModel,
+        ctx: &egui::Context,
+    ) {
+        use crate::viewmodel::{DebloatEvent, ViewModelEvent};
 
         // Poll events from ViewModel
         let events = vm.poll_events(ctx);
@@ -1037,9 +1049,19 @@ impl TabDebloatControl {
         for event in events {
             if let ViewModelEvent::Debloat(debloat_event) = event {
                 match debloat_event {
-                    DebloatEvent::BatchProgress { operation, progress, current, total } => {
-                        log::debug!("Debloat progress: {} - {}/{} ({:.1}%)",
-                                   operation, current, total, progress * 100.0);
+                    DebloatEvent::BatchProgress {
+                        operation,
+                        progress,
+                        current,
+                        total,
+                    } => {
+                        log::debug!(
+                            "Debloat progress: {} - {}/{} ({:.1}%)",
+                            operation,
+                            current,
+                            total,
+                            progress * 100.0
+                        );
 
                         match operation.as_str() {
                             "uninstall" => {
@@ -1061,9 +1083,17 @@ impl TabDebloatControl {
                         }
                     }
 
-                    DebloatEvent::BatchComplete { operation, succeeded, failed } => {
-                        log::info!("Batch {} complete: {} succeeded, {} failed",
-                                  operation, succeeded, failed);
+                    DebloatEvent::BatchComplete {
+                        operation,
+                        succeeded,
+                        failed,
+                    } => {
+                        log::info!(
+                            "Batch {} complete: {} succeeded, {} failed",
+                            operation,
+                            succeeded,
+                            failed
+                        );
 
                         match operation.as_str() {
                             "uninstall" => {
@@ -1176,7 +1206,10 @@ impl TabDebloatControl {
         cached_fdroid_apps: &std::collections::HashMap<String, crate::models::FDroidApp>,
         cached_google_play_apps: &std::collections::HashMap<String, crate::models::GooglePlayApp>,
         cached_apkmirror_apps: &std::collections::HashMap<String, crate::models::ApkMirrorApp>,
-        cached_android_package_apps: &std::collections::HashMap<String, crate::calc_androidpackage::AndroidPackageInfo>,
+        cached_android_package_apps: &std::collections::HashMap<
+            String,
+            crate::calc_androidpackage::AndroidPackageInfo,
+        >,
         google_play_enabled: bool,
         fdroid_enabled: bool,
         apkmirror_enabled: bool,
@@ -1232,7 +1265,8 @@ impl TabDebloatControl {
                     .unwrap_or("DEFAULT")
                     .to_string();
 
-                let install_reason_value = package.users.first().map(|u| u.installReason).unwrap_or(0);
+                let install_reason_value =
+                    package.users.first().map(|u| u.installReason).unwrap_or(0);
                 let install_reason = if is_system {
                     if install_reason_value == 0 {
                         "SYSTEM".to_string()
@@ -1256,9 +1290,12 @@ impl TabDebloatControl {
                     } else {
                         #[cfg(target_os = "android")]
                         {
-                            if let Some(info) = crate::calc_androidpackage::fetch_android_package_info(&pkg_id) {
+                            if let Some(info) =
+                                crate::calc_androidpackage::fetch_android_package_info(&pkg_id)
+                            {
                                 store.set_cached_android_package_app(pkg_id.clone(), info.clone());
-                                let tex = Self::load_texture_from_bytes(ctx, &pkg_id, &info.icon_bytes);
+                                let tex =
+                                    Self::load_texture_from_bytes(ctx, &pkg_id, &info.icon_bytes);
                                 (tex.map(|t| t.id()), Some(info.label.clone()))
                             } else {
                                 (None, None)
@@ -1294,26 +1331,27 @@ impl TabDebloatControl {
                     (None, None, None)
                 };
 
-                let (gp_texture, gp_title, gp_developer) = if !is_system && google_play_enabled && fd_title.is_none() {
-                    if let Some(gp_app) = cached_google_play_apps.get(&pkg_id) {
-                        if gp_app.raw_response != "404" {
-                            let tex = gp_app.icon_base64.as_ref().and_then(|icon| {
-                                Self::load_texture_from_base64(ctx, "gp", &pkg_id, icon)
-                            });
-                            (
-                                tex.map(|t| t.id()),
-                                Some(gp_app.title.clone()),
-                                Some(gp_app.developer.clone()),
-                            )
+                let (gp_texture, gp_title, gp_developer) =
+                    if !is_system && google_play_enabled && fd_title.is_none() {
+                        if let Some(gp_app) = cached_google_play_apps.get(&pkg_id) {
+                            if gp_app.raw_response != "404" {
+                                let tex = gp_app.icon_base64.as_ref().and_then(|icon| {
+                                    Self::load_texture_from_base64(ctx, "gp", &pkg_id, icon)
+                                });
+                                (
+                                    tex.map(|t| t.id()),
+                                    Some(gp_app.title.clone()),
+                                    Some(gp_app.developer.clone()),
+                                )
+                            } else {
+                                (None, None, None)
+                            }
                         } else {
                             (None, None, None)
                         }
                     } else {
                         (None, None, None)
-                    }
-                } else {
-                    (None, None, None)
-                };
+                    };
 
                 let (am_texture, am_title, am_developer) = if is_system && apkmirror_enabled {
                     if let Some(am_app) = cached_apkmirror_apps.get(&pkg_id) {
@@ -1337,17 +1375,24 @@ impl TabDebloatControl {
                 };
 
                 // Determine display info
-                let (texture_id, title_text, subtitle_text, use_scrollable_title) = if let Some(title) = ap_title.as_ref() {
-                    (ap_texture, title.clone(), pkg_id.clone(), false)
-                } else if let (Some(title), Some(dev)) = (fd_title.as_ref(), fd_developer.as_ref()) {
-                    (fd_texture, title.clone(), dev.clone(), false)
-                } else if let (Some(title), Some(dev)) = (gp_title.as_ref(), gp_developer.as_ref()) {
-                    (gp_texture, title.clone(), dev.clone(), true)
-                } else if let (Some(title), Some(dev)) = (am_title.as_ref(), am_developer.as_ref()) {
-                    (am_texture, title.clone(), dev.clone(), true)
-                } else {
-                    (None, package_name.clone(), String::new(), true)
-                };
+                let (texture_id, title_text, subtitle_text, use_scrollable_title) =
+                    if let Some(title) = ap_title.as_ref() {
+                        (ap_texture, title.clone(), pkg_id.clone(), false)
+                    } else if let (Some(title), Some(dev)) =
+                        (fd_title.as_ref(), fd_developer.as_ref())
+                    {
+                        (fd_texture, title.clone(), dev.clone(), false)
+                    } else if let (Some(title), Some(dev)) =
+                        (gp_title.as_ref(), gp_developer.as_ref())
+                    {
+                        (gp_texture, title.clone(), dev.clone(), true)
+                    } else if let (Some(title), Some(dev)) =
+                        (am_title.as_ref(), am_developer.as_ref())
+                    {
+                        (am_texture, title.clone(), dev.clone(), true)
+                    } else {
+                        (None, package_name.clone(), String::new(), true)
+                    };
 
                 let uad_description = uad_ng_lists_ref
                     .and_then(|lists| lists.apps.get(&pkg_id))
@@ -1936,7 +1981,10 @@ impl TabDebloatControl {
         let prepared_rows: Vec<PreparedRowData> = match cached_rows {
             Some(rows) => rows,
             None => {
-                log::debug!("Preparing row data (cache miss) for {} packages", installed_packages.len());
+                log::debug!(
+                    "Preparing row data (cache miss) for {} packages",
+                    installed_packages.len()
+                );
                 let rows = self.prepare_all_rows(
                     ui.ctx(),
                     &installed_packages,
@@ -2104,153 +2152,160 @@ impl TabDebloatControl {
                 let install_reason_clone = install_reason.clone();
                 let runtime_perms_clone = runtime_perms.clone();
 
-                let mut row_builder = table_row.custom_cell(DataTableCell::widget(move |ui: &mut egui::Ui| {
-                    ui.vertical(|ui| {
-                        ui.horizontal(|ui| {
-                            // App icon
-                            if let Some(tex_id) = texture {
-                                ui.image((tex_id, egui::vec2(38.0, 38.0)));
-                            }
+                let mut row_builder =
+                    table_row.custom_cell(DataTableCell::widget(move |ui: &mut egui::Ui| {
+                        ui.vertical(|ui| {
+                            ui.horizontal(|ui| {
+                                // App icon
+                                if let Some(tex_id) = texture {
+                                    ui.image((tex_id, egui::vec2(38.0, 38.0)));
+                                }
 
-                            ui.vertical(|ui| {
-                                ui.style_mut().spacing.item_spacing.y = 0.1;
+                                ui.vertical(|ui| {
+                                    ui.style_mut().spacing.item_spacing.y = 0.1;
 
-                                // Title (with optional scroll area)
-                                if use_scrollable_title_for_cell {
+                                    // Title (with optional scroll area)
+                                    if use_scrollable_title_for_cell {
+                                        egui::ScrollArea::horizontal()
+                                            .id_salt(format!("debloat_title_scroll_{}", idx))
+                                            .auto_shrink([false, true])
+                                            .show(ui, |ui| {
+                                                ui.add(
+                                                    egui::Label::new(
+                                                        egui::RichText::new(&title_text_for_cell)
+                                                            .strong(),
+                                                    )
+                                                    .wrap_mode(egui::TextWrapMode::Extend),
+                                                );
+                                            });
+                                    } else {
+                                        ui.label(
+                                            egui::RichText::new(&title_text_for_cell).strong(),
+                                        );
+                                    }
+
+                                    // Subtitle (package ID or developer)
+                                    if !subtitle_text_for_cell.is_empty() {
+                                        ui.label(
+                                            egui::RichText::new(&subtitle_text_for_cell)
+                                                .small()
+                                                .color(egui::Color32::GRAY),
+                                        );
+                                    }
+                                });
+                            });
+
+                            // Badges (mobile only)
+                            if !is_desktop {
+                                ui.horizontal(|ui| {
+                                    ui.add_space(4.0);
                                     egui::ScrollArea::horizontal()
-                                        .id_salt(format!("debloat_title_scroll_{}", idx))
+                                        .id_salt(format!("debloat_badge_scroll_{}", idx))
                                         .auto_shrink([false, true])
                                         .show(ui, |ui| {
-                                            ui.add(
-                                                egui::Label::new(
-                                                    egui::RichText::new(&title_text_for_cell).strong(),
-                                                )
-                                                .wrap_mode(egui::TextWrapMode::Extend),
-                                            );
+                                            ui.horizontal(|ui| {
+                                                render_badges(
+                                                    ui,
+                                                    &runtime_perms_clone,
+                                                    &debloat_category_clone2,
+                                                    is_stalkerware_clone,
+                                                    &enabled_text_clone2,
+                                                    &install_reason_clone,
+                                                );
+                                            });
                                         });
-                                } else {
-                                    ui.label(egui::RichText::new(&title_text_for_cell).strong());
-                                }
-
-                                // Subtitle (package ID or developer)
-                                if !subtitle_text_for_cell.is_empty() {
-                                    ui.label(
-                                        egui::RichText::new(&subtitle_text_for_cell)
-                                            .small()
-                                            .color(egui::Color32::GRAY),
-                                    );
-                                }
-                            });
+                                });
+                            }
                         });
-
-                        // Badges (mobile only)
-                        if !is_desktop {
-                            ui.horizontal(|ui| {
-                                ui.add_space(4.0);
-                                egui::ScrollArea::horizontal()
-                                    .id_salt(format!("debloat_badge_scroll_{}", idx))
-                                    .auto_shrink([false, true])
-                                    .show(ui, |ui| {
-                                        ui.horizontal(|ui| {
-                                            render_badges(
-                                                ui,
-                                                &runtime_perms_clone,
-                                                &debloat_category_clone2,
-                                                is_stalkerware_clone,
-                                                &enabled_text_clone2,
-                                                &install_reason_clone,
-                                            );
-                                        });
-                                    });
-                            });
-                        }
-                    });
-                }));
+                    }));
 
                 // Desktop-only columns
                 if is_desktop {
                     // Debloat category column
-                    row_builder = row_builder.custom_cell(DataTableCell::widget(move |ui: &mut egui::Ui| {
-                        let bg_color = match debloat_category_clone.as_str() {
-                            "Recommended" => egui::Color32::from_rgb(56, 142, 60),
-                            "Advanced" => egui::Color32::from_rgb(33, 150, 243),
-                            "Expert" => egui::Color32::from_rgb(255, 152, 0),
-                            "Unsafe" => egui::Color32::from_rgb(255, 235, 59),
-                            "Unknown" => egui::Color32::from_rgb(255, 255, 255),
-                            _ => egui::Color32::from_rgb(158, 158, 158),
-                        };
-                        let text_color = match debloat_category_clone.as_str() {
-                            "Unknown" | "Unsafe" => egui::Color32::from_rgb(0, 0, 0),
-                            _ => egui::Color32::WHITE,
-                        };
-                        let label_text = match debloat_category_clone.as_str() {
-                            "Recommended" => tr!("label-recommended"),
-                            "Advanced" => tr!("label-advanced"),
-                            "Expert" => tr!("label-expert"),
-                            "Unsafe" => tr!("label-unsafe"),
-                            "Unknown" => tr!("label-unknown"),
-                            _ => debloat_category_clone.clone(),
-                        };
-                        ui.horizontal(|ui| {
-                            egui::Frame::new()
-                                .fill(bg_color)
-                                .corner_radius(8.0)
-                                .inner_margin(egui::Margin::symmetric(12, 6))
-                                .show(ui, |ui| {
-                                    ui.label(
-                                        egui::RichText::new(&label_text)
-                                            .color(text_color)
-                                            .size(12.0),
-                                    );
-                                });
-                        });
-                    }));
+                    row_builder =
+                        row_builder.custom_cell(DataTableCell::widget(move |ui: &mut egui::Ui| {
+                            let bg_color = match debloat_category_clone.as_str() {
+                                "Recommended" => egui::Color32::from_rgb(56, 142, 60),
+                                "Advanced" => egui::Color32::from_rgb(33, 150, 243),
+                                "Expert" => egui::Color32::from_rgb(255, 152, 0),
+                                "Unsafe" => egui::Color32::from_rgb(255, 235, 59),
+                                "Unknown" => egui::Color32::from_rgb(255, 255, 255),
+                                _ => egui::Color32::from_rgb(158, 158, 158),
+                            };
+                            let text_color = match debloat_category_clone.as_str() {
+                                "Unknown" | "Unsafe" => egui::Color32::from_rgb(0, 0, 0),
+                                _ => egui::Color32::WHITE,
+                            };
+                            let label_text = match debloat_category_clone.as_str() {
+                                "Recommended" => tr!("label-recommended"),
+                                "Advanced" => tr!("label-advanced"),
+                                "Expert" => tr!("label-expert"),
+                                "Unsafe" => tr!("label-unsafe"),
+                                "Unknown" => tr!("label-unknown"),
+                                _ => debloat_category_clone.clone(),
+                            };
+                            ui.horizontal(|ui| {
+                                egui::Frame::new()
+                                    .fill(bg_color)
+                                    .corner_radius(8.0)
+                                    .inner_margin(egui::Margin::symmetric(12, 6))
+                                    .show(ui, |ui| {
+                                        ui.label(
+                                            egui::RichText::new(&label_text)
+                                                .color(text_color)
+                                                .size(12.0),
+                                        );
+                                    });
+                            });
+                        }));
 
                     // Runtime permissions column
                     row_builder = row_builder.cell(&runtime_perms);
 
                     // Stalkerware column
-                    row_builder = row_builder.custom_cell(DataTableCell::widget(move |ui: &mut egui::Ui| {
-                        ui.horizontal(|ui| {
-                            let (bg_color, text) = if is_stalkerware {
-                                (egui::Color32::from_rgb(211, 47, 47), tr!("stalkerware"))
-                            // Red warning
-                            } else {
-                                (egui::Color32::from_rgb(76, 175, 80), tr!("not-listed"))
-                                // Green safe
-                            };
-                            egui::Frame::new()
-                                .fill(bg_color)
-                                .corner_radius(8.0)
-                                .inner_margin(egui::Margin::symmetric(12, 6))
-                                .show(ui, |ui| {
-                                    ui.label(
-                                        egui::RichText::new(text)
-                                            .color(egui::Color32::WHITE)
-                                            .size(12.0),
-                                    );
-                                });
-                        });
-                    }));
+                    row_builder =
+                        row_builder.custom_cell(DataTableCell::widget(move |ui: &mut egui::Ui| {
+                            ui.horizontal(|ui| {
+                                let (bg_color, text) = if is_stalkerware {
+                                    (egui::Color32::from_rgb(211, 47, 47), tr!("stalkerware"))
+                                // Red warning
+                                } else {
+                                    (egui::Color32::from_rgb(76, 175, 80), tr!("not-listed"))
+                                    // Green safe
+                                };
+                                egui::Frame::new()
+                                    .fill(bg_color)
+                                    .corner_radius(8.0)
+                                    .inner_margin(egui::Margin::symmetric(12, 6))
+                                    .show(ui, |ui| {
+                                        ui.label(
+                                            egui::RichText::new(text)
+                                                .color(egui::Color32::WHITE)
+                                                .size(12.0),
+                                        );
+                                    });
+                            });
+                        }));
 
                     // Install reason column
                     let install_reason_clone2 = install_reason.clone();
-                    row_builder = row_builder.custom_cell(DataTableCell::widget(move |ui: &mut egui::Ui| {
-                        ui.horizontal(|ui| {
-                            egui::Frame::new()
-                                .stroke(egui::Stroke::new(
-                                    1.0,
-                                    egui::Color32::from_rgb(158, 158, 158),
-                                ))
-                                .corner_radius(8.0)
-                                .inner_margin(egui::Margin::symmetric(12, 6))
-                                .show(ui, |ui| {
-                                    ui.label(
-                                        egui::RichText::new(&install_reason_clone2).size(12.0),
-                                    );
-                                });
-                        });
-                    }));
+                    row_builder =
+                        row_builder.custom_cell(DataTableCell::widget(move |ui: &mut egui::Ui| {
+                            ui.horizontal(|ui| {
+                                egui::Frame::new()
+                                    .stroke(egui::Stroke::new(
+                                        1.0,
+                                        egui::Color32::from_rgb(158, 158, 158),
+                                    ))
+                                    .corner_radius(8.0)
+                                    .inner_margin(egui::Margin::symmetric(12, 6))
+                                    .show(ui, |ui| {
+                                        ui.label(
+                                            egui::RichText::new(&install_reason_clone2).size(12.0),
+                                        );
+                                    });
+                            });
+                        }));
                 }
 
                 // Tasks column
@@ -2258,77 +2313,80 @@ impl TabDebloatControl {
                 let is_unsafe_blocked = debloat_category == "Unsafe" && !self.unsafe_app_remove;
                 let is_expert_blocked = debloat_category == "Expert" && !self.expert_app_remove;
                 let is_blocked = is_unsafe_blocked || is_expert_blocked;
-                row_builder = row_builder.custom_cell(DataTableCell::widget(move |ui: &mut egui::Ui| {
-                    egui::ScrollArea::horizontal()
-                        .id_salt(format!("debloat_task_scroll_{}", idx))
-                        .auto_shrink([false, true])
-                        .show(ui, |ui| {
-                            ui.horizontal(|ui| {
-                                ui.spacing_mut().item_spacing.x = 0.0;
+                row_builder =
+                    row_builder.custom_cell(DataTableCell::widget(move |ui: &mut egui::Ui| {
+                        egui::ScrollArea::horizontal()
+                            .id_salt(format!("debloat_task_scroll_{}", idx))
+                            .auto_shrink([false, true])
+                            .show(ui, |ui| {
+                                ui.horizontal(|ui| {
+                                    ui.spacing_mut().item_spacing.x = 0.0;
 
-                                if ui
-                                    .add(icon_button_standard(ICON_INFO.to_string()))
-                                    .on_hover_text(tr!("package-info"))
-                                    .clicked()
-                                {
-                                    if let Ok(mut clicked) = clicked_idx_clone.lock() {
-                                        *clicked = Some(idx);
+                                    if ui
+                                        .add(icon_button_standard(ICON_INFO.to_string()))
+                                        .on_hover_text(tr!("package-info"))
+                                        .clicked()
+                                    {
+                                        if let Ok(mut clicked) = clicked_idx_clone.lock() {
+                                            *clicked = Some(idx);
+                                        }
                                     }
-                                }
 
-                                // Enable/disable toggle
-                                let pkg_enabled = enabled_str.contains("DEFAULT")
-                                    || enabled_str.contains("ENABLED");
-                                let can_show_toggle = !is_blocked || !pkg_enabled;
+                                    // Enable/disable toggle
+                                    let pkg_enabled = enabled_str.contains("DEFAULT")
+                                        || enabled_str.contains("ENABLED");
+                                    let can_show_toggle = !is_blocked || !pkg_enabled;
 
-                                if can_show_toggle {
-                                    let mut enabled = pkg_enabled;
-                                    if toggle_ui(ui, &mut enabled).clicked() {
-                                        if enabled {
+                                    if can_show_toggle {
+                                        let mut enabled = pkg_enabled;
+                                        if toggle_ui(ui, &mut enabled).clicked() {
+                                            if enabled {
+                                                ui.data_mut(|data| {
+                                                    data.insert_temp(
+                                                        egui::Id::new("enable_clicked_package"),
+                                                        pkg_id_for_buttons.clone(),
+                                                    );
+                                                });
+                                            } else {
+                                                ui.data_mut(|data| {
+                                                    data.insert_temp(
+                                                        egui::Id::new("disable_clicked_package"),
+                                                        pkg_id_for_buttons.clone(),
+                                                    );
+                                                });
+                                            }
+                                        }
+                                    }
+
+                                    if (enabled_str.contains("DEFAULT")
+                                        || enabled_str.contains("ENABLED"))
+                                        && !is_blocked
+                                    {
+                                        if ui
+                                            .add(
+                                                icon_button_standard(ICON_DELETE.to_string())
+                                                    .icon_color(egui::Color32::from_rgb(
+                                                        211, 47, 47,
+                                                    )),
+                                            )
+                                            .on_hover_text(tr!("uninstall"))
+                                            .clicked()
+                                        {
                                             ui.data_mut(|data| {
                                                 data.insert_temp(
-                                                    egui::Id::new("enable_clicked_package"),
+                                                    egui::Id::new("uninstall_clicked_package"),
                                                     pkg_id_for_buttons.clone(),
                                                 );
-                                            });
-                                        } else {
-                                            ui.data_mut(|data| {
                                                 data.insert_temp(
-                                                    egui::Id::new("disable_clicked_package"),
-                                                    pkg_id_for_buttons.clone(),
+                                                    egui::Id::new("uninstall_clicked_is_system"),
+                                                    is_system,
                                                 );
                                             });
                                         }
                                     }
-                                }
-
-                                if (enabled_str.contains("DEFAULT")
-                                    || enabled_str.contains("ENABLED"))
-                                    && !is_blocked
-                                {
-                                    if ui
-                                        .add(
-                                            icon_button_standard(ICON_DELETE.to_string())
-                                                .icon_color(egui::Color32::from_rgb(211, 47, 47)),
-                                        )
-                                        .on_hover_text(tr!("uninstall"))
-                                        .clicked()
-                                    {
-                                        ui.data_mut(|data| {
-                                            data.insert_temp(
-                                                egui::Id::new("uninstall_clicked_package"),
-                                                pkg_id_for_buttons.clone(),
-                                            );
-                                            data.insert_temp(
-                                                egui::Id::new("uninstall_clicked_is_system"),
-                                                is_system,
-                                            );
-                                        });
-                                    }
-                                }
+                                });
                             });
-                        });
-                }));
+                    }));
 
                 // Add drawer for UAD description (from prepared data)
                 if let Some(description) = uad_description {
@@ -2535,7 +2593,12 @@ impl TabDebloatControl {
                 let packages_to_disable: Vec<String> =
                     self.selected_packages.iter().cloned().collect();
                 // Start background batch disable
-                self.start_batch_disable(viewmodel.as_deref_mut(), packages_to_disable, device.clone(), uad_ng_lists_ref);
+                self.start_batch_disable(
+                    viewmodel.as_deref_mut(),
+                    packages_to_disable,
+                    device.clone(),
+                    uad_ng_lists_ref,
+                );
             } else {
                 log::error!("No device selected for batch disable");
                 result = Some(AdbResult::Failure);
@@ -2548,7 +2611,11 @@ impl TabDebloatControl {
                 let packages_to_enable: Vec<String> =
                     self.selected_packages.iter().cloned().collect();
                 // Start background batch enable
-                self.start_batch_enable(viewmodel.as_deref_mut(), packages_to_enable, device.clone());
+                self.start_batch_enable(
+                    viewmodel.as_deref_mut(),
+                    packages_to_enable,
+                    device.clone(),
+                );
             } else {
                 log::error!("No device selected for batch enable");
                 result = Some(AdbResult::Failure);
@@ -2563,7 +2630,13 @@ impl TabDebloatControl {
 
             if let Some(ref device) = self.selected_device {
                 // Start background batch uninstall
-                self.start_batch_uninstall(viewmodel.as_deref_mut(), pkgs, sys_flags, device.clone(), uad_ng_lists_ref);
+                self.start_batch_uninstall(
+                    viewmodel.as_deref_mut(),
+                    pkgs,
+                    sys_flags,
+                    device.clone(),
+                    uad_ng_lists_ref,
+                );
             } else {
                 log::error!("No device selected for uninstall");
                 result = Some(AdbResult::Failure);
