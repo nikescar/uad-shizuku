@@ -204,7 +204,7 @@ fn prepare_app_display_data(
     apkmirror_enabled: bool,
     android_package_enabled: bool,
 ) -> AppDisplayData {
-    log::info!("[DESKTOP] prepare_app_display_data: GP={}, FD={}, APK={}, AP={}, packages={}",
+    log::trace!("[DESKTOP] prepare_app_display_data: GP={}, FD={}, APK={}, AP={}, packages={}",
         google_play_enabled, fdroid_enabled, apkmirror_enabled, android_package_enabled, packages.len());
 
     let mut app_data = HashMap::new();
@@ -311,7 +311,7 @@ fn prepare_app_display_data(
         }
     }
 
-    log::info!("[DESKTOP] prepare_app_display_data completed: {} packages with metadata", app_data.len());
+    log::trace!("[DESKTOP] prepare_app_display_data completed: {} packages with metadata", app_data.len());
     app_data
 }
 
@@ -512,7 +512,10 @@ fn render_main_content(
 fn render_search_bar(ui: &mut egui::Ui, local_state: &mut TabDebloatState) {
     ui.horizontal(|ui| {
         ui.label("Search:");
-        let response = ui.text_edit_singleline(&mut local_state.pending_filter_text);
+        let response = ui.add_sized(
+            [200.0, ui.spacing().interact_size.y],
+            egui::TextEdit::singleline(&mut local_state.pending_filter_text)
+        );
         if response.changed() {
             // User typed something - start/reset debounce timer
             local_state.last_filter_input = Some(std::time::Instant::now());

@@ -184,7 +184,7 @@ impl ApkMirrorQueue {
                         match get_apkmirror_app(&mut conn, &pkg_id_clone) {
                             Ok(Some(cached_app)) if !is_cache_stale(&cached_app) => {
                                 if cached_app.raw_response == "404" {
-                                    log::info!("Using cached APKMirror 404 for: {}", pkg_id_clone);
+                                    log::debug!("Using cached APKMirror 404 for: {}", pkg_id_clone);
                                     let mut results = results_clone.lock().unwrap();
                                     results.insert(
                                         pkg_id_clone,
@@ -196,7 +196,7 @@ impl ApkMirrorQueue {
                                     // No need to rate limit when using cache
                                     return Duration::from_millis(50);
                                 }
-                                log::info!("Using cached APKMirror data for: {}", pkg_id_clone);
+                                log::debug!("Using cached APKMirror data for: {}", pkg_id_clone);
                                 let mut results = results_clone.lock().unwrap();
                                 results.insert(
                                     pkg_id_clone,

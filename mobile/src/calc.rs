@@ -721,6 +721,9 @@ pub fn handle_package_loading_result(app: &mut UadShizukuApp) {
                     app.tab_debloat_control
                         .set_selected_device(app.selected_device.clone());
 
+                    // Update new MVVM-based TabDebloat with device selection
+                    app.tab_debloat.state.selected_device = app.selected_device.clone();
+
                     // Update TabScanControl with API key, device serial, and settings
                     app.tab_scan_control.vt_api_key = Some(app.settings.virustotal_apikey.clone());
                     app.tab_scan_control.ha_api_key =

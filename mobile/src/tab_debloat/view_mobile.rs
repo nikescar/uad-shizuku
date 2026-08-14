@@ -64,7 +64,10 @@ pub fn render(
 fn render_search_bar(ui: &mut egui::Ui, local_state: &mut TabDebloatState) {
     ui.horizontal(|ui| {
         ui.label("Search:");
-        let response = ui.text_edit_singleline(&mut local_state.pending_filter_text);
+        let response = ui.add_sized(
+            [200.0, ui.spacing().interact_size.y],
+            egui::TextEdit::singleline(&mut local_state.pending_filter_text)
+        );
         if response.changed() {
             // User typed something - start/reset debounce timer
             local_state.last_filter_input = Some(std::time::Instant::now());

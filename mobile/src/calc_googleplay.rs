@@ -118,7 +118,7 @@ impl GooglePlayQueue {
                     match get_google_play_app(&mut conn, &pkg_id) {
                         Ok(Some(cached_app)) if !is_cache_stale(&cached_app) => {
                             if cached_app.raw_response == "404" {
-                                log::info!("Using cached Google Play 404 for: {}", pkg_id);
+                                log::debug!("Using cached Google Play 404 for: {}", pkg_id);
                                 let mut results = results.lock().unwrap();
                                 results.insert(
                                     pkg_id,
@@ -126,7 +126,7 @@ impl GooglePlayQueue {
                                 );
                                 continue;
                             }
-                            log::info!("Using cached Google Play data for: {}", pkg_id);
+                            log::debug!("Using cached Google Play data for: {}", pkg_id);
                             let mut results = results.lock().unwrap();
                             results.insert(pkg_id, FetchStatus::Success(cached_app));
                             continue;
