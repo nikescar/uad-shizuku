@@ -776,6 +776,10 @@ pub fn handle_package_loading_result(app: &mut UadShizukuApp) {
                         }
                     }
 
+                    // Auto-start metadata crawlers if renderers are enabled in settings
+                    // Called here after packages are loaded, so crawlers have packages to process
+                    app.auto_start_metadata_crawlers();
+
                     // Close dialog
                     app.package_loading_dialog_open = false;
                 }

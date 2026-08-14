@@ -4206,9 +4206,6 @@ impl eframe::App for UadShizukuApp {
                 log::info!("Autoupdate enabled - checking for updates");
                 self.check_for_update();
             }
-
-            // Auto-start metadata crawlers if renderers are enabled in settings
-            self.auto_start_metadata_crawlers();
         }
 
         #[cfg(not(target_os = "android"))]
@@ -4224,9 +4221,6 @@ impl eframe::App for UadShizukuApp {
                 log::info!("Autoupdate enabled - checking for updates");
                 self.check_for_update();
             }
-
-            // Auto-start metadata crawlers if renderers are enabled in settings
-            self.auto_start_metadata_crawlers();
         }
 
         // Poll Shizuku state: auto-retry when permission granted or service bound

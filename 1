@@ -1,81 +1,502 @@
 warning: /home/wj/work/uad-shizuku/Cargo.toml: unused manifest key: workspace.package.versioncode
 warning: uad-shizuku@0.0.21: UAD lists is up-to-date at "resources/uad_lists.json"
 warning: uad-shizuku@0.0.21: Stalkerware IoC is up-to-date at "resources/stalkerware_ioc.yaml"
-mobile/src/dlg_dashcounter_details.rs:6:18: warning: unused imports: `ICON_DOWNLOAD` and `ICON_INFO`
-mobile/src/dlg_dashcounter_details.rs:14:39: warning: unused imports: `TooltipPosition` and `show_tooltip_on_hover`
-mobile/src/tab_apps_control.rs:11:5: warning: unused imports: `ICON_CANCEL`, `ICON_CHECK_BOX`, `ICON_TOGGLE_OFF`, and `ICON_TOGGLE_ON`
-mobile/src/tab_apps_control.rs:1126:21: warning: unnecessary parentheses around method argument
-mobile/src/tab_apps_control.rs:1121:21: warning: unnecessary parentheses around method argument
-mobile/src/tab_debloat_control.rs:13:60: warning: unused imports: `ICON_TOGGLE_OFF` and `ICON_TOGGLE_ON`
-mobile/src/tab_debloat_control.rs:1894:21: warning: unnecessary parentheses around block return value
-mobile/src/tab_debloat_control.rs:1912:21: warning: unnecessary parentheses around block return value
-mobile/src/tab_scan_control.rs:18:5: warning: unused import: `std::thread`
-mobile/src/tab_scan_control.rs:22:43: warning: unused imports: `ICON_TOGGLE_OFF` and `ICON_TOGGLE_ON`
-mobile/src/tab_scan_control.rs:1828:21: warning: unnecessary parentheses around block return value
-mobile/src/tab_scan_control.rs:1844:21: warning: unnecessary parentheses around block return value
-mobile/src/calc.rs:1:49: warning: unused import: `UserInfo`
-mobile/src/uad_shizuku_app.rs:4:5: warning: unused import: `std::collections::HashMap`
-mobile/src/uad_shizuku_app.rs:21:5: warning: unused import: `crate::db_package_cache::get_cached_packages_with_apk`
-mobile/src/uad_shizuku_app.rs:23:5: warning: unused import: `crate::models::PackageInfoCache`
-mobile/src/uad_shizuku_app.rs:26:5: warning: unused import: `crate::adb::get_devices`
-mobile/src/uad_shizuku_app.rs:27:18: warning: unused import: `get_users`
-mobile/src/uad_shizuku_app.rs:39:31: warning: unused import: `BASE_TABLE_WIDTH`
-mobile/src/dlg_dashcounter_details.rs:1593:32: warning: use of deprecated method `egui::Context::screen_rect`: screen_rect has been split into viewport_rect() and content_rect(). You likely should use content_rect()
-mobile/src/tab_debloat/components/package_cards.rs:89:18: warning: use of deprecated associated function `egui::Frame::none`: Use `Frame::NONE` or `Frame::new()` instead.
-mobile/src/tab_debloat/components/package_cards.rs:92:10: warning: use of deprecated method `egui::Frame::rounding`: Renamed to `corner_radius`
-mobile/src/tab_debloat_control.rs:2061:25: warning: falling back to `f32` as the trait bound `f32: From<f64>` is not satisfied: help: explicitly specify the type as `f32`: `1.0_f32`
-mobile/src/tab_debloat_control.rs:2136:25: warning: falling back to `f32` as the trait bound `f32: From<f64>` is not satisfied: help: explicitly specify the type as `f32`: `1.0_f32`
-mobile/src/tab_debloat_control.rs:2301:41: warning: falling back to `f32` as the trait bound `f32: From<f64>` is not satisfied: help: explicitly specify the type as `f32`: `1.0_f32`
-mobile/src/tab_scan_control.rs:1993:75: warning: falling back to `f32` as the trait bound `f32: From<f64>` is not satisfied: help: explicitly specify the type as `f32`: `1.0_f32`
-mobile/src/dlg_dashcounter_details.rs:678:13: warning: unused variable: `ctx_clone`: help: if this is intentional, prefix it with an underscore: `_ctx_clone`
-mobile/src/dlg_dashcounter_details.rs:772:9: warning: unused variable: `debloat_category`: help: if this is intentional, prefix it with an underscore: `_debloat_category`
-mobile/src/dlg_dashcounter_details.rs:2255:9: warning: unused variable: `ctx`: help: if this is intentional, prefix it with an underscore: `_ctx`
-mobile/src/dlg_dashcounter_details.rs:2262:13: warning: unused variable: `category_name`: help: if this is intentional, prefix it with an underscore: `_category_name`
-mobile/src/tab_apps_control.rs:1576:17: warning: unused variable: `app_names`: help: if this is intentional, prefix it with an underscore: `_app_names`
-mobile/src/tab_debloat_control.rs:1238:21: warning: unused variable: `store`: help: if this is intentional, prefix it with an underscore: `_store`
-mobile/src/tab_debloat_control.rs:2056:34: warning: unused variable: `enabled_text`: help: if this is intentional, prefix it with an underscore: `_enabled_text`
-mobile/src/tab_debloat_control.rs:2047:17: warning: unused variable: `package_name_clone`: help: if this is intentional, prefix it with an underscore: `_package_name_clone`
-mobile/src/tab_scan_control.rs:390:13: warning: unused variable: `texture_load_start`: help: if this is intentional, prefix it with an underscore: `_texture_load_start`
-mobile/src/tab_scan_control.rs:2846:21: warning: unused variable: `hashes`: help: if this is intentional, prefix it with an underscore: `_hashes`
-mobile/src/app_metadata_renderer.rs:112:9: warning: unused variable: `texture_load_start`: help: if this is intentional, prefix it with an underscore: `_texture_load_start`
-mobile/src/calc_virustotal.rs:375:21: warning: unused variable: `available_after`: help: if this is intentional, prefix it with an underscore: `_available_after`
-mobile/src/calc_virustotal.rs:507:21: warning: unused variable: `local_path`: help: if this is intentional, prefix it with an underscore: `_local_path`
-mobile/src/calc_virustotal.rs:561:37: warning: unused variable: `available_after`: help: if this is intentional, prefix it with an underscore: `_available_after`
-mobile/src/calc_virustotal.rs:624:41: warning: unused variable: `available_after`: help: if this is intentional, prefix it with an underscore: `_available_after`
-mobile/src/material_symbol_icons.rs:3066:9: warning: unreachable pattern: no value can reach this
-mobile/src/uad_shizuku_app.rs:1940:21: warning: unused variable: `hashes`: help: if this is intentional, prefix it with an underscore: `_hashes`
-mobile/src/viewmodel/scan.rs:207:25: warning: unused variable: `progress_clone`: help: if this is intentional, prefix it with an underscore: `_progress_clone`
-mobile/src/viewmodel/scan.rs:129:25: warning: unused variable: `progress_clone`: help: if this is intentional, prefix it with an underscore: `_progress_clone`
-mobile/src/install.rs:495:9: warning: unused variable: `current_exe`: help: if this is intentional, prefix it with an underscore: `_current_exe`
-mobile/src/install.rs:958:9: warning: unused variable: `paths`: help: if this is intentional, prefix it with an underscore: `_paths`
-mobile/src/adb.rs:1454:8: warning: function `usagestats_history` is never used
-mobile/src/android_activity.rs:292:8: warning: function `open_build_number_settings` is never used
-mobile/src/android_activity.rs:297:8: warning: function `open_wireless_debugging_settings` is never used
-mobile/src/android_activity.rs:302:8: warning: function `open_android_vending` is never used
-mobile/src/android_activity.rs:310:8: warning: function `open_shizuku_app` is never used
-mobile/src/android_clipboard.rs:441:8: warning: function `get_text` is never used
-mobile/src/android_clipboard.rs:446:8: warning: function `has_text` is never used
-mobile/src/android_clipboard.rs:451:8: warning: function `set_text` is never used
-mobile/src/android_contexttheme.rs:11:7: warning: constant `UI_MODE_NIGHT_MASK` is never used
-mobile/src/android_contexttheme.rs:13:7: warning: constant `UI_MODE_NIGHT_NO` is never used
-mobile/src/android_contexttheme.rs:15:7: warning: constant `UI_MODE_NIGHT_YES` is never used
-mobile/src/android_contexttheme.rs:18:10: warning: enum `UiThemeMode` is never used
-mobile/src/android_contexttheme.rs:146:8: warning: function `get_ui_theme_mode` is never used
-mobile/src/android_inputmethod.rs:401:8: warning: function `show_soft_input` is never used
-mobile/src/android_inputmethod.rs:406:8: warning: function `hide_soft_input` is never used
-mobile/src/android_inputmethod.rs:411:8: warning: function `toggle_soft_input` is never used
-mobile/src/tab_scan_control.rs:1216:8: warning: methods `should_show_package_vt`, `should_show_package_ha`, `should_show_package`, and `matches_text_filter` are never used
-mobile/src/uad_shizuku_app.rs:505:8: warning: associated functions `log_level_to_string`, `text_style_to_string`, and `extract_github_embedded_data` are never used
-mobile/src/install.rs:488:4: warning: function `check_windows_registry` is never used
+   Compiling uad-shizuku v0.0.21 (/home/wj/work/uad-shizuku/mobile)
+warning: unused imports: `ICON_DOWNLOAD` and `ICON_INFO`
+ --> mobile/src/dlg_dashcounter_details.rs:6:18
+  |
+6 |     ICON_DELETE, ICON_DOWNLOAD, ICON_INFO, ICON_REFRESH, ICON_SETTINGS,
+  |                  ^^^^^^^^^^^^^  ^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused imports: `TooltipPosition` and `show_tooltip_on_hover`
+  --> mobile/src/dlg_dashcounter_details.rs:14:39
+   |
+14 |     data_table, icon_button_standard, show_tooltip_on_hover, DataTableCell, Materi...
+   |                                       ^^^^^^^^^^^^^^^^^^^^^
+15 |     TooltipPosition,
+   |     ^^^^^^^^^^^^^^^
+
+warning: unused imports: `ICON_CANCEL`, `ICON_CHECK_BOX`, `ICON_TOGGLE_OFF`, and `ICON_TOGGLE_ON`
+  --> mobile/src/tab_apps_control.rs:11:5
+   |
+11 |     ICON_CANCEL, ICON_CHECK_BOX, ICON_CHECK_CIRCLE, ICON_DELETE, ICON_DOWNLOAD, ICON_ERROR,
+   |     ^^^^^^^^^^^  ^^^^^^^^^^^^^^
+12 |     ICON_HOURGLASS_EMPTY, ICON_INFO, ICON_PENDING, ICON_REFRESH, ICON_TOGGLE_OFF, ICON_TOGGLE_ON,
+   |                                                                  ^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^
+
+warning: unnecessary parentheses around method argument
+    --> mobile/src/tab_apps_control.rs:1126:21
+     |
+1126 |                     (available_width * 0.3 + (50.0 / available_width) * 0.3),
+     |                     ^                                                      ^
+     |
+     = note: `#[warn(unused_parens)]` (part of `#[warn(unused)]`) on by default
+help: remove these parentheses
+     |
+1126 -                     (available_width * 0.3 + (50.0 / available_width) * 0.3),
+1126 +                     available_width * 0.3 + (50.0 / available_width) * 0.3 ,
+     |
+
+warning: unnecessary parentheses around method argument
+    --> mobile/src/tab_apps_control.rs:1121:21
+     |
+1121 |                     (available_width * 0.65 + (50.0 / available_width) * 0.65),
+     |                     ^                                                        ^
+     |
+help: remove these parentheses
+     |
+1121 -                     (available_width * 0.65 + (50.0 / available_width) * 0.65),
+1121 +                     available_width * 0.65 + (50.0 / available_width) * 0.65 ,
+     |
+
+warning: unused imports: `ICON_TOGGLE_OFF` and `ICON_TOGGLE_ON`
+  --> mobile/src/tab_debloat_control.rs:13:60
+   |
+13 | ...ICON_DELETE, ICON_INFO, ICON_TOGGLE_OFF, ICON_TOGGLE_ON};
+   |                            ^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^
+
+warning: unnecessary parentheses around block return value
+    --> mobile/src/tab_debloat_control.rs:1894:21
+     |
+1894 |                     (available_width * 0.59 + (50.0 / available_width) * 0.59)
+     |                     ^                                                        ^
+     |
+help: remove these parentheses
+     |
+1894 -                     (available_width * 0.59 + (50.0 / available_width) * 0.59)
+1894 +                     available_width * 0.59 + (50.0 / available_width) * 0.59 
+     |
+
+warning: unnecessary parentheses around block return value
+    --> mobile/src/tab_debloat_control.rs:1912:21
+     |
+1912 |                     (available_width * 0.3 + (50.0 / available_width) * 0.3)
+     |                     ^                                                      ^
+     |
+help: remove these parentheses
+     |
+1912 -                     (available_width * 0.3 + (50.0 / available_width) * 0.3)
+1912 +                     available_width * 0.3 + (50.0 / available_width) * 0.3 
+     |
+
+warning: unused import: `std::thread`
+  --> mobile/src/tab_scan_control.rs:18:5
+   |
+18 | use std::thread;
+   |     ^^^^^^^^^^^
+
+warning: unused imports: `ICON_TOGGLE_OFF` and `ICON_TOGGLE_ON`
+  --> mobile/src/tab_scan_control.rs:22:43
+   |
+22 |     ICON_DELETE, ICON_INFO, ICON_REFRESH, ICON_TOGGLE_OFF, ICON_TOGGLE_ON,
+   |                                           ^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^
+
+warning: unnecessary parentheses around block return value
+    --> mobile/src/tab_scan_control.rs:1828:21
+     |
+1828 |                     (available_width * 0.65 + (50.0 / available_width) * 0.65)
+     |                     ^                                                        ^
+     |
+help: remove these parentheses
+     |
+1828 -                     (available_width * 0.65 + (50.0 / available_width) * 0.65)
+1828 +                     available_width * 0.65 + (50.0 / available_width) * 0.65 
+     |
+
+warning: unnecessary parentheses around block return value
+    --> mobile/src/tab_scan_control.rs:1844:21
+     |
+1844 |                     (available_width * 0.3 + (50.0 / available_width) * 0.3)
+     |                     ^                                                      ^
+     |
+help: remove these parentheses
+     |
+1844 -                     (available_width * 0.3 + (50.0 / available_width) * 0.3)
+1844 +                     available_width * 0.3 + (50.0 / available_width) * 0.3 
+     |
+
+warning: unused import: `UserInfo`
+ --> mobile/src/calc.rs:1:49
+  |
+1 | use crate::adb::{get_users, PackageFingerprint, UserInfo};
+  |                                                 ^^^^^^^^
+
+warning: unused import: `std::collections::HashMap`
+ --> mobile/src/uad_shizuku_app.rs:4:5
+  |
+4 | use std::collections::HashMap;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `crate::db_package_cache::get_cached_packages_with_apk`
+  --> mobile/src/uad_shizuku_app.rs:21:5
+   |
+21 | use crate::db_package_cache::get_cached_packages_with_apk;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `crate::models::PackageInfoCache`
+  --> mobile/src/uad_shizuku_app.rs:23:5
+   |
+23 | use crate::models::PackageInfoCache;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `crate::adb::get_devices`
+  --> mobile/src/uad_shizuku_app.rs:26:5
+   |
+26 | use crate::adb::get_devices;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `get_users`
+  --> mobile/src/uad_shizuku_app.rs:27:18
+   |
+27 | use crate::adb::{get_users, UserInfo};
+   |                  ^^^^^^^^^
+
+warning: unused import: `BASE_TABLE_WIDTH`
+  --> mobile/src/uad_shizuku_app.rs:39:31
+   |
+39 | use crate::{Config, Settings, BASE_TABLE_WIDTH, DESKTOP_MIN_WIDTH};
+   |                               ^^^^^^^^^^^^^^^^
+
+warning: use of deprecated method `egui::Context::screen_rect`: screen_rect has been split into viewport_rect() and content_rect(). You likely should use content_rect()
+    --> mobile/src/dlg_dashcounter_details.rs:1593:32
+     |
+1593 |         let screen_width = ctx.screen_rect().width();
+     |                                ^^^^^^^^^^^
+     |
+     = note: `#[warn(deprecated)]` on by default
+
+warning: use of deprecated associated function `egui::Frame::none`: Use `Frame::NONE` or `Frame::new()` instead.
+  --> mobile/src/tab_debloat/components/package_cards.rs:89:18
+   |
+89 |     egui::Frame::none()
+   |                  ^^^^
+
+warning: use of deprecated method `egui::Frame::rounding`: Renamed to `corner_radius`
+  --> mobile/src/tab_debloat/components/package_cards.rs:92:10
+   |
+92 |         .rounding(4.0)
+   |          ^^^^^^^^
+
+warning: falling back to `f32` as the trait bound `f32: From<f64>` is not satisfied
+    --> mobile/src/tab_debloat_control.rs:2061:25
+     |
+2061 |                         1.0,
+     |                         ^^^ help: explicitly specify the type as `f32`: `1.0_f32`
+     |
+     = warning: this was previously accepted by the compiler but is being phased out; it will become a hard error in a future release!
+     = note: for more information, see issue #154024 <https://github.com/rust-lang/rust/issues/154024>
+     = note: `#[warn(float_literal_f32_fallback)]` (part of `#[warn(future_incompatible)]`) on by default
+
+warning: falling back to `f32` as the trait bound `f32: From<f64>` is not satisfied
+    --> mobile/src/tab_debloat_control.rs:2136:25
+     |
+2136 |                         1.0,
+     |                         ^^^ help: explicitly specify the type as `f32`: `1.0_f32`
+     |
+     = warning: this was previously accepted by the compiler but is being phased out; it will become a hard error in a future release!
+     = note: for more information, see issue #154024 <https://github.com/rust-lang/rust/issues/154024>
+
+warning: falling back to `f32` as the trait bound `f32: From<f64>` is not satisfied
+    --> mobile/src/tab_debloat_control.rs:2301:41
+     |
+2301 | ...                   1.0,
+     |                       ^^^ help: explicitly specify the type as `f32`: `1.0_f32`
+     |
+     = warning: this was previously accepted by the compiler but is being phased out; it will become a hard error in a future release!
+     = note: for more information, see issue #154024 <https://github.com/rust-lang/rust/issues/154024>
+
+warning: falling back to `f32` as the trait bound `f32: From<f64>` is not satisfied
+    --> mobile/src/tab_scan_control.rs:1993:75
+     |
+1993 | ...roke::new(1.0, egui::Color32::from_rgb(158, 158, 158)))
+     |              ^^^ help: explicitly specify the type as `f32`: `1.0_f32`
+     |
+     = warning: this was previously accepted by the compiler but is being phased out; it will become a hard error in a future release!
+     = note: for more information, see issue #154024 <https://github.com/rust-lang/rust/issues/154024>
+
+warning: unused variable: `ctx_clone`
+   --> mobile/src/dlg_dashcounter_details.rs:678:13
+    |
+678 |         let ctx_clone = ctx.clone();
+    |             ^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_ctx_clone`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `debloat_category`
+   --> mobile/src/dlg_dashcounter_details.rs:772:9
+    |
+772 |         debloat_category: Option<&str>,
+    |         ^^^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_debloat_category`
+
+warning: unused variable: `ctx`
+    --> mobile/src/dlg_dashcounter_details.rs:2255:9
+     |
+2255 |         ctx: &egui::Context,
+     |         ^^^ help: if this is intentional, prefix it with an underscore: `_ctx`
+
+warning: unused variable: `category_name`
+    --> mobile/src/dlg_dashcounter_details.rs:2262:13
+     |
+2262 |         let category_name = match category {
+     |             ^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_category_name`
+
+warning: unused variable: `app_names`
+    --> mobile/src/tab_apps_control.rs:1576:17
+     |
+1576 |             let app_names = std::mem::take(&mut self.uninstall_confirm_dialog.ap...
+     |                 ^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_app_names`
+
+warning: unused variable: `store`
+    --> mobile/src/tab_debloat_control.rs:1238:21
+     |
+1238 |                 let store = get_shared_store();
+     |                     ^^^^^ help: if this is intentional, prefix it with an underscore: `_store`
+
+warning: unused variable: `enabled_text`
+    --> mobile/src/tab_debloat_control.rs:2056:34
+     |
+2056 | ...                   enabled_text: &str,
+     |                       ^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_enabled_text`
+
+warning: unused variable: `package_name_clone`
+    --> mobile/src/tab_debloat_control.rs:2047:17
+     |
+2047 |             let package_name_clone = package_name.clone();
+     |                 ^^^^^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_package_name_clone`
+
+warning: unused variable: `texture_load_start`
+   --> mobile/src/tab_scan_control.rs:390:13
+    |
+390 |         let texture_load_start = std::time::Instant::now();
+    |             ^^^^^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_texture_load_start`
+
+warning: unused variable: `hashes`
+    --> mobile/src/tab_scan_control.rs:2846:21
+     |
+2846 |                 let hashes: Vec<(String, String)> = final_paths
+     |                     ^^^^^^ help: if this is intentional, prefix it with an underscore: `_hashes`
+
+warning: unused variable: `texture_load_start`
+   --> mobile/src/app_metadata_renderer.rs:112:9
+    |
+112 |     let texture_load_start = std::time::Instant::now();
+    |         ^^^^^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_texture_load_start`
+
+warning: unused variable: `available_after`
+   --> mobile/src/calc_virustotal.rs:375:21
+    |
+375 |                 let available_after = rate_limiter.lock().unwrap().available_requ...
+    |                     ^^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_available_after`
+
+warning: unused variable: `local_path`
+   --> mobile/src/calc_virustotal.rs:507:21
+    |
+507 |                 let local_path = config.tmp_dir.join(&expected_filename);
+    |                     ^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_local_path`
+
+warning: unused variable: `available_after`
+   --> mobile/src/calc_virustotal.rs:561:37
+    |
+561 | ...                   let available_after =
+    |                           ^^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_available_after`
+
+warning: unused variable: `available_after`
+   --> mobile/src/calc_virustotal.rs:624:41
+    |
+624 | ...                   let available_after =
+    |                           ^^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_available_after`
+
+warning: unreachable pattern
+    --> mobile/src/material_symbol_icons.rs:3066:9
+     |
+3065 |         "flourescent" => ICON_FLOURESCENT,
+     |         ------------- matches all the relevant values
+3066 |         "flourescent" => '\u{f00d}',
+     |         ^^^^^^^^^^^^^ no value can reach this
+     |
+     = note: `#[warn(unreachable_patterns)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `hashes`
+    --> mobile/src/uad_shizuku_app.rs:1940:21
+     |
+1940 |                 let hashes: Vec<(String, String)> = final_paths
+     |                     ^^^^^^ help: if this is intentional, prefix it with an underscore: `_hashes`
+
+warning: unused variable: `progress_clone`
+   --> mobile/src/viewmodel/scan.rs:207:25
+    |
+207 |                     let progress_clone = progress.clone();
+    |                         ^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_progress_clone`
+
+warning: unused variable: `progress_clone`
+   --> mobile/src/viewmodel/scan.rs:129:25
+    |
+129 |                     let progress_clone = progress.clone();
+    |                         ^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_progress_clone`
+
+warning: unused variable: `current_exe`
+   --> mobile/src/install.rs:495:9
+    |
+495 |     let current_exe = match env::current_exe() {
+    |         ^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_current_exe`
+
+warning: unused variable: `paths`
+   --> mobile/src/install.rs:958:9
+    |
+958 |     let paths = get_install_paths();
+    |         ^^^^^ help: if this is intentional, prefix it with an underscore: `_paths`
+
+warning: function `usagestats_history` is never used
+    --> mobile/src/adb.rs:1454:8
+     |
+1454 | pub fn usagestats_history(device: &str) -> std::io::Result<String> {
+     |        ^^^^^^^^^^^^^^^^^^
+     |
+     = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `open_build_number_settings` is never used
+   --> mobile/src/android_activity.rs:292:8
+    |
+292 | pub fn open_build_number_settings() {
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `open_wireless_debugging_settings` is never used
+   --> mobile/src/android_activity.rs:297:8
+    |
+297 | pub fn open_wireless_debugging_settings() {
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `open_android_vending` is never used
+   --> mobile/src/android_activity.rs:302:8
+    |
+302 | pub fn open_android_vending(package_name: &str) {
+    |        ^^^^^^^^^^^^^^^^^^^^
+
+warning: function `open_shizuku_app` is never used
+   --> mobile/src/android_activity.rs:310:8
+    |
+310 | pub fn open_shizuku_app() {
+    |        ^^^^^^^^^^^^^^^^
+
+warning: function `get_text` is never used
+   --> mobile/src/android_clipboard.rs:441:8
+    |
+441 | pub fn get_text() -> std::io::Result<Option<String>> {
+    |        ^^^^^^^^
+
+warning: function `has_text` is never used
+   --> mobile/src/android_clipboard.rs:446:8
+    |
+446 | pub fn has_text() -> std::io::Result<bool> {
+    |        ^^^^^^^^
+
+warning: function `set_text` is never used
+   --> mobile/src/android_clipboard.rs:451:8
+    |
+451 | pub fn set_text(_text: &str) -> std::io::Result<()> {
+    |        ^^^^^^^^
+
+warning: constant `UI_MODE_NIGHT_MASK` is never used
+  --> mobile/src/android_contexttheme.rs:11:7
+   |
+11 | const UI_MODE_NIGHT_MASK: i32 = 0x30;
+   |       ^^^^^^^^^^^^^^^^^^
+
+warning: constant `UI_MODE_NIGHT_NO` is never used
+  --> mobile/src/android_contexttheme.rs:13:7
+   |
+13 | const UI_MODE_NIGHT_NO: i32 = 0x10;
+   |       ^^^^^^^^^^^^^^^^
+
+warning: constant `UI_MODE_NIGHT_YES` is never used
+  --> mobile/src/android_contexttheme.rs:15:7
+   |
+15 | const UI_MODE_NIGHT_YES: i32 = 0x20;
+   |       ^^^^^^^^^^^^^^^^^
+
+warning: enum `UiThemeMode` is never used
+  --> mobile/src/android_contexttheme.rs:18:10
+   |
+18 | pub enum UiThemeMode {
+   |          ^^^^^^^^^^^
+
+warning: function `get_ui_theme_mode` is never used
+   --> mobile/src/android_contexttheme.rs:146:8
+    |
+146 | pub fn get_ui_theme_mode() -> std::io::Result<UiThemeMode> {
+    |        ^^^^^^^^^^^^^^^^^
+
+warning: function `show_soft_input` is never used
+   --> mobile/src/android_inputmethod.rs:401:8
+    |
+401 | pub fn show_soft_input() -> std::io::Result<()> {
+    |        ^^^^^^^^^^^^^^^
+
+warning: function `hide_soft_input` is never used
+   --> mobile/src/android_inputmethod.rs:406:8
+    |
+406 | pub fn hide_soft_input() -> std::io::Result<()> {
+    |        ^^^^^^^^^^^^^^^
+
+warning: function `toggle_soft_input` is never used
+   --> mobile/src/android_inputmethod.rs:411:8
+    |
+411 | pub fn toggle_soft_input() -> std::io::Result<()> {
+    |        ^^^^^^^^^^^^^^^^^
+
+warning: methods `should_show_package_vt`, `should_show_package_ha`, `should_show_package`, and `matches_text_filter` are never used
+    --> mobile/src/tab_scan_control.rs:1216:8
+     |
+  74 | impl TabScanControl {
+     | ------------------- methods in this implementation
+...
+1216 |     fn should_show_package_vt(&self, package: &PackageFingerprint) -> bool {
+     |        ^^^^^^^^^^^^^^^^^^^^^^
+...
+1222 |     fn should_show_package_ha(&self, package: &PackageFingerprint) -> bool {
+     |        ^^^^^^^^^^^^^^^^^^^^^^
+...
+1229 |     fn should_show_package(&self, package: &PackageFingerprint) -> bool {
+     |        ^^^^^^^^^^^^^^^^^^^
+...
+1303 |     fn matches_text_filter(&self, package: &PackageFingerprint) -> bool {
+     |        ^^^^^^^^^^^^^^^^^^^
+
+warning: associated functions `log_level_to_string`, `text_style_to_string`, and `extract_github_embedded_data` are never used
+    --> mobile/src/uad_shizuku_app.rs:505:8
+     |
+ 396 | impl UadShizukuApp {
+     | ------------------ associated functions in this implementation
+...
+ 505 |     fn log_level_to_string(level: LogLevel) -> String {
+     |        ^^^^^^^^^^^^^^^^^^^
+...
+ 529 |     fn text_style_to_string(style: &Option<egui::TextStyle>) -> String {
+     |        ^^^^^^^^^^^^^^^^^^^^
+...
+3850 |     fn extract_github_embedded_data(html: &str) -> Option<String> {
+     |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `check_windows_registry` is never used
+   --> mobile/src/install.rs:488:4
+    |
+488 | fn check_windows_registry(_paths: &InstallPaths) -> bool {
+    |    ^^^^^^^^^^^^^^^^^^^^^^
+
 warning: `uad-shizuku` (lib) generated 66 warnings (run `cargo fix --lib -p uad-shizuku` to apply 43 suggestions)
-mobile/src/main.rs:110:4: warning: function `hide_console` is never used
+warning: function `hide_console` is never used
+   --> mobile/src/main.rs:110:4
+    |
+110 | fn hide_console() {
+    |    ^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
 warning: `uad-shizuku` (bin "uad-shizuku") generated 1 warning
-    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.86s
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 16.68s
      Running `target/debug/uad-shizuku`
-DEBUG: update_log_level called with: Debug
-DEBUG: Converted to filter: Debug
-DEBUG: Logger found, updating...
-DEBUG: Log level updated to Debug
 DEBUG: update_log_level called with: Debug
 DEBUG: Converted to filter: Debug
 DEBUG: Logger found, updating...
