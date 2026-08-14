@@ -254,6 +254,11 @@ impl DebloatActor {
             }))
             .await?;
 
+        // Reload packages to reflect changes
+        if let Some(device) = &self.state.current_device {
+            self.load_packages(device.clone(), 0).await?;
+        }
+
         Ok(())
     }
 
@@ -298,6 +303,11 @@ impl DebloatActor {
             }))
             .await?;
 
+        // Reload packages to reflect updated enabled state
+        if let Some(device) = &self.state.current_device {
+            self.load_packages(device.clone(), 0).await?;
+        }
+
         Ok(())
     }
 
@@ -339,6 +349,11 @@ impl DebloatActor {
                 failed,
             }))
             .await?;
+
+        // Reload packages to reflect updated enabled state
+        if let Some(device) = &self.state.current_device {
+            self.load_packages(device.clone(), 0).await?;
+        }
 
         Ok(())
     }

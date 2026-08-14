@@ -109,7 +109,7 @@ pub fn render_package_table(
 
                 // Column 2: Name (with icon if available from pre-loaded data)
                 row.col(|ui| {
-                    ui.horizontal(|ui| {
+                    ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
                         // Get pre-loaded app data (texture and title)
                         let (texture_handle, app_title) = app_display_data
                             .get(&package.pkg)
@@ -170,17 +170,12 @@ pub fn render_package_table(
 
                 // Column 5: Tasks (info, refresh, enable/disable toggle, delete)
                 row.col(|ui| {
-                    ui.horizontal(|ui| {
+                    ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
                         ui.spacing_mut().item_spacing.x = 4.0; // Reduce spacing between buttons
 
                         // Info button - Opens package details dialog
                         if ui.add(icon_button_standard(ICON_INFO.to_string())).on_hover_text("Package details").clicked() {
                             on_info_clicked(&package.pkg);
-                        }
-
-                        // Refresh button - Refreshes package data
-                        if ui.button(ICON_REFRESH.to_string()).on_hover_text("Refresh package").clicked() {
-                            on_refresh_clicked(&package.pkg);
                         }
 
                         // Enable/Disable toggle button (using correct enabled logic)
@@ -201,12 +196,12 @@ pub fn render_package_table(
 
                         let toggle_icon = if is_enabled { ICON_TOGGLE_ON } else { ICON_TOGGLE_OFF };
                         let toggle_text = if is_enabled { "Disable" } else { "Enable" };
-                        if ui.button(toggle_icon.to_string()).on_hover_text(toggle_text).clicked() {
+                        if ui.add(icon_button_standard(toggle_icon.to_string())).on_hover_text(toggle_text).clicked() {
                             on_toggle_clicked(&package.pkg, is_enabled);
                         }
 
                         // Delete/Uninstall button - Opens uninstall confirmation dialog
-                        if ui.button(ICON_DELETE.to_string()).on_hover_text("Uninstall package").clicked() {
+                        if ui.add(icon_button_standard(ICON_DELETE.to_string())).on_hover_text("Uninstall package").clicked() {
                             on_delete_clicked(&package.pkg);
                         }
                     });
