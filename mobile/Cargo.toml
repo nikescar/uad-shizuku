@@ -5,6 +5,7 @@ version.workspace = true
 license.workspace = true
 edition.workspace = true
 rust-version.workspace = true
+default-run = "uad-shizuku"
 
 [features]
 default = ["serde"]
