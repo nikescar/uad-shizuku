@@ -278,6 +278,16 @@ impl ViewModel {
             .map_err(|e| anyhow::anyhow!("Failed to send command: {}", e))
     }
 
+    /// Test-only: Load packages from memory instead of ADB
+    pub fn load_packages_from_memory(
+        &self,
+        packages: Vec<crate::adb::PackageFingerprint>,
+    ) -> anyhow::Result<()> {
+        self.debloat_tx
+            .send_blocking(DebloatCommand::LoadPackagesFromMemory { packages })
+            .map_err(|e| anyhow::anyhow!("Failed to send command: {}", e))
+    }
+
     pub fn batch_uninstall(&self, packages: Vec<String>, device: String) -> anyhow::Result<()> {
         self.debloat_tx
             .send_blocking(DebloatCommand::BatchUninstall { packages, device })

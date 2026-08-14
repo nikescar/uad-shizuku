@@ -37,6 +37,10 @@ pub enum DebloatCommand {
         device: String,
         user: u32,
     },
+    /// Test-only: Load packages from memory instead of ADB
+    LoadPackagesFromMemory {
+        packages: Vec<PackageFingerprint>,
+    },
     BatchUninstall {
         packages: Vec<String>,
         device: String,
@@ -144,6 +148,9 @@ impl DebloatActor {
             DebloatCommand::LoadPackages { device, user } => {
                 self.load_packages(device, user).await?;
             }
+            DebloatCommand::LoadPackagesFromMemory { packages } => {
+                self.load_packages_from_memory(packages).await?;
+            }
             DebloatCommand::BatchUninstall { packages, device } => {
                 self.batch_uninstall(packages, device).await?;
             }
@@ -180,6 +187,19 @@ impl DebloatActor {
             smol::unblock(move || crate::adb::get_all_packages_fingerprints(&device_clone)).await?;
 
         self.state.current_device = Some(device);
+        self.state.packages = packages.clone();
+
+        // Send event back to ViewModel
+        self.event_tx
+            .send(ViewModelEvent::Debloat(DebloatEvent::PackagesLoaded(
+                packages,
+            )))
+            .await?;
+
+        Ok(())
+    }
+
+    async fn load_packages_from_memory(&mut self, packages: Vec<PackageFingerprint>) -> Result<()> {
         self.state.packages = packages.clone();
 
         // Send event back to ViewModel
