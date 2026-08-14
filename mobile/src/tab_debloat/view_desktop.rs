@@ -99,15 +99,15 @@ fn render_sidebar(ui: &mut egui::Ui, vm_state: &ViewModelState, local_state: &mu
         ui.horizontal(|ui| {
             if ui
                 .selectable_label(
-                    local_state.active_filter.category_filter.as_deref() == Some("unsafe"),
-                    "Unsafe",
+                    local_state.active_filter.category_filter.as_deref() == Some("advanced"),
+                    "Advanced",
                 )
                 .clicked()
             {
-                local_state.active_filter.category_filter = Some("unsafe".to_string());
+                local_state.active_filter.category_filter = Some("advanced".to_string());
                 local_state.table_version += 1;
             }
-            ui.label(format!("({}/{})", local_state.cached_counts.unsafe_apps_enabled, local_state.cached_counts.unsafe_apps));
+            ui.label(format!("({}/{})", local_state.cached_counts.advanced_enabled, local_state.cached_counts.advanced));
         });
 
         ui.horizontal(|ui| {
@@ -127,15 +127,15 @@ fn render_sidebar(ui: &mut egui::Ui, vm_state: &ViewModelState, local_state: &mu
         ui.horizontal(|ui| {
             if ui
                 .selectable_label(
-                    local_state.active_filter.category_filter.as_deref() == Some("advanced"),
-                    "Advanced",
+                    local_state.active_filter.category_filter.as_deref() == Some("unsafe"),
+                    "Unsafe",
                 )
                 .clicked()
             {
-                local_state.active_filter.category_filter = Some("advanced".to_string());
+                local_state.active_filter.category_filter = Some("unsafe".to_string());
                 local_state.table_version += 1;
             }
-            ui.label(format!("({}/{})", local_state.cached_counts.advanced_enabled, local_state.cached_counts.advanced));
+            ui.label(format!("({}/{})", local_state.cached_counts.unsafe_apps_enabled, local_state.cached_counts.unsafe_apps));
         });
 
         ui.add_space(16.0);
