@@ -1908,21 +1908,36 @@ impl TabDebloatControl {
         let shared_store = crate::shared_store_stt::get_shared_store();
         let stalkerware_indicators = shared_store.get_stalkerware_indicators();
 
-        // Create cache key that includes all filter state
+        // Create cache key that includes all filter state and renderer settings
         let cache_key = format!(
-            "debloat_prepared_rows_v{}_f{:?}_t{}_h{}_s{}",
+            "debloat_prepared_rows_v{}_f{:?}_t{}_h{}_s{}_gp{}_fd{}_am{}_ap{}",
             self.table_version,
             self.active_filter,
             self.text_filter,
             self.hide_system_app,
-            self.show_only_enabled
+            self.show_only_enabled,
+            google_play_enabled,
+            fdroid_enabled,
+            apkmirror_enabled,
+            android_package_enabled
         );
 
-        // Get or prepare row data (cached to avoid recomputing every frame)
-        let prepared_rows: Vec<PreparedRowData> = ui.data_mut(|data| {
-            data.get_temp_mut_or_insert_with(egui::Id::new(&cache_key), || {
+        // Get or prepare row data (cached to avoid recomputing every frame).
+        //
+        // IMPORTANT: `prepare_all_rows` calls `ctx.load_texture(...)`, which internally
+        // takes a lock on egui::Context's own internal RwLock (via `ctx.input(...)`).
+        // `ui.data_mut(...)` takes that same RwLock (in write mode) for the duration of
+        // its closure. Computing the cache-miss value *inside* `ui.data_mut` would
+        // therefore reentrantly lock the same non-reentrant RwLock on this thread and
+        // deadlock (parking_lot write locks are not reentrant), so the cache-miss
+        // recomputation must happen outside of any `data_mut`/`memory_mut` closure.
+        let cache_id = egui::Id::new(&cache_key);
+        let cached_rows = ui.data_mut(|data| data.get_temp::<Vec<PreparedRowData>>(cache_id));
+        let prepared_rows: Vec<PreparedRowData> = match cached_rows {
+            Some(rows) => rows,
+            None => {
                 log::debug!("Preparing row data (cache miss) for {} packages", installed_packages.len());
-                self.prepare_all_rows(
+                let rows = self.prepare_all_rows(
                     ui.ctx(),
                     &installed_packages,
                     uad_ng_lists_ref,
@@ -1935,10 +1950,11 @@ impl TabDebloatControl {
                     fdroid_enabled,
                     apkmirror_enabled,
                     android_package_enabled,
-                )
-            })
-            .clone()
-        });
+                );
+                ui.data_mut(|data| data.insert_temp(cache_id, rows.clone()));
+                rows
+            }
+        };
 
         log::debug!(
             "TabDebloatControl: Displaying {} of {} packages (filter: {:?}, hide_system: {}, show_only_enabled: {})",
@@ -2595,4 +2611,42 @@ fn toggle_ui(ui: &mut egui::Ui, on: &mut bool) -> egui::Response {
     }
 
     response
+}
+
+#[cfg(test)]
+mod repro_tests {
+    // `ctx.load_texture()` internally calls `self.input(...)`, which takes a
+    // *write* lock on egui::Context's own internal `RwLock<ContextImpl>`.
+    // `ui.data_mut(...)` / `ctx.data_mut(...)` take that same write lock for the
+    // duration of their closure. Calling `ctx.load_texture()` from inside a
+    // `data_mut` closure reentrantly locks that non-reentrant RwLock on one
+    // thread and deadlocks (this is what caused the reported
+    // "Failed to acquire RwLock write after 10s. Deadlock?" panic when the
+    // Google Play / F-Droid / APKMirror icon renderers were enabled).
+    //
+    // This test checks the pattern now used in `prepare_all_rows`'s caller:
+    // read the cache via `data_mut`, compute (and call `ctx.load_texture`)
+    // *outside* any `data_mut`/`memory_mut` closure, then store the result via
+    // a separate `data_mut` call. That must not deadlock.
+    #[test]
+    fn data_mut_outside_load_texture_is_safe() {
+        let ctx = egui::Context::default();
+        let id = egui::Id::new("repro_cache_key");
+
+        let cached = ctx.data_mut(|data| data.get_temp::<egui::TextureId>(id));
+        let tex_id = match cached {
+            Some(tex_id) => tex_id,
+            None => {
+                let texture = ctx.load_texture(
+                    "repro",
+                    egui::ColorImage::new([1, 1], vec![egui::Color32::WHITE]),
+                    Default::default(),
+                );
+                let tex_id = texture.id();
+                ctx.data_mut(|data| data.insert_temp(id, tex_id));
+                tex_id
+            }
+        };
+        let _ = tex_id;
+    }
 }

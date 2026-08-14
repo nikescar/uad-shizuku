@@ -76,6 +76,10 @@ impl TabDebloat {
         vm_state: &crate::viewmodel::ViewModelState,
         available_width: f32,
         viewmodel: &crate::viewmodel::ViewModel,
+        google_play_enabled: bool,
+        fdroid_enabled: bool,
+        apkmirror_enabled: bool,
+        android_package_enabled: bool,
     ) {
         // Check if filter debounce has elapsed and we need to apply the filter
         if let Some(last_input_time) = self.state.last_filter_input {
@@ -108,9 +112,9 @@ impl TabDebloat {
             compute_category_counts(&vm_state.packages, vm_state.uad_ng_lists.as_ref());
 
         if available_width >= RESPONSIVE_WIDTH_THRESHOLD {
-            self.render_desktop(ui, vm_state);
+            self.render_desktop(ui, vm_state, google_play_enabled, fdroid_enabled, apkmirror_enabled, android_package_enabled);
         } else {
-            self.render_mobile(ui, vm_state);
+            self.render_mobile(ui, vm_state, google_play_enabled, fdroid_enabled, apkmirror_enabled, android_package_enabled);
         }
     }
 
@@ -120,8 +124,8 @@ impl TabDebloat {
     /// - Left sidebar: Category filters, options, advanced settings
     /// - Main content: Search bar, batch actions, error banner, virtual table
     /// - Virtual scrolling data table for performance
-    fn render_desktop(&mut self, ui: &mut egui::Ui, vm_state: &crate::viewmodel::ViewModelState) {
-        view_desktop::render(ui, vm_state, &mut self.state);
+    fn render_desktop(&mut self, ui: &mut egui::Ui, vm_state: &crate::viewmodel::ViewModelState, google_play_enabled: bool, fdroid_enabled: bool, apkmirror_enabled: bool, android_package_enabled: bool) {
+        view_desktop::render(ui, vm_state, &mut self.state, google_play_enabled, fdroid_enabled, apkmirror_enabled, android_package_enabled);
     }
 
     /// Render mobile view (<800px)
@@ -131,8 +135,8 @@ impl TabDebloat {
     /// - Collapsible filter section
     /// - Card-based list (48px minimum per card)
     /// - Batch actions at bottom
-    fn render_mobile(&mut self, ui: &mut egui::Ui, vm_state: &crate::viewmodel::ViewModelState) {
-        view_mobile::render(ui, vm_state, &mut self.state);
+    fn render_mobile(&mut self, ui: &mut egui::Ui, vm_state: &crate::viewmodel::ViewModelState, google_play_enabled: bool, fdroid_enabled: bool, apkmirror_enabled: bool, android_package_enabled: bool) {
+        view_mobile::render(ui, vm_state, &mut self.state, google_play_enabled, fdroid_enabled, apkmirror_enabled, android_package_enabled);
     }
 }
 

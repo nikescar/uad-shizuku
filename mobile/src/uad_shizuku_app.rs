@@ -3298,6 +3298,16 @@ impl UadShizukuApp {
         // Get available width for responsive layout
         let available_width = ui.ctx().content_rect().width();
 
+        // Get renderer settings
+        let google_play_enabled = self.google_play_renderer.is_enabled;
+        let fdroid_enabled = self.fdroid_renderer.is_enabled;
+        let apkmirror_enabled = self.apkmirror_renderer.is_enabled;
+        // Android package renderer only available on Android platform
+        #[cfg(target_os = "android")]
+        let android_package_enabled = true;
+        #[cfg(not(target_os = "android"))]
+        let android_package_enabled = false;
+
         // Render the refactored debloat tab with MVVM architecture
         if let Some(ref viewmodel) = self.viewmodel {
             // Use the new refactored TabDebloat with responsive width-based routing
@@ -3306,6 +3316,10 @@ impl UadShizukuApp {
                 &viewmodel.state,
                 available_width,
                 viewmodel,
+                google_play_enabled,
+                fdroid_enabled,
+                apkmirror_enabled,
+                android_package_enabled,
             );
         } else {
             ui.label("Error: ViewModel not initialized");

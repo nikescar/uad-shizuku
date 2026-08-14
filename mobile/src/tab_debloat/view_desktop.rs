@@ -7,13 +7,19 @@
 //! The desktop view uses virtual scrolling for performance with large package lists.
 
 use eframe::egui;
+use std::collections::HashMap;
 
 use crate::viewmodel::ViewModelState;
+use crate::shared_store_stt::get_shared_store;
+use crate::adb_stt::PackageFingerprint;
 use super::state::TabDebloatState;
 use super::components::render_package_table;
 
 /// Sidebar width in pixels
 const SIDEBAR_WIDTH: f32 = 200.0;
+
+/// Type alias for app display data: (texture, title)
+type AppDisplayData = HashMap<String, (Option<egui::TextureHandle>, String)>;
 
 /// Render desktop view with sidebar layout
 ///
@@ -29,6 +35,10 @@ pub fn render(
     ui: &mut egui::Ui,
     vm_state: &ViewModelState,
     local_state: &mut TabDebloatState,
+    google_play_enabled: bool,
+    fdroid_enabled: bool,
+    apkmirror_enabled: bool,
+    android_package_enabled: bool,
 ) {
     egui::SidePanel::left("debloat_sidebar")
         .exact_width(SIDEBAR_WIDTH)
@@ -38,7 +48,7 @@ pub fn render(
         });
 
     egui::CentralPanel::default().show_inside(ui, |ui| {
-        render_main_content(ui, vm_state, local_state);
+        render_main_content(ui, vm_state, local_state, google_play_enabled, fdroid_enabled, apkmirror_enabled, android_package_enabled);
     });
 }
 
@@ -134,11 +144,174 @@ fn render_sidebar(
     });
 }
 
+/// Pre-load app textures and titles to avoid egui RwLock conflicts
+///
+/// IMPORTANT: `ctx.load_texture(...)` takes egui::Context's internal RwLock.
+/// `ui.data_mut(...)` also takes that same RwLock in write mode.
+/// Computing textures inside `ui.data_mut` causes deadlock.
+/// We must pre-load textures BEFORE caching or table rendering.
+fn prepare_app_display_data(
+    ctx: &egui::Context,
+    packages: &[PackageFingerprint],
+    vm_state: &ViewModelState,
+    google_play_enabled: bool,
+    fdroid_enabled: bool,
+    apkmirror_enabled: bool,
+    android_package_enabled: bool,
+) -> AppDisplayData {
+    let mut app_data = HashMap::new();
+
+    if !google_play_enabled && !fdroid_enabled && !apkmirror_enabled && !android_package_enabled {
+        return app_data;
+    }
+
+    let store = get_shared_store();
+
+    for package in packages {
+        let is_system = package.flags.contains("SYSTEM");
+
+        // Try Android Package first (if enabled)
+        if android_package_enabled {
+            if let Some(ap_app) = vm_state.cached_metadata.get_android_package(&package.pkg) {
+                let texture = load_texture_from_bytes(ctx, &package.pkg, &ap_app.icon_bytes, &store);
+                app_data.insert(package.pkg.clone(), (texture, ap_app.label.clone()));
+                continue;
+            }
+        }
+
+        // Try F-Droid for non-system apps
+        if !is_system && fdroid_enabled {
+            if let Some(fd_app) = vm_state.cached_metadata.get_fdroid(&package.pkg) {
+                if fd_app.raw_response != "404" {
+                    if let Some(icon_base64) = &fd_app.icon_base64 {
+                        let texture = load_texture_from_base64(ctx, "fd", &package.pkg, icon_base64, &store);
+                        app_data.insert(package.pkg.clone(), (texture, fd_app.title.clone()));
+                        continue;
+                    }
+                }
+            }
+        }
+
+        // Try Google Play for non-system apps
+        if !is_system && google_play_enabled {
+            if let Some(gp_app) = vm_state.cached_metadata.get_google_play(&package.pkg) {
+                if gp_app.raw_response != "404" {
+                    if let Some(icon_base64) = &gp_app.icon_base64 {
+                        let texture = load_texture_from_base64(ctx, "gp", &package.pkg, icon_base64, &store);
+                        app_data.insert(package.pkg.clone(), (texture, gp_app.title.clone()));
+                        continue;
+                    }
+                }
+            }
+        }
+
+        // Try APKMirror for system apps
+        if is_system && apkmirror_enabled {
+            if let Some(am_app) = vm_state.cached_metadata.get_apkmirror(&package.pkg) {
+                if am_app.raw_response != "404" {
+                    if let Some(icon_base64) = &am_app.icon_base64 {
+                        let texture = load_texture_from_base64(ctx, "am", &package.pkg, icon_base64, &store);
+                        app_data.insert(package.pkg.clone(), (texture, am_app.title.clone()));
+                        continue;
+                    }
+                }
+            }
+        }
+    }
+
+    app_data
+}
+
+/// Load texture from base64-encoded icon (with SharedStore caching)
+fn load_texture_from_base64(
+    ctx: &egui::Context,
+    prefix: &str,
+    package_id: &str,
+    base64_data: &str,
+    store: &crate::shared_store_stt::SharedStore,
+) -> Option<egui::TextureHandle> {
+    // Check SharedStore cache first
+    let existing_texture = match prefix {
+        "gp" => store.get_google_play_texture(package_id),
+        "fd" => store.get_fdroid_texture(package_id),
+        "am" => store.get_apkmirror_texture(package_id),
+        _ => None,
+    };
+    if let Some(texture) = existing_texture {
+        return Some(texture);
+    }
+
+    // Decode base64
+    use base64::{engine::general_purpose, Engine as _};
+    let base64_str = if base64_data.starts_with("data:") {
+        base64_data.split(',').nth(1).unwrap_or(base64_data)
+    } else {
+        base64_data
+    };
+
+    let bytes = general_purpose::STANDARD.decode(base64_str).ok()?;
+    let image = image::load_from_memory(&bytes).ok()?;
+
+    // Create egui texture
+    let size = [image.width() as _, image.height() as _];
+    let image_buffer = image.to_rgba8();
+    let pixels = image_buffer.as_flat_samples();
+    let color_image = egui::ColorImage::from_rgba_unmultiplied(size, pixels.as_slice());
+    let texture = ctx.load_texture(
+        format!("{}_{}", prefix, package_id),
+        color_image,
+        Default::default(),
+    );
+
+    // Cache in SharedStore
+    match prefix {
+        "gp" => store.set_google_play_texture(package_id.to_string(), texture.clone()),
+        "fd" => store.set_fdroid_texture(package_id.to_string(), texture.clone()),
+        "am" => store.set_apkmirror_texture(package_id.to_string(), texture.clone()),
+        _ => {}
+    }
+
+    Some(texture)
+}
+
+/// Load texture from PNG bytes (with SharedStore caching)
+fn load_texture_from_bytes(
+    ctx: &egui::Context,
+    package_id: &str,
+    png_bytes: &[u8],
+    store: &crate::shared_store_stt::SharedStore,
+) -> Option<egui::TextureHandle> {
+    // Check SharedStore cache first
+    if let Some(texture) = store.get_android_package_texture(package_id) {
+        return Some(texture);
+    }
+
+    // Load from bytes
+    let image = image::load_from_memory(png_bytes).ok()?;
+    let size = [image.width() as _, image.height() as _];
+    let image_buffer = image.to_rgba8();
+    let pixels = image_buffer.as_flat_samples();
+    let color_image = egui::ColorImage::from_rgba_unmultiplied(size, pixels.as_slice());
+    let texture = ctx.load_texture(
+        format!("ap_{}", package_id),
+        color_image,
+        Default::default(),
+    );
+
+    // Cache in SharedStore
+    store.set_android_package_texture(package_id.to_string(), texture.clone());
+    Some(texture)
+}
+
 /// Render the main content area
 fn render_main_content(
     ui: &mut egui::Ui,
     vm_state: &ViewModelState,
     local_state: &mut TabDebloatState,
+    google_play_enabled: bool,
+    fdroid_enabled: bool,
+    apkmirror_enabled: bool,
+    android_package_enabled: bool,
 ) {
     ui.vertical(|ui| {
         // Search bar
@@ -156,6 +329,17 @@ fn render_main_content(
 
         ui.separator();
 
+        // Pre-load app icons and titles (MUST be done before table rendering to avoid egui RwLock deadlock)
+        let app_display_data = prepare_app_display_data(
+            ui.ctx(),
+            &vm_state.filtered_packages,
+            vm_state,
+            google_play_enabled,
+            fdroid_enabled,
+            apkmirror_enabled,
+            android_package_enabled,
+        );
+
         // Package table (virtual scrolling)
         log::debug!("DEBUG: view_desktop rendering package table with {} filtered packages", vm_state.filtered_packages.len());
         render_package_table(
@@ -163,6 +347,7 @@ fn render_main_content(
             &vm_state.filtered_packages,
             &mut local_state.selected_packages,
             vm_state.uad_ng_lists.as_ref(),
+            &app_display_data,
         );
     });
 }

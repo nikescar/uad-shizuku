@@ -1739,14 +1739,27 @@ impl TabScanControl {
             self.android_package_renderer_enabled
         );
 
-        // Cache the expensive app_data_map preparation (texture loading)
-        let app_data_map: HashMap<String, (Option<egui::TextureHandle>, String, String, Option<String>)> =
-            ui.data_mut(|data| {
-                data.get_temp_mut_or_insert_with(egui::Id::new(&cache_key), || {
-                    log::debug!("Preparing app display data (cache miss) for {} packages", visible_package_ids.len());
-                    self.prepare_app_info_for_display(ui.ctx(), &visible_package_ids, &system_packages)
-                }).clone()
-            });
+        // Cache the expensive app_data_map preparation (texture loading).
+        //
+        // IMPORTANT: `prepare_app_info_for_display` calls `ctx.load_texture(...)`, which
+        // internally takes a lock on egui::Context's own internal RwLock (via
+        // `ctx.input(...)`). `ui.data_mut(...)` takes that same RwLock (in write mode)
+        // for the duration of its closure, so computing the cache-miss value *inside*
+        // `ui.data_mut` reentrantly locks the same non-reentrant RwLock on this thread
+        // and deadlocks. The cache-miss recomputation must happen outside of any
+        // `data_mut`/`memory_mut` closure.
+        let cache_id = egui::Id::new(&cache_key);
+        type AppDataMap = HashMap<String, (Option<egui::TextureHandle>, String, String, Option<String>)>;
+        let cached_map = ui.data_mut(|data| data.get_temp::<AppDataMap>(cache_id));
+        let app_data_map: AppDataMap = match cached_map {
+            Some(map) => map,
+            None => {
+                log::debug!("Preparing app display data (cache miss) for {} packages", visible_package_ids.len());
+                let map = self.prepare_app_info_for_display(ui.ctx(), &visible_package_ids, &system_packages);
+                ui.data_mut(|data| data.insert_temp(cache_id, map.clone()));
+                map
+            }
+        };
 
         // Note: vt_scanner_state and ha_scanner_state are already pre-fetched at the start of ui()
 

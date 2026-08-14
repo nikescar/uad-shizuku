@@ -29,6 +29,10 @@ pub fn render(
     ui: &mut egui::Ui,
     vm_state: &ViewModelState,
     local_state: &mut TabDebloatState,
+    _google_play_enabled: bool,
+    _fdroid_enabled: bool,
+    _apkmirror_enabled: bool,
+    _android_package_enabled: bool,
 ) {
     ui.vertical(|ui| {
         // Search bar (always visible)

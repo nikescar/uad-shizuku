@@ -12,13 +12,17 @@
 
 use eframe::egui;
 use egui_extras::{Column, TableBuilder};
+use std::collections::HashMap;
 use std::collections::HashSet;
 
 use crate::adb_stt::PackageFingerprint;
 use crate::uad_shizuku_app::UadNgLists;
 
-/// Row height for table entries (24.0px for desktop)
-const ROW_HEIGHT: f32 = 24.0;
+/// Row height for table entries (56.0px for desktop with icons)
+const ROW_HEIGHT: f32 = 56.0;
+
+/// Type alias for app display data: (texture, title)
+pub type AppDisplayData = HashMap<String, (Option<egui::TextureHandle>, String)>;
 
 /// Render the virtual scrolling package table
 ///
@@ -30,10 +34,12 @@ const ROW_HEIGHT: f32 = 24.0;
 /// * `ui` - egui context for rendering
 /// * `packages` - Slice of packages to display
 /// * `selected_packages` - Mutable reference to selected package set
+/// * `uad_ng_lists` - UAD-NG debloat lists for category display
+/// * `app_display_data` - Pre-loaded app icons and titles (to avoid egui RwLock deadlock)
 ///
 /// # Column Layout
 /// 1. Checkbox (30px exact): Multi-select for batch operations
-/// 2. Name (remainder): Package identifier
+/// 2. Name (remainder): Package identifier with icon (if available)
 /// 3. Category (100px exact): UAD debloat category
 /// 4. Status (80px exact): Enabled/Disabled state
 /// 5. Actions (80px exact): Action buttons placeholder
@@ -42,6 +48,7 @@ pub fn render_package_table(
     packages: &[PackageFingerprint],
     selected_packages: &mut HashSet<String>,
     uad_ng_lists: Option<&UadNgLists>,
+    app_display_data: &AppDisplayData,
 ) {
     log::debug!("DEBUG: render_package_table called with {} packages", packages.len());
     TableBuilder::new(ui)
@@ -87,9 +94,28 @@ pub fn render_package_table(
                     }
                 });
 
-                // Column 2: Name (package ID)
+                // Column 2: Name (with icon if available from pre-loaded data)
                 row.col(|ui| {
-                    ui.label(&package.pkg);
+                    ui.horizontal(|ui| {
+                        // Get pre-loaded app data (texture and title)
+                        let (texture_handle, app_title) = app_display_data
+                            .get(&package.pkg)
+                            .map(|(tex, title)| (tex.as_ref(), Some(title.as_str())))
+                            .unwrap_or((None, None));
+
+                        // Render icon if available
+                        if let Some(tex) = texture_handle {
+                            ui.image((tex.id(), egui::vec2(38.0, 38.0)));
+                        }
+
+                        // Render app title or package ID
+                        ui.vertical(|ui| {
+                            ui.label(app_title.unwrap_or(&package.pkg));
+                            if app_title.is_some() {
+                                ui.label(egui::RichText::new(&package.pkg).small().weak());
+                            }
+                        });
+                    });
                 });
 
                 // Column 3: Category (from UAD-NG lists)
