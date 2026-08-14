@@ -66,8 +66,17 @@ fn test_full_filter_flow() {
         create_test_package("com.android.system2", 2, true),
     ];
 
-    // Load packages into ViewModel
-    vm.state.packages = packages.clone();
+    // Load packages into actor
+    vm.load_packages_from_memory(packages.clone())
+        .expect("Failed to load test packages");
+
+    // Wait for PackagesLoaded event
+    let timeout_load = std::time::Duration::from_secs(2);
+    let start_load = std::time::Instant::now();
+    while vm.state.packages.is_empty() && start_load.elapsed() < timeout_load {
+        let _events = vm.poll_events(&ctx);
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
 
     // Act: Send filter command (simulating what TabDebloat would do)
     // In real usage, TabDebloat.render() would call this after debounce
@@ -137,7 +146,16 @@ fn test_filter_with_category() {
         create_test_package("com.example.app2", 0, false),
     ];
 
-    vm.state.packages = packages.clone();
+    vm.load_packages_from_memory(packages.clone())
+        .expect("Failed to load test packages");
+
+    // Wait for PackagesLoaded event
+    let timeout_load = std::time::Duration::from_secs(2);
+    let start_load = std::time::Instant::now();
+    while vm.state.packages.is_empty() && start_load.elapsed() < timeout_load {
+        let _events = vm.poll_events(&ctx);
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
 
     // Act: Set category filter in TabDebloat state
     tab.state.active_filter = DebloatFilter {
@@ -194,7 +212,16 @@ fn test_filter_flow_verifies_actor_event_state_chain() {
         create_test_package("com.example.user", 1, false),
     ];
 
-    vm.state.packages = packages;
+    vm.load_packages_from_memory(packages.clone())
+        .expect("Failed to load test packages");
+
+    // Wait for PackagesLoaded event
+    let timeout_load = std::time::Duration::from_secs(2);
+    let start_load = std::time::Instant::now();
+    while vm.state.packages.is_empty() && start_load.elapsed() < timeout_load {
+        let _events = vm.poll_events(&ctx);
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
 
     // Act: Send filter command
     let filter_result = vm.filter_packages(

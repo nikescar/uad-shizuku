@@ -57,9 +57,17 @@ fn test_filter_packages_command() {
         create_test_package("com.android.system2", 2, true),
     ];
 
-    // Load packages into ViewModel
-    let test_packages = packages.clone();
-    vm.state.packages = test_packages;
+    // Load packages into actor
+    vm.load_packages_from_memory(packages.clone())
+        .expect("Failed to load test packages");
+
+    // Wait for PackagesLoaded event
+    let timeout = std::time::Duration::from_secs(2);
+    let start = std::time::Instant::now();
+    while vm.state.packages.is_empty() && start.elapsed() < timeout {
+        let _events = vm.poll_events(&ctx);
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
 
     // Act: Send FilterPackages command
     // For now, we'll test basic text filter
@@ -123,7 +131,16 @@ fn test_filter_by_enabled_state() {
         create_test_package("com.example.default", 0, false), // default
     ];
 
-    vm.state.packages = packages;
+    vm.load_packages_from_memory(packages.clone())
+        .expect("Failed to load test packages");
+
+    // Wait for PackagesLoaded event
+    let timeout = std::time::Duration::from_secs(2);
+    let start = std::time::Instant::now();
+    while vm.state.packages.is_empty() && start.elapsed() < timeout {
+        let _events = vm.poll_events(&ctx);
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
 
     // Act: Filter to show only enabled
     let filter_result = vm.filter_packages(
@@ -133,13 +150,27 @@ fn test_filter_by_enabled_state() {
 
     assert!(filter_result.is_ok());
 
-    // Poll with timeout until filter completes
+    // Poll with timeout until filter event arrives
+    let mut found_filter_event = false;
     let timeout = std::time::Duration::from_secs(2);
     let start = std::time::Instant::now();
-    while vm.state.filtered_packages.is_empty() && start.elapsed() < timeout {
-        let _events = vm.poll_events(&ctx);
-        std::thread::sleep(std::time::Duration::from_millis(10));
+    while !found_filter_event && start.elapsed() < timeout {
+        let events = vm.poll_events(&ctx);
+        for event in events {
+            if let ViewModelEvent::Debloat(DebloatEvent::FilteredPackagesReady(_)) = event {
+                found_filter_event = true;
+                break;
+            }
+        }
+        if !found_filter_event {
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
     }
+
+    assert!(
+        found_filter_event,
+        "Should receive FilteredPackagesReady event within timeout"
+    );
 
     // Assert: Should only show enabled packages (enabled == 1)
     assert_eq!(
@@ -165,7 +196,16 @@ fn test_filter_hide_system_apps() {
         create_test_package("com.android.system", 1, true),
     ];
 
-    vm.state.packages = packages;
+    vm.load_packages_from_memory(packages.clone())
+        .expect("Failed to load test packages");
+
+    // Wait for PackagesLoaded event
+    let timeout = std::time::Duration::from_secs(2);
+    let start = std::time::Instant::now();
+    while vm.state.packages.is_empty() && start.elapsed() < timeout {
+        let _events = vm.poll_events(&ctx);
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
 
     // Act: Filter to hide system apps
     let filter_result = vm.filter_packages(
@@ -174,13 +214,27 @@ fn test_filter_hide_system_apps() {
 
     assert!(filter_result.is_ok());
 
-    // Poll with timeout until filter completes
+    // Poll with timeout until filter event arrives
+    let mut found_filter_event = false;
     let timeout = std::time::Duration::from_secs(2);
     let start = std::time::Instant::now();
-    while vm.state.filtered_packages.is_empty() && start.elapsed() < timeout {
-        let _events = vm.poll_events(&ctx);
-        std::thread::sleep(std::time::Duration::from_millis(10));
+    while !found_filter_event && start.elapsed() < timeout {
+        let events = vm.poll_events(&ctx);
+        for event in events {
+            if let ViewModelEvent::Debloat(DebloatEvent::FilteredPackagesReady(_)) = event {
+                found_filter_event = true;
+                break;
+            }
+        }
+        if !found_filter_event {
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
     }
+
+    assert!(
+        found_filter_event,
+        "Should receive FilteredPackagesReady event within timeout"
+    );
 
     // Assert: Should only show user apps
     assert_eq!(
@@ -207,7 +261,16 @@ fn test_filter_no_filters_returns_all() {
         create_test_package("com.android.system", 1, true),
     ];
 
-    vm.state.packages = packages.clone();
+    vm.load_packages_from_memory(packages.clone())
+        .expect("Failed to load test packages");
+
+    // Wait for PackagesLoaded event
+    let timeout_load = std::time::Duration::from_secs(2);
+    let start_load = std::time::Instant::now();
+    while vm.state.packages.is_empty() && start_load.elapsed() < timeout_load {
+        let _events = vm.poll_events(&ctx);
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
 
     // Act: Filter with no filters (should return all)
     let filter_result = vm.filter_packages(None, None, false, false);

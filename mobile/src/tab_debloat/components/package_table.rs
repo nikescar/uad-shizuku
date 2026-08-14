@@ -155,7 +155,7 @@ mod tests {
 
     #[test]
     fn test_row_height_constant() {
-        assert_eq!(ROW_HEIGHT, 24.0);
+        assert_eq!(ROW_HEIGHT, 56.0);
     }
 
     #[test]
