@@ -57,6 +57,17 @@ pub fn get_devices() -> std::io::Result<Vec<String>> {
     #[cfg(not(target_os = "android"))]
     {
         use std::process::Command;
+
+        // Kill ADB server first to ensure fresh device enumeration
+        // This prevents showing stale/disconnected devices from old daemon cache
+        let kill_result = Command::new("adb").arg("kill-server").output();
+        if let Err(e) = kill_result {
+            debug!("Failed to kill ADB server (may not be running): {}", e);
+        } else {
+            debug!("ADB server killed, will restart with fresh device list");
+        }
+
+        // ADB will automatically start a new server when we call 'adb devices'
         let output = Command::new("adb").arg("devices").arg("-l").output()?;
 
         if output.status.success() {
