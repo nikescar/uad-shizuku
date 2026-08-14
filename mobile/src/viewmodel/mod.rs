@@ -136,10 +136,17 @@ impl ViewModel {
     /// Poll for events and update state. Call this in UadShizukuApp::update()
     pub fn poll_events(&mut self, ctx: &eframe::egui::Context) -> Vec<ViewModelEvent> {
         let mut events = Vec::new();
+        let mut event_count = 0;
 
         while let Ok(event) = self.event_rx.try_recv() {
+            event_count += 1;
+            log::info!("[VIEWMODEL] Received event #{}: {:?}", event_count, event);
             self.apply_event(&event, ctx);
             events.push(event);
+        }
+
+        if event_count > 0 {
+            log::info!("[VIEWMODEL] poll_events processed {} events", event_count);
         }
 
         events

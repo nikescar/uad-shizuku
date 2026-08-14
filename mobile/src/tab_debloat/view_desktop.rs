@@ -187,9 +187,13 @@ fn prepare_app_display_data(
     apkmirror_enabled: bool,
     android_package_enabled: bool,
 ) -> AppDisplayData {
+    log::info!("[DESKTOP] prepare_app_display_data: GP={}, FD={}, APK={}, AP={}, packages={}",
+        google_play_enabled, fdroid_enabled, apkmirror_enabled, android_package_enabled, packages.len());
+
     let mut app_data = HashMap::new();
 
     if !google_play_enabled && !fdroid_enabled && !apkmirror_enabled && !android_package_enabled {
+        log::info!("[DESKTOP] No renderers enabled, returning empty");
         return app_data;
     }
 
@@ -251,6 +255,7 @@ fn prepare_app_display_data(
         }
     }
 
+    log::info!("[DESKTOP] prepare_app_display_data completed: {} packages with metadata", app_data.len());
     app_data
 }
 

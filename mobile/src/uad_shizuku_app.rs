@@ -3375,6 +3375,80 @@ impl UadShizukuApp {
         }
     }
 
+    /// Auto-start metadata crawlers if renderers are enabled in settings
+    ///
+    /// Called during app initialization to start metadata fetching for packages
+    /// when renderers are already enabled (not just when settings change).
+    fn auto_start_metadata_crawlers(&mut self) {
+        log::info!("Checking if metadata crawlers should auto-start on launch");
+
+        // Google Play renderer
+        if self.settings.google_play_renderer {
+            log::info!("Google Play renderer enabled in settings, starting crawler");
+            self.google_play_renderer.is_enabled = true;
+            self.tab_scan_control.google_play_renderer_enabled = true;
+
+            if let Some(ref queue) = self.google_play_queue {
+                let shared_store = crate::shared_store_stt::get_shared_store();
+                let installed_packages = shared_store.installed_packages.lock().unwrap().clone();
+                if !installed_packages.is_empty() {
+                    log::info!("Enqueueing {} packages for Google Play metadata fetch", installed_packages.len());
+                    let package_ids: Vec<String> = installed_packages.iter().map(|p| p.pkg.clone()).collect();
+                    queue.enqueue_batch(package_ids);
+
+                    if let Ok(config) = crate::Config::new() {
+                        let db_path = config.db_dir.join("uad.db");
+                        queue.start_worker(db_path.to_string_lossy().to_string());
+                    }
+                }
+            }
+        }
+
+        // F-Droid renderer
+        if self.settings.fdroid_renderer {
+            log::info!("F-Droid renderer enabled in settings, starting crawler");
+            self.fdroid_renderer.is_enabled = true;
+            self.tab_scan_control.fdroid_renderer_enabled = true;
+
+            if let Some(ref queue) = self.fdroid_queue {
+                let shared_store = crate::shared_store_stt::get_shared_store();
+                let installed_packages = shared_store.installed_packages.lock().unwrap().clone();
+                if !installed_packages.is_empty() {
+                    log::info!("Enqueueing {} packages for F-Droid metadata fetch", installed_packages.len());
+                    let package_ids: Vec<String> = installed_packages.iter().map(|p| p.pkg.clone()).collect();
+                    queue.enqueue_batch(package_ids);
+
+                    if let Ok(config) = crate::Config::new() {
+                        let db_path = config.db_dir.join("uad.db");
+                        queue.start_worker(db_path.to_string_lossy().to_string());
+                    }
+                }
+            }
+        }
+
+        // APKMirror renderer
+        if self.settings.apkmirror_renderer {
+            log::info!("APKMirror renderer enabled in settings, starting crawler");
+            self.apkmirror_renderer.is_enabled = true;
+            self.tab_scan_control.apkmirror_renderer_enabled = true;
+
+            if let Some(ref queue) = self.apkmirror_queue {
+                let shared_store = crate::shared_store_stt::get_shared_store();
+                let installed_packages = shared_store.installed_packages.lock().unwrap().clone();
+                if !installed_packages.is_empty() {
+                    log::info!("Enqueueing {} packages for APKMirror metadata fetch", installed_packages.len());
+                    let package_ids: Vec<String> = installed_packages.iter().map(|p| p.pkg.clone()).collect();
+                    queue.enqueue_batch(package_ids);
+
+                    if let Ok(config) = crate::Config::new() {
+                        let db_path = config.db_dir.join("uad.db");
+                        queue.start_worker(db_path.to_string_lossy().to_string());
+                    }
+                }
+            }
+        }
+    }
+
     fn load_renderer_results_to_debloat_cache(&mut self) {
         use crate::shared_store_stt::get_shared_store;
         let store = get_shared_store();
@@ -4132,6 +4206,9 @@ impl eframe::App for UadShizukuApp {
                 log::info!("Autoupdate enabled - checking for updates");
                 self.check_for_update();
             }
+
+            // Auto-start metadata crawlers if renderers are enabled in settings
+            self.auto_start_metadata_crawlers();
         }
 
         #[cfg(not(target_os = "android"))]
@@ -4147,6 +4224,9 @@ impl eframe::App for UadShizukuApp {
                 log::info!("Autoupdate enabled - checking for updates");
                 self.check_for_update();
             }
+
+            // Auto-start metadata crawlers if renderers are enabled in settings
+            self.auto_start_metadata_crawlers();
         }
 
         // Poll Shizuku state: auto-retry when permission granted or service bound
