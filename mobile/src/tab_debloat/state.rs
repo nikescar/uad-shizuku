@@ -37,7 +37,7 @@ impl std::fmt::Debug for BatchUninstallState {
 }
 
 /// Filter options for package display
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub struct DebloatFilter {
     /// Text search filter (case-insensitive, searches package name)
     pub text_filter: String,
@@ -117,6 +117,9 @@ pub struct TabDebloatState {
     /// Filter debounce: last applied filter text (already sent to ViewModel)
     pub applied_filter_text: String,
 
+    /// Last applied filter snapshot (for change detection)
+    pub last_applied_filter: DebloatFilter,
+
     /// Package details dialog state
     pub package_details_dialog: DlgPackageDetails,
 
@@ -188,6 +191,7 @@ impl Default for TabDebloatState {
             last_filter_input: None,
             pending_filter_text: String::new(),
             applied_filter_text: String::new(),
+            last_applied_filter: DebloatFilter::default(),
             package_details_dialog: DlgPackageDetails::new(),
             uninstall_confirm_dialog: DlgUninstallConfirm::default(),
             cached_counts: CachedCategoryCounts::default(),
@@ -243,5 +247,47 @@ mod tests {
         assert_eq!(state.package_count, 0);
         assert_eq!(state.current_index, 0);
         assert!(state.current_package.is_none());
+    }
+
+    #[test]
+    fn test_filter_equality() {
+        let filter1 = DebloatFilter {
+            text_filter: "test".to_string(),
+            category_filter: Some("recommended".to_string()),
+            show_only_enabled: true,
+            hide_system_apps: false,
+        };
+
+        let filter2 = filter1.clone();
+        assert_eq!(filter1, filter2);
+
+        let filter3 = DebloatFilter {
+            category_filter: Some("unsafe".to_string()),
+            ..filter1.clone()
+        };
+        assert_ne!(filter1, filter3);
+    }
+
+    #[test]
+    fn test_filter_change_detection() {
+        let filter1 = DebloatFilter::default();
+        let mut filter2 = filter1.clone();
+
+        // Same filter should be equal
+        assert_eq!(filter1, filter2);
+
+        // Change category
+        filter2.category_filter = Some("recommended".to_string());
+        assert_ne!(filter1, filter2);
+
+        // Change checkbox
+        let mut filter3 = filter1.clone();
+        filter3.show_only_enabled = true;
+        assert_ne!(filter1, filter3);
+
+        // Change text
+        let mut filter4 = filter1.clone();
+        filter4.text_filter = "search".to_string();
+        assert_ne!(filter1, filter4);
     }
 }
