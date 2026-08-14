@@ -2240,6 +2240,7 @@ pub const ICON_ZOOM_OUT_MAP: char = '\u{e56b}';
 ///
 /// # Examples
 /// ```
+/// use uad_shizuku::material_symbol_icons::get_icon;
 /// let icon = get_icon("home"); // Returns '\u{e88a}'
 /// ```
 pub fn get_icon(name: &str) -> Option<char> {
