@@ -744,6 +744,18 @@ pub fn handle_package_loading_result(app: &mut UadShizukuApp) {
                         .set_selected_device(app.selected_device.clone());
                     log::debug!("Updated tab controls with packages");
 
+                    // Update ViewModel for new MVVM-based tab_debloat
+                    if let Some(ref viewmodel) = app.viewmodel {
+                        if let Some(ref device) = app.selected_device {
+                            let user_id = app.selected_user.unwrap_or(0) as u32;
+                            if let Err(e) = viewmodel.load_packages(device.clone(), user_id) {
+                                log::error!("Failed to update ViewModel with packages: {}", e);
+                            } else {
+                                log::debug!("Updated ViewModel with packages for device: {}, user: {}", device, user_id);
+                            }
+                        }
+                    }
+
                     // Close dialog
                     app.package_loading_dialog_open = false;
                 }
