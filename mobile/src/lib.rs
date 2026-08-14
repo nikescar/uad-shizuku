@@ -49,6 +49,7 @@ mod api_virustotal;
 pub mod api_virustotal_stt;
 mod app_operations_queue;
 pub mod app_operations_queue_stt;
+pub mod app_metadata_renderer;
 pub mod calc;
 pub mod calc_androidpackage;
 mod calc_apkmirror;

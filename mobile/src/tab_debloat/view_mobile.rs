@@ -29,10 +29,10 @@ pub fn render(
     ui: &mut egui::Ui,
     vm_state: &ViewModelState,
     local_state: &mut TabDebloatState,
-    _google_play_enabled: bool,
-    _fdroid_enabled: bool,
-    _apkmirror_enabled: bool,
-    _android_package_enabled: bool,
+    google_play_enabled: bool,
+    fdroid_enabled: bool,
+    apkmirror_enabled: bool,
+    android_package_enabled: bool,
 ) {
     ui.vertical(|ui| {
         // Search bar (always visible)
@@ -51,7 +51,7 @@ pub fn render(
         ui.separator();
 
         // Package cards (scrollable, takes remaining space)
-        render_package_list(ui, vm_state, local_state);
+        render_package_list(ui, vm_state, local_state, google_play_enabled, fdroid_enabled, apkmirror_enabled, android_package_enabled);
 
         ui.separator();
 
@@ -194,7 +194,28 @@ fn render_package_list(
     ui: &mut egui::Ui,
     vm_state: &ViewModelState,
     local_state: &mut TabDebloatState,
+    google_play_enabled: bool,
+    fdroid_enabled: bool,
+    apkmirror_enabled: bool,
+    android_package_enabled: bool,
 ) {
+    // Prepare app metadata (icons, titles) if renderers are enabled
+    let package_ids: Vec<String> = vm_state.filtered_packages.iter().map(|p| p.pkg.clone()).collect();
+    let system_packages: std::collections::HashSet<String> = vm_state.packages.iter()
+        .filter(|p| p.flags.contains("SYSTEM"))
+        .map(|p| p.pkg.clone())
+        .collect();
+
+    let app_metadata = crate::app_metadata_renderer::prepare_app_info_for_display(
+        ui.ctx(),
+        &package_ids,
+        &system_packages,
+        google_play_enabled,
+        fdroid_enabled,
+        apkmirror_enabled,
+        android_package_enabled,
+    );
+
     // Allocate remaining vertical space for scrollable list
     let available_height = ui.available_height() - 60.0; // Reserve space for batch actions
 
@@ -205,6 +226,7 @@ fn render_package_list(
             &vm_state.filtered_packages,
             &mut local_state.selected_packages,
             vm_state.uad_ng_lists.as_ref(),
+            &app_metadata,
         );
     });
 }

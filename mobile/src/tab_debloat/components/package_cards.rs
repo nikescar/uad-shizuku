@@ -14,6 +14,7 @@ use eframe::egui;
 use std::collections::HashSet;
 
 use crate::adb_stt::PackageFingerprint;
+use crate::app_metadata_renderer::AppMetadataMap;
 use crate::uad_shizuku_app::UadNgLists;
 
 /// Minimum card height for touch-friendly interaction (48px)
@@ -32,22 +33,25 @@ const CARD_SPACING: f32 = 8.0;
 /// * `ui` - egui context for rendering
 /// * `packages` - Slice of packages to display
 /// * `selected_packages` - Mutable reference to selected package set
+/// * `uad_ng_lists` - Optional UAD-NG lists for categories
+/// * `app_metadata` - App metadata with icons, titles, developers
 ///
 /// # Card Layout
 /// - Left: Checkbox
-/// - Center: Package name and status badge
+/// - Center: App icon (if available), app title/package name, status badge
 /// - Right: Category (if available)
 pub fn render_package_cards(
     ui: &mut egui::Ui,
     packages: &[PackageFingerprint],
     selected_packages: &mut HashSet<String>,
     uad_ng_lists: Option<&UadNgLists>,
+    app_metadata: &AppMetadataMap,
 ) {
     egui::ScrollArea::vertical()
         .auto_shrink([false, false])
         .show(ui, |ui| {
             for package in packages {
-                render_single_card(ui, package, selected_packages, uad_ng_lists);
+                render_single_card(ui, package, selected_packages, uad_ng_lists, app_metadata);
                 ui.add_space(CARD_SPACING);
             }
         });
@@ -59,8 +63,27 @@ fn render_single_card(
     package: &PackageFingerprint,
     selected_packages: &mut HashSet<String>,
     uad_ng_lists: Option<&UadNgLists>,
+    app_metadata: &AppMetadataMap,
 ) {
     let is_enabled = !package.users.is_empty();
+
+    // Get app metadata (icon, title, developer) if available
+    let (app_texture_id, app_title, app_developer) = if let Some((texture_opt, title, developer, _version)) = app_metadata.get(&package.pkg) {
+        (
+            texture_opt.as_ref().map(|t| t.id()),
+            Some(title.clone()),
+            Some(developer.clone()),
+        )
+    } else {
+        (None, None, None)
+    };
+
+    // Determine display content (app info or package name)
+    let (has_app_info, display_title, display_subtitle) = if let (Some(title), Some(developer)) = (app_title.as_ref(), app_developer.as_ref()) {
+        (true, title.clone(), developer.clone())
+    } else {
+        (false, package.pkg.clone(), String::new())
+    };
 
     // Card frame with minimum height
     egui::Frame::none()
@@ -84,27 +107,48 @@ fn render_single_card(
 
                 ui.add_space(8.0);
 
-                // Center: Package name and status
-                ui.vertical(|ui| {
-                    ui.label(&package.pkg);
+                // Center: App icon (if available) and package info
+                ui.horizontal(|ui| {
+                    // App icon (38x38, same size as scan tab)
+                    if let Some(tex_id) = app_texture_id {
+                        ui.image((tex_id, egui::vec2(38.0, 38.0)));
+                        ui.add_space(4.0);
+                    }
 
-                    ui.horizontal(|ui| {
-                        // Status badge
-                        let (status_text, status_color) = if is_enabled {
-                            ("Enabled", egui::Color32::from_rgb(100, 200, 100))
+                    // Package name/title and status
+                    ui.vertical(|ui| {
+                        ui.style_mut().spacing.item_spacing.y = 0.1;
+
+                        // Title/Package name
+                        if has_app_info {
+                            ui.add(egui::Label::new(egui::RichText::new(&display_title).strong()).wrap_mode(egui::TextWrapMode::Extend));
                         } else {
-                            ("Disabled", egui::Color32::from_rgb(150, 150, 150))
-                        };
+                            ui.label(&package.pkg);
+                        }
 
-                        ui.colored_label(status_color, status_text);
+                        // Subtitle (developer) or status
+                        ui.horizontal(|ui| {
+                            if has_app_info && !display_subtitle.is_empty() {
+                                ui.add(egui::Label::new(egui::RichText::new(&display_subtitle).small().weak()).wrap_mode(egui::TextWrapMode::Extend));
+                                ui.label("•");
+                            }
 
-                        // Category (from UAD-NG lists)
-                        let category = uad_ng_lists
-                            .and_then(|lists| lists.apps.get(&package.pkg))
-                            .map(|app| app.removal.as_str())
-                            .unwrap_or("-");
-                        ui.label("•");
-                        ui.label(category);
+                            // Status badge
+                            let (status_text, status_color) = if is_enabled {
+                                ("Enabled", egui::Color32::from_rgb(100, 200, 100))
+                            } else {
+                                ("Disabled", egui::Color32::from_rgb(150, 150, 150))
+                            };
+                            ui.colored_label(status_color, status_text);
+
+                            // Category (from UAD-NG lists)
+                            let category = uad_ng_lists
+                                .and_then(|lists| lists.apps.get(&package.pkg))
+                                .map(|app| app.removal.as_str())
+                                .unwrap_or("-");
+                            ui.label("•");
+                            ui.label(category);
+                        });
                     });
                 });
             });
