@@ -3377,9 +3377,9 @@ impl UadShizukuApp {
 
     /// Auto-start metadata crawlers if renderers are enabled in settings
     ///
-    /// Called during app initialization to start metadata fetching for packages
-    /// when renderers are already enabled (not just when settings change).
-    fn auto_start_metadata_crawlers(&mut self) {
+    /// Called after packages are loaded to start metadata fetching when
+    /// renderers are already enabled (not just when settings change).
+    pub fn auto_start_metadata_crawlers(&mut self) {
         log::info!("Checking if metadata crawlers should auto-start on launch");
 
         // Google Play renderer
