@@ -200,21 +200,30 @@ fn render_package_list(
     android_package_enabled: bool,
 ) {
     // Prepare app metadata (icons, titles) if renderers are enabled
+    log::info!("[DEBLOAT] Renderer flags - GP: {}, FD: {}, APK: {}, AP: {}",
+        google_play_enabled, fdroid_enabled, apkmirror_enabled, android_package_enabled);
+
     let package_ids: Vec<String> = vm_state.filtered_packages.iter().map(|p| p.pkg.clone()).collect();
     let system_packages: std::collections::HashSet<String> = vm_state.packages.iter()
         .filter(|p| p.flags.contains("SYSTEM"))
         .map(|p| p.pkg.clone())
         .collect();
 
+    log::info!("[DEBLOAT] Preparing metadata for {} packages ({} system)",
+        package_ids.len(), system_packages.len());
+
     let app_metadata = crate::app_metadata_renderer::prepare_app_info_for_display(
         ui.ctx(),
         &package_ids,
         &system_packages,
+        vm_state,
         google_play_enabled,
         fdroid_enabled,
         apkmirror_enabled,
         android_package_enabled,
     );
+
+    log::info!("[DEBLOAT] Got metadata for {} packages", app_metadata.len());
 
     // Allocate remaining vertical space for scrollable list
     let available_height = ui.available_height() - 60.0; // Reserve space for batch actions
