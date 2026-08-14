@@ -454,6 +454,12 @@ pub fn retrieve_adb_devices(app: &mut UadShizukuApp) {
                 Ok(devices) => {
                     app.adb_devices = devices;
 
+                    // Auto-select first device if available (mirrors Android behavior)
+                    if !app.adb_devices.is_empty() {
+                        app.selected_device = Some(app.adb_devices[0].clone());
+                        app.current_device = Some(app.adb_devices[0].clone());
+                    }
+
                     retrieve_adb_users(app);
                 }
                 Err(e) => {
