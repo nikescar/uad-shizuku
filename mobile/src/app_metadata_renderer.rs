@@ -49,6 +49,7 @@ pub fn prepare_app_info_for_display(
     for pkg_id in package_ids {
         // Android Package renderer (highest priority on Android)
         if android_package_enabled {
+            // Try ViewModel cache first (future MVVM implementation)
             if let Some(ap_app) = vm_state.cached_metadata.get_android_package(pkg_id) {
                 let texture = load_texture_from_bytes(ctx, pkg_id, &ap_app.icon_bytes, &store);
                 app_data_map.insert(
@@ -63,7 +64,22 @@ pub fn prepare_app_info_for_display(
 
         if !is_system {
             if fdroid_enabled {
+                // Try ViewModel cache first (future MVVM)
                 if let Some(fd_app) = vm_state.cached_metadata.get_fdroid(pkg_id) {
+                    if fd_app.raw_response != "404" {
+                        apps_to_load.push((
+                            pkg_id.clone(),
+                            fd_app.icon_base64.clone(),
+                            fd_app.title.clone(),
+                            fd_app.developer.clone(),
+                            fd_app.version.clone(),
+                        ));
+                        continue;
+                    }
+                }
+
+                // Fall back to SharedStore (legacy queues store here)
+                if let Some(fd_app) = store.get_cached_fdroid_app(pkg_id) {
                     if fd_app.raw_response != "404" {
                         apps_to_load.push((
                             pkg_id.clone(),
@@ -78,7 +94,22 @@ pub fn prepare_app_info_for_display(
             }
 
             if google_play_enabled {
+                // Try ViewModel cache first (future MVVM)
                 if let Some(gp_app) = vm_state.cached_metadata.get_google_play(pkg_id) {
+                    if gp_app.raw_response != "404" {
+                        apps_to_load.push((
+                            pkg_id.clone(),
+                            gp_app.icon_base64.clone(),
+                            gp_app.title.clone(),
+                            gp_app.developer.clone(),
+                            gp_app.version.clone(),
+                        ));
+                        continue;
+                    }
+                }
+
+                // Fall back to SharedStore (legacy queues store here)
+                if let Some(gp_app) = store.get_cached_google_play_app(pkg_id) {
                     if gp_app.raw_response != "404" {
                         apps_to_load.push((
                             pkg_id.clone(),
@@ -93,7 +124,22 @@ pub fn prepare_app_info_for_display(
             }
         } else {
             if apkmirror_enabled {
+                // Try ViewModel cache first (future MVVM)
                 if let Some(am_app) = vm_state.cached_metadata.get_apkmirror(pkg_id) {
+                    if am_app.raw_response != "404" {
+                        apps_to_load.push((
+                            pkg_id.clone(),
+                            am_app.icon_base64.clone(),
+                            am_app.title.clone(),
+                            am_app.developer.clone(),
+                            am_app.version.clone(),
+                        ));
+                        continue;
+                    }
+                }
+
+                // Fall back to SharedStore (legacy queues store here)
+                if let Some(am_app) = store.get_cached_apkmirror_app(pkg_id) {
                     if am_app.raw_response != "404" {
                         apps_to_load.push((
                             pkg_id.clone(),

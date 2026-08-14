@@ -1,7 +1,6 @@
 warning: /home/wj/work/uad-shizuku/Cargo.toml: unused manifest key: workspace.package.versioncode
 warning: uad-shizuku@0.0.21: UAD lists is up-to-date at "resources/uad_lists.json"
 warning: uad-shizuku@0.0.21: Stalkerware IoC is up-to-date at "resources/stalkerware_ioc.yaml"
-   Compiling uad-shizuku v0.0.21 (/home/wj/work/uad-shizuku/mobile)
 warning: unused imports: `ICON_DOWNLOAD` and `ICON_INFO`
  --> mobile/src/dlg_dashcounter_details.rs:6:18
   |
@@ -216,17 +215,6 @@ warning: falling back to `f32` as the trait bound `f32: From<f64>` is not satisf
      = warning: this was previously accepted by the compiler but is being phased out; it will become a hard error in a future release!
      = note: for more information, see issue #154024 <https://github.com/rust-lang/rust/issues/154024>
 
-error[E0624]: method `auto_start_metadata_crawlers` is private
-    --> mobile/src/calc.rs:781:25
-     |
- 781 |                     app.auto_start_metadata_crawlers();
-     |                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ private method
-     |
-    ::: mobile/src/uad_shizuku_app.rs:3382:5
-     |
-3382 |     fn auto_start_metadata_crawlers(&mut self) {
-     |     ------------------------------------------ private method defined here
-
 warning: unused variable: `ctx_clone`
    --> mobile/src/dlg_dashcounter_details.rs:678:13
     |
@@ -359,8 +347,152 @@ warning: unused variable: `paths`
 958 |     let paths = get_install_paths();
     |         ^^^^^ help: if this is intentional, prefix it with an underscore: `_paths`
 
-For more information about this error, try `rustc --explain E0624`.
-warning: `uad-shizuku` (lib) generated 47 warnings
-warning: uad-shizuku@0.0.21: UAD lists is up-to-date at "resources/uad_lists.json"
-warning: uad-shizuku@0.0.21: Stalkerware IoC is up-to-date at "resources/stalkerware_ioc.yaml"
-error: could not compile `uad-shizuku` (lib) due to 1 previous error; 47 warnings emitted
+warning: function `usagestats_history` is never used
+    --> mobile/src/adb.rs:1454:8
+     |
+1454 | pub fn usagestats_history(device: &str) -> std::io::Result<String> {
+     |        ^^^^^^^^^^^^^^^^^^
+     |
+     = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `open_build_number_settings` is never used
+   --> mobile/src/android_activity.rs:292:8
+    |
+292 | pub fn open_build_number_settings() {
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `open_wireless_debugging_settings` is never used
+   --> mobile/src/android_activity.rs:297:8
+    |
+297 | pub fn open_wireless_debugging_settings() {
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `open_android_vending` is never used
+   --> mobile/src/android_activity.rs:302:8
+    |
+302 | pub fn open_android_vending(package_name: &str) {
+    |        ^^^^^^^^^^^^^^^^^^^^
+
+warning: function `open_shizuku_app` is never used
+   --> mobile/src/android_activity.rs:310:8
+    |
+310 | pub fn open_shizuku_app() {
+    |        ^^^^^^^^^^^^^^^^
+
+warning: function `get_text` is never used
+   --> mobile/src/android_clipboard.rs:441:8
+    |
+441 | pub fn get_text() -> std::io::Result<Option<String>> {
+    |        ^^^^^^^^
+
+warning: function `has_text` is never used
+   --> mobile/src/android_clipboard.rs:446:8
+    |
+446 | pub fn has_text() -> std::io::Result<bool> {
+    |        ^^^^^^^^
+
+warning: function `set_text` is never used
+   --> mobile/src/android_clipboard.rs:451:8
+    |
+451 | pub fn set_text(_text: &str) -> std::io::Result<()> {
+    |        ^^^^^^^^
+
+warning: constant `UI_MODE_NIGHT_MASK` is never used
+  --> mobile/src/android_contexttheme.rs:11:7
+   |
+11 | const UI_MODE_NIGHT_MASK: i32 = 0x30;
+   |       ^^^^^^^^^^^^^^^^^^
+
+warning: constant `UI_MODE_NIGHT_NO` is never used
+  --> mobile/src/android_contexttheme.rs:13:7
+   |
+13 | const UI_MODE_NIGHT_NO: i32 = 0x10;
+   |       ^^^^^^^^^^^^^^^^
+
+warning: constant `UI_MODE_NIGHT_YES` is never used
+  --> mobile/src/android_contexttheme.rs:15:7
+   |
+15 | const UI_MODE_NIGHT_YES: i32 = 0x20;
+   |       ^^^^^^^^^^^^^^^^^
+
+warning: enum `UiThemeMode` is never used
+  --> mobile/src/android_contexttheme.rs:18:10
+   |
+18 | pub enum UiThemeMode {
+   |          ^^^^^^^^^^^
+
+warning: function `get_ui_theme_mode` is never used
+   --> mobile/src/android_contexttheme.rs:146:8
+    |
+146 | pub fn get_ui_theme_mode() -> std::io::Result<UiThemeMode> {
+    |        ^^^^^^^^^^^^^^^^^
+
+warning: function `show_soft_input` is never used
+   --> mobile/src/android_inputmethod.rs:401:8
+    |
+401 | pub fn show_soft_input() -> std::io::Result<()> {
+    |        ^^^^^^^^^^^^^^^
+
+warning: function `hide_soft_input` is never used
+   --> mobile/src/android_inputmethod.rs:406:8
+    |
+406 | pub fn hide_soft_input() -> std::io::Result<()> {
+    |        ^^^^^^^^^^^^^^^
+
+warning: function `toggle_soft_input` is never used
+   --> mobile/src/android_inputmethod.rs:411:8
+    |
+411 | pub fn toggle_soft_input() -> std::io::Result<()> {
+    |        ^^^^^^^^^^^^^^^^^
+
+warning: methods `should_show_package_vt`, `should_show_package_ha`, `should_show_package`, and `matches_text_filter` are never used
+    --> mobile/src/tab_scan_control.rs:1216:8
+     |
+  74 | impl TabScanControl {
+     | ------------------- methods in this implementation
+...
+1216 |     fn should_show_package_vt(&self, package: &PackageFingerprint) -> bool {
+     |        ^^^^^^^^^^^^^^^^^^^^^^
+...
+1222 |     fn should_show_package_ha(&self, package: &PackageFingerprint) -> bool {
+     |        ^^^^^^^^^^^^^^^^^^^^^^
+...
+1229 |     fn should_show_package(&self, package: &PackageFingerprint) -> bool {
+     |        ^^^^^^^^^^^^^^^^^^^
+...
+1303 |     fn matches_text_filter(&self, package: &PackageFingerprint) -> bool {
+     |        ^^^^^^^^^^^^^^^^^^^
+
+warning: associated functions `log_level_to_string`, `text_style_to_string`, and `extract_github_embedded_data` are never used
+    --> mobile/src/uad_shizuku_app.rs:505:8
+     |
+ 396 | impl UadShizukuApp {
+     | ------------------ associated functions in this implementation
+...
+ 505 |     fn log_level_to_string(level: LogLevel) -> String {
+     |        ^^^^^^^^^^^^^^^^^^^
+...
+ 529 |     fn text_style_to_string(style: &Option<egui::TextStyle>) -> String {
+     |        ^^^^^^^^^^^^^^^^^^^^
+...
+3850 |     fn extract_github_embedded_data(html: &str) -> Option<String> {
+     |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `check_windows_registry` is never used
+   --> mobile/src/install.rs:488:4
+    |
+488 | fn check_windows_registry(_paths: &InstallPaths) -> bool {
+    |    ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: `uad-shizuku` (lib) generated 66 warnings (run `cargo fix --lib -p uad-shizuku` to apply 43 suggestions)
+warning: function `hide_console` is never used
+   --> mobile/src/main.rs:110:4
+    |
+110 | fn hide_console() {
+    |    ^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `uad-shizuku` (bin "uad-shizuku") generated 1 warning
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.68s
+     Running `target/debug/uad-shizuku`
