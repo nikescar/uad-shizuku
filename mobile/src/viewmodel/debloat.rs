@@ -472,8 +472,9 @@ impl DebloatActor {
                 }
 
                 // Show only enabled filter
+                // Android enabled states: 0=default(enabled), 1=explicitly enabled, 2+=disabled
                 if criteria.show_only_enabled {
-                    let is_enabled = pkg.users.iter().any(|u| u.enabled == 1);
+                    let is_enabled = pkg.users.iter().any(|u| u.enabled < 2);
                     if !is_enabled {
                         return false;
                     }
