@@ -157,10 +157,12 @@ fn render_main_content(
         ui.separator();
 
         // Package table (virtual scrolling)
+        log::debug!("DEBUG: view_desktop rendering package table with {} filtered packages", vm_state.filtered_packages.len());
         render_package_table(
             ui,
             &vm_state.filtered_packages,
             &mut local_state.selected_packages,
+            vm_state.uad_ng_lists.as_ref(),
         );
     });
 }

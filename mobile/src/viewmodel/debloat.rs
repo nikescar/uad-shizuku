@@ -4,6 +4,7 @@ use crate::adb::PackageFingerprint;
 use crate::uad_shizuku_app::UadNgLists;
 use crate::viewmodel::ViewModelEvent;
 use anyhow::Result;
+use std::sync::Arc;
 
 /// Filter criteria for packages
 #[derive(Debug, Clone)]
@@ -39,7 +40,6 @@ pub enum DebloatCommand {
     LoadUadNgLists,
     SetOptions { unsafe_app_remove: bool, expert_app_remove: bool },
     FilterPackages {
-        packages: Vec<PackageFingerprint>,
         criteria: PackageFilterCriteria,
     },
     SortPackages { criteria: PackageSortCriteria },
@@ -74,6 +74,8 @@ struct DebloatActorState {
     current_device: Option<String>,
     unsafe_app_remove: bool,
     expert_app_remove: bool,
+    uad_ng_lists: Option<Arc<UadNgLists>>,
+    packages: Vec<PackageFingerprint>,
 }
 
 /// Debloat actor - runs on background thread
@@ -95,6 +97,8 @@ impl DebloatActor {
                 current_device: None,
                 unsafe_app_remove: false,
                 expert_app_remove: false,
+                uad_ng_lists: None,
+                packages: Vec::new(),
             },
             command_rx,
             event_tx,
@@ -139,8 +143,8 @@ impl DebloatActor {
                 self.state.unsafe_app_remove = unsafe_app_remove;
                 self.state.expert_app_remove = expert_app_remove;
             }
-            DebloatCommand::FilterPackages { packages, criteria } => {
-                self.filter_packages(packages, criteria).await?;
+            DebloatCommand::FilterPackages { criteria } => {
+                self.filter_packages(criteria).await?;
             }
             DebloatCommand::SortPackages { criteria } => {
                 self.sort_packages(criteria).await?;
@@ -157,6 +161,7 @@ impl DebloatActor {
         }).await?;
 
         self.state.current_device = Some(device);
+        self.state.packages = packages.clone();
 
         // Send event back to ViewModel
         self.event_tx.send(ViewModelEvent::Debloat(
@@ -299,18 +304,25 @@ impl DebloatActor {
     }
 
     async fn load_uad_ng_lists(&mut self) -> Result<()> {
-        // Load UAD lists from embedded resources
+        // Load UAD lists from cache/network (with embedded fallback), same
+        // logic as the legacy SharedStore path in uad_shizuku_app.rs.
         let lists = smol::unblock(move || {
-            // For now, create empty lists - will be implemented properly later
-            use std::collections::HashMap;
-            UadNgLists {
-                apps: HashMap::new(),
-            }
+            let cache_dir = match crate::Config::new() {
+                Ok(config) => config.cache_dir,
+                Err(e) => {
+                    log::error!("Config not available, cannot retrieve UAD lists: {}", e);
+                    return None;
+                }
+            };
+            crate::calc_uad_lists::load_uad_ng_lists_blocking(&cache_dir)
         }).await;
 
-        self.event_tx.send(ViewModelEvent::Debloat(
-            DebloatEvent::UadNgListsLoaded(lists)
-        )).await?;
+        if let Some(lists) = lists {
+            self.state.uad_ng_lists = Some(Arc::new(lists.clone()));
+            self.event_tx.send(ViewModelEvent::Debloat(
+                DebloatEvent::UadNgListsLoaded(lists)
+            )).await?;
+        }
 
         // Also load stalkerware indicators
         let event_tx = self.event_tx.clone();
@@ -345,17 +357,29 @@ impl DebloatActor {
         )).await;
     }
 
-    async fn filter_packages(&mut self, packages: Vec<PackageFingerprint>, criteria: PackageFilterCriteria) -> Result<()> {
+    async fn filter_packages(&mut self, criteria: PackageFilterCriteria) -> Result<()> {
+        // Filter against the actor's own last-loaded packages, not a snapshot
+        // supplied by the caller - callers that fire FilterPackages right after
+        // LoadPackages would otherwise race the async fetch and filter stale data.
+        let packages = self.state.packages.clone();
+        log::debug!("DEBUG: DebloatActor received FilterPackages command with {} input packages", packages.len());
+        log::debug!("DEBUG: Filter criteria - text: {:?}, category: {:?}, show_only_enabled: {}, hide_system: {}",
+                   criteria.text_filter, criteria.category_filter, criteria.show_only_enabled, criteria.hide_system_apps);
+
         // Run filtering in background thread to avoid blocking
+        let uad_ng_lists = self.state.uad_ng_lists.clone();
         let filtered = smol::unblock(move || {
-            Self::apply_filters(packages, criteria)
+            Self::apply_filters(packages, criteria, uad_ng_lists)
         }).await;
+
+        log::debug!("DEBUG: DebloatActor filter_packages completed - {} packages after filtering", filtered.len());
 
         // Send filtered result back to ViewModel
         self.event_tx.send(ViewModelEvent::Debloat(
             DebloatEvent::FilteredPackagesReady(filtered)
         )).await?;
 
+        log::debug!("DEBUG: DebloatActor sent FilteredPackagesReady event");
         Ok(())
     }
 
@@ -370,8 +394,15 @@ impl DebloatActor {
     }
 
     /// Apply filter criteria to packages (sync, runs in thread pool)
-    fn apply_filters(packages: Vec<PackageFingerprint>, criteria: PackageFilterCriteria) -> Vec<PackageFingerprint> {
-        packages.into_iter().filter(|pkg| {
+    fn apply_filters(
+        packages: Vec<PackageFingerprint>,
+        criteria: PackageFilterCriteria,
+        uad_ng_lists: Option<Arc<UadNgLists>>,
+    ) -> Vec<PackageFingerprint> {
+        let input_count = packages.len();
+        log::debug!("DEBUG: apply_filters started with {} packages", input_count);
+
+        let filtered: Vec<_> = packages.into_iter().filter(|pkg| {
             // Text filter: search in package name
             if let Some(ref text) = criteria.text_filter {
                 if !text.is_empty() && !pkg.pkg.to_lowercase().contains(&text.to_lowercase()) {
@@ -395,14 +426,22 @@ impl DebloatActor {
                 }
             }
 
-            // Category filter (if provided)
-            // Note: this would need UAD lists integration, which is not in current state
-            // For now, we skip this - will be implemented when UAD integration is added
-            if let Some(ref _category) = criteria.category_filter {
-                // TODO: integrate with UAD lists when available in actor state
+            // Category filter (matches AppEntry.removal, e.g. "Recommended"/"Unsafe"/"Expert")
+            if let Some(ref category) = criteria.category_filter {
+                let matches = uad_ng_lists
+                    .as_ref()
+                    .and_then(|lists| lists.apps.get(&pkg.pkg))
+                    .map(|app| app.removal.eq_ignore_ascii_case(category))
+                    .unwrap_or(false);
+                if !matches {
+                    return false;
+                }
             }
 
             true
-        }).collect()
+        }).collect();
+
+        log::debug!("DEBUG: apply_filters completed - {} in, {} out", input_count, filtered.len());
+        filtered
     }
 }

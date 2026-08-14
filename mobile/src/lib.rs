@@ -62,6 +62,7 @@ pub mod calc_hybridanalysis_stt;
 mod calc_izzyrisk;
 mod calc_stalkerware;
 pub mod calc_stalkerware_stt;
+mod calc_uad_lists;
 mod calc_virustotal;
 pub mod calc_virustotal_stt;
 pub mod db;

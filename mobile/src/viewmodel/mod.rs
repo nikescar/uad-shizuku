@@ -149,6 +149,13 @@ impl ViewModel {
         match event {
             ViewModelEvent::Debloat(DebloatEvent::PackagesLoaded(packages)) => {
                 self.state.packages = packages.clone();
+                // Default filtered_packages to the full set immediately, so the
+                // datatable isn't empty while waiting for a separate FilterPackages
+                // round-trip (which itself races: callers that build FilterPackages
+                // from `state.packages` right after calling load_packages() would
+                // otherwise send the stale pre-load packages).
+                self.state.filtered_packages = packages.clone();
+                _ctx.request_repaint();
             }
             ViewModelEvent::Debloat(DebloatEvent::UadNgListsLoaded(lists)) => {
                 self.state.uad_ng_lists = Some(lists.clone());
@@ -158,7 +165,9 @@ impl ViewModel {
                 _ctx.request_repaint();
             }
             ViewModelEvent::Debloat(DebloatEvent::FilteredPackagesReady(packages)) => {
+                log::debug!("DEBUG: ViewModel received FilteredPackagesReady event with {} packages", packages.len());
                 self.state.filtered_packages = packages.clone();
+                log::debug!("DEBUG: ViewModel state.filtered_packages updated to {} packages", self.state.filtered_packages.len());
                 _ctx.request_repaint();
             }
             ViewModelEvent::Debloat(DebloatEvent::BatchProgress { operation, progress, .. }) => {
@@ -281,8 +290,7 @@ impl ViewModel {
             show_only_enabled,
             hide_system_apps,
         };
-        let packages = self.state.packages.clone();
-        self.debloat_tx.send_blocking(DebloatCommand::FilterPackages { packages, criteria })
+        self.debloat_tx.send_blocking(DebloatCommand::FilterPackages { criteria })
             .map_err(|e| anyhow::anyhow!("Failed to send filter command: {}", e))
     }
 

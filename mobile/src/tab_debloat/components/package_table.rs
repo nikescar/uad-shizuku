@@ -15,6 +15,7 @@ use egui_extras::{Column, TableBuilder};
 use std::collections::HashSet;
 
 use crate::adb_stt::PackageFingerprint;
+use crate::uad_shizuku_app::UadNgLists;
 
 /// Row height for table entries (24.0px for desktop)
 const ROW_HEIGHT: f32 = 24.0;
@@ -40,7 +41,9 @@ pub fn render_package_table(
     ui: &mut egui::Ui,
     packages: &[PackageFingerprint],
     selected_packages: &mut HashSet<String>,
+    uad_ng_lists: Option<&UadNgLists>,
 ) {
+    log::debug!("DEBUG: render_package_table called with {} packages", packages.len());
     TableBuilder::new(ui)
         .striped(true)
         .resizable(false)
@@ -89,9 +92,13 @@ pub fn render_package_table(
                     ui.label(&package.pkg);
                 });
 
-                // Column 3: Category (placeholder)
+                // Column 3: Category (from UAD-NG lists)
                 row.col(|ui| {
-                    ui.label("-");
+                    let category = uad_ng_lists
+                        .and_then(|lists| lists.apps.get(&package.pkg))
+                        .map(|app| app.removal.as_str())
+                        .unwrap_or("-");
+                    ui.label(category);
                 });
 
                 // Column 4: Status (enabled/disabled based on users field)

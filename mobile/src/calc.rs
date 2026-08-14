@@ -761,6 +761,13 @@ pub fn handle_package_loading_result(app: &mut UadShizukuApp) {
                                 }
                             }
                         }
+
+                        // UAD lists don't depend on a device; queued after package
+                        // loading/filtering so a slow UAD-list network fetch never
+                        // delays the datatable showing installed packages.
+                        if let Err(e) = viewmodel.load_uad_ng_lists() {
+                            log::error!("Failed to request ViewModel UAD lists load: {}", e);
+                        }
                     }
 
                     // Close dialog

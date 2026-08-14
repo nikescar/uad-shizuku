@@ -104,6 +104,9 @@ impl TabDebloat {
             }
         }
 
+        self.state.cached_counts =
+            compute_category_counts(&vm_state.packages, vm_state.uad_ng_lists.as_ref());
+
         if available_width >= RESPONSIVE_WIDTH_THRESHOLD {
             self.render_desktop(ui, vm_state);
         } else {
@@ -131,6 +134,33 @@ impl TabDebloat {
     fn render_mobile(&mut self, ui: &mut egui::Ui, vm_state: &crate::viewmodel::ViewModelState) {
         view_mobile::render(ui, vm_state, &mut self.state);
     }
+}
+
+/// Compute per-category package counts from the UAD-NG lists (matches
+/// `AppEntry.removal`: "Recommended" / "Unsafe" / "Expert").
+fn compute_category_counts(
+    packages: &[crate::adb::PackageFingerprint],
+    uad_ng_lists: Option<&crate::uad_shizuku_app::UadNgLists>,
+) -> CachedCategoryCounts {
+    let mut counts = CachedCategoryCounts {
+        all: packages.len(),
+        recommended: 0,
+        unsafe_apps: 0,
+        expert: 0,
+    };
+
+    if let Some(lists) = uad_ng_lists {
+        for pkg in packages {
+            match lists.apps.get(&pkg.pkg).map(|app| app.removal.as_str()) {
+                Some("Recommended") => counts.recommended += 1,
+                Some("Unsafe") => counts.unsafe_apps += 1,
+                Some("Expert") => counts.expert += 1,
+                _ => {}
+            }
+        }
+    }
+
+    counts
 }
 
 #[cfg(test)]

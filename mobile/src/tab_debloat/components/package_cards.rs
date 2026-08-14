@@ -14,6 +14,7 @@ use eframe::egui;
 use std::collections::HashSet;
 
 use crate::adb_stt::PackageFingerprint;
+use crate::uad_shizuku_app::UadNgLists;
 
 /// Minimum card height for touch-friendly interaction (48px)
 const CARD_MIN_HEIGHT: f32 = 48.0;
@@ -40,12 +41,13 @@ pub fn render_package_cards(
     ui: &mut egui::Ui,
     packages: &[PackageFingerprint],
     selected_packages: &mut HashSet<String>,
+    uad_ng_lists: Option<&UadNgLists>,
 ) {
     egui::ScrollArea::vertical()
         .auto_shrink([false, false])
         .show(ui, |ui| {
             for package in packages {
-                render_single_card(ui, package, selected_packages);
+                render_single_card(ui, package, selected_packages, uad_ng_lists);
                 ui.add_space(CARD_SPACING);
             }
         });
@@ -56,6 +58,7 @@ fn render_single_card(
     ui: &mut egui::Ui,
     package: &PackageFingerprint,
     selected_packages: &mut HashSet<String>,
+    uad_ng_lists: Option<&UadNgLists>,
 ) {
     let is_enabled = !package.users.is_empty();
 
@@ -95,9 +98,13 @@ fn render_single_card(
 
                         ui.colored_label(status_color, status_text);
 
-                        // Category placeholder (will be populated with UAD data)
+                        // Category (from UAD-NG lists)
+                        let category = uad_ng_lists
+                            .and_then(|lists| lists.apps.get(&package.pkg))
+                            .map(|app| app.removal.as_str())
+                            .unwrap_or("-");
                         ui.label("•");
-                        ui.label("-");
+                        ui.label(category);
                     });
                 });
             });

@@ -175,6 +175,7 @@ fn render_package_list(
             ui,
             &vm_state.filtered_packages,
             &mut local_state.selected_packages,
+            vm_state.uad_ng_lists.as_ref(),
         );
     });
 }
