@@ -45,6 +45,8 @@ pub fn prepare_app_info_for_display(
     log::debug!("[RENDER] Cache fetch took {:?}", cache_fetch_start.elapsed());
 
     let mut apps_to_load: Vec<(String, Option<String>, String, String, Option<String>)> = Vec::new();
+    let mut vm_cache_hits = 0;
+    let mut shared_store_hits = 0;
 
     for pkg_id in package_ids {
         // Android Package renderer (highest priority on Android)
@@ -67,6 +69,8 @@ pub fn prepare_app_info_for_display(
                 // Try ViewModel cache first (future MVVM)
                 if let Some(fd_app) = vm_state.cached_metadata.get_fdroid(pkg_id) {
                     if fd_app.raw_response != "404" {
+                        vm_cache_hits += 1;
+                        log::debug!("[RENDER] Found F-Droid metadata in ViewModel cache for {}", pkg_id);
                         apps_to_load.push((
                             pkg_id.clone(),
                             fd_app.icon_base64.clone(),
@@ -81,6 +85,8 @@ pub fn prepare_app_info_for_display(
                 // Fall back to SharedStore (legacy queues store here)
                 if let Some(fd_app) = store.get_cached_fdroid_app(pkg_id) {
                     if fd_app.raw_response != "404" {
+                        shared_store_hits += 1;
+                        log::debug!("[RENDER] Found F-Droid metadata in SharedStore for {}", pkg_id);
                         apps_to_load.push((
                             pkg_id.clone(),
                             fd_app.icon_base64.clone(),
@@ -97,6 +103,8 @@ pub fn prepare_app_info_for_display(
                 // Try ViewModel cache first (future MVVM)
                 if let Some(gp_app) = vm_state.cached_metadata.get_google_play(pkg_id) {
                     if gp_app.raw_response != "404" {
+                        vm_cache_hits += 1;
+                        log::debug!("[RENDER] Found Google Play metadata in ViewModel cache for {}", pkg_id);
                         apps_to_load.push((
                             pkg_id.clone(),
                             gp_app.icon_base64.clone(),
@@ -111,6 +119,8 @@ pub fn prepare_app_info_for_display(
                 // Fall back to SharedStore (legacy queues store here)
                 if let Some(gp_app) = store.get_cached_google_play_app(pkg_id) {
                     if gp_app.raw_response != "404" {
+                        shared_store_hits += 1;
+                        log::debug!("[RENDER] Found Google Play metadata in SharedStore for {}", pkg_id);
                         apps_to_load.push((
                             pkg_id.clone(),
                             gp_app.icon_base64.clone(),
@@ -187,6 +197,13 @@ pub fn prepare_app_info_for_display(
         total_texture_time,
         avg_texture_time,
         start_time.elapsed()
+    );
+
+    log::info!(
+        "[RENDER] Metadata sources: {} from ViewModel cache, {} from SharedStore, {} total metadata entries",
+        vm_cache_hits,
+        shared_store_hits,
+        app_data_map.len()
     );
 
     app_data_map
