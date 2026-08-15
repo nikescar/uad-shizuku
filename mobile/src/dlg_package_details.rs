@@ -66,23 +66,22 @@ impl DlgPackageDetails {
 
         egui::Window::new(format!("Package Details: {}", pkg_id))
             .id(egui::Id::new("package_details_window"))
-            .title_bar(false)
-            .resizable(true)
+            .title_bar(true)
+            .resizable(false)
             .collapsible(false)
             .scroll([false, false])
-            .min_width(700.0)
-            .min_height(500.0)
-            .resize(|r| {
-                r.default_size([
-                    ctx.content_rect().width() - 40.0,
-                    ctx.content_rect().height() - 40.0,
-                ])
-                .max_size([
-                    ctx.content_rect().width() - 40.0,
-                    ctx.content_rect().height() - 40.0,
-                ])
-            })
+            .fixed_size([ctx.screen_rect().width(), ctx.screen_rect().height()])
+            .default_pos([0.0, 0.0])
             .show(ctx, |ui| {
+                // Top-right close button
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Min), |ui| {
+                    if ui.add(egui_material3::MaterialButton::filled("✕")).clicked() {
+                        close_clicked = true;
+                    }
+                });
+
+                ui.add_space(8.0);
+
                 // Build tab labels dynamically
                 let mut tabs = tabs_primary(&mut self.selected_tab)
                     .id_salt("package_details_tabs")
