@@ -53,6 +53,18 @@ impl DlgMobileList {
         apkmirror_enabled: bool,
         android_package_enabled: bool,
     ) {
+        // Check viewport width and auto-close if >800px
+        let current_width = ctx.screen_rect().width();
+        if current_width > 800.0 {
+            // Close dialog when viewport exceeds mobile threshold
+            if self.open {
+                log::info!("[MOBILE_LIST] Auto-closing dialog: viewport width {} > 800px", current_width);
+                self.close();
+                return;
+            }
+        }
+        self.last_width = Some(current_width);
+
         if !self.open {
             return;
         }

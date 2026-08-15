@@ -13,6 +13,9 @@ pub struct DlgMobileList {
 
     /// Which tab's view to display
     pub view_type: MobileListViewType,
+
+    /// Track last viewport width for resize detection
+    pub last_width: Option<f32>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -28,6 +31,7 @@ impl Default for DlgMobileList {
             open: false,
             category_filter: None,
             view_type: MobileListViewType::Debloat,
+            last_width: None,
         }
     }
 }
