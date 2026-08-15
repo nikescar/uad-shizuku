@@ -82,20 +82,21 @@ impl DlgMobileList {
         egui::Window::new(window_title)
             .id(egui::Id::new("mobile_list_window"))
             .title_bar(true)
-            .resizable(true)
+            .resizable(false)  // Prevent manual resizing
             .collapsible(false)
             .scroll([false, false])
-            .resize(|r| {
-                r.default_size([
-                    ctx.content_rect().width() - 40.0,
-                    ctx.content_rect().height() - 40.0,
-                ])
-                .max_size([
-                    ctx.content_rect().width() - 40.0,
-                    ctx.content_rect().height() - 40.0,
-                ])
-            })
+            .fixed_size([ctx.screen_rect().width(), ctx.screen_rect().height()])
+            .default_pos([0.0, 0.0])
             .show(ctx, |ui| {
+                // Top-right close button
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Min), |ui| {
+                    if ui.button("✕").clicked() {
+                        self.close();
+                    }
+                });
+
+                ui.add_space(8.0);
+
                 // Render appropriate view based on view_type
                 match self.view_type {
                     MobileListViewType::Debloat => {
@@ -111,14 +112,6 @@ impl DlgMobileList {
                     }
                     // Future: Add Scan, Apps views here
                 }
-
-                // Close button at bottom
-                ui.separator();
-                ui.horizontal(|ui| {
-                    if ui.button("Close").clicked() {
-                        self.close();
-                    }
-                });
             });
     }
 }
