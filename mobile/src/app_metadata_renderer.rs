@@ -97,6 +97,22 @@ pub fn prepare_app_info_for_display(
                         continue;
                     }
                 }
+
+                // Fall back to database (metadata fetched by calc_fdroid module)
+                let mut conn = crate::db::establish_connection();
+                if let Ok(Some(fd_app)) = crate::db_fdroid::get_fdroid_app(&mut conn, pkg_id) {
+                    if fd_app.raw_response != "404" {
+                        log::debug!("[RENDER] Found F-Droid metadata in database for {}", pkg_id);
+                        apps_to_load.push((
+                            pkg_id.clone(),
+                            fd_app.icon_base64.clone(),
+                            fd_app.title.clone(),
+                            fd_app.developer.clone(),
+                            fd_app.version.clone(),
+                        ));
+                        continue;
+                    }
+                }
             }
 
             if google_play_enabled {
@@ -121,6 +137,22 @@ pub fn prepare_app_info_for_display(
                     if gp_app.raw_response != "404" {
                         shared_store_hits += 1;
                         log::debug!("[RENDER] Found Google Play metadata in SharedStore for {}", pkg_id);
+                        apps_to_load.push((
+                            pkg_id.clone(),
+                            gp_app.icon_base64.clone(),
+                            gp_app.title.clone(),
+                            gp_app.developer.clone(),
+                            gp_app.version.clone(),
+                        ));
+                        continue;
+                    }
+                }
+
+                // Fall back to database (metadata fetched by calc_googleplay module)
+                let mut conn = crate::db::establish_connection();
+                if let Ok(Some(gp_app)) = crate::db_googleplay::get_google_play_app(&mut conn, pkg_id) {
+                    if gp_app.raw_response != "404" {
+                        log::debug!("[RENDER] Found Google Play metadata in database for {}", pkg_id);
                         apps_to_load.push((
                             pkg_id.clone(),
                             gp_app.icon_base64.clone(),
