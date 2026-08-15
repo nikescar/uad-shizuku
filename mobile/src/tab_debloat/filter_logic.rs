@@ -101,65 +101,59 @@ pub fn render_category_filters(
             }
         }
 
-        // Expert category button - only visible when expert_app_remove option is enabled
-        if local_state.expert_app_remove {
-            if ui
-                .selectable_label(
-                    local_state.active_filter.category_filter.as_deref() == Some("expert"),
-                    format!("Expert ({}/{})", local_state.cached_counts.expert_enabled, local_state.cached_counts.expert),
-                )
-                .clicked()
-            {
-                local_state.active_filter.category_filter = Some("expert".to_string());
+        if ui
+            .selectable_label(
+                local_state.active_filter.category_filter.as_deref() == Some("expert"),
+                format!("Expert ({}/{})", local_state.cached_counts.expert_enabled, local_state.cached_counts.expert),
+            )
+            .clicked()
+        {
+            local_state.active_filter.category_filter = Some("expert".to_string());
 
-                // Apply filter immediately via ViewModel
-                let text_filter = if local_state.applied_filter_text.is_empty() {
-                    None
-                } else {
-                    Some(local_state.applied_filter_text.clone())
-                };
+            // Apply filter immediately via ViewModel
+            let text_filter = if local_state.applied_filter_text.is_empty() {
+                None
+            } else {
+                Some(local_state.applied_filter_text.clone())
+            };
 
-                if let Err(e) = viewmodel.filter_packages(
-                    text_filter,
-                    Some("expert".to_string()),
-                    local_state.active_filter.show_only_enabled,
-                    local_state.active_filter.hide_system_apps,
-                ) {
-                    log::error!("Failed to apply 'Expert' filter: {}", e);
-                } else {
-                    log::debug!("Applied category filter: expert");
-                }
+            if let Err(e) = viewmodel.filter_packages(
+                text_filter,
+                Some("expert".to_string()),
+                local_state.active_filter.show_only_enabled,
+                local_state.active_filter.hide_system_apps,
+            ) {
+                log::error!("Failed to apply 'Expert' filter: {}", e);
+            } else {
+                log::debug!("Applied category filter: expert");
             }
         }
 
-        // Unsafe category button - only visible when unsafe_app_remove option is enabled
-        if local_state.unsafe_app_remove {
-            if ui
-                .selectable_label(
-                    local_state.active_filter.category_filter.as_deref() == Some("unsafe"),
-                    format!("Unsafe ({}/{})", local_state.cached_counts.unsafe_apps_enabled, local_state.cached_counts.unsafe_apps),
-                )
-                .clicked()
-            {
-                local_state.active_filter.category_filter = Some("unsafe".to_string());
+        if ui
+            .selectable_label(
+                local_state.active_filter.category_filter.as_deref() == Some("unsafe"),
+                format!("Unsafe ({}/{})", local_state.cached_counts.unsafe_apps_enabled, local_state.cached_counts.unsafe_apps),
+            )
+            .clicked()
+        {
+            local_state.active_filter.category_filter = Some("unsafe".to_string());
 
-                // Apply filter immediately via ViewModel
-                let text_filter = if local_state.applied_filter_text.is_empty() {
-                    None
-                } else {
-                    Some(local_state.applied_filter_text.clone())
-                };
+            // Apply filter immediately via ViewModel
+            let text_filter = if local_state.applied_filter_text.is_empty() {
+                None
+            } else {
+                Some(local_state.applied_filter_text.clone())
+            };
 
-                if let Err(e) = viewmodel.filter_packages(
-                    text_filter,
-                    Some("unsafe".to_string()),
-                    local_state.active_filter.show_only_enabled,
-                    local_state.active_filter.hide_system_apps,
-                ) {
-                    log::error!("Failed to apply 'Unsafe' filter: {}", e);
-                } else {
-                    log::debug!("Applied category filter: unsafe");
-                }
+            if let Err(e) = viewmodel.filter_packages(
+                text_filter,
+                Some("unsafe".to_string()),
+                local_state.active_filter.show_only_enabled,
+                local_state.active_filter.hide_system_apps,
+            ) {
+                log::error!("Failed to apply 'Unsafe' filter: {}", e);
+            } else {
+                log::debug!("Applied category filter: unsafe");
             }
         }
 
