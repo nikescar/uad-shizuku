@@ -331,8 +331,16 @@ fn load_texture_from_base64(
     store: &crate::shared_store_stt::SharedStore,
 ) -> Option<egui::TextureHandle> {
     use base64::Engine;
+
+    // Strip data URL prefix if present (e.g., "data:image/png;base64,")
+    let base64_str = if let Some(comma_idx) = base64_data.find(',') {
+        &base64_data[comma_idx + 1..]
+    } else {
+        base64_data
+    };
+
     let bytes = base64::engine::general_purpose::STANDARD
-        .decode(base64_data)
+        .decode(base64_str)
         .ok()?;
     load_texture_from_bytes(ctx, pkg_id, &bytes, store)
 }
