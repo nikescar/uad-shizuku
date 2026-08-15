@@ -112,40 +112,6 @@ impl TabDebloat {
             }
         }
 
-        // Check if non-text filters changed (category, checkboxes)
-        let current_filter_snapshot = DebloatFilter {
-            text_filter: self.state.applied_filter_text.clone(),
-            category_filter: self.state.active_filter.category_filter.clone(),
-            show_only_enabled: self.state.active_filter.show_only_enabled,
-            hide_system_apps: self.state.active_filter.hide_system_apps,
-        };
-
-        if current_filter_snapshot != self.state.last_applied_filter {
-            // Filter changed, apply immediately
-            let text_filter = if current_filter_snapshot.text_filter.is_empty() {
-                None
-            } else {
-                Some(current_filter_snapshot.text_filter.clone())
-            };
-
-            if let Err(e) = viewmodel.filter_packages(
-                text_filter,
-                current_filter_snapshot.category_filter.clone(),
-                current_filter_snapshot.show_only_enabled,
-                current_filter_snapshot.hide_system_apps,
-            ) {
-                log::error!("Failed to send filter command: {}", e);
-            } else {
-                log::debug!(
-                    "Applied filter update: category={:?}, enabled={}, hide_system={}",
-                    self.state.active_filter.category_filter,
-                    self.state.active_filter.show_only_enabled,
-                    self.state.active_filter.hide_system_apps
-                );
-                self.state.last_applied_filter = current_filter_snapshot;
-            }
-        }
-
         self.state.cached_counts =
             compute_category_counts(&vm_state.packages, vm_state.uad_ng_lists.as_ref());
 
