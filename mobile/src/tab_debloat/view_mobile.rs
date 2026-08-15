@@ -11,6 +11,7 @@
 use eframe::egui;
 
 use super::components::package_table_mobile::render_package_table_mobile;
+use super::filter_logic;
 use super::state::TabDebloatState;
 use crate::viewmodel::ViewModelState;
 
@@ -91,104 +92,23 @@ fn render_filter_section(
         .default_open(false)
         .show(ui, |ui| {
             // Category filters
-            ui.label("Category");
-
-            ui.horizontal_wrapped(|ui| {
-                if ui
-                    .selectable_label(
-                        local_state.active_filter.category_filter.is_none(),
-                        format!("All ({})", local_state.cached_counts.all),
-                    )
-                    .clicked()
-                {
-                    local_state.active_filter.category_filter = None;
-                    local_state.table_version += 1;
-                }
-
-                if ui
-                    .selectable_label(
-                        local_state.active_filter.category_filter.as_deref() == Some("recommended"),
-                        format!("Recommended ({})", local_state.cached_counts.recommended),
-                    )
-                    .clicked()
-                {
-                    local_state.active_filter.category_filter = Some("recommended".to_string());
-                    local_state.table_version += 1;
-                }
-
-                if ui
-                    .selectable_label(
-                        local_state.active_filter.category_filter.as_deref() == Some("unsafe"),
-                        format!("Unsafe ({})", local_state.cached_counts.unsafe_apps),
-                    )
-                    .clicked()
-                {
-                    local_state.active_filter.category_filter = Some("unsafe".to_string());
-                    local_state.table_version += 1;
-                }
-
-                if ui
-                    .selectable_label(
-                        local_state.active_filter.category_filter.as_deref() == Some("expert"),
-                        format!("Expert ({})", local_state.cached_counts.expert),
-                    )
-                    .clicked()
-                {
-                    local_state.active_filter.category_filter = Some("expert".to_string());
-                    local_state.table_version += 1;
-                }
-            });
+            filter_logic::render_category_filters(ui, local_state);
 
             ui.add_space(8.0);
 
             // Options
             ui.separator();
-            ui.label("Options");
-
-            if ui
-                .checkbox(
-                    &mut local_state.active_filter.show_only_enabled,
-                    "Show only enabled",
-                )
-                .changed()
-            {
-                local_state.table_version += 1;
-            }
-
-            if ui
-                .checkbox(
-                    &mut local_state.active_filter.hide_system_apps,
-                    "Hide system apps",
-                )
-                .changed()
-            {
-                local_state.table_version += 1;
-            }
+            filter_logic::render_options_checkboxes(ui, local_state);
 
             ui.add_space(8.0);
 
             // Advanced settings
             ui.separator();
-            ui.label("Advanced");
+            filter_logic::render_advanced_settings(ui, local_state);
 
-            ui.checkbox(&mut local_state.unsafe_app_remove, "Unsafe removal");
-            ui.checkbox(&mut local_state.expert_app_remove, "Expert mode");
-
-            // Device info
-            if let Some(device) = &local_state.selected_device {
-                ui.add_space(8.0);
-                ui.separator();
-                ui.label(format!("Device: {}", device));
-            }
-
-            // Package count
+            // Device info and package counts
             ui.add_space(8.0);
-            ui.separator();
-            ui.label(format!(
-                "Total: {} | Filtered: {}",
-                vm_state.packages.len(),
-                vm_state.filtered_packages.len()
-            ));
+            filter_logic::render_package_counts(ui, vm_state, local_state);
         });
 }
 

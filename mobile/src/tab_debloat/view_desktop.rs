@@ -10,6 +10,7 @@ use eframe::egui;
 use std::collections::HashMap;
 
 use super::components::render_package_table;
+use super::filter_logic;
 use super::state::TabDebloatState;
 use crate::adb_stt::PackageFingerprint;
 use crate::shared_store_stt::get_shared_store;
@@ -69,123 +70,26 @@ fn render_sidebar(ui: &mut egui::Ui, vm_state: &ViewModelState, local_state: &mu
         ui.heading("Filters");
         ui.separator();
 
-        // Category filters section
-        ui.label("Category");
-        ui.horizontal(|ui| {
-            if ui
-                .selectable_label(local_state.active_filter.category_filter.is_none(), "All")
-                .clicked()
-            {
-                local_state.active_filter.category_filter = None;
-                local_state.table_version += 1;
-            }
-            ui.label(format!("({}/{})", local_state.cached_counts.all_enabled, local_state.cached_counts.all));
-        });
-
-        ui.horizontal(|ui| {
-            if ui
-                .selectable_label(
-                    local_state.active_filter.category_filter.as_deref() == Some("recommended"),
-                    "Recommended",
-                )
-                .clicked()
-            {
-                local_state.active_filter.category_filter = Some("recommended".to_string());
-                local_state.table_version += 1;
-            }
-            ui.label(format!("({}/{})", local_state.cached_counts.recommended_enabled, local_state.cached_counts.recommended));
-        });
-
-        ui.horizontal(|ui| {
-            if ui
-                .selectable_label(
-                    local_state.active_filter.category_filter.as_deref() == Some("advanced"),
-                    "Advanced",
-                )
-                .clicked()
-            {
-                local_state.active_filter.category_filter = Some("advanced".to_string());
-                local_state.table_version += 1;
-            }
-            ui.label(format!("({}/{})", local_state.cached_counts.advanced_enabled, local_state.cached_counts.advanced));
-        });
-
-        ui.horizontal(|ui| {
-            if ui
-                .selectable_label(
-                    local_state.active_filter.category_filter.as_deref() == Some("expert"),
-                    "Expert",
-                )
-                .clicked()
-            {
-                local_state.active_filter.category_filter = Some("expert".to_string());
-                local_state.table_version += 1;
-            }
-            ui.label(format!("({}/{})", local_state.cached_counts.expert_enabled, local_state.cached_counts.expert));
-        });
-
-        ui.horizontal(|ui| {
-            if ui
-                .selectable_label(
-                    local_state.active_filter.category_filter.as_deref() == Some("unsafe"),
-                    "Unsafe",
-                )
-                .clicked()
-            {
-                local_state.active_filter.category_filter = Some("unsafe".to_string());
-                local_state.table_version += 1;
-            }
-            ui.label(format!("({}/{})", local_state.cached_counts.unsafe_apps_enabled, local_state.cached_counts.unsafe_apps));
-        });
+        // Category filters
+        filter_logic::render_category_filters(ui, local_state);
 
         ui.add_space(16.0);
 
-        // Options section
+        // Options
         ui.separator();
         ui.heading("Options");
-
-        if ui
-            .checkbox(
-                &mut local_state.active_filter.show_only_enabled,
-                "Show only enabled",
-            )
-            .changed()
-        {
-            local_state.table_version += 1;
-        }
-
-        if ui
-            .checkbox(
-                &mut local_state.active_filter.hide_system_apps,
-                "Hide system apps",
-            )
-            .changed()
-        {
-            local_state.table_version += 1;
-        }
+        filter_logic::render_options_checkboxes(ui, local_state);
 
         ui.add_space(16.0);
 
-        // Advanced settings section
+        // Advanced settings
         ui.separator();
         ui.heading("Advanced");
+        filter_logic::render_advanced_settings(ui, local_state);
 
-        ui.checkbox(&mut local_state.unsafe_app_remove, "Unsafe removal");
-        ui.checkbox(&mut local_state.expert_app_remove, "Expert mode");
-
-        // Display device info if available
-        if let Some(device) = &local_state.selected_device {
-            ui.add_space(16.0);
-            ui.separator();
-            ui.label("Device");
-            ui.label(device);
-        }
-
-        // Display package count from ViewModel
+        // Device info and package counts
         ui.add_space(16.0);
-        ui.separator();
-        ui.label(format!("Total packages: {}", vm_state.packages.len()));
-        ui.label(format!("Filtered: {}", vm_state.filtered_packages.len()));
+        filter_logic::render_package_counts(ui, vm_state, local_state);
     });
 }
 

@@ -11,6 +11,7 @@
 //! - Mobile view (<800px): Card-based list view for small screens
 
 pub mod components;
+pub mod filter_logic;
 pub mod state;
 pub mod view_desktop;
 pub mod view_mobile;
