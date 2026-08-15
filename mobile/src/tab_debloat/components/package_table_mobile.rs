@@ -9,7 +9,6 @@ use std::collections::{HashMap, HashSet};
 
 use crate::adb_stt::PackageFingerprint;
 use crate::material_symbol_icons::{ICON_DELETE, ICON_INFO, ICON_TOGGLE_OFF, ICON_TOGGLE_ON};
-use crate::uad_shizuku_app::UadNgLists;
 use egui_material3::icon_button_standard;
 
 const ROW_HEIGHT: f32 = 56.0;
@@ -20,14 +19,25 @@ const MOBILE_TOUCH_TARGET: f32 = 40.0;
 
 pub type AppDisplayData = HashMap<String, (Option<egui::TextureHandle>, String)>;
 
+/// Render a mobile-optimized package table with 3 columns: Checkbox + Name/Status + Tasks.
+///
+/// This is a simplified version of the desktop table (5 columns) optimized for narrow screens
+/// (1000-2000 packages, <300ms render time).
+///
+/// # Arguments
+/// * `ui` - egui context for rendering
+/// * `packages` - List of packages to display
+/// * `selected_packages` - Mutable set of selected package IDs
+/// * `app_display_data` - App icons and display titles (from metadata)
+/// * `on_info_clicked` - Callback when info button is clicked (receives package name)
+/// * `on_toggle_clicked` - Callback when enable/disable button is clicked (receives package name and current state)
+/// * `on_delete_clicked` - Callback when delete button is clicked (receives package name)
 pub fn render_package_table_mobile(
     ui: &mut egui::Ui,
     packages: &[PackageFingerprint],
     selected_packages: &mut HashSet<String>,
-    uad_ng_lists: Option<&UadNgLists>,
     app_display_data: &AppDisplayData,
     on_info_clicked: &mut dyn FnMut(&str),
-    on_refresh_clicked: &mut dyn FnMut(&str),
     on_toggle_clicked: &mut dyn FnMut(&str, bool),
     on_delete_clicked: &mut dyn FnMut(&str),
 ) {
