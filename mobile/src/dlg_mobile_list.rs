@@ -106,6 +106,53 @@ impl DlgMobileList {
 
                 ui.add_space(8.0);
 
+                // Sync filter state from dialog to tab state
+                if let Some(ref category) = self.category_filter {
+                    if tab_debloat_state.active_filter.category_filter.as_deref() != Some(category) {
+                        log::info!("[MOBILE_LIST] Syncing category filter to: {}", category);
+                        tab_debloat_state.active_filter.category_filter = Some(category.clone());
+
+                        // Apply filter via ViewModel
+                        let text_filter = if tab_debloat_state.applied_filter_text.is_empty() {
+                            None
+                        } else {
+                            Some(tab_debloat_state.applied_filter_text.clone())
+                        };
+
+                        if let Err(e) = viewmodel.filter_packages(
+                            text_filter,
+                            Some(category.clone()),
+                            tab_debloat_state.active_filter.show_only_enabled,
+                            tab_debloat_state.active_filter.hide_system_apps,
+                        ) {
+                            log::error!("[MOBILE_LIST] Failed to apply category filter: {}", e);
+                        }
+
+                        ui.ctx().request_repaint();
+                    }
+                } else if tab_debloat_state.active_filter.category_filter.is_some() {
+                    // Dialog has no category filter but tab state does - clear it
+                    log::info!("[MOBILE_LIST] Clearing category filter");
+                    tab_debloat_state.active_filter.category_filter = None;
+
+                    let text_filter = if tab_debloat_state.applied_filter_text.is_empty() {
+                        None
+                    } else {
+                        Some(tab_debloat_state.applied_filter_text.clone())
+                    };
+
+                    if let Err(e) = viewmodel.filter_packages(
+                        text_filter,
+                        None,
+                        tab_debloat_state.active_filter.show_only_enabled,
+                        tab_debloat_state.active_filter.hide_system_apps,
+                    ) {
+                        log::error!("[MOBILE_LIST] Failed to clear category filter: {}", e);
+                    }
+
+                    ui.ctx().request_repaint();
+                }
+
                 // Render appropriate view based on view_type
                 log::info!(
                     "[MOBILE_LIST] Renderer flags - GP: {}, FD: {}, APK: {}, AP: {}",

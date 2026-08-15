@@ -1053,6 +1053,13 @@ impl UadShizukuApp {
                     );
                     (None, 0, 0)
                 }
+                ("debloat", 4) => {
+                    self.dlg_mobile_list.open(
+                        crate::dlg_mobile_list::MobileListViewType::Debloat,
+                        Some("unknown".to_string()),
+                    );
+                    (None, 0, 0)
+                }
                 ("stalkerware", 0) => {
                     let shared_store = crate::shared_store_stt::get_shared_store();
                     let installed_packages = shared_store.get_installed_packages();
@@ -2588,6 +2595,12 @@ impl UadShizukuApp {
                             "Unsafe",
                             debloat_counts.unsafe_apps_enabled,
                             debloat_counts.unsafe_apps,
+                            "enabled",
+                            "all"
+                        ).card_with_description(
+                            "Unknown",
+                            debloat_counts.unknown_apps_enabled,
+                            debloat_counts.unknown_apps,
                             "enabled",
                             "all"
                         )
