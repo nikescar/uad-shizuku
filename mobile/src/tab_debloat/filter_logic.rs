@@ -25,6 +25,7 @@ pub fn render_category_filters(
             .clicked()
         {
             local_state.active_filter.category_filter = None;
+            ui.ctx().request_repaint(); // Force UI update
 
             // Apply filter immediately via ViewModel
             let text_filter = if local_state.applied_filter_text.is_empty() {
@@ -53,6 +54,7 @@ pub fn render_category_filters(
             .clicked()
         {
             local_state.active_filter.category_filter = Some("recommended".to_string());
+            ui.ctx().request_repaint(); // Force UI update
 
             // Apply filter immediately via ViewModel
             let text_filter = if local_state.applied_filter_text.is_empty() {
