@@ -171,11 +171,4 @@ mod tests {
         assert_eq!(MOBILE_TOUCH_TARGET, 40.0);
     }
 
-    #[test]
-    fn test_function_compiles() {
-        let packages: Vec<PackageFingerprint> = vec![];
-        let mut selected: HashSet<String> = HashSet::new();
-        let metadata: HashMap<String, (Option<egui::TextureHandle>, String)> = HashMap::new();
-        assert_eq!(packages.len(), 0);
-    }
 }
