@@ -7,9 +7,13 @@ use crate::viewmodel::ViewModelState;
 
 /// Render category filter buttons (All, Recommended, Advanced, Expert, Unsafe)
 ///
-/// Updates `local_state.active_filter.category_filter` and increments `table_version`
-/// when selection changes.
-pub fn render_category_filters(ui: &mut egui::Ui, local_state: &mut TabDebloatState) {
+/// Updates `local_state.active_filter.category_filter` and calls ViewModel
+/// to apply the filter immediately.
+pub fn render_category_filters(
+    ui: &mut egui::Ui,
+    local_state: &mut TabDebloatState,
+    viewmodel: &crate::viewmodel::ViewModel,
+) {
     ui.label("Category");
 
     ui.horizontal_wrapped(|ui| {
@@ -21,7 +25,24 @@ pub fn render_category_filters(ui: &mut egui::Ui, local_state: &mut TabDebloatSt
             .clicked()
         {
             local_state.active_filter.category_filter = None;
-            local_state.table_version += 1;
+
+            // Apply filter immediately via ViewModel
+            let text_filter = if local_state.applied_filter_text.is_empty() {
+                None
+            } else {
+                Some(local_state.applied_filter_text.clone())
+            };
+
+            if let Err(e) = viewmodel.filter_packages(
+                text_filter,
+                None,
+                local_state.active_filter.show_only_enabled,
+                local_state.active_filter.hide_system_apps,
+            ) {
+                log::error!("Failed to apply 'All' filter: {}", e);
+            } else {
+                log::debug!("Applied category filter: All");
+            }
         }
 
         if ui
@@ -32,7 +53,24 @@ pub fn render_category_filters(ui: &mut egui::Ui, local_state: &mut TabDebloatSt
             .clicked()
         {
             local_state.active_filter.category_filter = Some("recommended".to_string());
-            local_state.table_version += 1;
+
+            // Apply filter immediately via ViewModel
+            let text_filter = if local_state.applied_filter_text.is_empty() {
+                None
+            } else {
+                Some(local_state.applied_filter_text.clone())
+            };
+
+            if let Err(e) = viewmodel.filter_packages(
+                text_filter,
+                Some("recommended".to_string()),
+                local_state.active_filter.show_only_enabled,
+                local_state.active_filter.hide_system_apps,
+            ) {
+                log::error!("Failed to apply 'Recommended' filter: {}", e);
+            } else {
+                log::debug!("Applied category filter: recommended");
+            }
         }
 
         if ui
@@ -43,7 +81,24 @@ pub fn render_category_filters(ui: &mut egui::Ui, local_state: &mut TabDebloatSt
             .clicked()
         {
             local_state.active_filter.category_filter = Some("advanced".to_string());
-            local_state.table_version += 1;
+
+            // Apply filter immediately via ViewModel
+            let text_filter = if local_state.applied_filter_text.is_empty() {
+                None
+            } else {
+                Some(local_state.applied_filter_text.clone())
+            };
+
+            if let Err(e) = viewmodel.filter_packages(
+                text_filter,
+                Some("advanced".to_string()),
+                local_state.active_filter.show_only_enabled,
+                local_state.active_filter.hide_system_apps,
+            ) {
+                log::error!("Failed to apply 'Advanced' filter: {}", e);
+            } else {
+                log::debug!("Applied category filter: advanced");
+            }
         }
 
         if ui
@@ -54,7 +109,24 @@ pub fn render_category_filters(ui: &mut egui::Ui, local_state: &mut TabDebloatSt
             .clicked()
         {
             local_state.active_filter.category_filter = Some("expert".to_string());
-            local_state.table_version += 1;
+
+            // Apply filter immediately via ViewModel
+            let text_filter = if local_state.applied_filter_text.is_empty() {
+                None
+            } else {
+                Some(local_state.applied_filter_text.clone())
+            };
+
+            if let Err(e) = viewmodel.filter_packages(
+                text_filter,
+                Some("expert".to_string()),
+                local_state.active_filter.show_only_enabled,
+                local_state.active_filter.hide_system_apps,
+            ) {
+                log::error!("Failed to apply 'Expert' filter: {}", e);
+            } else {
+                log::debug!("Applied category filter: expert");
+            }
         }
 
         if ui
@@ -65,13 +137,34 @@ pub fn render_category_filters(ui: &mut egui::Ui, local_state: &mut TabDebloatSt
             .clicked()
         {
             local_state.active_filter.category_filter = Some("unsafe".to_string());
-            local_state.table_version += 1;
+
+            // Apply filter immediately via ViewModel
+            let text_filter = if local_state.applied_filter_text.is_empty() {
+                None
+            } else {
+                Some(local_state.applied_filter_text.clone())
+            };
+
+            if let Err(e) = viewmodel.filter_packages(
+                text_filter,
+                Some("unsafe".to_string()),
+                local_state.active_filter.show_only_enabled,
+                local_state.active_filter.hide_system_apps,
+            ) {
+                log::error!("Failed to apply 'Unsafe' filter: {}", e);
+            } else {
+                log::debug!("Applied category filter: unsafe");
+            }
         }
     });
 }
 
 /// Render options checkboxes (Show only enabled, Hide system apps)
-pub fn render_options_checkboxes(ui: &mut egui::Ui, local_state: &mut TabDebloatState) {
+pub fn render_options_checkboxes(
+    ui: &mut egui::Ui,
+    local_state: &mut TabDebloatState,
+    viewmodel: &crate::viewmodel::ViewModel,
+) {
     ui.label("Options");
 
     if ui
@@ -81,7 +174,26 @@ pub fn render_options_checkboxes(ui: &mut egui::Ui, local_state: &mut TabDebloat
         )
         .changed()
     {
-        local_state.table_version += 1;
+        // Apply filter immediately via ViewModel
+        let text_filter = if local_state.applied_filter_text.is_empty() {
+            None
+        } else {
+            Some(local_state.applied_filter_text.clone())
+        };
+
+        if let Err(e) = viewmodel.filter_packages(
+            text_filter,
+            local_state.active_filter.category_filter.clone(),
+            local_state.active_filter.show_only_enabled,
+            local_state.active_filter.hide_system_apps,
+        ) {
+            log::error!("Failed to apply 'Show only enabled' filter: {}", e);
+        } else {
+            log::debug!(
+                "Applied 'Show only enabled' filter: {}",
+                local_state.active_filter.show_only_enabled
+            );
+        }
     }
 
     if ui
@@ -91,7 +203,26 @@ pub fn render_options_checkboxes(ui: &mut egui::Ui, local_state: &mut TabDebloat
         )
         .changed()
     {
-        local_state.table_version += 1;
+        // Apply filter immediately via ViewModel
+        let text_filter = if local_state.applied_filter_text.is_empty() {
+            None
+        } else {
+            Some(local_state.applied_filter_text.clone())
+        };
+
+        if let Err(e) = viewmodel.filter_packages(
+            text_filter,
+            local_state.active_filter.category_filter.clone(),
+            local_state.active_filter.show_only_enabled,
+            local_state.active_filter.hide_system_apps,
+        ) {
+            log::error!("Failed to apply 'Hide system apps' filter: {}", e);
+        } else {
+            log::debug!(
+                "Applied 'Hide system apps' filter: {}",
+                local_state.active_filter.hide_system_apps
+            );
+        }
     }
 }
 
