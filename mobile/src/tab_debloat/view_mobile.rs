@@ -30,6 +30,7 @@ pub fn render(
     ui: &mut egui::Ui,
     vm_state: &ViewModelState,
     local_state: &mut TabDebloatState,
+    viewmodel: &crate::viewmodel::ViewModel,
     google_play_enabled: bool,
     fdroid_enabled: bool,
     apkmirror_enabled: bool,
@@ -42,7 +43,7 @@ pub fn render(
         ui.add_space(8.0);
 
         // Collapsible filter section
-        render_filter_section(ui, vm_state, local_state);
+        render_filter_section(ui, vm_state, local_state, viewmodel);
 
         ui.add_space(8.0);
 
@@ -87,18 +88,19 @@ fn render_filter_section(
     ui: &mut egui::Ui,
     vm_state: &ViewModelState,
     local_state: &mut TabDebloatState,
+    viewmodel: &crate::viewmodel::ViewModel,
 ) {
     egui::CollapsingHeader::new("Filters")
         .default_open(false)
         .show(ui, |ui| {
             // Category filters
-            filter_logic::render_category_filters(ui, local_state);
+            filter_logic::render_category_filters(ui, local_state, viewmodel);
 
             ui.add_space(8.0);
 
             // Options
             ui.separator();
-            filter_logic::render_options_checkboxes(ui, local_state);
+            filter_logic::render_options_checkboxes(ui, local_state, viewmodel);
 
             ui.add_space(8.0);
 
@@ -125,6 +127,9 @@ fn render_package_list(
     // Prepare app metadata (icons, titles) if renderers are enabled
     log::info!("[DEBLOAT] Renderer flags - GP: {}, FD: {}, APK: {}, AP: {}",
         google_play_enabled, fdroid_enabled, apkmirror_enabled, android_package_enabled);
+
+    log::info!("[DEBLOAT] render_package_list called with {} filtered packages",
+        vm_state.filtered_packages.len());
 
     let package_ids: Vec<String> = vm_state.filtered_packages.iter().map(|p| p.pkg.clone()).collect();
     let system_packages: std::collections::HashSet<String> = vm_state.packages.iter()
@@ -171,7 +176,8 @@ fn render_package_list(
             &app_metadata,
             &mut |pkg_id| {
                 if let Some(idx) = vm_state.filtered_packages.iter().position(|p| p.pkg == pkg_id) {
-                    local_state.package_details_dialog.open(idx);
+                    local_state.package_details_dialog.selected_package_index = Some(idx);
+                    local_state.package_details_dialog.open = true;
                 }
             },
             &mut |_pkg_id, _is_enabled| {
