@@ -156,6 +156,34 @@ pub fn render_category_filters(
                 log::debug!("Applied category filter: unsafe");
             }
         }
+
+        if ui
+            .selectable_label(
+                local_state.active_filter.category_filter.as_deref() == Some("unknown"),
+                format!("Unknown ({}/{})", local_state.cached_counts.unknown_enabled, local_state.cached_counts.unknown),
+            )
+            .clicked()
+        {
+            local_state.active_filter.category_filter = Some("unknown".to_string());
+
+            // Apply filter immediately via ViewModel
+            let text_filter = if local_state.applied_filter_text.is_empty() {
+                None
+            } else {
+                Some(local_state.applied_filter_text.clone())
+            };
+
+            if let Err(e) = viewmodel.filter_packages(
+                text_filter,
+                Some("unknown".to_string()),
+                local_state.active_filter.show_only_enabled,
+                local_state.active_filter.hide_system_apps,
+            ) {
+                log::error!("Failed to apply 'Unknown' filter: {}", e);
+            } else {
+                log::debug!("Applied category filter: unknown");
+            }
+        }
     });
 }
 

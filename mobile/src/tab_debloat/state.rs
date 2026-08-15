@@ -214,6 +214,8 @@ pub struct CachedCategoryCounts {
     pub unsafe_apps_enabled: usize,
     pub expert: usize,
     pub expert_enabled: usize,
+    pub unknown: usize,
+    pub unknown_enabled: usize,
 }
 
 #[cfg(test)]

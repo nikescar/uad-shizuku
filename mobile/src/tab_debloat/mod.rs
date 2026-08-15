@@ -252,6 +252,8 @@ fn compute_category_counts(
         unsafe_apps_enabled: 0,
         expert: 0,
         expert_enabled: 0,
+        unknown: 0,
+        unknown_enabled: 0,
     };
 
     // Count enabled packages using correct logic
@@ -289,9 +291,20 @@ fn compute_category_counts(
                         counts.expert_enabled += 1;
                     }
                 }
+                None => {
+                    // Package not in UAD lists - unknown category
+                    counts.unknown += 1;
+                    if is_enabled {
+                        counts.unknown_enabled += 1;
+                    }
+                }
                 _ => {}
             }
         }
+    } else {
+        // No UAD lists loaded - all packages are unknown
+        counts.unknown = packages.len();
+        counts.unknown_enabled = counts.all_enabled;
     }
 
     counts

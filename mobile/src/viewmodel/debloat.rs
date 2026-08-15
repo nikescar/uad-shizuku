@@ -518,15 +518,27 @@ impl DebloatActor {
                     }
                 }
 
-                // Category filter (matches AppEntry.removal, e.g. "Recommended"/"Unsafe"/"Expert")
+                // Category filter (matches AppEntry.removal, e.g. "Recommended"/"Unsafe"/"Expert"/"Unknown")
                 if let Some(ref category) = criteria.category_filter {
-                    let matches = uad_ng_lists
-                        .as_ref()
-                        .and_then(|lists| lists.apps.get(&pkg.pkg))
-                        .map(|app| app.removal.eq_ignore_ascii_case(category))
-                        .unwrap_or(false);
-                    if !matches {
-                        return false;
+                    if category.eq_ignore_ascii_case("unknown") {
+                        // Unknown category: package must NOT be in UAD lists
+                        let is_in_uad_lists = uad_ng_lists
+                            .as_ref()
+                            .and_then(|lists| lists.apps.get(&pkg.pkg))
+                            .is_some();
+                        if is_in_uad_lists {
+                            return false;
+                        }
+                    } else {
+                        // Standard category: package must be in UAD lists with matching removal category
+                        let matches = uad_ng_lists
+                            .as_ref()
+                            .and_then(|lists| lists.apps.get(&pkg.pkg))
+                            .map(|app| app.removal.eq_ignore_ascii_case(category))
+                            .unwrap_or(false);
+                        if !matches {
+                            return false;
+                        }
                     }
                 }
 
