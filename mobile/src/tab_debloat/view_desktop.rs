@@ -47,7 +47,7 @@ pub fn render(
         .exact_width(SIDEBAR_WIDTH)
         .resizable(false)
         .show_inside(ui, |ui| {
-            render_sidebar(ui, vm_state, local_state);
+            render_sidebar(ui, vm_state, local_state, viewmodel);
         });
 
     egui::CentralPanel::default().show_inside(ui, |ui| {
@@ -65,20 +65,25 @@ pub fn render(
 }
 
 /// Render the left sidebar with filter controls
-fn render_sidebar(ui: &mut egui::Ui, vm_state: &ViewModelState, local_state: &mut TabDebloatState) {
+fn render_sidebar(
+    ui: &mut egui::Ui,
+    vm_state: &ViewModelState,
+    local_state: &mut TabDebloatState,
+    viewmodel: &crate::viewmodel::ViewModel,
+) {
     ui.vertical(|ui| {
         ui.heading("Filters");
         ui.separator();
 
         // Category filters
-        filter_logic::render_category_filters(ui, local_state);
+        filter_logic::render_category_filters(ui, local_state, viewmodel);
 
         ui.add_space(16.0);
 
         // Options
         ui.separator();
         ui.heading("Options");
-        filter_logic::render_options_checkboxes(ui, local_state);
+        filter_logic::render_options_checkboxes(ui, local_state, viewmodel);
 
         ui.add_space(16.0);
 
