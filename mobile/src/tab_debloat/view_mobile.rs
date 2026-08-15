@@ -90,8 +90,8 @@ fn render_filter_section(
     local_state: &mut TabDebloatState,
     viewmodel: &crate::viewmodel::ViewModel,
 ) {
-    egui::CollapsingHeader::new("Filters")
-        .default_open(false)
+    egui::CollapsingHeader::new("📋 Filters")
+        .default_open(true)
         .show(ui, |ui| {
             // Category filters
             filter_logic::render_category_filters(ui, local_state, viewmodel);

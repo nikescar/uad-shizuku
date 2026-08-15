@@ -160,7 +160,7 @@ pub fn render_category_filters(
         if ui
             .selectable_label(
                 local_state.active_filter.category_filter.as_deref() == Some("unknown"),
-                format!("Unknown ({}/{})", local_state.cached_counts.unknown_enabled, local_state.cached_counts.unknown),
+                format!("Unknown ({}/{})", local_state.cached_counts.unknown_apps_enabled, local_state.cached_counts.unknown_apps),
             )
             .clicked()
         {
