@@ -1590,6 +1590,7 @@ impl UadShizukuApp {
                 ui.ctx(),
                 &viewmodel.state,
                 &mut self.tab_debloat.state,
+                viewmodel,
                 google_play_enabled,
                 fdroid_enabled,
                 apkmirror_enabled,

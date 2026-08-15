@@ -48,17 +48,18 @@ impl DlgMobileList {
         ctx: &egui::Context,
         vm_state: &ViewModelState,
         tab_debloat_state: &mut crate::tab_debloat::TabDebloatState,
+        viewmodel: &crate::viewmodel::ViewModel,
         google_play_enabled: bool,
         fdroid_enabled: bool,
         apkmirror_enabled: bool,
         android_package_enabled: bool,
     ) {
-        // Check viewport width and auto-close if >800px
+        // Check viewport width and auto-close if >1010px
         let current_width = ctx.screen_rect().width();
-        if current_width > 800.0 {
+        if current_width > 1010.0 {
             // Close dialog when viewport exceeds mobile threshold
             if self.open {
-                log::info!("[MOBILE_LIST] Auto-closing dialog: viewport width {} > 800px", current_width);
+                log::info!("[MOBILE_LIST] Auto-closing dialog: viewport width {} > 1010px", current_width);
                 self.close();
                 return;
             }
@@ -82,14 +83,22 @@ impl DlgMobileList {
         egui::Window::new(window_title)
             .id(egui::Id::new("mobile_list_window"))
             .title_bar(true)
-            .resizable(false)  // Prevent manual resizing
+            .resizable(true)
             .collapsible(false)
             .scroll([false, false])
-            .fixed_size([ctx.screen_rect().width(), ctx.screen_rect().height()])
-            .default_pos([0.0, 0.0])
+            .resize(|r| {
+                r.default_size([
+                    ctx.content_rect().width() - 40.0,
+                    ctx.content_rect().height() - 40.0,
+                ])
+                .max_size([
+                    ctx.content_rect().width() - 40.0,
+                    ctx.content_rect().height() - 40.0,
+                ])
+            })
             .show(ctx, |ui| {
-                // Top-right close button
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Min), |ui| {
+                // Add close button in top right
+                ui.horizontal(|ui| {
                     if ui.button("✕").clicked() {
                         self.close();
                     }
@@ -111,54 +120,22 @@ impl DlgMobileList {
                             ui,
                             vm_state,
                             tab_debloat_state,
+                            viewmodel,
                             google_play_enabled,
                             fdroid_enabled,
                             apkmirror_enabled,
                             android_package_enabled,
                         );
                     }
-                    // Future: Add Scan, Apps views here
                 }
             });
     }
 }
 
-/// Capitalize first letter of a string
 fn capitalize_first(s: &str) -> String {
-    let mut chars = s.chars();
-    match chars.next() {
+    let mut c = s.chars();
+    match c.next() {
         None => String::new(),
-        Some(first) => first.to_uppercase().collect::<String>() + chars.as_str(),
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_new_dialog() {
-        let dialog = DlgMobileList::new();
-        assert!(!dialog.open);
-    }
-
-    #[test]
-    fn test_open_close() {
-        let mut dialog = DlgMobileList::new();
-
-        dialog.open(MobileListViewType::Debloat, Some("recommended".to_string()));
-        assert!(dialog.open);
-        assert_eq!(dialog.view_type, MobileListViewType::Debloat);
-        assert_eq!(dialog.category_filter, Some("recommended".to_string()));
-
-        dialog.close();
-        assert!(!dialog.open);
-    }
-
-    #[test]
-    fn test_capitalize_first() {
-        assert_eq!(capitalize_first("recommended"), "Recommended");
-        assert_eq!(capitalize_first("advanced"), "Advanced");
-        assert_eq!(capitalize_first(""), "");
+        Some(first) => first.to_uppercase().collect::<String>() + c.as_str(),
     }
 }

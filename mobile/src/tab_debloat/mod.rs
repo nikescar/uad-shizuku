@@ -129,6 +129,7 @@ impl TabDebloat {
             self.render_mobile(
                 ui,
                 vm_state,
+                viewmodel,
                 google_play_enabled,
                 fdroid_enabled,
                 apkmirror_enabled,
@@ -185,6 +186,7 @@ impl TabDebloat {
         &mut self,
         ui: &mut egui::Ui,
         vm_state: &crate::viewmodel::ViewModelState,
+        viewmodel: &crate::viewmodel::ViewModel,
         google_play_enabled: bool,
         fdroid_enabled: bool,
         apkmirror_enabled: bool,
@@ -194,6 +196,7 @@ impl TabDebloat {
             ui,
             vm_state,
             &mut self.state,
+            viewmodel,
             google_play_enabled,
             fdroid_enabled,
             apkmirror_enabled,
