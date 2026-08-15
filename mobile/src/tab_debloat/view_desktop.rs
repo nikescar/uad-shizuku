@@ -113,8 +113,14 @@ fn prepare_app_display_data(
     apkmirror_enabled: bool,
     android_package_enabled: bool,
 ) -> AppDisplayData {
-    log::trace!("[DESKTOP] prepare_app_display_data: GP={}, FD={}, APK={}, AP={}, packages={}",
-        google_play_enabled, fdroid_enabled, apkmirror_enabled, android_package_enabled, packages.len());
+    log::trace!(
+        "[DESKTOP] prepare_app_display_data: GP={}, FD={}, APK={}, AP={}, packages={}",
+        google_play_enabled,
+        fdroid_enabled,
+        apkmirror_enabled,
+        android_package_enabled,
+        packages.len()
+    );
 
     let mut app_data = HashMap::new();
 
@@ -163,6 +169,19 @@ fn prepare_app_display_data(
                     }
                 }
             }
+
+            // Fall back to database
+            let mut conn = crate::db::establish_connection();
+            if let Ok(Some(fd_app)) = crate::db_fdroid::get_fdroid_app(&mut conn, &package.pkg) {
+                if fd_app.raw_response != "404" {
+                    if let Some(icon_base64) = &fd_app.icon_base64 {
+                        let texture =
+                            load_texture_from_base64(ctx, "fd", &package.pkg, &icon_base64, &store);
+                        app_data.insert(package.pkg.clone(), (texture, fd_app.title.clone()));
+                        continue;
+                    }
+                }
+            }
         }
 
         // Try Google Play for non-system apps
@@ -185,6 +204,19 @@ fn prepare_app_display_data(
                     if let Some(icon_base64) = &gp_app.icon_base64 {
                         let texture =
                             load_texture_from_base64(ctx, "gp", &package.pkg, icon_base64, &store);
+                        app_data.insert(package.pkg.clone(), (texture, gp_app.title.clone()));
+                        continue;
+                    }
+                }
+            }
+
+            // Fall back to database
+            let mut conn = crate::db::establish_connection();
+            if let Ok(Some(gp_app)) = crate::db_googleplay::get_google_play_app(&mut conn, &package.pkg) {
+                if gp_app.raw_response != "404" {
+                    if let Some(icon_base64) = &gp_app.icon_base64 {
+                        let texture =
+                            load_texture_from_base64(ctx, "gp", &package.pkg, &icon_base64, &store);
                         app_data.insert(package.pkg.clone(), (texture, gp_app.title.clone()));
                         continue;
                     }
@@ -217,10 +249,26 @@ fn prepare_app_display_data(
                     }
                 }
             }
+
+            // Fall back to database
+            let mut conn = crate::db::establish_connection();
+            if let Ok(Some(am_app)) = crate::db_apkmirror::get_apkmirror_app(&mut conn, &package.pkg) {
+                if am_app.raw_response != "404" {
+                    if let Some(icon_base64) = &am_app.icon_base64 {
+                        let texture =
+                            load_texture_from_base64(ctx, "am", &package.pkg, &icon_base64, &store);
+                        app_data.insert(package.pkg.clone(), (texture, am_app.title.clone()));
+                        continue;
+                    }
+                }
+            }
         }
     }
 
-    log::trace!("[DESKTOP] prepare_app_display_data completed: {} packages with metadata", app_data.len());
+    log::trace!(
+        "[DESKTOP] prepare_app_display_data completed: {} packages with metadata",
+        app_data.len()
+    );
     app_data
 }
 
@@ -353,7 +401,9 @@ fn render_main_content(
         let mut on_info_clicked = |pkg_id: &str| {
             log::info!("Opening package details for: {}", pkg_id);
             // Find package index in filtered list
-            let pkg_index = vm_state.filtered_packages.iter()
+            let pkg_index = vm_state
+                .filtered_packages
+                .iter()
                 .position(|p| p.pkg == pkg_id);
             if let Some(index) = pkg_index {
                 local_state.package_details_dialog.selected_package_index = Some(index);
@@ -396,11 +446,15 @@ fn render_main_content(
         let mut on_delete_clicked = |pkg_id: &str| {
             log::info!("Uninstall requested for package: {}", pkg_id);
             // Find if package is a system app
-            let is_system = vm_state.filtered_packages.iter()
+            let is_system = vm_state
+                .filtered_packages
+                .iter()
                 .find(|p| p.pkg == pkg_id)
                 .map(|p| p.flags.contains("SYSTEM"))
                 .unwrap_or(false);
-            local_state.uninstall_confirm_dialog.open_single(pkg_id.to_string(), is_system);
+            local_state
+                .uninstall_confirm_dialog
+                .open_single(pkg_id.to_string(), is_system);
         };
 
         render_package_table(
@@ -425,7 +479,7 @@ fn render_search_bar(ui: &mut egui::Ui, local_state: &mut TabDebloatState) {
         ui.label("Search:");
         let response = ui.add_sized(
             [200.0, ui.spacing().interact_size.y],
-            egui::TextEdit::singleline(&mut local_state.pending_filter_text)
+            egui::TextEdit::singleline(&mut local_state.pending_filter_text),
         );
         if response.changed() {
             // User typed something - start/reset debounce timer
@@ -456,9 +510,12 @@ fn render_batch_actions(
                 log::info!("Batch uninstall requested for {} packages", selection_count);
                 // Collect selected packages and their system status
                 let packages: Vec<String> = local_state.selected_packages.iter().cloned().collect();
-                let is_system: Vec<bool> = packages.iter()
+                let is_system: Vec<bool> = packages
+                    .iter()
                     .map(|pkg| {
-                        vm_state.packages.iter()
+                        vm_state
+                            .packages
+                            .iter()
                             .find(|p| &p.pkg == pkg)
                             .map(|p| p.flags.contains("SYSTEM"))
                             .unwrap_or(false)
@@ -466,14 +523,17 @@ fn render_batch_actions(
                     .collect();
 
                 // Open batch uninstall confirmation dialog
-                local_state.uninstall_confirm_dialog.open_batch(packages, is_system);
+                local_state
+                    .uninstall_confirm_dialog
+                    .open_batch(packages, is_system);
             }
 
             if ui.button("Disable").clicked() {
                 log::info!("Batch disable requested for {} packages", selection_count);
 
                 if let Some(device) = &local_state.selected_device {
-                    let packages: Vec<String> = local_state.selected_packages.iter().cloned().collect();
+                    let packages: Vec<String> =
+                        local_state.selected_packages.iter().cloned().collect();
                     if let Err(e) = viewmodel.batch_disable(packages, device.clone()) {
                         log::error!("Failed to send batch disable command: {}", e);
                     }
@@ -486,7 +546,8 @@ fn render_batch_actions(
                 log::info!("Batch enable requested for {} packages", selection_count);
 
                 if let Some(device) = &local_state.selected_device {
-                    let packages: Vec<String> = local_state.selected_packages.iter().cloned().collect();
+                    let packages: Vec<String> =
+                        local_state.selected_packages.iter().cloned().collect();
                     if let Err(e) = viewmodel.batch_enable(packages, device.clone()) {
                         log::error!("Failed to send batch enable command: {}", e);
                     }
@@ -507,7 +568,10 @@ fn render_batch_actions(
             for pkg in &vm_state.filtered_packages {
                 local_state.selected_packages.insert(pkg.pkg.clone());
             }
-            log::info!("Selected all {} filtered packages", vm_state.filtered_packages.len());
+            log::info!(
+                "Selected all {} filtered packages",
+                vm_state.filtered_packages.len()
+            );
         }
     });
 }

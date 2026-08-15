@@ -57,9 +57,15 @@ pub fn render_package_table_mobile(
         .column(Column::remainder())
         .column(Column::exact(TASKS_COLUMN_WIDTH))
         .header(20.0, |mut header| {
-            header.col(|ui| { ui.label(""); });
-            header.col(|ui| { ui.label("Name"); });
-            header.col(|ui| { ui.label("Tasks"); });
+            header.col(|ui| {
+                ui.label("");
+            });
+            header.col(|ui| {
+                ui.label("Name");
+            });
+            header.col(|ui| {
+                ui.label("Tasks");
+            });
         })
         .body(|body| {
             body.rows(ROW_HEIGHT, packages.len(), |mut row| {
@@ -93,7 +99,9 @@ pub fn render_package_table_mobile(
                             ui.style_mut().spacing.item_spacing.y = 2.0;
 
                             if let Some(title) = app_title {
-                                ui.label(egui::RichText::new(title).strong());
+                                // Use theme's text color for readability
+                                let text_color = ui.style().visuals.text_color();
+                                ui.label(egui::RichText::new(title).strong().color(text_color));
                                 ui.label(egui::RichText::new(&package.pkg).small().weak());
                             } else {
                                 ui.label(&package.pkg);
@@ -126,9 +134,11 @@ pub fn render_package_table_mobile(
                 row.col(|ui| {
                     ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
                         ui.spacing_mut().item_spacing.x = MOBILE_BUTTON_SPACING;
-                        ui.style_mut().spacing.interact_size = egui::vec2(MOBILE_TOUCH_TARGET, MOBILE_TOUCH_TARGET);
+                        ui.style_mut().spacing.interact_size =
+                            egui::vec2(MOBILE_TOUCH_TARGET, MOBILE_TOUCH_TARGET);
 
-                        if ui.add(icon_button_standard(ICON_INFO.to_string()))
+                        if ui
+                            .add(icon_button_standard(ICON_INFO.to_string()))
                             .on_hover_text("Package details")
                             .clicked()
                         {
@@ -139,13 +149,20 @@ pub fn render_package_table_mobile(
                             let enabled = user.enabled;
                             let installed = user.installed;
                             let is_system = package.flags.contains("SYSTEM");
-                            !(enabled == 0 && !installed && is_system || enabled == 2 || enabled == 3)
+                            !(enabled == 0 && !installed && is_system
+                                || enabled == 2
+                                || enabled == 3)
                         });
 
-                        let toggle_icon = if is_enabled { ICON_TOGGLE_ON } else { ICON_TOGGLE_OFF };
+                        let toggle_icon = if is_enabled {
+                            ICON_TOGGLE_ON
+                        } else {
+                            ICON_TOGGLE_OFF
+                        };
                         let toggle_text = if is_enabled { "Disable" } else { "Enable" };
 
-                        if ui.add(icon_button_standard(toggle_icon.to_string()))
+                        if ui
+                            .add(icon_button_standard(toggle_icon.to_string()))
                             .on_hover_text(toggle_text)
                             .clicked()
                         {
@@ -164,7 +181,8 @@ pub fn render_package_table_mobile(
                         };
 
                         if show_delete {
-                            if ui.add(icon_button_standard(ICON_DELETE.to_string()))
+                            if ui
+                                .add(icon_button_standard(ICON_DELETE.to_string()))
                                 .on_hover_text("Uninstall package")
                                 .clicked()
                             {
@@ -189,5 +207,4 @@ mod tests {
         assert_eq!(MOBILE_BUTTON_SPACING, 16.0);
         assert_eq!(MOBILE_TOUCH_TARGET, 40.0);
     }
-
 }
