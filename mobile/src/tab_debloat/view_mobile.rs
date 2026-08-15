@@ -173,7 +173,10 @@ fn render_package_list(
             ui,
             &vm_state.filtered_packages,
             &mut local_state.selected_packages,
+            vm_state.uad_ng_lists.as_ref(),
             &app_metadata,
+            local_state.unsafe_app_remove,
+            local_state.expert_app_remove,
             &mut |pkg_id| {
                 if let Some(idx) = vm_state.filtered_packages.iter().position(|p| p.pkg == pkg_id) {
                     local_state.package_details_dialog.selected_package_index = Some(idx);

@@ -409,6 +409,8 @@ fn render_main_content(
             &mut local_state.selected_packages,
             vm_state.uad_ng_lists.as_ref(),
             &app_display_data,
+            local_state.unsafe_app_remove,
+            local_state.expert_app_remove,
             &mut on_info_clicked,
             &mut on_refresh_clicked,
             &mut on_toggle_clicked,

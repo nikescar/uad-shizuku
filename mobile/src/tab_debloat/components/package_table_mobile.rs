@@ -28,7 +28,10 @@ pub type AppDisplayData = HashMap<String, (Option<egui::TextureHandle>, String)>
 /// * `ui` - egui context for rendering
 /// * `packages` - List of packages to display
 /// * `selected_packages` - Mutable set of selected package IDs
+/// * `uad_ng_lists` - UAD-NG debloat lists for category checking
 /// * `app_display_data` - App icons and display titles (from metadata)
+/// * `unsafe_app_remove` - Whether to show delete button for Unsafe category packages
+/// * `expert_app_remove` - Whether to show delete button for Expert category packages
 /// * `on_info_clicked` - Callback when info button is clicked (receives package name)
 /// * `on_toggle_clicked` - Callback when enable/disable button is clicked (receives package name and current state)
 /// * `on_delete_clicked` - Callback when delete button is clicked (receives package name)
@@ -36,7 +39,10 @@ pub fn render_package_table_mobile(
     ui: &mut egui::Ui,
     packages: &[PackageFingerprint],
     selected_packages: &mut HashSet<String>,
+    uad_ng_lists: Option<&crate::uad_shizuku_app::UadNgLists>,
     app_display_data: &AppDisplayData,
+    unsafe_app_remove: bool,
+    expert_app_remove: bool,
     on_info_clicked: &mut dyn FnMut(&str),
     on_toggle_clicked: &mut dyn FnMut(&str, bool),
     on_delete_clicked: &mut dyn FnMut(&str),
@@ -146,11 +152,24 @@ pub fn render_package_table_mobile(
                             on_toggle_clicked(&package.pkg, is_enabled);
                         }
 
-                        if ui.add(icon_button_standard(ICON_DELETE.to_string()))
-                            .on_hover_text("Uninstall package")
-                            .clicked()
-                        {
-                            on_delete_clicked(&package.pkg);
+                        // Delete/Uninstall button - Conditional on category + removal options
+                        let category = uad_ng_lists
+                            .and_then(|lists| lists.apps.get(&package.pkg))
+                            .map(|app| app.removal.as_str());
+
+                        let show_delete = match category {
+                            Some("Unsafe") => unsafe_app_remove,
+                            Some("Expert") => expert_app_remove,
+                            _ => true, // Show for all other categories
+                        };
+
+                        if show_delete {
+                            if ui.add(icon_button_standard(ICON_DELETE.to_string()))
+                                .on_hover_text("Uninstall package")
+                                .clicked()
+                            {
+                                on_delete_clicked(&package.pkg);
+                            }
                         }
                     });
                 });

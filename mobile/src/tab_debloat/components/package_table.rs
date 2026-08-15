@@ -38,6 +38,8 @@ pub type AppDisplayData = HashMap<String, (Option<egui::TextureHandle>, String)>
 /// * `selected_packages` - Mutable reference to selected package set
 /// * `uad_ng_lists` - UAD-NG debloat lists for category display
 /// * `app_display_data` - Pre-loaded app icons and titles (to avoid egui RwLock deadlock)
+/// * `unsafe_app_remove` - Whether to show delete button for Unsafe category packages
+/// * `expert_app_remove` - Whether to show delete button for Expert category packages
 /// * `on_info_clicked` - Callback when info button clicked (receives package ID)
 /// * `on_refresh_clicked` - Callback when refresh button clicked (receives package ID)
 /// * `on_toggle_clicked` - Callback when enable/disable toggle clicked (receives package ID, is_enabled)
@@ -55,6 +57,8 @@ pub fn render_package_table(
     selected_packages: &mut HashSet<String>,
     uad_ng_lists: Option<&UadNgLists>,
     app_display_data: &AppDisplayData,
+    unsafe_app_remove: bool,
+    expert_app_remove: bool,
     on_info_clicked: &mut dyn FnMut(&str),
     on_refresh_clicked: &mut dyn FnMut(&str),
     on_toggle_clicked: &mut dyn FnMut(&str, bool),
@@ -200,9 +204,21 @@ pub fn render_package_table(
                             on_toggle_clicked(&package.pkg, is_enabled);
                         }
 
-                        // Delete/Uninstall button - Opens uninstall confirmation dialog
-                        if ui.add(icon_button_standard(ICON_DELETE.to_string())).on_hover_text("Uninstall package").clicked() {
-                            on_delete_clicked(&package.pkg);
+                        // Delete/Uninstall button - Conditional on category + removal options
+                        let category = uad_ng_lists
+                            .and_then(|lists| lists.apps.get(&package.pkg))
+                            .map(|app| app.removal.as_str());
+
+                        let show_delete = match category {
+                            Some("Unsafe") => unsafe_app_remove,
+                            Some("Expert") => expert_app_remove,
+                            _ => true, // Show for all other categories
+                        };
+
+                        if show_delete {
+                            if ui.add(icon_button_standard(ICON_DELETE.to_string())).on_hover_text("Uninstall package").clicked() {
+                                on_delete_clicked(&package.pkg);
+                            }
                         }
                     });
                 });
