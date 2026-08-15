@@ -302,6 +302,7 @@ impl Default for UadShizukuApp {
             dlg_about: crate::dlg_about_stt::DlgAbout::default(),
             dlg_update: crate::dlg_update_stt::DlgUpdate::default(),
             dlg_dashcounter_details: DlgDashCounterDetails::default(),
+            dlg_mobile_list: crate::dlg_mobile_list::DlgMobileList::new(),
 
             // Installation status (desktop only)
             #[cfg(not(target_os = "android"))]
@@ -1023,7 +1024,35 @@ impl UadShizukuApp {
             let cached_scan_counts = &self.tab_scan_control.cached_scan_counts;
 
             let (category, count_enabled, count_total) = match (dashboard_type, index) {
-                // REMOVED: debloat dashboard entries (tab_debloat_control phased out)
+                // Debloat dashboard entries - open mobile list window instead of dashcounter details
+                ("debloat", 0) => {
+                    self.dlg_mobile_list.open(
+                        crate::dlg_mobile_list::MobileListViewType::Debloat,
+                        Some("recommended".to_string()),
+                    );
+                    (None, 0, 0)
+                }
+                ("debloat", 1) => {
+                    self.dlg_mobile_list.open(
+                        crate::dlg_mobile_list::MobileListViewType::Debloat,
+                        Some("advanced".to_string()),
+                    );
+                    (None, 0, 0)
+                }
+                ("debloat", 2) => {
+                    self.dlg_mobile_list.open(
+                        crate::dlg_mobile_list::MobileListViewType::Debloat,
+                        Some("expert".to_string()),
+                    );
+                    (None, 0, 0)
+                }
+                ("debloat", 3) => {
+                    self.dlg_mobile_list.open(
+                        crate::dlg_mobile_list::MobileListViewType::Debloat,
+                        Some("unsafe".to_string()),
+                    );
+                    (None, 0, 0)
+                }
                 ("stalkerware", 0) => {
                     let shared_store = crate::shared_store_stt::get_shared_store();
                     let installed_packages = shared_store.get_installed_packages();
@@ -1538,6 +1567,35 @@ impl UadShizukuApp {
             self.settings.expert_app_remove,
             &self.settings.hybridanalysis_tag_ignorelist,
         );
+
+        // Apply category filter and show mobile list dialog
+        if self.dlg_mobile_list.open && self.dlg_mobile_list.view_type == crate::dlg_mobile_list::MobileListViewType::Debloat {
+            if let Some(ref category) = self.dlg_mobile_list.category_filter {
+                self.tab_debloat.state.active_filter.category_filter = Some(category.clone());
+            }
+        }
+
+        // Show mobile list dialog if ViewModel is initialized
+        if let Some(ref viewmodel) = self.viewmodel {
+            // Get renderer settings
+            let google_play_enabled = self.google_play_renderer.is_enabled;
+            let fdroid_enabled = self.fdroid_renderer.is_enabled;
+            let apkmirror_enabled = self.apkmirror_renderer.is_enabled;
+            #[cfg(target_os = "android")]
+            let android_package_enabled = true;
+            #[cfg(not(target_os = "android"))]
+            let android_package_enabled = false;
+
+            self.dlg_mobile_list.show(
+                ui.ctx(),
+                &viewmodel.state,
+                &mut self.tab_debloat.state,
+                google_play_enabled,
+                fdroid_enabled,
+                apkmirror_enabled,
+                android_package_enabled,
+            );
+        }
 
         // Handle action button events from dashcounter details dialog
         // These need to be handled here because the tabs may not be rendered when viewing dashboard
@@ -2492,7 +2550,56 @@ impl UadShizukuApp {
             .id_salt("mobile_dashboards_scroll")
             .max_height(max_height)
             .show(ui, |ui| {
-                // REMOVED: Debloat Dashboard (tab_debloat_control phased out)
+                // 1. Debloat Dashboard
+                let debloat_counts = &self.tab_debloat.state.cached_counts;
+                let ctx_clone = ui.ctx().clone();
+
+                ui.add(
+                    dashcounter("Debloat", &mut self.dash_scroll_debloat)
+                        .id_salt("dash_debloat")
+                        .title_ui(|ui| {
+                            if ui.add(icon_button_standard(ICON_INFO.to_string())).clicked() {
+                                let _ = webbrowser::open("https://github.com/0x192/universal-android-debloater");
+                            }
+                        })
+                        .card_with_description(
+                            "Recommended",
+                            debloat_counts.recommended_enabled,
+                            debloat_counts.recommended,
+                            "enabled",
+                            "all"
+                        )
+                        .card_with_description(
+                            "Advanced",
+                            debloat_counts.advanced_enabled,
+                            debloat_counts.advanced,
+                            "enabled",
+                            "all"
+                        )
+                        .card_with_description(
+                            "Expert",
+                            debloat_counts.expert_enabled,
+                            debloat_counts.expert,
+                            "enabled",
+                            "all"
+                        )
+                        .card_with_description(
+                            "Unsafe",
+                            debloat_counts.unsafe_apps_enabled,
+                            debloat_counts.unsafe_apps,
+                            "enabled",
+                            "all"
+                        )
+                        .category_color(egui::Color32::from_rgb(33, 150, 243))
+                        .counter_color(egui::Color32::from_rgb(13, 71, 161))
+                        .description_color(egui::Color32::from_rgb(144, 202, 249))
+                        .on_click(move |index| {
+                            ctx_clone.data_mut(|data| {
+                                data.insert_temp(egui::Id::new("dashcounter_clicked"), ("debloat", index));
+                            });
+                        })
+                );
+                ui.add_space(20.0);
 
                 // 2. Stalkerware Dashboard
                 let stalkerware_indicators = shared_store.get_stalkerware_indicators();

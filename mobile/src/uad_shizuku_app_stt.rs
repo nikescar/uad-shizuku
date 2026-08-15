@@ -168,6 +168,7 @@ pub struct UadShizukuApp {
     pub dlg_about: crate::dlg_about_stt::DlgAbout,
     pub dlg_update: crate::dlg_update_stt::DlgUpdate,
     pub dlg_dashcounter_details: crate::dlg_dashcounter_details_stt::DlgDashCounterDetails,
+    pub dlg_mobile_list: crate::dlg_mobile_list_stt::DlgMobileList,
 
     // Installation status (desktop only)
     #[cfg(not(target_os = "android"))]
