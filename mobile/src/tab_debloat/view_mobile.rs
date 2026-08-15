@@ -10,7 +10,7 @@
 
 use eframe::egui;
 
-use super::components::package_cards::render_package_cards;
+use super::components::package_table_mobile::render_package_table_mobile;
 use super::state::TabDebloatState;
 use crate::viewmodel::ViewModelState;
 
@@ -215,7 +215,7 @@ fn render_package_list(
     log::info!("[DEBLOAT] Preparing metadata for {} packages ({} system)",
         package_ids.len(), system_packages.len());
 
-    let app_metadata = crate::app_metadata_renderer::prepare_app_info_for_display(
+    let full_metadata = crate::app_metadata_renderer::prepare_app_info_for_display(
         ui.ctx(),
         &package_ids,
         &system_packages,
@@ -226,6 +226,15 @@ fn render_package_list(
         android_package_enabled,
     );
 
+    // Convert to mobile table format (texture, title only - omit developer and version)
+    let app_metadata: std::collections::HashMap<String, (Option<egui::TextureHandle>, String)> =
+        full_metadata
+            .iter()
+            .map(|(pkg_id, (texture, title, _developer, _version))| {
+                (pkg_id.clone(), (texture.clone(), title.clone()))
+            })
+            .collect();
+
     log::info!("[DEBLOAT] Got metadata for {} packages", app_metadata.len());
 
     // Allocate remaining vertical space for scrollable list
@@ -233,12 +242,24 @@ fn render_package_list(
 
     ui.vertical(|ui| {
         ui.set_min_height(available_height);
-        render_package_cards(
+
+        // Render package table and handle callbacks
+        render_package_table_mobile(
             ui,
             &vm_state.filtered_packages,
             &mut local_state.selected_packages,
-            vm_state.uad_ng_lists.as_ref(),
             &app_metadata,
+            &mut |pkg_id| {
+                if let Some(idx) = vm_state.filtered_packages.iter().position(|p| p.pkg == pkg_id) {
+                    local_state.package_details_dialog.open(idx);
+                }
+            },
+            &mut |_pkg_id, _is_enabled| {
+                log::debug!("Toggle {}: {}", _pkg_id, _is_enabled);
+            },
+            &mut |_pkg_id| {
+                log::debug!("Delete: {}", _pkg_id);
+            },
         );
     });
 }
