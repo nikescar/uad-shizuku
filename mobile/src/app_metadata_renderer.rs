@@ -9,7 +9,8 @@ use std::collections::HashMap;
 use crate::shared_store_stt::get_shared_store;
 use crate::viewmodel::ViewModelState;
 
-pub type AppMetadataMap = HashMap<String, (Option<egui::TextureHandle>, String, String, Option<String>)>;
+pub type AppMetadataMap =
+    HashMap<String, (Option<egui::TextureHandle>, String, String, Option<String>)>;
 
 /// Prepare app info for display with metadata and icon textures
 ///
@@ -31,22 +32,55 @@ pub fn prepare_app_info_for_display(
     android_package_enabled: bool,
 ) -> AppMetadataMap {
     let start_time = std::time::Instant::now();
-    log::debug!("[RENDER] prepare_app_info_for_display started for {} packages", package_ids.len());
+    log::debug!(
+        "[RENDER] prepare_app_info_for_display started for {} packages",
+        package_ids.len()
+    );
 
     let mut app_data_map = HashMap::new();
 
     if !google_play_enabled && !fdroid_enabled && !apkmirror_enabled && !android_package_enabled {
-        log::debug!("[RENDER] No renderers enabled, returning empty map ({:?})", start_time.elapsed());
+        log::debug!(
+            "[RENDER] No renderers enabled, returning empty map ({:?})",
+            start_time.elapsed()
+        );
         return app_data_map;
     }
 
     let cache_fetch_start = std::time::Instant::now();
     let store = get_shared_store();
-    log::debug!("[RENDER] Cache fetch took {:?}", cache_fetch_start.elapsed());
+    log::debug!(
+        "[RENDER] Cache fetch took {:?}",
+        cache_fetch_start.elapsed()
+    );
 
-    let mut apps_to_load: Vec<(String, Option<String>, String, String, Option<String>)> = Vec::new();
+    // === DIAGNOSTIC: Database connection test ===
+    let mut test_conn = crate::db::establish_connection();
+    log::info!("[RENDER] Database connection established");
+
+    // Check table counts
+    use diesel::dsl::count_star;
+    use diesel::prelude::*;
+
+    if let Ok(fd_count) = crate::schema::fdroid_apps::table
+        .select(count_star())
+        .first::<i64>(&mut test_conn) {
+        log::info!("[RENDER] fdroid_apps table has {} entries", fd_count);
+    }
+
+    if let Ok(gp_count) = crate::schema::google_play_apps::table
+        .select(count_star())
+        .first::<i64>(&mut test_conn) {
+        log::info!("[RENDER] google_play_apps table has {} entries", gp_count);
+    }
+    // === END DIAGNOSTIC ===
+
+    let mut apps_to_load: Vec<(String, Option<String>, String, String, Option<String>)> =
+        Vec::new();
     let mut vm_cache_hits = 0;
     let mut shared_store_hits = 0;
+    let mut db_lookup_attempts = 0;
+    let mut db_hits = 0;
 
     for pkg_id in package_ids {
         // Android Package renderer (highest priority on Android)
@@ -70,7 +104,10 @@ pub fn prepare_app_info_for_display(
                 if let Some(fd_app) = vm_state.cached_metadata.get_fdroid(pkg_id) {
                     if fd_app.raw_response != "404" {
                         vm_cache_hits += 1;
-                        log::debug!("[RENDER] Found F-Droid metadata in ViewModel cache for {}", pkg_id);
+                        log::debug!(
+                            "[RENDER] Found F-Droid metadata in ViewModel cache for {}",
+                            pkg_id
+                        );
                         apps_to_load.push((
                             pkg_id.clone(),
                             fd_app.icon_base64.clone(),
@@ -86,7 +123,10 @@ pub fn prepare_app_info_for_display(
                 if let Some(fd_app) = store.get_cached_fdroid_app(pkg_id) {
                     if fd_app.raw_response != "404" {
                         shared_store_hits += 1;
-                        log::debug!("[RENDER] Found F-Droid metadata in SharedStore for {}", pkg_id);
+                        log::debug!(
+                            "[RENDER] Found F-Droid metadata in SharedStore for {}",
+                            pkg_id
+                        );
                         apps_to_load.push((
                             pkg_id.clone(),
                             fd_app.icon_base64.clone(),
@@ -99,18 +139,30 @@ pub fn prepare_app_info_for_display(
                 }
 
                 // Fall back to database (metadata fetched by calc_fdroid module)
+                db_lookup_attempts += 1;
                 let mut conn = crate::db::establish_connection();
-                if let Ok(Some(fd_app)) = crate::db_fdroid::get_fdroid_app(&mut conn, pkg_id) {
-                    if fd_app.raw_response != "404" {
-                        log::debug!("[RENDER] Found F-Droid metadata in database for {}", pkg_id);
-                        apps_to_load.push((
-                            pkg_id.clone(),
-                            fd_app.icon_base64.clone(),
-                            fd_app.title.clone(),
-                            fd_app.developer.clone(),
-                            fd_app.version.clone(),
-                        ));
-                        continue;
+                match crate::db_fdroid::get_fdroid_app(&mut conn, pkg_id) {
+                    Ok(Some(fd_app)) => {
+                        if fd_app.raw_response != "404" {
+                            db_hits += 1;
+                            log::debug!("[RENDER] Found F-Droid metadata in database for {}", pkg_id);
+                            apps_to_load.push((
+                                pkg_id.clone(),
+                                fd_app.icon_base64.clone(),
+                                fd_app.title.clone(),
+                                fd_app.developer.clone(),
+                                fd_app.version.clone(),
+                            ));
+                            continue;
+                        } else {
+                            log::debug!("[RENDER] F-Droid database entry for {} is 404", pkg_id);
+                        }
+                    }
+                    Ok(None) => {
+                        log::debug!("[RENDER] No F-Droid database entry for {}", pkg_id);
+                    }
+                    Err(e) => {
+                        log::warn!("[RENDER] F-Droid database query failed for {}: {}", pkg_id, e);
                     }
                 }
             }
@@ -120,7 +172,10 @@ pub fn prepare_app_info_for_display(
                 if let Some(gp_app) = vm_state.cached_metadata.get_google_play(pkg_id) {
                     if gp_app.raw_response != "404" {
                         vm_cache_hits += 1;
-                        log::debug!("[RENDER] Found Google Play metadata in ViewModel cache for {}", pkg_id);
+                        log::debug!(
+                            "[RENDER] Found Google Play metadata in ViewModel cache for {}",
+                            pkg_id
+                        );
                         apps_to_load.push((
                             pkg_id.clone(),
                             gp_app.icon_base64.clone(),
@@ -136,7 +191,10 @@ pub fn prepare_app_info_for_display(
                 if let Some(gp_app) = store.get_cached_google_play_app(pkg_id) {
                     if gp_app.raw_response != "404" {
                         shared_store_hits += 1;
-                        log::debug!("[RENDER] Found Google Play metadata in SharedStore for {}", pkg_id);
+                        log::debug!(
+                            "[RENDER] Found Google Play metadata in SharedStore for {}",
+                            pkg_id
+                        );
                         apps_to_load.push((
                             pkg_id.clone(),
                             gp_app.icon_base64.clone(),
@@ -149,18 +207,33 @@ pub fn prepare_app_info_for_display(
                 }
 
                 // Fall back to database (metadata fetched by calc_googleplay module)
+                db_lookup_attempts += 1;
                 let mut conn = crate::db::establish_connection();
-                if let Ok(Some(gp_app)) = crate::db_googleplay::get_google_play_app(&mut conn, pkg_id) {
-                    if gp_app.raw_response != "404" {
-                        log::debug!("[RENDER] Found Google Play metadata in database for {}", pkg_id);
-                        apps_to_load.push((
-                            pkg_id.clone(),
-                            gp_app.icon_base64.clone(),
-                            gp_app.title.clone(),
-                            gp_app.developer.clone(),
-                            gp_app.version.clone(),
-                        ));
-                        continue;
+                match crate::db_googleplay::get_google_play_app(&mut conn, pkg_id) {
+                    Ok(Some(gp_app)) => {
+                        if gp_app.raw_response != "404" {
+                            db_hits += 1;
+                            log::debug!(
+                                "[RENDER] Found Google Play metadata in database for {}",
+                                pkg_id
+                            );
+                            apps_to_load.push((
+                                pkg_id.clone(),
+                                gp_app.icon_base64.clone(),
+                                gp_app.title.clone(),
+                                gp_app.developer.clone(),
+                                gp_app.version.clone(),
+                            ));
+                            continue;
+                        } else {
+                            log::debug!("[RENDER] Google Play database entry for {} is 404", pkg_id);
+                        }
+                    }
+                    Ok(None) => {
+                        log::debug!("[RENDER] No Google Play database entry for {}", pkg_id);
+                    }
+                    Err(e) => {
+                        log::warn!("[RENDER] Google Play database query failed for {}: {}", pkg_id, e);
                     }
                 }
             }
@@ -203,13 +276,19 @@ pub fn prepare_app_info_for_display(
 
     for (pkg_id, icon_base64, title, developer, version) in apps_to_load {
         let tex_start = std::time::Instant::now();
-        let texture = icon_base64.as_ref().and_then(|b64| load_texture_from_base64(ctx, &pkg_id, b64, &store));
+        let texture = icon_base64
+            .as_ref()
+            .and_then(|b64| load_texture_from_base64(ctx, &pkg_id, b64, &store));
         let tex_elapsed = tex_start.elapsed();
 
         if texture.is_some() {
             texture_count += 1;
             texture_load_times.push(tex_elapsed);
-            log::debug!("[RENDER] Loaded texture for {} in {:?}", pkg_id, tex_elapsed);
+            log::debug!(
+                "[RENDER] Loaded texture for {} in {:?}",
+                pkg_id,
+                tex_elapsed
+            );
         }
 
         app_data_map.insert(pkg_id, (texture, title, developer, version));
@@ -232,9 +311,12 @@ pub fn prepare_app_info_for_display(
     );
 
     log::info!(
-        "[RENDER] Metadata sources: {} from ViewModel cache, {} from SharedStore, {} total metadata entries",
+        "[RENDER] Metadata sources: {} from ViewModel cache, {} from SharedStore, {} from Database ({} lookups, {} hits), {} total metadata entries",
         vm_cache_hits,
         shared_store_hits,
+        db_hits,
+        db_lookup_attempts,
+        db_hits,
         app_data_map.len()
     );
 
@@ -249,7 +331,9 @@ fn load_texture_from_base64(
     store: &crate::shared_store_stt::SharedStore,
 ) -> Option<egui::TextureHandle> {
     use base64::Engine;
-    let bytes = base64::engine::general_purpose::STANDARD.decode(base64_data).ok()?;
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(base64_data)
+        .ok()?;
     load_texture_from_bytes(ctx, pkg_id, &bytes, store)
 }
 
