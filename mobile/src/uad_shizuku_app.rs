@@ -29,7 +29,6 @@ use crate::adb::{get_users, UserInfo};
 use crate::dlg_dashcounter_details::DlgDashCounterDetails;
 use crate::tab_apps_control::TabAppsControl;
 use crate::tab_debloat::TabDebloat;
-use crate::tab_debloat_control::TabDebloatControl; // TRANSITIONAL: Being phased out
 use crate::tab_scan_control::TabScanControl;
 use crate::tab_usage_control::TabUsageControl;
 use crate::LogLevel;
@@ -268,7 +267,6 @@ impl Default for UadShizukuApp {
 
             // NOTE: installed_packages and uad_ng_lists are now in shared_store_stt::SharedStore
             tab_debloat: TabDebloat::default(), // REFACTORED: New MVVM-based tab
-            tab_debloat_control: TabDebloatControl::default(), // TRANSITIONAL: Being phased out
             tab_scan_control: TabScanControl::default(),
             tab_usage_control: TabUsageControl::default(),
             tab_apps_control: TabAppsControl::new(cache_dir, tmp_dir),
