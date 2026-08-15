@@ -207,7 +207,7 @@ pub fn render_app_description_cell(ctx: &egui::Context, pkg_id: &str) -> DataTab
     // Clone pkg_id for use in closure (unique identifier for ScrollArea)
     let pkg_id_for_scroll = pkg_id.to_string();
 
-    // Create cell with icon and text (matches tab_debloat_control.rs:1468-1496)
+    // Create cell with icon and text
     DataTableCell::widget(move |ui: &mut egui::Ui| {
         let on_surface = get_global_color("onSurface");
 
@@ -364,10 +364,7 @@ pub fn retrieve_adb_devices(app: &mut UadShizukuApp) {
         {
             get_shared_store().set_installed_packages(Vec::new());
         }
-        app.tab_debloat_control.update_packages(Vec::new());
-        app.tab_debloat_control.update_uad_ng_lists(UadNgLists {
-            apps: HashMap::new(),
-        });
+        // REMOVED: tab_debloat_control (phased out in favor of tab_debloat MVVM)
         app.tab_scan_control
             .update_packages(Vec::new(), app.viewmodel.as_ref());
         app.tab_scan_control.update_uad_ng_lists(UadNgLists {
@@ -707,19 +704,18 @@ pub fn handle_package_loading_result(app: &mut UadShizukuApp) {
                         *installed_pkgs = packages.clone();
                     }
                     log::debug!("Updated shared_store with {} packages", packages.len());
-                    app.tab_debloat_control.update_packages(packages.clone());
+                    // REMOVED: tab_debloat_control.update_packages() (phased out)
                     log::debug!(
-                        "Updated tab_debloat_control with {} packages",
+                        "Package loading complete: {} packages",
                         packages.len()
                     );
 
                     if let Some(lists) = uad_lists {
-                        app.tab_debloat_control.update_uad_ng_lists(lists.clone());
+                        // REMOVED: tab_debloat_control.update_uad_ng_lists() (phased out)
                         app.tab_scan_control.update_uad_ng_lists(lists);
                     }
 
-                    app.tab_debloat_control
-                        .set_selected_device(app.selected_device.clone());
+                    // REMOVED: tab_debloat_control.set_selected_device() (phased out)
 
                     // Update new MVVM-based TabDebloat with device selection
                     app.tab_debloat.state.selected_device = app.selected_device.clone();

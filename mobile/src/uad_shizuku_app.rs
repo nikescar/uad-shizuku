@@ -562,36 +562,7 @@ impl UadShizukuApp {
                 self.tab_scan_control.izzyrisk_scan_state.complete();
             }
         }
-        // Sync batch uninstall progress
-        if let Ok(progress) = self.tab_debloat_control.batch_uninstall_progress.lock() {
-            if let Some(p) = *progress {
-                self.tab_debloat_control
-                    .batch_uninstall_state
-                    .update_progress(p);
-            } else if self.tab_debloat_control.batch_uninstall_state.is_running {
-                self.tab_debloat_control.batch_uninstall_state.complete();
-            }
-        }
-        // Sync batch disable progress
-        if let Ok(progress) = self.tab_debloat_control.batch_disable_progress.lock() {
-            if let Some(p) = *progress {
-                self.tab_debloat_control
-                    .batch_disable_state
-                    .update_progress(p);
-            } else if self.tab_debloat_control.batch_disable_state.is_running {
-                self.tab_debloat_control.batch_disable_state.complete();
-            }
-        }
-        // Sync batch enable progress
-        if let Ok(progress) = self.tab_debloat_control.batch_enable_progress.lock() {
-            if let Some(p) = *progress {
-                self.tab_debloat_control
-                    .batch_enable_state
-                    .update_progress(p);
-            } else if self.tab_debloat_control.batch_enable_state.is_running {
-                self.tab_debloat_control.batch_enable_state.complete();
-            }
-        }
+        // REMOVED: Batch progress syncing (tab_debloat_control phased out)
     }
 
     pub fn ui(&mut self, ui: &mut egui::Ui) {
@@ -899,88 +870,7 @@ impl UadShizukuApp {
                         });
                     }
 
-                    // Batch uninstall progress
-                    if let Some(p) = self.tab_debloat_control.batch_uninstall_state.progress {
-                        let progress_bar = egui::ProgressBar::new(p)
-                            .show_percentage()
-                            .desired_width(100.0)
-                            .animate(true);
-                        ui.label(tr!("batch-uninstall"));
-                        ui.horizontal(|ui| {
-                            ui.add(progress_bar)
-                                .on_hover_text(tr!("uninstalling-packages"));
-
-                            if ui.button(tr!("stop")).clicked() {
-                                log::info!("Stop batch uninstall clicked");
-                                self.tab_debloat_control.batch_uninstall_state.cancel();
-                                if let Ok(mut cancelled) =
-                                    self.tab_debloat_control.batch_uninstall_cancelled.lock()
-                                {
-                                    *cancelled = true;
-                                }
-                                if let Ok(mut progress) =
-                                    self.tab_debloat_control.batch_uninstall_progress.lock()
-                                {
-                                    *progress = None;
-                                }
-                            }
-                        });
-                    }
-
-                    // Batch disable progress
-                    if let Some(p) = self.tab_debloat_control.batch_disable_state.progress {
-                        let progress_bar = egui::ProgressBar::new(p)
-                            .show_percentage()
-                            .desired_width(100.0)
-                            .animate(true);
-                        ui.label(tr!("batch-disable"));
-                        ui.horizontal(|ui| {
-                            ui.add(progress_bar)
-                                .on_hover_text(tr!("disabling-packages"));
-
-                            if ui.button(tr!("stop")).clicked() {
-                                log::info!("Stop batch disable clicked");
-                                self.tab_debloat_control.batch_disable_state.cancel();
-                                if let Ok(mut cancelled) =
-                                    self.tab_debloat_control.batch_disable_cancelled.lock()
-                                {
-                                    *cancelled = true;
-                                }
-                                if let Ok(mut progress) =
-                                    self.tab_debloat_control.batch_disable_progress.lock()
-                                {
-                                    *progress = None;
-                                }
-                            }
-                        });
-                    }
-
-                    // Batch enable progress
-                    if let Some(p) = self.tab_debloat_control.batch_enable_state.progress {
-                        let progress_bar = egui::ProgressBar::new(p)
-                            .show_percentage()
-                            .desired_width(100.0)
-                            .animate(true);
-                        ui.label(tr!("batch-enable"));
-                        ui.horizontal(|ui| {
-                            ui.add(progress_bar).on_hover_text(tr!("enabling-packages"));
-
-                            if ui.button(tr!("stop")).clicked() {
-                                log::info!("Stop batch enable clicked");
-                                self.tab_debloat_control.batch_enable_state.cancel();
-                                if let Ok(mut cancelled) =
-                                    self.tab_debloat_control.batch_enable_cancelled.lock()
-                                {
-                                    *cancelled = true;
-                                }
-                                if let Ok(mut progress) =
-                                    self.tab_debloat_control.batch_enable_progress.lock()
-                                {
-                                    *progress = None;
-                                }
-                            }
-                        });
-                    }
+                    // REMOVED: Batch progress UI (tab_debloat_control phased out)
 
                     // App operations progress (install/uninstall)
                     if let Some(queue) = &self.tab_apps_control.operations_queue {
@@ -1127,43 +1017,13 @@ impl UadShizukuApp {
         {
             use crate::dlg_dashcounter_details_stt::DashCounterCategory;
 
-            // Update cached counts before using them (needed when viewing from dashboard)
+            // Get counts from the dashboard
             let shared_store = crate::shared_store_stt::get_shared_store();
             let installed_packages = shared_store.get_installed_packages();
-            let uad_ng_lists = shared_store.get_uad_ng_lists();
-            self.tab_debloat_control
-                .update_cached_counts(&installed_packages, uad_ng_lists.as_ref());
-
-            // Get counts from the dashboard
-            let cached_counts = &self.tab_debloat_control.cached_counts;
             let cached_scan_counts = &self.tab_scan_control.cached_scan_counts;
 
             let (category, count_enabled, count_total) = match (dashboard_type, index) {
-                ("debloat", 0) => (
-                    Some(DashCounterCategory::DebloatRecommend),
-                    cached_counts.recommended.0,
-                    cached_counts.recommended.1,
-                ),
-                ("debloat", 1) => (
-                    Some(DashCounterCategory::DebloatAdvanced),
-                    cached_counts.advanced.0,
-                    cached_counts.advanced.1,
-                ),
-                ("debloat", 2) => (
-                    Some(DashCounterCategory::DebloatExpert),
-                    cached_counts.expert.0,
-                    cached_counts.expert.1,
-                ),
-                ("debloat", 3) => (
-                    Some(DashCounterCategory::DebloatUnsafe),
-                    cached_counts.unsafe_count.0,
-                    cached_counts.unsafe_count.1,
-                ),
-                ("debloat", 4) => (
-                    Some(DashCounterCategory::DebloatUnknown),
-                    cached_counts.unknown.0,
-                    cached_counts.unknown.1,
-                ),
+                // REMOVED: debloat dashboard entries (tab_debloat_control phased out)
                 ("stalkerware", 0) => {
                     let shared_store = crate::shared_store_stt::get_shared_store();
                     let installed_packages = shared_store.get_installed_packages();
@@ -1674,8 +1534,8 @@ impl UadShizukuApp {
             &uad_ng_lists,
             &stalkerware_indicators,
             package_risk_scores,
-            self.tab_debloat_control.unsafe_app_remove,
-            self.tab_debloat_control.expert_app_remove,
+            self.settings.unsafe_app_remove,
+            self.settings.expert_app_remove,
             &self.settings.hybridanalysis_tag_ignorelist,
         );
 
@@ -1694,10 +1554,10 @@ impl UadShizukuApp {
             if let Some(idx) = installed_packages.iter().position(|p| p.pkg == pkg_id) {
                 // Use debloat control dialog by default (works from any view)
                 match self.custom_selected {
-                    1 => self.tab_debloat_control.package_details_dialog.open(idx),
+                    // REMOVED: case 1 (debloat tab - phased out)
                     2 => self.tab_scan_control.package_details_dialog.open(idx),
                     3 => self.tab_apps_control.package_details_dialog.open(idx),
-                    _ => self.tab_debloat_control.package_details_dialog.open(idx), // Dashboard or other views
+                    _ => {} // REMOVED: default case (was tab_debloat_control)
                 }
             }
         }
@@ -1760,7 +1620,7 @@ impl UadShizukuApp {
 
         // Perform enable action
         if let Some(pkg_name) = enable_package {
-            if let Some(ref device) = self.tab_debloat_control.selected_device {
+            if let Some(ref device) = self.selected_device {
                 match crate::adb::enable_app(&pkg_name, device) {
                     Ok(output) => {
                         log::info!("App enabled successfully: {}", output);
@@ -1772,7 +1632,6 @@ impl UadShizukuApp {
                             }
                         }
                         shared_store.set_installed_packages(packages);
-                        self.tab_debloat_control.table_version += 1;
                     }
                     Err(e) => {
                         log::error!("Failed to enable app: {}", e);
@@ -1783,7 +1642,7 @@ impl UadShizukuApp {
 
         // Perform disable action
         if let Some(pkg_name) = disable_package {
-            if let Some(ref device) = self.tab_debloat_control.selected_device {
+            if let Some(ref device) = self.selected_device {
                 match crate::adb::disable_app_current_user(&pkg_name, device, None) {
                     Ok(output) => {
                         log::info!("App disabled successfully: {}", output);
@@ -1794,7 +1653,6 @@ impl UadShizukuApp {
                             }
                         }
                         shared_store.set_installed_packages(packages);
-                        self.tab_debloat_control.table_version += 1;
                     }
                     Err(e) => {
                         log::error!("Failed to disable app: {}", e);
@@ -1803,38 +1661,7 @@ impl UadShizukuApp {
             }
         }
 
-        // Open uninstall confirmation dialog
-        if let Some(pkg_name) = uninstall_package {
-            self.tab_debloat_control
-                .uninstall_confirm_dialog
-                .open_single(pkg_name, uninstall_is_system);
-        }
-
-        // Show uninstall confirm dialog (needed when viewing from dashboard)
-        if self
-            .tab_debloat_control
-            .uninstall_confirm_dialog
-            .show(ui.ctx())
-        {
-            let pkgs =
-                std::mem::take(&mut self.tab_debloat_control.uninstall_confirm_dialog.packages);
-            let sys_flags =
-                std::mem::take(&mut self.tab_debloat_control.uninstall_confirm_dialog.is_system);
-            self.tab_debloat_control.uninstall_confirm_dialog.reset();
-
-            if let Some(ref device) = self.tab_debloat_control.selected_device {
-                // Use tab's batch uninstall to handle the operation properly
-                self.tab_debloat_control.start_batch_uninstall(
-                    self.viewmodel.as_mut(),
-                    pkgs,
-                    sys_flags,
-                    device.clone(),
-                    uad_ng_lists.as_ref(),
-                );
-            } else {
-                log::error!("No device selected for uninstall");
-            }
-        }
+        // REMOVED: Uninstall confirmation dialog (tab_debloat_control phased out)
 
         // Handle install button from offa dashcounter details
         if let Some(app) = ui.ctx().data(|data| {
@@ -1957,11 +1784,7 @@ impl UadShizukuApp {
         let uad_lists_for_dialog = shared_store.get_uad_ng_lists();
 
         match self.custom_selected {
-            1 => self.tab_debloat_control.package_details_dialog.show(
-                ui.ctx(),
-                &packages_for_dialog,
-                &uad_lists_for_dialog,
-            ),
+            // REMOVED: case 1 (tab_debloat_control phased out)
             2 => self.tab_scan_control.package_details_dialog.show(
                 ui.ctx(),
                 &packages_for_dialog,
@@ -1972,11 +1795,8 @@ impl UadShizukuApp {
                 &packages_for_dialog,
                 &uad_lists_for_dialog,
             ),
-            _ => self.tab_debloat_control.package_details_dialog.show(
-                ui.ctx(),
-                &packages_for_dialog,
-                &uad_lists_for_dialog,
-            ), // Dashboard or other views
+            // REMOVED: default case (tab_debloat_control phased out)
+            _ => {}
         };
 
         // === Dashcounter details dialog end
@@ -2313,16 +2133,13 @@ impl UadShizukuApp {
                 self.apkmirror_queue = Some(queue);
             }
 
-            // Only enqueue packages when the table version changes (packages updated)
-            let current_version = self.tab_debloat_control.table_version;
-            if current_version != self.debloat_last_enqueued_version {
-                self.enqueue_visible_packages_for_debloat(
-                    google_play_enabled,
-                    fdroid_enabled,
-                    apkmirror_enabled,
-                );
-                self.debloat_last_enqueued_version = current_version;
-            }
+            // REMOVED: table version optimization (tab_debloat_control phased out)
+            // Always enqueue for now - TODO: restore optimization when new tab has versioning
+            self.enqueue_visible_packages_for_debloat(
+                google_play_enabled,
+                fdroid_enabled,
+                apkmirror_enabled,
+            );
 
             // Only load results periodically (every 500ms) instead of every frame
             let now = std::time::Instant::now();
@@ -2337,8 +2154,8 @@ impl UadShizukuApp {
         }
 
         // Sync unsafe_app_remove and expert_app_remove setting
-        self.tab_debloat_control.unsafe_app_remove = self.settings.unsafe_app_remove;
-        self.tab_debloat_control.expert_app_remove = self.settings.expert_app_remove;
+// REMOVED:         self.tab_debloat_control.unsafe_app_remove = self.settings.unsafe_app_remove;
+// REMOVED:         self.tab_debloat_control.expert_app_remove = self.settings.expert_app_remove;
     }
 
     fn prepare_scan_tab_controller(&mut self) {
@@ -2653,10 +2470,8 @@ impl UadShizukuApp {
         let shared_store = get_shared_store();
         let installed_packages = shared_store.get_installed_packages();
 
-        // Update cached debloat counts
+        // REMOVED: tab_debloat_control.update_cached_counts (phased out)
         let uad_ng_lists = shared_store.get_uad_ng_lists();
-        self.tab_debloat_control
-            .update_cached_counts(&installed_packages, uad_ng_lists.as_ref());
 
         // Update cached scan counts for VT and HA
         let vt_scanner_state = shared_store.get_vt_scanner_state();
@@ -2677,59 +2492,7 @@ impl UadShizukuApp {
             .id_salt("mobile_dashboards_scroll")
             .max_height(max_height)
             .show(ui, |ui| {
-                // 1. Debloat Dashboard
-                let cached_counts = &self.tab_debloat_control.cached_counts;
-                let ctx_clone = ui.ctx().clone();
-                ui.add(
-                    dashcounter("Debloat", &mut self.dash_scroll_debloat)
-                        .id_salt("dash_debloat")
-                        .title_ui(|ui| {
-                            if ui.add(icon_button_standard(ICON_INFO.to_string())).clicked() {
-                                let _ = webbrowser::open("https://github.com/Universal-Debloater-Alliance/universal-android-debloater-next-generation");
-                            }
-                        })
-                        .card_with_description(
-                            "Recommend",
-                            cached_counts.recommended.0,
-                            cached_counts.recommended.1,
-                            "enabled",
-                            "all"
-                        )
-                        .card_with_description(
-                            "Advanced",
-                            cached_counts.advanced.0,
-                            cached_counts.advanced.1,
-                            "enabled",
-                            "all"
-                        )
-                        .card_with_description(
-                            "Expert",
-                            cached_counts.expert.0,
-                            cached_counts.expert.1,
-                            "enabled",
-                            "all"
-                        )
-                        .card_with_description(
-                            "Unsafe",
-                            cached_counts.unsafe_count.0,
-                            cached_counts.unsafe_count.1,
-                            "enabled",
-                            "all"
-                        )
-                        .card_with_description(
-                            "Unknown",
-                            cached_counts.unknown.0,
-                            cached_counts.unknown.1,
-                            "enabled",
-                            "all"
-                        )
-                        .on_click(move |index| {
-                            ctx_clone.data_mut(|data| {
-                                data.insert_temp(egui::Id::new("dashcounter_clicked"), ("debloat", index));
-                            });
-                        })
-                );
-                ui.add_space(20.0);
+                // REMOVED: Debloat Dashboard (tab_debloat_control phased out)
 
                 // 2. Stalkerware Dashboard
                 let stalkerware_indicators = shared_store.get_stalkerware_indicators();
@@ -3466,29 +3229,11 @@ impl UadShizukuApp {
                 }
                 if let Some(status) = queue.get_status(pkg_id) {
                     match status {
-                        crate::calc_googleplay_stt::FetchStatus::Success(app) => {
-                            self.tab_debloat_control
-                                .update_cached_google_play(pkg_id.clone(), app);
+                        crate::calc_googleplay_stt::FetchStatus::Success(_app) => {
+                            // REMOVED: tab_debloat_control.update_cached_google_play (phased out)
                         }
                         crate::calc_googleplay_stt::FetchStatus::Error(_) => {
-                            // Cache 404 placeholder
-                            use crate::models::GooglePlayApp;
-                            let placeholder = GooglePlayApp {
-                                id: 0,
-                                package_id: pkg_id.clone(),
-                                title: String::new(),
-                                developer: String::new(),
-                                version: None,
-                                icon_base64: None,
-                                score: None,
-                                installs: None,
-                                updated: None,
-                                raw_response: "404".to_string(),
-                                created_at: 0,
-                                updated_at: 0,
-                            };
-                            self.tab_debloat_control
-                                .update_cached_google_play(pkg_id.clone(), placeholder);
+                            // REMOVED: tab_debloat_control.update_cached_google_play (phased out)
                         }
                         _ => {}
                     }
@@ -3504,29 +3249,11 @@ impl UadShizukuApp {
                 }
                 if let Some(status) = queue.get_status(pkg_id) {
                     match status {
-                        crate::calc_fdroid_stt::FDroidFetchStatus::Success(app) => {
-                            self.tab_debloat_control
-                                .update_cached_fdroid(pkg_id.clone(), app);
+                        crate::calc_fdroid_stt::FDroidFetchStatus::Success(_app) => {
+                            // REMOVED: tab_debloat_control.update_cached_fdroid (phased out)
                         }
                         crate::calc_fdroid_stt::FDroidFetchStatus::Error(_) => {
-                            // Cache 404 placeholder
-                            use crate::models::FDroidApp;
-                            let placeholder = FDroidApp {
-                                id: 0,
-                                package_id: pkg_id.clone(),
-                                title: String::new(),
-                                developer: String::new(),
-                                version: None,
-                                icon_base64: None,
-                                description: None,
-                                license: None,
-                                updated: None,
-                                raw_response: "404".to_string(),
-                                created_at: 0,
-                                updated_at: 0,
-                            };
-                            self.tab_debloat_control
-                                .update_cached_fdroid(pkg_id.clone(), placeholder);
+                            // REMOVED: tab_debloat_control.update_cached_fdroid (phased out)
                         }
                         _ => {}
                     }
@@ -3542,27 +3269,13 @@ impl UadShizukuApp {
                 }
                 if let Some(status) = queue.get_status(pkg_id) {
                     match status {
-                        crate::calc_apkmirror_stt::ApkMirrorFetchStatus::Success(app) => {
-                            self.tab_debloat_control
-                                .update_cached_apkmirror(pkg_id.clone(), app);
+                        crate::calc_apkmirror_stt::ApkMirrorFetchStatus::Success(_app) => {
+                            // REMOVED: tab_debloat_control.update_cached_apkmirror (phased out)
                         }
                         crate::calc_apkmirror_stt::ApkMirrorFetchStatus::Error(_) => {
                             // Cache 404 placeholder
                             use crate::models::ApkMirrorApp;
-                            let placeholder = ApkMirrorApp {
-                                id: 0,
-                                package_id: pkg_id.clone(),
-                                title: String::new(),
-                                developer: String::new(),
-                                version: None,
-                                icon_url: None,
-                                icon_base64: None,
-                                raw_response: "404".to_string(),
-                                created_at: 0,
-                                updated_at: 0,
-                            };
-                            self.tab_debloat_control
-                                .update_cached_apkmirror(pkg_id.clone(), placeholder);
+                            // REMOVED: tab_debloat_control.update_cached_apkmirror (phased out)
                         }
                         _ => {}
                     }
@@ -3926,8 +3639,8 @@ impl UadShizukuApp {
         self.settings.autoupdate = self.dlg_settings.autoupdate;
 
         // Sync unsafe_app_remove and expert_app_remove to tab controls
-        self.tab_debloat_control.unsafe_app_remove = self.settings.unsafe_app_remove;
-        self.tab_debloat_control.expert_app_remove = self.settings.expert_app_remove;
+// REMOVED:         self.tab_debloat_control.unsafe_app_remove = self.settings.unsafe_app_remove;
+// REMOVED:         self.tab_debloat_control.expert_app_remove = self.settings.expert_app_remove;
         self.tab_scan_control.unsafe_app_remove = self.settings.unsafe_app_remove;
         self.tab_scan_control.expert_app_remove = self.settings.expert_app_remove;
 
@@ -3935,13 +3648,11 @@ impl UadShizukuApp {
         self.tab_scan_control.virustotal_submit_enabled = self.settings.virustotal_submit;
         self.tab_scan_control.hybridanalysis_submit_enabled = self.settings.hybridanalysis_submit;
 
-        // Sync renderer enabled flags to both tabs
+        // Sync renderer enabled flags to scan tab
         self.tab_scan_control.google_play_renderer_enabled = self.settings.google_play_renderer;
         self.tab_scan_control.fdroid_renderer_enabled = self.settings.fdroid_renderer;
         self.tab_scan_control.apkmirror_renderer_enabled = self.settings.apkmirror_renderer;
-        self.tab_debloat_control.google_play_renderer_enabled = self.settings.google_play_renderer;
-        self.tab_debloat_control.fdroid_renderer_enabled = self.settings.fdroid_renderer;
-        self.tab_debloat_control.apkmirror_renderer_enabled = self.settings.apkmirror_renderer;
+        // REMOVED: tab_debloat_control renderer settings (phased out)
 
         // Check if VirusTotal API key was removed -> stop running scans
         if !old_vt_apikey.is_empty() && self.settings.virustotal_apikey.is_empty() {
