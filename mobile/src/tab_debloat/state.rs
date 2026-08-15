@@ -105,9 +105,6 @@ pub struct TabDebloatState {
     /// Selected device name
     pub selected_device: Option<String>,
 
-    /// Table version for cache invalidation
-    pub table_version: u64,
-
     /// Filter debounce: timestamp of last text input change (for 300ms debounce)
     pub last_filter_input: Option<std::time::Instant>,
 
@@ -116,9 +113,6 @@ pub struct TabDebloatState {
 
     /// Filter debounce: last applied filter text (already sent to ViewModel)
     pub applied_filter_text: String,
-
-    /// Last applied filter snapshot (for change detection)
-    pub last_applied_filter: DebloatFilter,
 
     /// Package details dialog state
     pub package_details_dialog: DlgPackageDetails,
@@ -171,7 +165,6 @@ impl std::fmt::Debug for TabDebloatState {
             .field("sort_column", &self.sort_column)
             .field("sort_ascending", &self.sort_ascending)
             .field("selected_device", &self.selected_device)
-            .field("table_version", &self.table_version)
             .field("unsafe_app_remove", &self.unsafe_app_remove)
             .field("expert_app_remove", &self.expert_app_remove)
             .finish()
@@ -187,11 +180,9 @@ impl Default for TabDebloatState {
             sort_column: None,
             sort_ascending: true,
             selected_device: None,
-            table_version: 0,
             last_filter_input: None,
             pending_filter_text: String::new(),
             applied_filter_text: String::new(),
-            last_applied_filter: DebloatFilter::default(),
             package_details_dialog: DlgPackageDetails::new(),
             uninstall_confirm_dialog: DlgUninstallConfirm::default(),
             cached_counts: CachedCategoryCounts::default(),
