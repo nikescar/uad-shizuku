@@ -53,7 +53,15 @@ pub fn render(
         ui.separator();
 
         // Package cards (scrollable, takes remaining space)
-        render_package_list(ui, vm_state, local_state, google_play_enabled, fdroid_enabled, apkmirror_enabled, android_package_enabled);
+        render_package_list(
+            ui,
+            vm_state,
+            local_state,
+            google_play_enabled,
+            fdroid_enabled,
+            apkmirror_enabled,
+            android_package_enabled,
+        );
 
         ui.separator();
 
@@ -68,7 +76,7 @@ fn render_search_bar(ui: &mut egui::Ui, local_state: &mut TabDebloatState) {
         ui.label("Search:");
         let response = ui.add_sized(
             [200.0, ui.spacing().interact_size.y],
-            egui::TextEdit::singleline(&mut local_state.pending_filter_text)
+            egui::TextEdit::singleline(&mut local_state.pending_filter_text),
         );
         if response.changed() {
             // User typed something - start/reset debounce timer
@@ -125,20 +133,36 @@ fn render_package_list(
     android_package_enabled: bool,
 ) {
     // Prepare app metadata (icons, titles) if renderers are enabled
-    log::info!("[DEBLOAT] Renderer flags - GP: {}, FD: {}, APK: {}, AP: {}",
-        google_play_enabled, fdroid_enabled, apkmirror_enabled, android_package_enabled);
+    log::info!(
+        "[DEBLOAT] Renderer flags - GP: {}, FD: {}, APK: {}, AP: {}",
+        google_play_enabled,
+        fdroid_enabled,
+        apkmirror_enabled,
+        android_package_enabled
+    );
 
-    log::info!("[DEBLOAT] render_package_list called with {} filtered packages",
-        vm_state.filtered_packages.len());
+    log::info!(
+        "[DEBLOAT] render_package_list called with {} filtered packages",
+        vm_state.filtered_packages.len()
+    );
 
-    let package_ids: Vec<String> = vm_state.filtered_packages.iter().map(|p| p.pkg.clone()).collect();
-    let system_packages: std::collections::HashSet<String> = vm_state.packages.iter()
+    let package_ids: Vec<String> = vm_state
+        .filtered_packages
+        .iter()
+        .map(|p| p.pkg.clone())
+        .collect();
+    let system_packages: std::collections::HashSet<String> = vm_state
+        .packages
+        .iter()
         .filter(|p| p.flags.contains("SYSTEM"))
         .map(|p| p.pkg.clone())
         .collect();
 
-    log::info!("[DEBLOAT] Preparing metadata for {} packages ({} system)",
-        package_ids.len(), system_packages.len());
+    log::info!(
+        "[DEBLOAT] Preparing metadata for {} packages ({} system)",
+        package_ids.len(),
+        system_packages.len()
+    );
 
     let full_metadata = crate::app_metadata_renderer::prepare_app_info_for_display(
         ui.ctx(),
@@ -162,6 +186,50 @@ fn render_package_list(
 
     log::info!("[DEBLOAT] Got metadata for {} packages", app_metadata.len());
 
+    // === DIAGNOSTIC LOGGING START ===
+    // Sample HashMap keys (first 5)
+    let sample_keys: Vec<_> = app_metadata.keys().take(5).cloned().collect();
+    log::info!("[DEBLOAT] Sample app_metadata keys: {:?}", sample_keys);
+
+    // Sample package IDs from filtered list (first 5)
+    let sample_packages: Vec<_> = vm_state
+        .filtered_packages
+        .iter()
+        .take(5)
+        .map(|p| p.pkg.clone())
+        .collect();
+    log::info!(
+        "[DEBLOAT] Sample filtered package IDs: {:?}",
+        sample_packages
+    );
+
+    // Mismatch analysis - first 5 packages not in HashMap
+    let missing: Vec<_> = vm_state
+        .filtered_packages
+        .iter()
+        .filter(|p| !app_metadata.contains_key(&p.pkg))
+        .take(5)
+        .map(|p| p.pkg.clone())
+        .collect();
+    log::warn!(
+        "[DEBLOAT] First 5 packages missing from metadata: {:?}",
+        missing
+    );
+
+    // Success rate - how many packages have metadata
+    let found_count = vm_state
+        .filtered_packages
+        .iter()
+        .filter(|p| app_metadata.contains_key(&p.pkg))
+        .count();
+    log::info!(
+        "[DEBLOAT] Rendering metrics - Total: {}, With metadata: {}, Hit rate: {:.1}%",
+        vm_state.filtered_packages.len(),
+        found_count,
+        (found_count as f32 / vm_state.filtered_packages.len() as f32) * 100.0
+    );
+    // === DIAGNOSTIC LOGGING END ===
+
     // Allocate remaining vertical space for scrollable list
     let available_height = ui.available_height() - 60.0; // Reserve space for batch actions
 
@@ -178,7 +246,11 @@ fn render_package_list(
             local_state.unsafe_app_remove,
             local_state.expert_app_remove,
             &mut |pkg_id| {
-                if let Some(idx) = vm_state.filtered_packages.iter().position(|p| p.pkg == pkg_id) {
+                if let Some(idx) = vm_state
+                    .filtered_packages
+                    .iter()
+                    .position(|p| p.pkg == pkg_id)
+                {
                     local_state.package_details_dialog.selected_package_index = Some(idx);
                     local_state.package_details_dialog.open = true;
                 }
