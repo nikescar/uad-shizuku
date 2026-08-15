@@ -98,6 +98,13 @@ impl DlgMobileList {
                 ui.add_space(8.0);
 
                 // Render appropriate view based on view_type
+                log::info!(
+                    "[MOBILE_LIST] Renderer flags - GP: {}, FD: {}, APK: {}, AP: {}",
+                    google_play_enabled,
+                    fdroid_enabled,
+                    apkmirror_enabled,
+                    android_package_enabled
+                );
                 match self.view_type {
                     MobileListViewType::Debloat => {
                         crate::tab_debloat::view_mobile::render(
