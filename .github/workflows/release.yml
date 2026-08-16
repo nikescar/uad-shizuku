@@ -320,6 +320,30 @@ jobs:
           # Clean up
           Remove-Item windows.pfx
 
+      - name: Windows - Rename Binary by Architecture
+        if: |
+          contains(matrix.platform.target, 'windows') &&
+          (github.event.inputs.platforms == 'all' || github.event.inputs.platforms == 'windows' || github.event.inputs.platforms == '')
+        shell: pwsh
+        run: |
+          $arch = switch -Wildcard ("${{ matrix.platform.target }}") {
+            "x86_64-*"  { "x86_64" }
+            "i686-*"    { "i686" }
+            "aarch64-*" { "aarch64" }
+            default     { "${{ matrix.platform.target }}" }
+          }
+          $src = "target/release-with-symbols/uad-shizuku.exe"
+          $dst = "target/release-with-symbols/uad-shizuku-$arch.exe"
+          if (Test-Path $src) {
+            Move-Item -Force $src $dst
+            echo "Renamed $src -> $dst"
+          } elseif (Test-Path $dst) {
+            echo "$dst already exists, skipping rename"
+          } else {
+            echo "::error:: Neither $src nor $dst found"
+            exit 1
+          }
+
       - name: Upload Binary Artifact
         if: (!contains(matrix.platform.name, 'Android APK arm64'))
         uses: actions/upload-artifact@v4
@@ -380,9 +404,9 @@ jobs:
             ./artifacts/uad-shizuku-x86_64-apple-darwin/uad-shizuku
             ./artifacts/uad-shizuku-x86_64-unknown-linux-musl/uad-shizuku
             ./artifacts/uad-shizuku-x86_64-unknown-freebsd/uad-shizuku
-            ./artifacts/uad-shizuku-x86_64-pc-windows-msvc/uad-shizuku.exe
-            ./artifacts/uad-shizuku-i686-pc-windows-msvc/uad-shizuku.exe
-            ./artifacts/uad-shizuku-aarch64-pc-windows-msvc/uad-shizuku.exe
+            ./artifacts/uad-shizuku-x86_64-pc-windows-msvc/uad-shizuku-x86_64.exe
+            ./artifacts/uad-shizuku-i686-pc-windows-msvc/uad-shizuku-i686.exe
+            ./artifacts/uad-shizuku-aarch64-pc-windows-msvc/uad-shizuku-aarch64.exe
 
       - name: Parse Analysis Results
         id: parse_results
@@ -493,15 +517,15 @@ jobs:
                   # Handle APK separately
                   [[ "$i" == *"uad-shizuku-all-signed.apk"* ]] && cp artifacts/uad-shizuku-all-signed.apk/uad-shizuku-all-signed.apk distbin/uad-shizuku-all-signed.apk && continue
 
-                  # Handle Windows executables - rename by architecture
+                  # Handle Windows executables - already named by architecture from the build job
                   if [[ "$i" == *"x86_64-pc-windows-msvc"* ]]; then
-                      cp "$i"/uad-shizuku.exe distbin/uad-shizuku-x86_64.exe 2>/dev/null || true
+                      cp "$i"/uad-shizuku-x86_64.exe distbin/uad-shizuku-x86_64.exe 2>/dev/null || true
                       continue
                   elif [[ "$i" == *"i686-pc-windows-msvc"* ]]; then
-                      cp "$i"/uad-shizuku.exe distbin/uad-shizuku-i686.exe 2>/dev/null || true
+                      cp "$i"/uad-shizuku-i686.exe distbin/uad-shizuku-i686.exe 2>/dev/null || true
                       continue
                   elif [[ "$i" == *"aarch64-pc-windows-msvc"* ]]; then
-                      cp "$i"/uad-shizuku.exe distbin/uad-shizuku-aarch64.exe 2>/dev/null || true
+                      cp "$i"/uad-shizuku-aarch64.exe distbin/uad-shizuku-aarch64.exe 2>/dev/null || true
                       continue
                   fi
 
