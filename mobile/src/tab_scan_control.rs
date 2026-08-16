@@ -285,7 +285,10 @@ impl TabScanControl {
         system_packages: &std::collections::HashSet<String>,
     ) -> HashMap<String, (Option<egui::TextureHandle>, String, String, Option<String>)> {
         let start_time = std::time::Instant::now();
-        log::debug!("[RENDER] prepare_app_info_for_display started for {} packages", package_ids.len());
+        log::debug!(
+            "[RENDER] prepare_app_info_for_display started for {} packages",
+            package_ids.len()
+        );
 
         let mut app_data_map = HashMap::new();
 
@@ -294,7 +297,10 @@ impl TabScanControl {
             && !self.apkmirror_renderer_enabled
             && !self.android_package_renderer_enabled
         {
-            log::debug!("[RENDER] No renderers enabled, returning empty map ({:?})", start_time.elapsed());
+            log::debug!(
+                "[RENDER] No renderers enabled, returning empty map ({:?})",
+                start_time.elapsed()
+            );
             return app_data_map;
         }
 
@@ -303,7 +309,10 @@ impl TabScanControl {
         let cached_fdroid_apps = store.get_cached_fdroid_apps();
         let cached_google_play_apps = store.get_cached_google_play_apps();
         let cached_apkmirror_apps = store.get_cached_apkmirror_apps();
-        log::debug!("[RENDER] Cache fetch took {:?}", cache_fetch_start.elapsed());
+        log::debug!(
+            "[RENDER] Cache fetch took {:?}",
+            cache_fetch_start.elapsed()
+        );
 
         let mut apps_to_load: Vec<(String, Option<String>, String, String, Option<String>)> =
             Vec::new();
@@ -401,7 +410,11 @@ impl TabScanControl {
             if texture.is_some() {
                 texture_count += 1;
                 texture_load_times.push(tex_elapsed);
-                log::debug!("[RENDER] Loaded texture for {} in {:?}", pkg_id, tex_elapsed);
+                log::debug!(
+                    "[RENDER] Loaded texture for {} in {:?}",
+                    pkg_id,
+                    tex_elapsed
+                );
             }
 
             app_data_map.insert(pkg_id, (texture, title, developer, version));

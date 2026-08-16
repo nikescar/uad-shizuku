@@ -705,10 +705,7 @@ pub fn handle_package_loading_result(app: &mut UadShizukuApp) {
                     }
                     log::debug!("Updated shared_store with {} packages", packages.len());
                     // REMOVED: tab_debloat_control.update_packages() (phased out)
-                    log::debug!(
-                        "Package loading complete: {} packages",
-                        packages.len()
-                    );
+                    log::debug!("Package loading complete: {} packages", packages.len());
 
                     if let Some(lists) = uad_lists {
                         // REMOVED: tab_debloat_control.update_uad_ng_lists() (phased out)

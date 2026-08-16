@@ -56,7 +56,7 @@ pub fn prepare_app_info_for_display(
 
     // === DIAGNOSTIC: Database connection test ===
     let mut test_conn = crate::db::establish_connection();
-    log::info!("[RENDER] Database connection established");
+    log::debug!("[RENDER] Database connection established");
 
     // Check table counts
     use diesel::dsl::count_star;
@@ -65,13 +65,13 @@ pub fn prepare_app_info_for_display(
     if let Ok(fd_count) = crate::schema::fdroid_apps::table
         .select(count_star())
         .first::<i64>(&mut test_conn) {
-        log::info!("[RENDER] fdroid_apps table has {} entries", fd_count);
+        log::debug!("[RENDER] fdroid_apps table has {} entries", fd_count);
     }
 
     if let Ok(gp_count) = crate::schema::google_play_apps::table
         .select(count_star())
         .first::<i64>(&mut test_conn) {
-        log::info!("[RENDER] google_play_apps table has {} entries", gp_count);
+        log::debug!("[RENDER] google_play_apps table has {} entries", gp_count);
     }
     // === END DIAGNOSTIC ===
 
@@ -301,7 +301,7 @@ pub fn prepare_app_info_for_display(
         std::time::Duration::ZERO
     };
 
-    log::info!(
+    log::debug!(
         "[RENDER] prepare_app_info_for_display completed: {} packages, {} textures loaded in {:?} (avg: {:?}/texture), total elapsed: {:?}",
         package_ids.len(),
         texture_count,
@@ -310,7 +310,7 @@ pub fn prepare_app_info_for_display(
         start_time.elapsed()
     );
 
-    log::info!(
+    log::debug!(
         "[RENDER] Metadata sources: {} from ViewModel cache, {} from SharedStore, {} from Database ({} lookups, {} hits), {} total metadata entries",
         vm_cache_hits,
         shared_store_hits,

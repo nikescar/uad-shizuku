@@ -16,7 +16,9 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 
 use crate::adb_stt::PackageFingerprint;
-use crate::material_symbol_icons::{ICON_DELETE, ICON_INFO, ICON_REFRESH, ICON_TOGGLE_OFF, ICON_TOGGLE_ON};
+use crate::material_symbol_icons::{
+    ICON_DELETE, ICON_INFO, ICON_REFRESH, ICON_TOGGLE_OFF, ICON_TOGGLE_ON,
+};
 use crate::uad_shizuku_app::UadNgLists;
 use egui_material3::icon_button_standard;
 
@@ -178,7 +180,11 @@ pub fn render_package_table(
                         ui.spacing_mut().item_spacing.x = 4.0; // Reduce spacing between buttons
 
                         // Info button - Opens package details dialog
-                        if ui.add(icon_button_standard(ICON_INFO.to_string())).on_hover_text("Package details").clicked() {
+                        if ui
+                            .add(icon_button_standard(ICON_INFO.to_string()))
+                            .on_hover_text("Package details")
+                            .clicked()
+                        {
                             on_info_clicked(&package.pkg);
                         }
 
@@ -198,9 +204,17 @@ pub fn render_package_table(
                             false
                         };
 
-                        let toggle_icon = if is_enabled { ICON_TOGGLE_ON } else { ICON_TOGGLE_OFF };
+                        let toggle_icon = if is_enabled {
+                            ICON_TOGGLE_ON
+                        } else {
+                            ICON_TOGGLE_OFF
+                        };
                         let toggle_text = if is_enabled { "Disable" } else { "Enable" };
-                        if ui.add(icon_button_standard(toggle_icon.to_string())).on_hover_text(toggle_text).clicked() {
+                        if ui
+                            .add(icon_button_standard(toggle_icon.to_string()))
+                            .on_hover_text(toggle_text)
+                            .clicked()
+                        {
                             on_toggle_clicked(&package.pkg, is_enabled);
                         }
 
@@ -216,7 +230,11 @@ pub fn render_package_table(
                         };
 
                         if show_delete {
-                            if ui.add(icon_button_standard(ICON_DELETE.to_string())).on_hover_text("Uninstall package").clicked() {
+                            if ui
+                                .add(icon_button_standard(ICON_DELETE.to_string()))
+                                .on_hover_text("Uninstall package")
+                                .clicked()
+                            {
                                 on_delete_clicked(&package.pkg);
                             }
                         }

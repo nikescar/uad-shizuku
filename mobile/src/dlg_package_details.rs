@@ -75,7 +75,10 @@ impl DlgPackageDetails {
             .show(ctx, |ui| {
                 // Top-right close button
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Min), |ui| {
-                    if ui.add(egui_material3::MaterialButton::filled("✕")).clicked() {
+                    if ui
+                        .add(egui_material3::MaterialButton::filled("✕"))
+                        .clicked()
+                    {
                         close_clicked = true;
                     }
                 });

@@ -493,17 +493,21 @@ impl DebloatActor {
                 // - enabled == 3 (disabled-user)
                 // - enabled == 0 && !installed && is_system (removed system user)
                 if criteria.show_only_enabled {
-                    let is_enabled = pkg.users.first().map(|user| {
-                        let enabled = user.enabled;
-                        let installed = user.installed;
-                        let is_system = pkg.flags.contains("SYSTEM");
+                    let is_enabled = pkg
+                        .users
+                        .first()
+                        .map(|user| {
+                            let enabled = user.enabled;
+                            let installed = user.installed;
+                            let is_system = pkg.flags.contains("SYSTEM");
 
-                        let is_removed_user = enabled == 0 && !installed && is_system;
-                        let is_disabled = enabled == 2;
-                        let is_disabled_user = enabled == 3;
+                            let is_removed_user = enabled == 0 && !installed && is_system;
+                            let is_disabled = enabled == 2;
+                            let is_disabled_user = enabled == 3;
 
-                        !(is_removed_user || is_disabled || is_disabled_user)
-                    }).unwrap_or(false);
+                            !(is_removed_user || is_disabled || is_disabled_user)
+                        })
+                        .unwrap_or(false);
 
                     if !is_enabled {
                         return false;

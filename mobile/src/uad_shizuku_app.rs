@@ -1576,7 +1576,9 @@ impl UadShizukuApp {
         );
 
         // Apply category filter and show mobile list dialog
-        if self.dlg_mobile_list.open && self.dlg_mobile_list.view_type == crate::dlg_mobile_list::MobileListViewType::Debloat {
+        if self.dlg_mobile_list.open
+            && self.dlg_mobile_list.view_type == crate::dlg_mobile_list::MobileListViewType::Debloat
+        {
             if let Some(ref category) = self.dlg_mobile_list.category_filter {
                 self.tab_debloat.state.active_filter.category_filter = Some(category.clone());
             }
@@ -2220,8 +2222,8 @@ impl UadShizukuApp {
         }
 
         // Sync unsafe_app_remove and expert_app_remove setting
-// REMOVED:         self.tab_debloat_control.unsafe_app_remove = self.settings.unsafe_app_remove;
-// REMOVED:         self.tab_debloat_control.expert_app_remove = self.settings.expert_app_remove;
+        // REMOVED:         self.tab_debloat_control.unsafe_app_remove = self.settings.unsafe_app_remove;
+        // REMOVED:         self.tab_debloat_control.expert_app_remove = self.settings.expert_app_remove;
     }
 
     fn prepare_scan_tab_controller(&mut self) {
@@ -2566,8 +2568,13 @@ impl UadShizukuApp {
                     dashcounter("Debloat", &mut self.dash_scroll_debloat)
                         .id_salt("dash_debloat")
                         .title_ui(|ui| {
-                            if ui.add(icon_button_standard(ICON_INFO.to_string())).clicked() {
-                                let _ = webbrowser::open("https://github.com/0x192/universal-android-debloater");
+                            if ui
+                                .add(icon_button_standard(ICON_INFO.to_string()))
+                                .clicked()
+                            {
+                                let _ = webbrowser::open(
+                                    "https://github.com/0x192/universal-android-debloater",
+                                );
                             }
                         })
                         .card_with_description(
@@ -2575,43 +2582,47 @@ impl UadShizukuApp {
                             debloat_counts.recommended_enabled,
                             debloat_counts.recommended,
                             "enabled",
-                            "all"
+                            "all",
                         )
                         .card_with_description(
                             "Advanced",
                             debloat_counts.advanced_enabled,
                             debloat_counts.advanced,
                             "enabled",
-                            "all"
+                            "all",
                         )
                         .card_with_description(
                             "Expert",
                             debloat_counts.expert_enabled,
                             debloat_counts.expert,
                             "enabled",
-                            "all"
+                            "all",
                         )
                         .card_with_description(
                             "Unsafe",
                             debloat_counts.unsafe_apps_enabled,
                             debloat_counts.unsafe_apps,
                             "enabled",
-                            "all"
-                        ).card_with_description(
+                            "all",
+                        )
+                        .card_with_description(
                             "Unknown",
                             debloat_counts.unknown_apps_enabled,
                             debloat_counts.unknown_apps,
                             "enabled",
-                            "all"
+                            "all",
                         )
                         .category_color(egui::Color32::from_rgb(33, 150, 243))
                         .counter_color(egui::Color32::from_rgb(13, 71, 161))
                         .description_color(egui::Color32::from_rgb(144, 202, 249))
                         .on_click(move |index| {
                             ctx_clone.data_mut(|data| {
-                                data.insert_temp(egui::Id::new("dashcounter_clicked"), ("debloat", index));
+                                data.insert_temp(
+                                    egui::Id::new("dashcounter_clicked"),
+                                    ("debloat", index),
+                                );
                             });
-                        })
+                        }),
                 );
                 ui.add_space(20.0);
 
@@ -2622,34 +2633,49 @@ impl UadShizukuApp {
                 // Helper closure to check if a package is enabled (matches tab_debloat_control logic)
                 let is_pkg_enabled = |pkg: &crate::adb::PackageFingerprint| -> bool {
                     let is_system = pkg.flags.contains("SYSTEM");
-                    pkg.users.first().map(|u| {
-                        let enabled_str = match u.enabled {
-                            0 => if !u.installed && is_system { "REMOVED_USER" } else { "DEFAULT" },
-                            1 => "ENABLED",
-                            2 => "DISABLED",
-                            3 => "DISABLED_USER",
-                            _ => "UNKNOWN",
-                        };
-                        enabled_str == "ENABLED" || enabled_str == "DEFAULT" || enabled_str == "UNKNOWN"
-                    }).unwrap_or(false)
+                    pkg.users
+                        .first()
+                        .map(|u| {
+                            let enabled_str = match u.enabled {
+                                0 => {
+                                    if !u.installed && is_system {
+                                        "REMOVED_USER"
+                                    } else {
+                                        "DEFAULT"
+                                    }
+                                }
+                                1 => "ENABLED",
+                                2 => "DISABLED",
+                                3 => "DISABLED_USER",
+                                _ => "UNKNOWN",
+                            };
+                            enabled_str == "ENABLED"
+                                || enabled_str == "DEFAULT"
+                                || enabled_str == "UNKNOWN"
+                        })
+                        .unwrap_or(false)
                 };
 
-                let (stalkerware_detected, stalkerware_undetected) = if let Some(indicators) = &stalkerware_indicators {
-                    let detected = installed_packages.iter()
+                let (stalkerware_detected, stalkerware_undetected) = if let Some(indicators) =
+                    &stalkerware_indicators
+                {
+                    let detected = installed_packages
+                        .iter()
                         .filter(|pkg| indicators.is_stalkerware(&pkg.pkg))
                         .count();
-                    let enabled_detected = installed_packages.iter()
-                        .filter(|pkg| {
-                            indicators.is_stalkerware(&pkg.pkg) && is_pkg_enabled(pkg)
-                        })
+                    let enabled_detected = installed_packages
+                        .iter()
+                        .filter(|pkg| indicators.is_stalkerware(&pkg.pkg) && is_pkg_enabled(pkg))
                         .count();
                     let undetected = installed_packages.len() - detected;
-                    let enabled_undetected = installed_packages.iter()
-                        .filter(|pkg| {
-                            !indicators.is_stalkerware(&pkg.pkg) && is_pkg_enabled(pkg)
-                        })
+                    let enabled_undetected = installed_packages
+                        .iter()
+                        .filter(|pkg| !indicators.is_stalkerware(&pkg.pkg) && is_pkg_enabled(pkg))
                         .count();
-                    ((enabled_detected, detected), (enabled_undetected, undetected))
+                    (
+                        (enabled_detected, detected),
+                        (enabled_undetected, undetected),
+                    )
                 } else {
                     ((0, 0), (0, installed_packages.len()))
                 };
@@ -2658,8 +2684,13 @@ impl UadShizukuApp {
                     dashcounter("Stalkerware", &mut self.dash_scroll_stalkerware)
                         .id_salt("dash_stalkerware")
                         .title_ui(|ui| {
-                            if ui.add(icon_button_standard(ICON_INFO.to_string())).clicked() {
-                                let _ = webbrowser::open("https://github.com/AssoEchap/stalkerware-indicators");
+                            if ui
+                                .add(icon_button_standard(ICON_INFO.to_string()))
+                                .clicked()
+                            {
+                                let _ = webbrowser::open(
+                                    "https://github.com/AssoEchap/stalkerware-indicators",
+                                );
                             }
                         })
                         .card_with_description(
@@ -2667,23 +2698,26 @@ impl UadShizukuApp {
                             stalkerware_detected.0,
                             stalkerware_detected.1,
                             "enabled",
-                            "all"
+                            "all",
                         )
                         .card_with_description(
                             "Undetected",
                             stalkerware_undetected.0,
                             stalkerware_undetected.1,
                             "enabled",
-                            "all"
+                            "all",
                         )
                         .category_color(egui::Color32::from_rgb(244, 67, 54))
                         .counter_color(egui::Color32::from_rgb(183, 28, 28))
                         .description_color(egui::Color32::from_rgb(239, 154, 154))
                         .on_click(move |index| {
                             ctx_clone.data_mut(|data| {
-                                data.insert_temp(egui::Id::new("dashcounter_clicked"), ("stalkerware", index));
+                                data.insert_temp(
+                                    egui::Id::new("dashcounter_clicked"),
+                                    ("stalkerware", index),
+                                );
                             });
-                        })
+                        }),
                 );
                 ui.add_space(20.0);
 
@@ -2694,20 +2728,32 @@ impl UadShizukuApp {
                 // Helper closure to check if a package is enabled (matches tab_debloat_control logic)
                 let is_pkg_enabled = |pkg: &crate::adb::PackageFingerprint| -> bool {
                     let is_system = pkg.flags.contains("SYSTEM");
-                    pkg.users.first().map(|u| {
-                        let enabled_str = match u.enabled {
-                            0 => if !u.installed && is_system { "REMOVED_USER" } else { "DEFAULT" },
-                            1 => "ENABLED",
-                            2 => "DISABLED",
-                            3 => "DISABLED_USER",
-                            _ => "UNKNOWN",
-                        };
-                        enabled_str == "ENABLED" || enabled_str == "DEFAULT" || enabled_str == "UNKNOWN"
-                    }).unwrap_or(false)
+                    pkg.users
+                        .first()
+                        .map(|u| {
+                            let enabled_str = match u.enabled {
+                                0 => {
+                                    if !u.installed && is_system {
+                                        "REMOVED_USER"
+                                    } else {
+                                        "DEFAULT"
+                                    }
+                                }
+                                1 => "ENABLED",
+                                2 => "DISABLED",
+                                3 => "DISABLED_USER",
+                                _ => "UNKNOWN",
+                            };
+                            enabled_str == "ENABLED"
+                                || enabled_str == "DEFAULT"
+                                || enabled_str == "UNKNOWN"
+                        })
+                        .unwrap_or(false)
                 };
 
                 // Count total packages in each risk category
-                let risk_0 = installed_packages.iter()
+                let risk_0 = installed_packages
+                    .iter()
                     .filter(|pkg| {
                         if let Some(&score) = package_risk_scores.get(&pkg.pkg) {
                             score == 0
@@ -2716,7 +2762,8 @@ impl UadShizukuApp {
                         }
                     })
                     .count();
-                let risk_1_10 = installed_packages.iter()
+                let risk_1_10 = installed_packages
+                    .iter()
                     .filter(|pkg| {
                         if let Some(&score) = package_risk_scores.get(&pkg.pkg) {
                             score >= 1 && score <= 10
@@ -2725,7 +2772,8 @@ impl UadShizukuApp {
                         }
                     })
                     .count();
-                let risk_11_20 = installed_packages.iter()
+                let risk_11_20 = installed_packages
+                    .iter()
                     .filter(|pkg| {
                         if let Some(&score) = package_risk_scores.get(&pkg.pkg) {
                             score >= 11 && score <= 20
@@ -2734,7 +2782,8 @@ impl UadShizukuApp {
                         }
                     })
                     .count();
-                let risk_20_plus = installed_packages.iter()
+                let risk_20_plus = installed_packages
+                    .iter()
                     .filter(|pkg| {
                         if let Some(&score) = package_risk_scores.get(&pkg.pkg) {
                             score > 20
@@ -2745,7 +2794,8 @@ impl UadShizukuApp {
                     .count();
 
                 // Count enabled packages in each risk category
-                let enabled_risk_0 = installed_packages.iter()
+                let enabled_risk_0 = installed_packages
+                    .iter()
                     .filter(|pkg| {
                         if let Some(&score) = package_risk_scores.get(&pkg.pkg) {
                             score == 0 && is_pkg_enabled(pkg)
@@ -2754,7 +2804,8 @@ impl UadShizukuApp {
                         }
                     })
                     .count();
-                let enabled_risk_1_10 = installed_packages.iter()
+                let enabled_risk_1_10 = installed_packages
+                    .iter()
                     .filter(|pkg| {
                         if let Some(&score) = package_risk_scores.get(&pkg.pkg) {
                             score >= 1 && score <= 10 && is_pkg_enabled(pkg)
@@ -2763,7 +2814,8 @@ impl UadShizukuApp {
                         }
                     })
                     .count();
-                let enabled_risk_11_20 = installed_packages.iter()
+                let enabled_risk_11_20 = installed_packages
+                    .iter()
                     .filter(|pkg| {
                         if let Some(&score) = package_risk_scores.get(&pkg.pkg) {
                             score >= 11 && score <= 20 && is_pkg_enabled(pkg)
@@ -2772,7 +2824,8 @@ impl UadShizukuApp {
                         }
                     })
                     .count();
-                let enabled_risk_20_plus = installed_packages.iter()
+                let enabled_risk_20_plus = installed_packages
+                    .iter()
                     .filter(|pkg| {
                         if let Some(&score) = package_risk_scores.get(&pkg.pkg) {
                             score > 20 && is_pkg_enabled(pkg)
@@ -2786,22 +2839,48 @@ impl UadShizukuApp {
                     dashcounter("IzzyRisk", &mut self.dash_scroll_izzyrisk)
                         .id_salt("dash_izzyrisk")
                         .title_ui(|ui| {
-                            if ui.add(icon_button_standard(ICON_INFO.to_string())).clicked() {
-                                let _ = webbrowser::open("https://android.izzysoft.de/applists.php?lang=en;topic=perms");
+                            if ui
+                                .add(icon_button_standard(ICON_INFO.to_string()))
+                                .clicked()
+                            {
+                                let _ = webbrowser::open(
+                                    "https://android.izzysoft.de/applists.php?lang=en;topic=perms",
+                                );
                             }
                         })
-                        .card_with_description("20+(high)", enabled_risk_20_plus, risk_20_plus, "enabled", "all")
-                        .card_with_description("11-20(moderate)", enabled_risk_11_20, risk_11_20, "enabled", "all")
-                        .card_with_description("1-10(normal)", enabled_risk_1_10, risk_1_10, "enabled", "all")
+                        .card_with_description(
+                            "20+(high)",
+                            enabled_risk_20_plus,
+                            risk_20_plus,
+                            "enabled",
+                            "all",
+                        )
+                        .card_with_description(
+                            "11-20(moderate)",
+                            enabled_risk_11_20,
+                            risk_11_20,
+                            "enabled",
+                            "all",
+                        )
+                        .card_with_description(
+                            "1-10(normal)",
+                            enabled_risk_1_10,
+                            risk_1_10,
+                            "enabled",
+                            "all",
+                        )
                         .card_with_description("0(safe)", enabled_risk_0, risk_0, "enabled", "all")
                         .category_color(egui::Color32::from_rgb(255, 152, 0))
                         .counter_color(egui::Color32::from_rgb(230, 81, 0))
                         .description_color(egui::Color32::from_rgb(255, 183, 77))
                         .on_click(move |index| {
                             ctx_clone.data_mut(|data| {
-                                data.insert_temp(egui::Id::new("dashcounter_clicked"), ("izzyrisk", index));
+                                data.insert_temp(
+                                    egui::Id::new("dashcounter_clicked"),
+                                    ("izzyrisk", index),
+                                );
                             });
-                        })
+                        }),
                 );
                 ui.add_space(20.0);
 
@@ -2812,43 +2891,50 @@ impl UadShizukuApp {
                     dashcounter("VirusTotal", &mut self.dash_scroll_virustotal)
                         .id_salt("dash_virustotal")
                         .title_ui(|ui| {
-                            if ui.add(icon_button_standard(ICON_INFO.to_string())).clicked() {
-                                let _ = webbrowser::open("https://www.virustotal.com/gui/my-apikey");
+                            if ui
+                                .add(icon_button_standard(ICON_INFO.to_string()))
+                                .clicked()
+                            {
+                                let _ =
+                                    webbrowser::open("https://www.virustotal.com/gui/my-apikey");
                             }
                         })
                         .card_with_description(
                             "Malicious",
-                            vt_counts.1.0,
-                            vt_counts.1.1,
+                            vt_counts.1 .0,
+                            vt_counts.1 .1,
                             "enabled",
-                            "all"
+                            "all",
                         )
                         .card_with_description(
                             "Suspicious",
-                            vt_counts.2.0,
-                            vt_counts.2.1,
+                            vt_counts.2 .0,
+                            vt_counts.2 .1,
                             "enabled",
-                            "all"
+                            "all",
                         )
                         .card_with_description(
                             "Safe",
-                            vt_counts.3.0,
-                            vt_counts.3.1,
+                            vt_counts.3 .0,
+                            vt_counts.3 .1,
                             "enabled",
-                            "all"
+                            "all",
                         )
                         .card_with_description(
                             "Unscan",
-                            vt_counts.4.0,
-                            vt_counts.4.1,
+                            vt_counts.4 .0,
+                            vt_counts.4 .1,
                             "enabled",
-                            "all"
+                            "all",
                         )
                         .on_click(move |index| {
                             ctx_clone.data_mut(|data| {
-                                data.insert_temp(egui::Id::new("dashcounter_clicked"), ("virustotal", index));
+                                data.insert_temp(
+                                    egui::Id::new("dashcounter_clicked"),
+                                    ("virustotal", index),
+                                );
                             });
-                        })
+                        }),
                 );
                 ui.add_space(20.0);
 
@@ -2859,50 +2945,56 @@ impl UadShizukuApp {
                     dashcounter("HybridAnalysis", &mut self.dash_scroll_hybridanalysis)
                         .id_salt("dash_hybridanalysis")
                         .title_ui(|ui| {
-                            if ui.add(icon_button_standard(ICON_INFO.to_string())).clicked() {
+                            if ui
+                                .add(icon_button_standard(ICON_INFO.to_string()))
+                                .clicked()
+                            {
                                 let _ = webbrowser::open("https://hybrid-analysis.com/my-account");
                             }
                         })
                         .card_with_description(
                             "Malicious",
-                            ha_counts.1.0,
-                            ha_counts.1.1,
+                            ha_counts.1 .0,
+                            ha_counts.1 .1,
                             "enabled",
-                            "all"
+                            "all",
                         )
                         .card_with_description(
                             "Mal-Ignored",
-                            ha_counts.2.0,
-                            ha_counts.2.1,
+                            ha_counts.2 .0,
+                            ha_counts.2 .1,
                             "enabled",
-                            "all"
+                            "all",
                         )
                         .card_with_description(
                             "Suspicious",
-                            ha_counts.3.0,
-                            ha_counts.3.1,
+                            ha_counts.3 .0,
+                            ha_counts.3 .1,
                             "enabled",
-                            "all"
+                            "all",
                         )
                         .card_with_description(
                             "Undetected",
-                            ha_counts.4.0,
-                            ha_counts.4.1,
+                            ha_counts.4 .0,
+                            ha_counts.4 .1,
                             "enabled",
-                            "all"
+                            "all",
                         )
                         .card_with_description(
                             "Unscan",
-                            ha_counts.5.0,
-                            ha_counts.5.1,
+                            ha_counts.5 .0,
+                            ha_counts.5 .1,
                             "enabled",
-                            "all"
+                            "all",
                         )
                         .on_click(move |index| {
                             ctx_clone.data_mut(|data| {
-                                data.insert_temp(egui::Id::new("dashcounter_clicked"), ("hybridanalysis", index));
+                                data.insert_temp(
+                                    egui::Id::new("dashcounter_clicked"),
+                                    ("hybridanalysis", index),
+                                );
                             });
-                        })
+                        }),
                 );
                 ui.add_space(20.0);
 
@@ -2923,71 +3015,88 @@ impl UadShizukuApp {
 
                 if show_foss_dashboards {
                     // Find OFFA list
-                    if let Some((offa_idx, offa_list)) = self.tab_apps_control.app_lists.iter()
+                    if let Some((offa_idx, offa_list)) = self
+                        .tab_apps_control
+                        .app_lists
+                        .iter()
                         .enumerate()
                         .find(|(_, list)| list.name.to_lowercase().contains("offa"))
                     {
                         // Parse apps from OFFA list if needed
-                        let offa_apps = if let Some(sel_idx) = self.tab_apps_control.selected_app_list {
-                            if sel_idx == offa_idx {
-                                // Already loaded
-                                self.tab_apps_control.app_entries.clone()
+                        let offa_apps =
+                            if let Some(sel_idx) = self.tab_apps_control.selected_app_list {
+                                if sel_idx == offa_idx {
+                                    // Already loaded
+                                    self.tab_apps_control.app_entries.clone()
+                                } else {
+                                    // Need to load OFFA list temporarily
+                                    self.load_app_list_entries(offa_list)
+                                }
                             } else {
-                                // Need to load OFFA list temporarily
+                                // No list selected, load OFFA
                                 self.load_app_list_entries(offa_list)
-                            }
-                        } else {
-                            // No list selected, load OFFA
-                            self.load_app_list_entries(offa_list)
-                        };
+                            };
 
                         if !offa_apps.is_empty() {
                             let ctx_clone = ui.ctx().clone();
 
                             // Helper to check if an app is installed - using exact package namespace matching only
-                            let is_app_installed = |app_entry: &crate::tab_apps_control_stt::AppEntry| -> bool {
-                                // Extract package name from links if not explicitly set
-                                let package_name = app_entry.package_name.clone().or_else(|| {
-                                    // Try to extract from F-Droid or IzzyOnDroid link
-                                    for (url, _link_type) in &app_entry.links {
-                                        // F-Droid format: https://f-droid.org/packages/com.example.app
-                                        if url.contains("f-droid.org") && url.contains("/packages/") {
-                                            if let Some(start) = url.find("/packages/") {
-                                                let after = &url[start + 10..];
-                                                let end = after.find('/').unwrap_or(after.len());
-                                                let pkg = after[..end].trim();
-                                                if !pkg.is_empty() && pkg.contains('.') {
-                                                    return Some(pkg.to_string());
+                            let is_app_installed =
+                                |app_entry: &crate::tab_apps_control_stt::AppEntry| -> bool {
+                                    // Extract package name from links if not explicitly set
+                                    let package_name =
+                                        app_entry.package_name.clone().or_else(|| {
+                                            // Try to extract from F-Droid or IzzyOnDroid link
+                                            for (url, _link_type) in &app_entry.links {
+                                                // F-Droid format: https://f-droid.org/packages/com.example.app
+                                                if url.contains("f-droid.org")
+                                                    && url.contains("/packages/")
+                                                {
+                                                    if let Some(start) = url.find("/packages/") {
+                                                        let after = &url[start + 10..];
+                                                        let end =
+                                                            after.find('/').unwrap_or(after.len());
+                                                        let pkg = after[..end].trim();
+                                                        if !pkg.is_empty() && pkg.contains('.') {
+                                                            return Some(pkg.to_string());
+                                                        }
+                                                    }
+                                                }
+                                                // IzzyOnDroid format: https://apt.izzysoft.de/fdroid/index/apk/com.example.app
+                                                else if url.contains("izzysoft.de")
+                                                    && url.contains("/apk/")
+                                                {
+                                                    if let Some(start) = url.find("/apk/") {
+                                                        let after = &url[start + 5..];
+                                                        let end =
+                                                            after.find('/').unwrap_or(after.len());
+                                                        let pkg = after[..end].trim();
+                                                        if !pkg.is_empty() && pkg.contains('.') {
+                                                            return Some(pkg.to_string());
+                                                        }
+                                                    }
                                                 }
                                             }
-                                        }
-                                        // IzzyOnDroid format: https://apt.izzysoft.de/fdroid/index/apk/com.example.app
-                                        else if url.contains("izzysoft.de") && url.contains("/apk/") {
-                                            if let Some(start) = url.find("/apk/") {
-                                                let after = &url[start + 5..];
-                                                let end = after.find('/').unwrap_or(after.len());
-                                                let pkg = after[..end].trim();
-                                                if !pkg.is_empty() && pkg.contains('.') {
-                                                    return Some(pkg.to_string());
-                                                }
-                                            }
-                                        }
-                                    }
-                                    None
-                                });
+                                            None
+                                        });
 
-                                // Check if app is installed - only use exact package name matching
-                                if let Some(ref pkg_name) = package_name {
-                                    installed_packages.iter().any(|pkg| &pkg.pkg == pkg_name)
-                                } else {
-                                    false
-                                }
-                            };
+                                    // Check if app is installed - only use exact package name matching
+                                    if let Some(ref pkg_name) = package_name {
+                                        installed_packages.iter().any(|pkg| &pkg.pkg == pkg_name)
+                                    } else {
+                                        false
+                                    }
+                                };
 
                             // Group apps by category and count installed/total
-                            let mut category_counts: std::collections::HashMap<String, (usize, usize)> = std::collections::HashMap::new();
+                            let mut category_counts: std::collections::HashMap<
+                                String,
+                                (usize, usize),
+                            > = std::collections::HashMap::new();
                             for app in &offa_apps {
-                                let entry = category_counts.entry(app.category.clone()).or_insert((0, 0));
+                                let entry = category_counts
+                                    .entry(app.category.clone())
+                                    .or_insert((0, 0));
                                 entry.1 += 1; // total
                                 if is_app_installed(app) {
                                     entry.0 += 1; // installed
@@ -2998,122 +3107,148 @@ impl UadShizukuApp {
                             let mut sorted_categories: Vec<_> = category_counts.iter().collect();
                             sorted_categories.sort_by(|a, b| a.0.cmp(b.0));
 
-                            let mut dashboard = dashcounter("FOSS/OFFA", &mut self.dash_scroll_offa)
-                                .id_salt("dash_offa")
-                                .title_ui(|ui| {
-                                    if ui.add(icon_button_standard(ICON_INFO.to_string())).clicked() {
-                                        let _ = webbrowser::open(&offa_list.info_url);
-                                    }
-                                });
+                            let mut dashboard =
+                                dashcounter("FOSS/OFFA", &mut self.dash_scroll_offa)
+                                    .id_salt("dash_offa")
+                                    .title_ui(|ui| {
+                                        if ui
+                                            .add(icon_button_standard(ICON_INFO.to_string()))
+                                            .clicked()
+                                        {
+                                            let _ = webbrowser::open(&offa_list.info_url);
+                                        }
+                                    });
 
                             // Add a card for each category
-                            for (idx, (category, (installed, total))) in sorted_categories.iter().enumerate() {
+                            for (idx, (category, (installed, total))) in
+                                sorted_categories.iter().enumerate()
+                            {
                                 dashboard = dashboard.card_with_description(
                                     category.as_str(),
                                     *installed,
                                     *total,
                                     "installed",
-                                    "all"
+                                    "all",
                                 );
 
                                 // Store category name and apps for click handler
                                 let category_clone = (*category).clone();
-                                let apps_in_category: Vec<crate::tab_apps_control_stt::AppEntry> = offa_apps.iter()
-                                    .filter(|app| &app.category == *category)
-                                    .cloned()
-                                    .collect();
+                                let apps_in_category: Vec<crate::tab_apps_control_stt::AppEntry> =
+                                    offa_apps
+                                        .iter()
+                                        .filter(|app| &app.category == *category)
+                                        .cloned()
+                                        .collect();
 
                                 let ctx_for_storage = ctx_clone.clone();
                                 ctx_for_storage.data_mut(|data| {
                                     data.insert_temp(
                                         egui::Id::new(format!("offa_category_{}", idx)),
-                                        category_clone
+                                        category_clone,
                                     );
                                     data.insert_temp(
                                         egui::Id::new(format!("offa_apps_{}", idx)),
-                                        apps_in_category
+                                        apps_in_category,
                                     );
                                 });
                             }
 
-                            ui.add(
-                                dashboard.on_click(move |index| {
-                                    ctx_clone.data_mut(|data| {
-                                        data.insert_temp(egui::Id::new("dashcounter_clicked"), ("offa", index));
-                                    });
-                                })
-                            );
+                            ui.add(dashboard.on_click(move |index| {
+                                ctx_clone.data_mut(|data| {
+                                    data.insert_temp(
+                                        egui::Id::new("dashcounter_clicked"),
+                                        ("offa", index),
+                                    );
+                                });
+                            }));
                             ui.add_space(20.0);
                         }
                     }
 
                     // 7. FOSS/FMHY Dashboard (show if fmhy list exists)
                     // Find FMHY list
-                    if let Some((fmhy_idx, fmhy_list)) = self.tab_apps_control.app_lists.iter()
+                    if let Some((fmhy_idx, fmhy_list)) = self
+                        .tab_apps_control
+                        .app_lists
+                        .iter()
                         .enumerate()
                         .find(|(_, list)| list.name.to_lowercase().contains("fmhy"))
                     {
                         // Parse apps from FMHY list if needed
-                        let fmhy_apps = if let Some(sel_idx) = self.tab_apps_control.selected_app_list {
-                            if sel_idx == fmhy_idx {
-                                // Already loaded
-                                self.tab_apps_control.app_entries.clone()
+                        let fmhy_apps =
+                            if let Some(sel_idx) = self.tab_apps_control.selected_app_list {
+                                if sel_idx == fmhy_idx {
+                                    // Already loaded
+                                    self.tab_apps_control.app_entries.clone()
+                                } else {
+                                    // Need to load FMHY list temporarily
+                                    self.load_app_list_entries(fmhy_list)
+                                }
                             } else {
-                                // Need to load FMHY list temporarily
+                                // No list selected, load FMHY
                                 self.load_app_list_entries(fmhy_list)
-                            }
-                        } else {
-                            // No list selected, load FMHY
-                            self.load_app_list_entries(fmhy_list)
-                        };
+                            };
 
                         if !fmhy_apps.is_empty() {
                             let ctx_clone = ui.ctx().clone();
 
                             // Helper to check if an app is installed - using exact package namespace matching only
-                            let is_app_installed = |app_entry: &crate::tab_apps_control_stt::AppEntry| -> bool {
-                                // Extract package name from links if not explicitly set
-                                let package_name = app_entry.package_name.clone().or_else(|| {
-                                    // Try to extract from F-Droid or IzzyOnDroid link
-                                    for (url, _link_type) in &app_entry.links {
-                                        // F-Droid format: https://f-droid.org/packages/com.example.app
-                                        if url.contains("f-droid.org") && url.contains("/packages/") {
-                                            if let Some(start) = url.find("/packages/") {
-                                                let after = &url[start + 10..];
-                                                let end = after.find('/').unwrap_or(after.len());
-                                                let pkg = after[..end].trim();
-                                                if !pkg.is_empty() && pkg.contains('.') {
-                                                    return Some(pkg.to_string());
+                            let is_app_installed =
+                                |app_entry: &crate::tab_apps_control_stt::AppEntry| -> bool {
+                                    // Extract package name from links if not explicitly set
+                                    let package_name =
+                                        app_entry.package_name.clone().or_else(|| {
+                                            // Try to extract from F-Droid or IzzyOnDroid link
+                                            for (url, _link_type) in &app_entry.links {
+                                                // F-Droid format: https://f-droid.org/packages/com.example.app
+                                                if url.contains("f-droid.org")
+                                                    && url.contains("/packages/")
+                                                {
+                                                    if let Some(start) = url.find("/packages/") {
+                                                        let after = &url[start + 10..];
+                                                        let end =
+                                                            after.find('/').unwrap_or(after.len());
+                                                        let pkg = after[..end].trim();
+                                                        if !pkg.is_empty() && pkg.contains('.') {
+                                                            return Some(pkg.to_string());
+                                                        }
+                                                    }
+                                                }
+                                                // IzzyOnDroid format: https://apt.izzysoft.de/fdroid/index/apk/com.example.app
+                                                else if url.contains("izzysoft.de")
+                                                    && url.contains("/apk/")
+                                                {
+                                                    if let Some(start) = url.find("/apk/") {
+                                                        let after = &url[start + 5..];
+                                                        let end =
+                                                            after.find('/').unwrap_or(after.len());
+                                                        let pkg = after[..end].trim();
+                                                        if !pkg.is_empty() && pkg.contains('.') {
+                                                            return Some(pkg.to_string());
+                                                        }
+                                                    }
                                                 }
                                             }
-                                        }
-                                        // IzzyOnDroid format: https://apt.izzysoft.de/fdroid/index/apk/com.example.app
-                                        else if url.contains("izzysoft.de") && url.contains("/apk/") {
-                                            if let Some(start) = url.find("/apk/") {
-                                                let after = &url[start + 5..];
-                                                let end = after.find('/').unwrap_or(after.len());
-                                                let pkg = after[..end].trim();
-                                                if !pkg.is_empty() && pkg.contains('.') {
-                                                    return Some(pkg.to_string());
-                                                }
-                                            }
-                                        }
-                                    }
-                                    None
-                                });
+                                            None
+                                        });
 
-                                // Check if app is installed - only use exact package name matching
-                                if let Some(ref pkg_name) = package_name {
-                                    installed_packages.iter().any(|pkg| &pkg.pkg == pkg_name)
-                                } else {
-                                    false
-                                }
-                            };
+                                    // Check if app is installed - only use exact package name matching
+                                    if let Some(ref pkg_name) = package_name {
+                                        installed_packages.iter().any(|pkg| &pkg.pkg == pkg_name)
+                                    } else {
+                                        false
+                                    }
+                                };
 
                             // Group apps by category and count installed/total
-                            let mut category_counts: std::collections::HashMap<String, (usize, usize)> = std::collections::HashMap::new();
+                            let mut category_counts: std::collections::HashMap<
+                                String,
+                                (usize, usize),
+                            > = std::collections::HashMap::new();
                             for app in &fmhy_apps {
-                                let entry = category_counts.entry(app.category.clone()).or_insert((0, 0));
+                                let entry = category_counts
+                                    .entry(app.category.clone())
+                                    .or_insert((0, 0));
                                 entry.1 += 1; // total
                                 if is_app_installed(app) {
                                     entry.0 += 1; // installed
@@ -3124,51 +3259,60 @@ impl UadShizukuApp {
                             let mut sorted_categories: Vec<_> = category_counts.iter().collect();
                             sorted_categories.sort_by(|a, b| a.0.cmp(b.0));
 
-                            let mut dashboard = dashcounter("FOSS/FMHY", &mut self.dash_scroll_fmhy)
-                                .id_salt("dash_fmhy")
-                                .title_ui(|ui| {
-                                    if ui.add(icon_button_standard(ICON_INFO.to_string())).clicked() {
-                                        let _ = webbrowser::open(&fmhy_list.info_url);
-                                    }
-                                });
+                            let mut dashboard =
+                                dashcounter("FOSS/FMHY", &mut self.dash_scroll_fmhy)
+                                    .id_salt("dash_fmhy")
+                                    .title_ui(|ui| {
+                                        if ui
+                                            .add(icon_button_standard(ICON_INFO.to_string()))
+                                            .clicked()
+                                        {
+                                            let _ = webbrowser::open(&fmhy_list.info_url);
+                                        }
+                                    });
 
                             // Add a card for each category
-                            for (idx, (category, (installed, total))) in sorted_categories.iter().enumerate() {
+                            for (idx, (category, (installed, total))) in
+                                sorted_categories.iter().enumerate()
+                            {
                                 dashboard = dashboard.card_with_description(
                                     category.as_str(),
                                     *installed,
                                     *total,
                                     "installed",
-                                    "all"
+                                    "all",
                                 );
 
                                 // Store category name and apps for click handler
                                 let category_clone = (*category).clone();
-                                let apps_in_category: Vec<crate::tab_apps_control_stt::AppEntry> = fmhy_apps.iter()
-                                    .filter(|app| &app.category == *category)
-                                    .cloned()
-                                    .collect();
+                                let apps_in_category: Vec<crate::tab_apps_control_stt::AppEntry> =
+                                    fmhy_apps
+                                        .iter()
+                                        .filter(|app| &app.category == *category)
+                                        .cloned()
+                                        .collect();
 
                                 let ctx_for_storage = ctx_clone.clone();
                                 ctx_for_storage.data_mut(|data| {
                                     data.insert_temp(
                                         egui::Id::new(format!("fmhy_category_{}", idx)),
-                                        category_clone
+                                        category_clone,
                                     );
                                     data.insert_temp(
                                         egui::Id::new(format!("fmhy_apps_{}", idx)),
-                                        apps_in_category
+                                        apps_in_category,
                                     );
                                 });
                             }
 
-                            ui.add(
-                                dashboard.on_click(move |index| {
-                                    ctx_clone.data_mut(|data| {
-                                        data.insert_temp(egui::Id::new("dashcounter_clicked"), ("fmhy", index));
-                                    });
-                                })
-                            );
+                            ui.add(dashboard.on_click(move |index| {
+                                ctx_clone.data_mut(|data| {
+                                    data.insert_temp(
+                                        egui::Id::new("dashcounter_clicked"),
+                                        ("fmhy", index),
+                                    );
+                                });
+                            }));
                             ui.add_space(20.0);
                         }
                     }
@@ -3274,8 +3418,12 @@ impl UadShizukuApp {
                 let shared_store = crate::shared_store_stt::get_shared_store();
                 let installed_packages = shared_store.installed_packages.lock().unwrap().clone();
                 if !installed_packages.is_empty() {
-                    log::info!("Enqueueing {} packages for Google Play metadata fetch", installed_packages.len());
-                    let package_ids: Vec<String> = installed_packages.iter().map(|p| p.pkg.clone()).collect();
+                    log::info!(
+                        "Enqueueing {} packages for Google Play metadata fetch",
+                        installed_packages.len()
+                    );
+                    let package_ids: Vec<String> =
+                        installed_packages.iter().map(|p| p.pkg.clone()).collect();
                     queue.enqueue_batch(package_ids);
 
                     if let Ok(config) = crate::Config::new() {
@@ -3296,8 +3444,12 @@ impl UadShizukuApp {
                 let shared_store = crate::shared_store_stt::get_shared_store();
                 let installed_packages = shared_store.installed_packages.lock().unwrap().clone();
                 if !installed_packages.is_empty() {
-                    log::info!("Enqueueing {} packages for F-Droid metadata fetch", installed_packages.len());
-                    let package_ids: Vec<String> = installed_packages.iter().map(|p| p.pkg.clone()).collect();
+                    log::info!(
+                        "Enqueueing {} packages for F-Droid metadata fetch",
+                        installed_packages.len()
+                    );
+                    let package_ids: Vec<String> =
+                        installed_packages.iter().map(|p| p.pkg.clone()).collect();
                     queue.enqueue_batch(package_ids);
 
                     if let Ok(config) = crate::Config::new() {
@@ -3318,8 +3470,12 @@ impl UadShizukuApp {
                 let shared_store = crate::shared_store_stt::get_shared_store();
                 let installed_packages = shared_store.installed_packages.lock().unwrap().clone();
                 if !installed_packages.is_empty() {
-                    log::info!("Enqueueing {} packages for APKMirror metadata fetch", installed_packages.len());
-                    let package_ids: Vec<String> = installed_packages.iter().map(|p| p.pkg.clone()).collect();
+                    log::info!(
+                        "Enqueueing {} packages for APKMirror metadata fetch",
+                        installed_packages.len()
+                    );
+                    let package_ids: Vec<String> =
+                        installed_packages.iter().map(|p| p.pkg.clone()).collect();
                     queue.enqueue_batch(package_ids);
 
                     if let Ok(config) = crate::Config::new() {
@@ -3760,8 +3916,8 @@ impl UadShizukuApp {
         self.settings.autoupdate = self.dlg_settings.autoupdate;
 
         // Sync unsafe_app_remove and expert_app_remove to tab controls
-// REMOVED:         self.tab_debloat_control.unsafe_app_remove = self.settings.unsafe_app_remove;
-// REMOVED:         self.tab_debloat_control.expert_app_remove = self.settings.expert_app_remove;
+        // REMOVED:         self.tab_debloat_control.unsafe_app_remove = self.settings.unsafe_app_remove;
+        // REMOVED:         self.tab_debloat_control.expert_app_remove = self.settings.expert_app_remove;
         self.tab_scan_control.unsafe_app_remove = self.settings.unsafe_app_remove;
         self.tab_scan_control.expert_app_remove = self.settings.expert_app_remove;
 
@@ -3850,8 +4006,12 @@ impl UadShizukuApp {
                 let shared_store = crate::shared_store_stt::get_shared_store();
                 let installed_packages = shared_store.installed_packages.lock().unwrap().clone();
                 if !installed_packages.is_empty() {
-                    log::info!("Enqueueing {} packages for Google Play metadata fetch", installed_packages.len());
-                    let package_ids: Vec<String> = installed_packages.iter().map(|p| p.pkg.clone()).collect();
+                    log::info!(
+                        "Enqueueing {} packages for Google Play metadata fetch",
+                        installed_packages.len()
+                    );
+                    let package_ids: Vec<String> =
+                        installed_packages.iter().map(|p| p.pkg.clone()).collect();
                     queue.enqueue_batch(package_ids);
 
                     // Start worker if not already running
@@ -3874,8 +4034,12 @@ impl UadShizukuApp {
                 let shared_store = crate::shared_store_stt::get_shared_store();
                 let installed_packages = shared_store.installed_packages.lock().unwrap().clone();
                 if !installed_packages.is_empty() {
-                    log::info!("Enqueueing {} packages for F-Droid metadata fetch", installed_packages.len());
-                    let package_ids: Vec<String> = installed_packages.iter().map(|p| p.pkg.clone()).collect();
+                    log::info!(
+                        "Enqueueing {} packages for F-Droid metadata fetch",
+                        installed_packages.len()
+                    );
+                    let package_ids: Vec<String> =
+                        installed_packages.iter().map(|p| p.pkg.clone()).collect();
                     queue.enqueue_batch(package_ids);
 
                     // Start worker if not already running
@@ -3898,8 +4062,12 @@ impl UadShizukuApp {
                 let shared_store = crate::shared_store_stt::get_shared_store();
                 let installed_packages = shared_store.installed_packages.lock().unwrap().clone();
                 if !installed_packages.is_empty() {
-                    log::info!("Enqueueing {} packages for APKMirror metadata fetch", installed_packages.len());
-                    let package_ids: Vec<String> = installed_packages.iter().map(|p| p.pkg.clone()).collect();
+                    log::info!(
+                        "Enqueueing {} packages for APKMirror metadata fetch",
+                        installed_packages.len()
+                    );
+                    let package_ids: Vec<String> =
+                        installed_packages.iter().map(|p| p.pkg.clone()).collect();
                     queue.enqueue_batch(package_ids);
 
                     // Start worker if not already running

@@ -189,7 +189,14 @@ fn render_filter_section(
         ui.label(format!("Selected: {}", selection_count));
         ui.add_enabled_ui(selection_count > 0, |ui| {
             if ui.button("Uninstall").clicked() {
-                log::info!("Batch uninstall - will wire in Task 7");
+                log::info!("Batch uninstall requested for {} packages", selection_count);
+                let package_ids: Vec<String> =
+                    local_state.selected_packages.iter().cloned().collect();
+                let device = local_state.selected_device.clone().unwrap_or_default();
+                if let Err(e) = viewmodel.batch_uninstall(package_ids, device) {
+                    log::error!("Failed to batch uninstall: {}", e);
+                    local_state.batch_uninstall_state.status_message = format!("Error: {}", e);
+                }
             }
             if ui.button("Disable").clicked() {
                 log::info!("Batch disable requested for {} packages", selection_count);
@@ -391,8 +398,17 @@ fn render_package_list(
                     }
                 }
             },
-            &mut |_pkg_id| {
-                log::debug!("Delete: {}", _pkg_id);
+            &mut |pkg_id| {
+                // Delete button - show confirmation dialog
+                log::debug!("[MOBILE] Uninstall requested for package: {}", pkg_id);
+
+                // Find package to determine if it's a system app
+                if let Some(package) = vm_state.filtered_packages.iter().find(|p| p.pkg == pkg_id) {
+                    let is_system = package.flags.contains("SYSTEM");
+                    local_state.uninstall_confirm_dialog.open_single(pkg_id.to_string(), is_system);
+                } else {
+                    log::error!("[MOBILE] Package {} not found for uninstall", pkg_id);
+                }
             },
         );
     });
@@ -406,6 +422,19 @@ fn render_package_list(
 
     // Render batch toggle confirmation dialog if open
     local_state.batch_toggle_confirm.show(ui.ctx(), viewmodel);
+
+    // Render uninstall confirmation dialog if open
+    if local_state.uninstall_confirm_dialog.show(ui.ctx()) {
+        // User confirmed uninstall - trigger via viewmodel
+        let packages = local_state.uninstall_confirm_dialog.packages.clone();
+        let device = local_state.selected_device.clone().unwrap_or_default();
+
+        log::info!("[MOBILE] Uninstalling {} packages", packages.len());
+        if let Err(e) = viewmodel.batch_uninstall(packages, device) {
+            log::error!("Failed to uninstall: {}", e);
+            local_state.batch_uninstall_state.status_message = format!("Error: {}", e);
+        }
+    }
 }
 
 /// Render error banner if there are active errors

@@ -20,7 +20,10 @@ pub fn render_category_filters(
         if ui
             .selectable_label(
                 local_state.active_filter.category_filter.is_none(),
-                format!("All ({}/{})", local_state.cached_counts.all_enabled, local_state.cached_counts.all),
+                format!(
+                    "All ({}/{})",
+                    local_state.cached_counts.all_enabled, local_state.cached_counts.all
+                ),
             )
             .clicked()
         {
@@ -49,7 +52,11 @@ pub fn render_category_filters(
         if ui
             .selectable_label(
                 local_state.active_filter.category_filter.as_deref() == Some("recommended"),
-                format!("Recommended ({}/{})", local_state.cached_counts.recommended_enabled, local_state.cached_counts.recommended),
+                format!(
+                    "Recommended ({}/{})",
+                    local_state.cached_counts.recommended_enabled,
+                    local_state.cached_counts.recommended
+                ),
             )
             .clicked()
         {
@@ -78,7 +85,10 @@ pub fn render_category_filters(
         if ui
             .selectable_label(
                 local_state.active_filter.category_filter.as_deref() == Some("advanced"),
-                format!("Advanced ({}/{})", local_state.cached_counts.advanced_enabled, local_state.cached_counts.advanced),
+                format!(
+                    "Advanced ({}/{})",
+                    local_state.cached_counts.advanced_enabled, local_state.cached_counts.advanced
+                ),
             )
             .clicked()
         {
@@ -106,7 +116,10 @@ pub fn render_category_filters(
         if ui
             .selectable_label(
                 local_state.active_filter.category_filter.as_deref() == Some("expert"),
-                format!("Expert ({}/{})", local_state.cached_counts.expert_enabled, local_state.cached_counts.expert),
+                format!(
+                    "Expert ({}/{})",
+                    local_state.cached_counts.expert_enabled, local_state.cached_counts.expert
+                ),
             )
             .clicked()
         {
@@ -134,7 +147,11 @@ pub fn render_category_filters(
         if ui
             .selectable_label(
                 local_state.active_filter.category_filter.as_deref() == Some("unsafe"),
-                format!("Unsafe ({}/{})", local_state.cached_counts.unsafe_apps_enabled, local_state.cached_counts.unsafe_apps),
+                format!(
+                    "Unsafe ({}/{})",
+                    local_state.cached_counts.unsafe_apps_enabled,
+                    local_state.cached_counts.unsafe_apps
+                ),
             )
             .clicked()
         {
@@ -162,7 +179,11 @@ pub fn render_category_filters(
         if ui
             .selectable_label(
                 local_state.active_filter.category_filter.as_deref() == Some("unknown"),
-                format!("Unknown ({}/{})", local_state.cached_counts.unknown_apps_enabled, local_state.cached_counts.unknown_apps),
+                format!(
+                    "Unknown ({}/{})",
+                    local_state.cached_counts.unknown_apps_enabled,
+                    local_state.cached_counts.unknown_apps
+                ),
             )
             .clicked()
         {
@@ -265,7 +286,11 @@ pub fn render_advanced_settings(ui: &mut egui::Ui, local_state: &mut TabDebloatS
 }
 
 /// Render device info and package counts
-pub fn render_package_counts(ui: &mut egui::Ui, vm_state: &ViewModelState, local_state: &TabDebloatState) {
+pub fn render_package_counts(
+    ui: &mut egui::Ui,
+    vm_state: &ViewModelState,
+    local_state: &TabDebloatState,
+) {
     // Device info (if available)
     if let Some(device) = &local_state.selected_device {
         ui.separator();
