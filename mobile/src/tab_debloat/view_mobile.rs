@@ -332,13 +332,16 @@ fn render_package_list(
             local_state.unsafe_app_remove,
             local_state.expert_app_remove,
             &mut |pkg_id| {
+                // Info button - open mobile info dialog
                 if let Some(idx) = vm_state
                     .filtered_packages
                     .iter()
                     .position(|p| p.pkg == pkg_id)
                 {
-                    local_state.package_details_dialog.selected_package_index = Some(idx);
-                    local_state.package_details_dialog.open = true;
+                    log::debug!("[MOBILE] Opening info dialog for package: {}", pkg_id);
+                    local_state.mobile_info_dialog.open(idx);
+                } else {
+                    log::error!("[MOBILE] Package {} not found in filtered list", pkg_id);
                 }
             },
             &mut |_pkg_id, _is_enabled| {
@@ -349,6 +352,13 @@ fn render_package_list(
             },
         );
     });
+
+    // Render mobile info dialog if open
+    local_state.mobile_info_dialog.show(
+        ui.ctx(),
+        vm_state,
+        &vm_state.uad_ng_lists,
+    );
 }
 
 /// Render error banner if there are active errors
