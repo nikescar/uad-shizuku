@@ -4,8 +4,8 @@
 //! card-based package lists from different tabs. Currently supports debloat tab,
 //! designed to be extended for scan/apps tabs in the future.
 
-use crate::viewmodel::ViewModelState;
 pub use crate::dlg_mobile_list_stt::*;
+use crate::viewmodel::ViewModelState;
 use eframe::egui;
 
 impl DlgMobileList {
@@ -59,7 +59,10 @@ impl DlgMobileList {
         if current_width > 1010.0 {
             // Close dialog when viewport exceeds mobile threshold
             if self.open {
-                log::info!("[MOBILE_LIST] Auto-closing dialog: viewport width {} > 1010px", current_width);
+                log::info!(
+                    "[MOBILE_LIST] Auto-closing dialog: viewport width {} > 1010px",
+                    current_width
+                );
                 self.close();
                 return;
             }
@@ -80,9 +83,12 @@ impl DlgMobileList {
             }
         };
 
+        let mut close_requested = false;
+        let title = window_title.clone();
+
         egui::Window::new(window_title)
             .id(egui::Id::new("mobile_list_window"))
-            .title_bar(true)
+            .title_bar(false)  // Disable default title bar
             .resizable(true)
             .collapsible(false)
             .scroll([false, false])
@@ -97,18 +103,23 @@ impl DlgMobileList {
                 ])
             })
             .show(ctx, |ui| {
-                // Add close button in top right
+                // Custom title bar with heading and close button
                 ui.horizontal(|ui| {
-                    if ui.button("✕").clicked() {
-                        self.close();
-                    }
+                    ui.heading(&title);
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if ui.button("Close").clicked() {
+                            close_requested = true;
+                        }
+                    });
                 });
+                ui.separator();
 
                 ui.add_space(8.0);
 
                 // Sync filter state from dialog to tab state
                 if let Some(ref category) = self.category_filter {
-                    if tab_debloat_state.active_filter.category_filter.as_deref() != Some(category) {
+                    if tab_debloat_state.active_filter.category_filter.as_deref() != Some(category)
+                    {
                         log::info!("[MOBILE_LIST] Syncing category filter to: {}", category);
                         tab_debloat_state.active_filter.category_filter = Some(category.clone());
 
@@ -154,7 +165,7 @@ impl DlgMobileList {
                 }
 
                 // Render appropriate view based on view_type
-                log::info!(
+                log::debug!(
                     "[MOBILE_LIST] Renderer flags - GP: {}, FD: {}, APK: {}, AP: {}",
                     google_play_enabled,
                     fdroid_enabled,
@@ -176,6 +187,11 @@ impl DlgMobileList {
                     }
                 }
             });
+
+        if close_requested {
+            self.close();
+            return;
+        }
     }
 }
 
