@@ -42,7 +42,16 @@ pub fn shell_exec(device: &str, command: &str) -> std::io::Result<String> {
         if output.status.success() {
             Ok(String::from_utf8_lossy(&output.stdout).to_string())
         } else {
-            let err = String::from_utf8_lossy(&output.stderr).to_string();
+            // adb/pm write failure details (e.g. "Failure [DELETE_FAILED_...]") to
+            // stdout, not stderr, even on non-zero exit, so stderr alone is often empty.
+            let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+            let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+            let err = match (stdout.trim().is_empty(), stderr.trim().is_empty()) {
+                (false, false) => format!("{} ({})", stdout.trim(), stderr.trim()),
+                (false, true) => stdout.trim().to_string(),
+                (true, false) => stderr.trim().to_string(),
+                (true, true) => format!("command failed with exit code {:?}", output.status.code()),
+            };
             Err(std::io::Error::new(std::io::ErrorKind::Other, err))
         }
     }
@@ -57,6 +66,17 @@ pub fn get_devices() -> std::io::Result<Vec<String>> {
     #[cfg(not(target_os = "android"))]
     {
         use std::process::Command;
+
+        // Kill ADB server first to ensure fresh device enumeration
+        // This prevents showing stale/disconnected devices from old daemon cache
+        let kill_result = Command::new("adb").arg("kill-server").output();
+        if let Err(e) = kill_result {
+            debug!("Failed to kill ADB server (may not be running): {}", e);
+        } else {
+            debug!("ADB server killed, will restart with fresh device list");
+        }
+
+        // ADB will automatically start a new server when we call 'adb devices'
         let output = Command::new("adb").arg("devices").arg("-l").output()?;
 
         if output.status.success() {
@@ -1233,7 +1253,16 @@ pub fn uninstall_app(package_name: &str, device: &str) -> std::io::Result<String
             let result = String::from_utf8_lossy(&output.stdout).to_string();
             Ok(result)
         } else {
-            let err = String::from_utf8_lossy(&output.stderr).to_string();
+            // adb writes the failure reason (e.g. "Failure [DELETE_FAILED_...]") to
+            // stdout, not stderr, even on non-zero exit, so stderr alone is often empty.
+            let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+            let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+            let err = match (stdout.trim().is_empty(), stderr.trim().is_empty()) {
+                (false, false) => format!("{} ({})", stdout.trim(), stderr.trim()),
+                (false, true) => stdout.trim().to_string(),
+                (true, false) => stderr.trim().to_string(),
+                (true, true) => format!("command failed with exit code {:?}", output.status.code()),
+            };
             Err(std::io::Error::new(std::io::ErrorKind::Other, err))
         }
     }
@@ -2033,14 +2062,15 @@ mod tests {
 
     #[test]
     fn test_parse_package_fingerprints() {
-        // Locate the reference file relative to the crate root
+        // Locate the fixture file relative to the crate root
         let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-        path.pop(); // Go up to workspace root
-        path.push("reference");
-        path.push("adb_dumpsys_package_packages");
+        path.push("tests");
+        path.push("fixtures");
+        path.push("adb");
+        path.push("dumpsys_package_packages.txt");
 
-        println!("Reading reference file from: {:?}", path);
-        let content = fs::read_to_string(&path).expect("Failed to read reference file");
+        println!("Reading fixture file from: {:?}", path);
+        let content = fs::read_to_string(&path).expect("Failed to read fixture file");
 
         let lines: Vec<String> = content.lines().map(|s| s.to_string()).collect();
         let fingerprints = parse_package_fingerprints(lines);
@@ -2250,5 +2280,141 @@ mod tests {
 
         // Clean up directory
         let _ = std::fs::remove_dir(tmp_dir);
+    }
+
+    /// End-to-end test against `mock_adb` (see `bin/mock_adb.rs` and
+    /// `tests/fixtures/adb/README.md`) instead of a real device. Prepends a
+    /// directory holding `mock_adb` (renamed to `adb`/`adb.exe`) to PATH so
+    /// every `Command::new("adb")` call in this file resolves to the mock,
+    /// then drives the real functions above against it.
+    /// Builds `mock_adb` (idempotent — cargo no-ops if already up to date)
+    /// and returns its executable path, read straight from cargo's own
+    /// `--message-format=json` artifact report. `cargo test` does not build
+    /// plain `[[bin]]` targets as a side effect of running a single named
+    /// unit test, and this crate's unusual `crate-type = ["cdylib",
+    /// "rlib"]` build layout makes guessing the path relative to
+    /// `current_exe()` unreliable, so ask cargo directly instead.
+    fn locate_or_build_mock_adb() -> PathBuf {
+        let output = std::process::Command::new(env!("CARGO"))
+            .args(["build", "--bin", "mock_adb", "--message-format=json"])
+            .output()
+            .expect("failed to invoke cargo to build mock_adb");
+        assert!(
+            output.status.success(),
+            "cargo build --bin mock_adb failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        for line in stdout.lines() {
+            let Ok(msg) = serde_json::from_str::<serde_json::Value>(line) else {
+                continue;
+            };
+            if msg.get("reason").and_then(|v| v.as_str()) != Some("compiler-artifact") {
+                continue;
+            }
+            let is_mock_adb_bin = msg
+                .get("target")
+                .and_then(|t| t.get("name"))
+                .and_then(|n| n.as_str())
+                == Some("mock_adb")
+                && msg
+                    .get("target")
+                    .and_then(|t| t.get("kind"))
+                    .and_then(|k| k.as_array())
+                    .is_some_and(|kinds| kinds.iter().any(|k| k.as_str() == Some("bin")));
+            if !is_mock_adb_bin {
+                continue;
+            }
+            if let Some(exe) = msg.get("executable").and_then(|v| v.as_str()) {
+                return PathBuf::from(exe);
+            }
+        }
+        panic!("cargo build --bin mock_adb did not report an executable path");
+    }
+
+    #[test]
+    fn test_against_mock_adb() {
+        const MOCK_SERIAL: &str = "MOCKDEVICE01";
+
+        let mock_adb_exe = locate_or_build_mock_adb();
+        let dir = std::env::temp_dir().join("uad_shizuku_mock_adb_bin");
+        fs::create_dir_all(&dir).expect("create mock adb dir");
+        let adb_name = if cfg!(target_os = "windows") {
+            "adb.exe"
+        } else {
+            "adb"
+        };
+        let target = dir.join(adb_name);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::symlink;
+            let _ = fs::remove_file(&target);
+            symlink(mock_adb_exe, &target).expect("symlink mock adb");
+        }
+        #[cfg(not(unix))]
+        {
+            let _ = fs::remove_file(&target);
+            fs::copy(mock_adb_exe, &target).expect("copy mock adb");
+        }
+        let existing_path = std::env::var("PATH").unwrap_or_default();
+        let separator = if cfg!(windows) { ';' } else { ':' };
+        let new_path = format!("{}{}{}", dir.display(), separator, existing_path);
+        // SAFETY: this test does not run concurrently with other tests in
+        // this module that spawn `adb` with conflicting PATH expectations.
+        unsafe {
+            std::env::set_var("PATH", new_path);
+        }
+
+        let devices = get_devices().expect("get_devices should succeed against mock");
+        assert!(
+            devices.contains(&MOCK_SERIAL.to_string()),
+            "expected mock serial in {:?}",
+            devices
+        );
+
+        let users = get_users(MOCK_SERIAL).expect("get_users should succeed");
+        assert!(!users.is_empty(), "should parse at least one user");
+        assert!(users.iter().any(|u| u.user_id == 0), "should have user 0");
+
+        let abis = get_cpu_abi_list(MOCK_SERIAL).expect("get_cpu_abi_list should succeed");
+        assert_eq!(abis, vec!["arm64-v8a".to_string()]);
+
+        let fingerprints = get_all_packages_fingerprints(MOCK_SERIAL)
+            .expect("get_all_packages_fingerprints should succeed");
+        assert!(
+            !fingerprints.is_empty(),
+            "should parse at least one package"
+        );
+        assert!(
+            fingerprints.iter().any(|p| p.pkg == "io.heckel.ntfy"),
+            "should find io.heckel.ntfy in the captured dump"
+        );
+
+        let out = uninstall_app_user("io.heckel.ntfy", MOCK_SERIAL, Some("0"))
+            .expect("uninstall_app_user should succeed");
+        assert!(out.contains("Success"));
+
+        let out = disable_app_current_user("io.heckel.ntfy", MOCK_SERIAL, Some("0"))
+            .expect("disable_app_current_user should succeed");
+        assert!(out.contains("disabled-user"));
+
+        let out = enable_app("io.heckel.ntfy", MOCK_SERIAL).expect("enable_app should succeed");
+        assert!(out.contains("enabled"));
+
+        let pull_tmp_dir = std::env::temp_dir().join("uad_shizuku_mock_adb_pull_test");
+        fs::create_dir_all(&pull_tmp_dir).expect("create pull tmp dir");
+        let pulled = pull_file_to_temp(
+            MOCK_SERIAL,
+            "/data/app/some/base.apk",
+            pull_tmp_dir.to_str().expect("tmp dir should be valid utf8"),
+            "io.heckel.ntfy",
+        )
+        .expect("pull_file_to_temp should succeed");
+        assert!(
+            std::path::Path::new(&pulled).exists(),
+            "pulled file should exist at {}",
+            pulled
+        );
     }
 }

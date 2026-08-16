@@ -1,0 +1,393 @@
+Activity Resolver Table:
+  Full MIME Types:
+      application/*:
+        4995d10 io.heckel.ntfy/.ui.ShareActivity filter a07b009
+          Action: "android.intent.action.SEND"
+          Category: "android.intent.category.DEFAULT"
+          StaticType: "image"
+          StaticType: "text"
+          StaticType: "audio"
+          StaticType: "video"
+          StaticType: "application"
+          mPriority=0, mOrder=0, mHasStaticPartialTypes=true, mHasDynamicPartialTypes=false
+      text/*:
+        4995d10 io.heckel.ntfy/.ui.ShareActivity filter a07b009
+          Action: "android.intent.action.SEND"
+          Category: "android.intent.category.DEFAULT"
+          StaticType: "image"
+          StaticType: "text"
+          StaticType: "audio"
+          StaticType: "video"
+          StaticType: "application"
+          mPriority=0, mOrder=0, mHasStaticPartialTypes=true, mHasDynamicPartialTypes=false
+      audio/*:
+        4995d10 io.heckel.ntfy/.ui.ShareActivity filter a07b009
+          Action: "android.intent.action.SEND"
+          Category: "android.intent.category.DEFAULT"
+          StaticType: "image"
+          StaticType: "text"
+          StaticType: "audio"
+          StaticType: "video"
+          StaticType: "application"
+          mPriority=0, mOrder=0, mHasStaticPartialTypes=true, mHasDynamicPartialTypes=false
+      video/*:
+        4995d10 io.heckel.ntfy/.ui.ShareActivity filter a07b009
+          Action: "android.intent.action.SEND"
+          Category: "android.intent.category.DEFAULT"
+          StaticType: "image"
+          StaticType: "text"
+          StaticType: "audio"
+          StaticType: "video"
+          StaticType: "application"
+          mPriority=0, mOrder=0, mHasStaticPartialTypes=true, mHasDynamicPartialTypes=false
+      image/*:
+        4995d10 io.heckel.ntfy/.ui.ShareActivity filter a07b009
+          Action: "android.intent.action.SEND"
+          Category: "android.intent.category.DEFAULT"
+          StaticType: "image"
+          StaticType: "text"
+          StaticType: "audio"
+          StaticType: "video"
+          StaticType: "application"
+          mPriority=0, mOrder=0, mHasStaticPartialTypes=true, mHasDynamicPartialTypes=false
+
+  Wild MIME Types:
+      text:
+        4995d10 io.heckel.ntfy/.ui.ShareActivity filter a07b009
+          Action: "android.intent.action.SEND"
+          Category: "android.intent.category.DEFAULT"
+          StaticType: "image"
+          StaticType: "text"
+          StaticType: "audio"
+          StaticType: "video"
+          StaticType: "application"
+          mPriority=0, mOrder=0, mHasStaticPartialTypes=true, mHasDynamicPartialTypes=false
+      audio:
+        4995d10 io.heckel.ntfy/.ui.ShareActivity filter a07b009
+          Action: "android.intent.action.SEND"
+          Category: "android.intent.category.DEFAULT"
+          StaticType: "image"
+          StaticType: "text"
+          StaticType: "audio"
+          StaticType: "video"
+          StaticType: "application"
+          mPriority=0, mOrder=0, mHasStaticPartialTypes=true, mHasDynamicPartialTypes=false
+      image:
+        4995d10 io.heckel.ntfy/.ui.ShareActivity filter a07b009
+          Action: "android.intent.action.SEND"
+          Category: "android.intent.category.DEFAULT"
+          StaticType: "image"
+          StaticType: "text"
+          StaticType: "audio"
+          StaticType: "video"
+          StaticType: "application"
+          mPriority=0, mOrder=0, mHasStaticPartialTypes=true, mHasDynamicPartialTypes=false
+      video:
+        4995d10 io.heckel.ntfy/.ui.ShareActivity filter a07b009
+          Action: "android.intent.action.SEND"
+          Category: "android.intent.category.DEFAULT"
+          StaticType: "image"
+          StaticType: "text"
+          StaticType: "audio"
+          StaticType: "video"
+          StaticType: "application"
+          mPriority=0, mOrder=0, mHasStaticPartialTypes=true, mHasDynamicPartialTypes=false
+      application:
+        4995d10 io.heckel.ntfy/.ui.ShareActivity filter a07b009
+          Action: "android.intent.action.SEND"
+          Category: "android.intent.category.DEFAULT"
+          StaticType: "image"
+          StaticType: "text"
+          StaticType: "audio"
+          StaticType: "video"
+          StaticType: "application"
+          mPriority=0, mOrder=0, mHasStaticPartialTypes=true, mHasDynamicPartialTypes=false
+
+  Schemes:
+      unifiedpush:
+        cdee20e io.heckel.ntfy/.up.LinkActivity filter 89ab42f
+          Action: "android.intent.action.VIEW"
+          Category: "android.intent.category.DEFAULT"
+          Scheme: "unifiedpush"
+          Authority: "link": -1
+      ntfy:
+        81bcbc2 io.heckel.ntfy/.ui.DetailActivity filter 5f70dd3
+          Action: "android.intent.action.VIEW"
+          Category: "android.intent.category.DEFAULT"
+          Category: "android.intent.category.BROWSABLE"
+          Scheme: "ntfy"
+
+  Non-Data Actions:
+      android.intent.action.MAIN:
+        7313aa4 io.heckel.ntfy/.ui.MainActivity filter eac200d
+          Action: "android.intent.action.MAIN"
+          Category: "android.intent.category.LAUNCHER"
+
+  MIME Typed Actions:
+      android.intent.action.SEND:
+        4995d10 io.heckel.ntfy/.ui.ShareActivity filter a07b009
+          Action: "android.intent.action.SEND"
+          Category: "android.intent.category.DEFAULT"
+          StaticType: "image"
+          StaticType: "text"
+          StaticType: "audio"
+          StaticType: "video"
+          StaticType: "application"
+          mPriority=0, mOrder=0, mHasStaticPartialTypes=true, mHasDynamicPartialTypes=false
+
+Receiver Resolver Table:
+  Non-Data Actions:
+      android.app.action.SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED:
+        81f3a3c io.heckel.ntfy/.service.SubscriberService$BootStartReceiver filter f7243c5
+          Action: "android.app.action.SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED"
+          Action: "android.intent.action.BOOT_COMPLETED"
+      io.heckel.ntfy.CONNECTION_ALERT_SNOOZE:
+        3ab111a io.heckel.ntfy/.service.SubscriberService$ConnectionAlertBroadcastReceiver filter 328644b
+          Action: "io.heckel.ntfy.CONNECTION_ALERT_SNOOZE"
+          Action: "io.heckel.ntfy.CONNECTION_ALERT_NEVER"
+          Action: "io.heckel.ntfy.CONNECTION_ALERT_DISMISS"
+      androidx.profileinstaller.action.SAVE_PROFILE:
+        c862a40 io.heckel.ntfy/androidx.profileinstaller.ProfileInstallReceiver filter a27071f
+          Action: "androidx.profileinstaller.action.SAVE_PROFILE"
+      org.unifiedpush.android.distributor.UNREGISTER:
+        4d924e6 io.heckel.ntfy/.up.BroadcastReceiver filter 996fa27
+          Action: "org.unifiedpush.android.distributor.UNREGISTER"
+          Action: "org.unifiedpush.android.distributor.REGISTER"
+          Action: "org.unifiedpush.android.distributor.feature.BYTES_MESSAGE"
+      androidx.profileinstaller.action.INSTALL_PROFILE:
+        c862a40 io.heckel.ntfy/androidx.profileinstaller.ProfileInstallReceiver filter 37fad79
+          Action: "androidx.profileinstaller.action.INSTALL_PROFILE"
+      androidx.profileinstaller.action.SKIP_FILE:
+        c862a40 io.heckel.ntfy/androidx.profileinstaller.ProfileInstallReceiver filter 8cdeabe
+          Action: "androidx.profileinstaller.action.SKIP_FILE"
+      io.heckel.ntfy.SEND_MESSAGE:
+        3c3be28 io.heckel.ntfy/.msg.BroadcastService$BroadcastReceiver filter 9385741
+          Action: "io.heckel.ntfy.SEND_MESSAGE"
+      androidx.profileinstaller.action.BENCHMARK_OPERATION:
+        c862a40 io.heckel.ntfy/androidx.profileinstaller.ProfileInstallReceiver filter 7c3aa6c
+          Action: "androidx.profileinstaller.action.BENCHMARK_OPERATION"
+      android.intent.action.BOOT_COMPLETED:
+        81f3a3c io.heckel.ntfy/.service.SubscriberService$BootStartReceiver filter f7243c5
+          Action: "android.app.action.SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED"
+          Action: "android.intent.action.BOOT_COMPLETED"
+        6aa94d4 io.heckel.ntfy/androidx.work.impl.background.systemalarm.RescheduleReceiver filter ff2267d
+          Action: "android.intent.action.BOOT_COMPLETED"
+      org.unifiedpush.android.distributor.REGISTER:
+        4d924e6 io.heckel.ntfy/.up.BroadcastReceiver filter 996fa27
+          Action: "org.unifiedpush.android.distributor.UNREGISTER"
+          Action: "org.unifiedpush.android.distributor.REGISTER"
+          Action: "org.unifiedpush.android.distributor.feature.BYTES_MESSAGE"
+      io.heckel.ntfy.CONNECTION_ALERT_NEVER:
+        3ab111a io.heckel.ntfy/.service.SubscriberService$ConnectionAlertBroadcastReceiver filter 328644b
+          Action: "io.heckel.ntfy.CONNECTION_ALERT_SNOOZE"
+          Action: "io.heckel.ntfy.CONNECTION_ALERT_NEVER"
+          Action: "io.heckel.ntfy.CONNECTION_ALERT_DISMISS"
+      org.unifiedpush.android.distributor.feature.BYTES_MESSAGE:
+        4d924e6 io.heckel.ntfy/.up.BroadcastReceiver filter 996fa27
+          Action: "org.unifiedpush.android.distributor.UNREGISTER"
+          Action: "org.unifiedpush.android.distributor.REGISTER"
+          Action: "org.unifiedpush.android.distributor.feature.BYTES_MESSAGE"
+      androidx.work.diagnostics.REQUEST_DIAGNOSTICS:
+        382a972 io.heckel.ntfy/androidx.work.impl.diagnostics.DiagnosticsReceiver filter e6f11c3
+          Action: "androidx.work.diagnostics.REQUEST_DIAGNOSTICS"
+      io.heckel.ntfy.CONNECTION_ALERT_DISMISS:
+        3ab111a io.heckel.ntfy/.service.SubscriberService$ConnectionAlertBroadcastReceiver filter 328644b
+          Action: "io.heckel.ntfy.CONNECTION_ALERT_SNOOZE"
+          Action: "io.heckel.ntfy.CONNECTION_ALERT_NEVER"
+          Action: "io.heckel.ntfy.CONNECTION_ALERT_DISMISS"
+
+Service Resolver Table:
+  Non-Data Actions:
+      com.google.firebase.MESSAGING_EVENT:
+        7c4a835 io.heckel.ntfy/.firebase.FirebaseService filter 7f9f4ca
+          Action: "com.google.firebase.MESSAGING_EVENT"
+
+Domain verification status:
+
+Permissions:
+  Permission [io.heckel.ntfy.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION] (ca711a6):
+    sourcePackage=io.heckel.ntfy
+    uid=10311 gids=[] type=0 prot=signature
+    perm=PermissionInfo{bc47bc1 io.heckel.ntfy.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION}
+    flags=0x0
+
+Registered ContentProviders:
+  io.heckel.ntfy/androidx.core.content.FileProvider:
+    Provider{8a3af66 io.heckel.ntfy/androidx.core.content.FileProvider}
+  io.heckel.ntfy/com.squareup.picasso.PicassoProvider:
+    Provider{c06f2a7 io.heckel.ntfy/com.squareup.picasso.PicassoProvider}
+  io.heckel.ntfy/androidx.startup.InitializationProvider:
+    Provider{10e6354 io.heckel.ntfy/androidx.startup.InitializationProvider}
+
+ContentProvider Authorities:
+  [io.heckel.ntfy.provider]:
+    Provider{8a3af66 io.heckel.ntfy/androidx.core.content.FileProvider}
+      applicationInfo=ApplicationInfo{6e747e7 io.heckel.ntfy}
+  [io.heckel.ntfy.androidx-startup]:
+    Provider{10e6354 io.heckel.ntfy/androidx.startup.InitializationProvider}
+      applicationInfo=ApplicationInfo{c0c2f94 io.heckel.ntfy}
+  [io.heckel.ntfy.com.squareup.picasso]:
+    Provider{c06f2a7 io.heckel.ntfy/com.squareup.picasso.PicassoProvider}
+      applicationInfo=ApplicationInfo{8278a3d io.heckel.ntfy}
+
+Key Set Manager:
+  [io.heckel.ntfy]
+      Signing KeySets: 131
+
+Packages:
+  Package [io.heckel.ntfy] (bd53fa4):
+    appId=10311
+    pccId=-1
+    pkg=Package{8410d io.heckel.ntfy}
+    codePath=/data/app/~~ny1aVKTNxKUDyWLDzM5bPw==/io.heckel.ntfy-K2BhGdAlPTfLZs8XlI-moA==
+    resourcePath=/data/app/~~ny1aVKTNxKUDyWLDzM5bPw==/io.heckel.ntfy-K2BhGdAlPTfLZs8XlI-moA==
+    legacyNativeLibraryDir=/data/app/~~ny1aVKTNxKUDyWLDzM5bPw==/io.heckel.ntfy-K2BhGdAlPTfLZs8XlI-moA==/lib
+    extractNativeLibs=false
+    primaryCpuAbi=arm64-v8a
+    secondaryCpuAbi=null
+    cpuAbiOverride=null
+    versionCode=60 minSdk=26 targetSdk=36
+    minExtensionVersions=[]
+    versionName=1.24.0
+    hiddenApiEnforcementPolicy=2
+    usesNonSdkApi=false
+    splits=[base]
+    apkSigningVersion=2
+    flags=[ HAS_CODE ALLOW_CLEAR_USER_DATA ALLOW_BACKUP KILL_AFTER_RESTORE ]
+    privateFlags=[ PRIVATE_FLAG_ACTIVITIES_RESIZE_MODE_RESIZEABLE_VIA_SDK_VERSION ALLOW_AUDIO_PLAYBACK_CAPTURE PARTIALLY_DIRECT_BOOT_AWARE PRIVATE_FLAG_ALLOW_NATIVE_HEAP_POINTER_TAGGING ]
+    forceQueryable=false
+    pageSizeCompat=0
+    queriesIntents=[Intent { act=org.unifiedpush.android.connector.RAISE_TO_FOREGROUND }]
+    scannedAsStoppedSystemApp=false
+    supportsScreens=[small, medium, large, xlarge, resizeable, anyDensity]
+    usesOptionalLibraries:
+      androidx.window.extensions
+      androidx.window.sidecar
+    usesLibraryFiles:
+      /system_ext/framework/androidx.window.extensions.jar
+      /system_ext/framework/androidx.window.sidecar.jar
+    timeStamp=2026-06-01 23:09:29
+    lastUpdateTime=2026-06-01 23:09:30
+    installerPackageName=null
+    installerPackageUid=-1
+    initiatingPackageName=dev.imranr.obtainium.fdroid
+    originatingPackageName=null
+    packageSource=2
+    appMetadataFilePath=null
+    appMetadataSource=0
+    signatures=PackageSignatures{463d8c2 version:2, signatures:[5aa51ead], past signatures:[]}
+    installPermissionsFixed=false
+    pkgFlags=[ HAS_CODE ALLOW_CLEAR_USER_DATA ALLOW_BACKUP KILL_AFTER_RESTORE ]
+    privatePkgFlags=[ PRIVATE_FLAG_ACTIVITIES_RESIZE_MODE_RESIZEABLE_VIA_SDK_VERSION ALLOW_AUDIO_PLAYBACK_CAPTURE PARTIALLY_DIRECT_BOOT_AWARE PRIVATE_FLAG_ALLOW_NATIVE_HEAP_POINTER_TAGGING ]
+    apexModuleName=null
+    declared permissions:
+      io.heckel.ntfy.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION: prot=signature
+    requested permissions:
+      android.permission.POST_NOTIFICATIONS
+      android.permission.FOREGROUND_SERVICE
+      io.heckel.ntfy.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION
+      android.permission.RECEIVE_BOOT_COMPLETED
+      android.permission.FOREGROUND_SERVICE_SPECIAL_USE
+      android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS
+      android.permission.INTERNET
+      android.permission.ACCESS_NETWORK_STATE
+      android.permission.SCHEDULE_EXACT_ALARM
+      android.permission.VIBRATE
+      android.permission.WAKE_LOCK
+    install permissions:
+      android.permission.FOREGROUND_SERVICE: granted=true
+      io.heckel.ntfy.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION: granted=true
+      android.permission.RECEIVE_BOOT_COMPLETED: granted=true
+      android.permission.FOREGROUND_SERVICE_SPECIAL_USE: granted=true
+      android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS: granted=true
+      android.permission.INTERNET: granted=true
+      android.permission.ACCESS_NETWORK_STATE: granted=true
+      android.permission.VIBRATE: granted=true
+      android.permission.WAKE_LOCK: granted=true
+    User 0: ceDataInode=14336 deDataInode=14339 installed=true hidden=false suspended=false appLockEnabled=false distractionFlags=0 stopped=false notLaunched=false enabled=0 instant=false virtual=false quarantined=false
+      installReason=4
+      dataDir=/data/user/0/io.heckel.ntfy
+      firstInstallTime=2026-06-01 23:09:30
+      uninstallReason=0
+      overlay paths:
+        /product/overlay/NavigationBarModeGestural/NavigationBarModeGesturalOverlay.apk
+        /data/resource-cache/com.android.systemui-neutral-VNtf.frro
+        /data/resource-cache/com.android.systemui-accent-KnOK.frro
+        /data/resource-cache/com.android.systemui-dynamic-GAZv.frro
+      legacy overlay paths:
+        /product/overlay/NavigationBarModeGestural/NavigationBarModeGesturalOverlay.apk
+      lastDisabledCaller: dev.imranr.obtainium.fdroid
+      gids=[3003]
+      runtime permissions:
+        android.permission.POST_NOTIFICATIONS: granted=true, flags=[ USER_SET|USER_SENSITIVE_WHEN_GRANTED|USER_SENSITIVE_WHEN_DENIED]
+      enabledComponents:
+        androidx.work.impl.background.systemalarm.RescheduleReceiver
+        androidx.work.impl.background.systemjob.SystemJobService
+
+Queries:
+  system apps queryable: false
+  queries via forceQueryable:
+  queries via package name:
+  queries via component:
+    [app id 10158 not installed]:
+      io.heckel.ntfy
+    [app id 10160 not installed]:
+      io.heckel.ntfy
+    [app id 10175 not installed]:
+      io.heckel.ntfy
+    [app id 10176 not installed]:
+      io.heckel.ntfy
+    [app id 10180 not installed]:
+      io.heckel.ntfy
+    [app id 10192 not installed]:
+      io.heckel.ntfy
+    [app id 10199 not installed]:
+      io.heckel.ntfy
+    [app id 10209 not installed]:
+      io.heckel.ntfy
+    [app id 10214 not installed]:
+      io.heckel.ntfy
+    [app id 10226 not installed]:
+      io.heckel.ntfy
+    io.heckel.ntfy:
+      chat.fluffy.fluffychat
+      chat.delta.lite
+    com.kakao.talk:
+      io.heckel.ntfy
+    com.taobao.taobao:
+      io.heckel.ntfy
+    kr.or.nps.smart:
+      io.heckel.ntfy
+    com.noriworks.gm:
+      io.heckel.ntfy
+    com.jobkorea.app:
+      io.heckel.ntfy
+    com.rovio.baba:
+      io.heckel.ntfy
+    chat.fluffy.fluffychat:
+      io.heckel.ntfy
+    com.withpersona.app.reusablepersonas:
+      io.heckel.ntfy
+    com.linkedin.android:
+      io.heckel.ntfy
+    chat.delta.lite:
+      io.heckel.ntfy
+  queryable via interaction:
+    User 0:
+      [com.android.dynsystem,android,com.android.settings,com.android.qns,com.android.keychain,com.android.localtransport,com.android.server.telecom,com.android.inputdevices,com.google.android.iwlan,com.android.location.fused,com.android.providers.settings]:
+        io.heckel.ntfy
+      com.android.systemui:
+        io.heckel.ntfy
+      com.google.android.apps.nexuslauncher:
+        io.heckel.ntfy
+      io.heckel.ntfy:
+        [com.android.dynsystem,android,com.android.settings,com.android.qns,com.android.keychain,com.android.localtransport,com.android.server.telecom,com.android.inputdevices,com.google.android.iwlan,com.android.location.fused,com.android.providers.settings]
+      chat.fluffy.fluffychat:
+        io.heckel.ntfy
+  queryable via uses-library:
+
+Dexopt state:
+  [io.heckel.ntfy]
+    path: /data/app/~~ny1aVKTNxKUDyWLDzM5bPw==/io.heckel.ntfy-K2BhGdAlPTfLZs8XlI-moA==/base.apk
+      arm64: [status=speed-profile] [reason=bg-dexopt] [primary-abi]
+        [location is /data/app/~~ny1aVKTNxKUDyWLDzM5bPw==/io.heckel.ntfy-K2BhGdAlPTfLZs8XlI-moA==/oat/arm64/base.odex]

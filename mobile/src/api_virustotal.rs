@@ -384,7 +384,7 @@ mod tests {
 
     #[test]
     fn test_parse_virustotal_response() {
-        let json = include_str!("../../reference/virustotal_filereport_response.json");
+        let json = include_str!("../tests/fixtures/virustotal/filereport_response.json");
         let response: VirusTotalResponse = serde_json::from_str(json).unwrap();
 
         assert_eq!(
@@ -414,7 +414,7 @@ mod tests {
 
     #[test]
     fn test_parse_upload_response() {
-        let json = include_str!("../../reference/virustotal_uploadafile_response.json");
+        let json = include_str!("../tests/fixtures/virustotal/uploadafile_response.json");
         let response: VirusTotalUploadResponse = serde_json::from_str(json).unwrap();
 
         assert_eq!(response.data.data_type, "analysis");

@@ -3,7 +3,6 @@ use crate::adb::UserInfo;
 use crate::install_stt::InstallStatus;
 use crate::tab_apps_control::TabAppsControl;
 use crate::tab_debloat::TabDebloat;
-use crate::tab_debloat_control::TabDebloatControl;  // TRANSITIONAL: Being phased out
 use crate::tab_scan_control::TabScanControl;
 use crate::tab_usage_control::TabUsageControl;
 use crate::Config;
@@ -32,24 +31,15 @@ pub struct UadNgLists {
     pub apps: HashMap<String, AppEntry>,
 }
 
+// UAD-NG's uad_lists.json is a top-level JSON object keyed by package id
+// (https://github.com/0x192/universal-android-debloater resources/assets/uad_lists.json),
+// not an array of entries with an embedded id field.
 impl<'de> Deserialize<'de> for UadNgLists {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
     {
-        #[derive(Deserialize)]
-        struct AppEntryWithId {
-            id: String,
-            #[serde(flatten)]
-            entry: AppEntry,
-        }
-
-        let entries = Vec::<AppEntryWithId>::deserialize(deserializer)?;
-        let apps = entries
-            .into_iter()
-            .map(|e| (e.id, e.entry))
-            .collect();
-
+        let apps = HashMap::<String, AppEntry>::deserialize(deserializer)?;
         Ok(UadNgLists { apps })
     }
 }
@@ -59,20 +49,7 @@ impl Serialize for UadNgLists {
     where
         S: serde::Serializer,
     {
-        use serde::ser::SerializeSeq;
-
-        #[derive(Serialize)]
-        struct AppEntryWithId<'a> {
-            id: &'a str,
-            #[serde(flatten)]
-            entry: &'a AppEntry,
-        }
-
-        let mut seq = serializer.serialize_seq(Some(self.apps.len()))?;
-        for (id, entry) in &self.apps {
-            seq.serialize_element(&AppEntryWithId { id, entry })?;
-        }
-        seq.end()
+        self.apps.serialize(serializer)
     }
 }
 
@@ -94,6 +71,33 @@ where
     D: serde::Deserializer<'de>,
 {
     Option::<Vec<String>>::deserialize(deserializer).map(|opt| opt.unwrap_or_default())
+}
+
+#[cfg(test)]
+mod uad_ng_lists_tests {
+    use super::UadNgLists;
+
+    // UAD-NG's uad_lists.json is a top-level JSON object keyed by package id,
+    // e.g. https://github.com/0x192/universal-android-debloater resources/assets/uad_lists.json
+    const SAMPLE_MAP_JSON: &str = r#"{
+        "org.lineageos.jelly": {
+            "list": "Oem",
+            "description": "LineageOS Browser App.",
+            "dependencies": [],
+            "neededBy": [],
+            "labels": [],
+            "removal": "Recommended"
+        }
+    }"#;
+
+    #[test]
+    fn deserializes_upstream_map_format() {
+        let lists: UadNgLists = serde_json::from_str(SAMPLE_MAP_JSON).unwrap();
+        assert_eq!(lists.apps.len(), 1);
+        let entry = lists.apps.get("org.lineageos.jelly").unwrap();
+        assert_eq!(entry.list, "Oem");
+        assert_eq!(entry.removal, "Recommended");
+    }
 }
 
 #[doc(hidden)]
@@ -142,8 +146,7 @@ pub struct UadShizukuApp {
 
     // NOTE: installed_packages and uad_ng_lists are now in shared_store_stt::SharedStore
     // Access via: crate::shared_store_stt::get_shared_store()
-    pub tab_debloat: TabDebloat,  // REFACTORED: New MVVM-based tab
-    pub tab_debloat_control: TabDebloatControl,  // TRANSITIONAL: Being phased out
+    pub tab_debloat: TabDebloat, // REFACTORED: New MVVM-based tab
     pub tab_scan_control: TabScanControl,
     pub tab_usage_control: TabUsageControl,
     pub tab_apps_control: TabAppsControl,
@@ -165,6 +168,7 @@ pub struct UadShizukuApp {
     pub dlg_about: crate::dlg_about_stt::DlgAbout,
     pub dlg_update: crate::dlg_update_stt::DlgUpdate,
     pub dlg_dashcounter_details: crate::dlg_dashcounter_details_stt::DlgDashCounterDetails,
+    pub dlg_mobile_list: crate::dlg_mobile_list_stt::DlgMobileList,
 
     // Installation status (desktop only)
     #[cfg(not(target_os = "android"))]

@@ -349,9 +349,11 @@ impl SharedStore {
         None
     }
 
-    pub fn set_ha_scanner_state(&self, _state: Option<crate::calc_hybridanalysis_stt::ScannerState>) {
+    pub fn set_ha_scanner_state(
+        &self,
+        _state: Option<crate::calc_hybridanalysis_stt::ScannerState>,
+    ) {
         // Scanner state migrated to ViewModel.state.ha_scanner_state
         // This method is now a no-op
     }
-
 }

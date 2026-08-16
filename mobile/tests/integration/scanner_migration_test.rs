@@ -1,6 +1,6 @@
-use uad_shizuku::viewmodel::{ViewModel, ViewModelEvent, ScanEvent};
-use uad_shizuku::shared_store_stt::get_shared_store;
 use std::time::Duration;
+use uad_shizuku::shared_store_stt::get_shared_store;
+use uad_shizuku::viewmodel::{ScanEvent, ViewModel, ViewModelEvent};
 
 #[test]
 fn test_virustotal_state_in_viewmodel() {
@@ -22,11 +22,15 @@ fn test_virustotal_state_in_viewmodel() {
         for event in &events {
             eprintln!("  Event: {:?}", event);
         }
-        eprintln!("Poll {}: received {} events, state is {:?}", i, events.len(),
+        eprintln!(
+            "Poll {}: received {} events, state is {:?}",
+            i,
+            events.len(),
             vm.state.vt_scanner_state.as_ref().map(|s| {
                 let state_map = s.lock().unwrap();
                 format!("{} entries", state_map.len())
-            }));
+            })
+        );
         if vm.state.vt_scanner_state.is_some() {
             found_state = true;
             break;
@@ -34,14 +38,19 @@ fn test_virustotal_state_in_viewmodel() {
     }
 
     // Verify: Scanner state appears in ViewModel.state (not SharedStore)
-    assert!(found_state,
-        "VirusTotal scanner state should be in ViewModel.state (received {} events total)", event_count);
+    assert!(
+        found_state,
+        "VirusTotal scanner state should be in ViewModel.state (received {} events total)",
+        event_count
+    );
 
     // Verify: NOT in SharedStore anymore
     let shared_store = get_shared_store();
     let store_state = shared_store.get_vt_scanner_state();
-    assert!(store_state.is_none(),
-        "VirusTotal scanner state should NOT be in SharedStore");
+    assert!(
+        store_state.is_none(),
+        "VirusTotal scanner state should NOT be in SharedStore"
+    );
 }
 
 #[test]
@@ -49,7 +58,8 @@ fn test_hybridanalysis_state_in_viewmodel() {
     let ctx = eframe::egui::Context::default();
     let mut vm = ViewModel::new(ctx.clone());
 
-    vm.run_hybridanalysis("test_device".into(), "test_key".into(), false).ok();
+    vm.run_hybridanalysis("test_device".into(), "test_key".into(), false)
+        .ok();
 
     // Allow event processing - poll multiple times with delays
     let mut found_state = false;
@@ -62,13 +72,17 @@ fn test_hybridanalysis_state_in_viewmodel() {
         }
     }
 
-    assert!(found_state,
-        "HybridAnalysis scanner state should be in ViewModel.state");
+    assert!(
+        found_state,
+        "HybridAnalysis scanner state should be in ViewModel.state"
+    );
 
     let shared_store = get_shared_store();
     let store_state = shared_store.get_ha_scanner_state();
-    assert!(store_state.is_none(),
-        "HybridAnalysis scanner state should NOT be in SharedStore");
+    assert!(
+        store_state.is_none(),
+        "HybridAnalysis scanner state should NOT be in SharedStore"
+    );
 }
 
 #[test]
@@ -77,7 +91,8 @@ fn test_scan_cancellation_clears_state() {
     let mut vm = ViewModel::new(ctx.clone());
 
     // Start scan
-    vm.run_virustotal("test_device".into(), "test_key".into(), false).ok();
+    vm.run_virustotal("test_device".into(), "test_key".into(), false)
+        .ok();
     std::thread::sleep(Duration::from_millis(100));
     vm.poll_events(&ctx);
 
@@ -87,6 +102,8 @@ fn test_scan_cancellation_clears_state() {
     vm.poll_events(&ctx);
 
     // State should be cleared
-    assert!(vm.state.vt_scanner_state.is_none(),
-        "Cancelled scan should clear scanner state");
+    assert!(
+        vm.state.vt_scanner_state.is_none(),
+        "Cancelled scan should clear scanner state"
+    );
 }

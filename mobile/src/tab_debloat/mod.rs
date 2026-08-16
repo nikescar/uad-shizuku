@@ -10,12 +10,15 @@
 //! - Desktop view (800px+): Full-featured data table with all controls
 //! - Mobile view (<800px): Card-based list view for small screens
 
-pub mod state;
 pub mod components;
+pub mod filter_logic;
+pub mod state;
 pub mod view_desktop;
 pub mod view_mobile;
 
-pub use state::{TabDebloatState, SortColumn, DebloatFilter, BatchUninstallState, CachedCategoryCounts};
+pub use state::{
+    BatchUninstallState, CachedCategoryCounts, DebloatFilter, SortColumn, TabDebloatState,
+};
 
 use eframe::egui;
 
@@ -76,12 +79,17 @@ impl TabDebloat {
         vm_state: &crate::viewmodel::ViewModelState,
         available_width: f32,
         viewmodel: &crate::viewmodel::ViewModel,
+        google_play_enabled: bool,
+        fdroid_enabled: bool,
+        apkmirror_enabled: bool,
+        android_package_enabled: bool,
     ) {
         // Check if filter debounce has elapsed and we need to apply the filter
         if let Some(last_input_time) = self.state.last_filter_input {
             let elapsed = last_input_time.elapsed();
             if elapsed.as_millis() >= FILTER_DEBOUNCE_MS as u128
-                && self.state.pending_filter_text != self.state.applied_filter_text {
+                && self.state.pending_filter_text != self.state.applied_filter_text
+            {
                 // Debounce elapsed, apply the pending filter
                 let text_filter = if self.state.pending_filter_text.is_empty() {
                     None
@@ -104,10 +112,29 @@ impl TabDebloat {
             }
         }
 
+        self.state.cached_counts =
+            compute_category_counts(&vm_state.packages, vm_state.uad_ng_lists.as_ref());
+
         if available_width >= RESPONSIVE_WIDTH_THRESHOLD {
-            self.render_desktop(ui, vm_state);
+            self.render_desktop(
+                ui,
+                vm_state,
+                viewmodel,
+                google_play_enabled,
+                fdroid_enabled,
+                apkmirror_enabled,
+                android_package_enabled,
+            );
         } else {
-            self.render_mobile(ui, vm_state);
+            self.render_mobile(
+                ui,
+                vm_state,
+                viewmodel,
+                google_play_enabled,
+                fdroid_enabled,
+                apkmirror_enabled,
+                android_package_enabled,
+            );
         }
     }
 
@@ -117,8 +144,35 @@ impl TabDebloat {
     /// - Left sidebar: Category filters, options, advanced settings
     /// - Main content: Search bar, batch actions, error banner, virtual table
     /// - Virtual scrolling data table for performance
-    fn render_desktop(&mut self, ui: &mut egui::Ui, vm_state: &crate::viewmodel::ViewModelState) {
-        view_desktop::render(ui, vm_state, &mut self.state);
+    fn render_desktop(
+        &mut self,
+        ui: &mut egui::Ui,
+        vm_state: &crate::viewmodel::ViewModelState,
+        viewmodel: &crate::viewmodel::ViewModel,
+        google_play_enabled: bool,
+        fdroid_enabled: bool,
+        apkmirror_enabled: bool,
+        android_package_enabled: bool,
+    ) {
+        view_desktop::render(
+            ui,
+            vm_state,
+            &mut self.state,
+            viewmodel,
+            google_play_enabled,
+            fdroid_enabled,
+            apkmirror_enabled,
+            android_package_enabled,
+        );
+
+        // Render dialogs on top of content
+        self.state.package_details_dialog.show(
+            ui.ctx(),
+            &vm_state.filtered_packages,
+            &vm_state.uad_ng_lists,
+        );
+
+        self.state.uninstall_confirm_dialog.show(ui.ctx());
     }
 
     /// Render mobile view (<800px)
@@ -128,9 +182,136 @@ impl TabDebloat {
     /// - Collapsible filter section
     /// - Card-based list (48px minimum per card)
     /// - Batch actions at bottom
-    fn render_mobile(&mut self, ui: &mut egui::Ui, vm_state: &crate::viewmodel::ViewModelState) {
-        view_mobile::render(ui, vm_state, &mut self.state);
+    fn render_mobile(
+        &mut self,
+        ui: &mut egui::Ui,
+        vm_state: &crate::viewmodel::ViewModelState,
+        viewmodel: &crate::viewmodel::ViewModel,
+        google_play_enabled: bool,
+        fdroid_enabled: bool,
+        apkmirror_enabled: bool,
+        android_package_enabled: bool,
+    ) {
+        view_mobile::render(
+            ui,
+            vm_state,
+            &mut self.state,
+            viewmodel,
+            google_play_enabled,
+            fdroid_enabled,
+            apkmirror_enabled,
+            android_package_enabled,
+        );
+
+        // Render dialogs on top of content
+        self.state.package_details_dialog.show(
+            ui.ctx(),
+            &vm_state.filtered_packages,
+            &vm_state.uad_ng_lists,
+        );
+
+        self.state.uninstall_confirm_dialog.show(ui.ctx());
     }
+}
+
+/// Check if a package is enabled (not disabled, not removed)
+///
+/// Uses the same logic as scan table (tab_scan_control.rs:1189-1209):
+/// A package is disabled if:
+/// - enabled == 2 (disabled)
+/// - enabled == 3 (disabled-user)
+/// - enabled == 0 && !installed && is_system (removed system user)
+pub(crate) fn is_package_enabled(package: &crate::adb::PackageFingerprint) -> bool {
+    package
+        .users
+        .first()
+        .map(|user| {
+            let enabled = user.enabled;
+            let installed = user.installed;
+            let is_system = package.flags.contains("SYSTEM");
+
+            let is_removed_user = enabled == 0 && !installed && is_system;
+            let is_disabled = enabled == 2;
+            let is_disabled_user = enabled == 3;
+
+            !(is_removed_user || is_disabled || is_disabled_user)
+        })
+        .unwrap_or(false)
+}
+
+/// Compute per-category package counts from the UAD-NG lists (matches
+/// `AppEntry.removal`: "Recommended" / "Advanced" / "Unsafe" / "Expert").
+fn compute_category_counts(
+    packages: &[crate::adb::PackageFingerprint],
+    uad_ng_lists: Option<&crate::uad_shizuku_app::UadNgLists>,
+) -> CachedCategoryCounts {
+    let mut counts = CachedCategoryCounts {
+        all: packages.len(),
+        all_enabled: 0,
+        recommended: 0,
+        recommended_enabled: 0,
+        advanced: 0,
+        advanced_enabled: 0,
+        unsafe_apps: 0,
+        unsafe_apps_enabled: 0,
+        expert: 0,
+        expert_enabled: 0,
+        unknown_apps: 0,
+        unknown_apps_enabled: 0,
+    };
+
+    // Count enabled packages using correct logic
+    for pkg in packages {
+        if is_package_enabled(pkg) {
+            counts.all_enabled += 1;
+        }
+    }
+
+    if let Some(lists) = uad_ng_lists {
+        for pkg in packages {
+            let is_enabled = is_package_enabled(pkg);
+            match lists.apps.get(&pkg.pkg).map(|app| app.removal.as_str()) {
+                Some("Recommended") => {
+                    counts.recommended += 1;
+                    if is_enabled {
+                        counts.recommended_enabled += 1;
+                    }
+                }
+                Some("Advanced") => {
+                    counts.advanced += 1;
+                    if is_enabled {
+                        counts.advanced_enabled += 1;
+                    }
+                }
+                Some("Unsafe") => {
+                    counts.unsafe_apps += 1;
+                    if is_enabled {
+                        counts.unsafe_apps_enabled += 1;
+                    }
+                }
+                Some("Expert") => {
+                    counts.expert += 1;
+                    if is_enabled {
+                        counts.expert_enabled += 1;
+                    }
+                }
+                None => {
+                    // Package not in UAD lists - unknown category
+                    counts.unknown_apps += 1;
+                    if is_enabled {
+                        counts.unknown_apps_enabled += 1;
+                    }
+                }
+                _ => {}
+            }
+        }
+    } else {
+        // No UAD lists loaded - all packages are unknown
+        counts.unknown_apps = packages.len();
+        counts.unknown_apps_enabled = counts.all_enabled;
+    }
+
+    counts
 }
 
 #[cfg(test)]
@@ -151,7 +332,6 @@ mod tests {
     #[test]
     fn test_default_tab_debloat() {
         let tab = TabDebloat::default();
-        assert_eq!(tab.state.table_version, 0);
         assert!(tab.state.selected_packages.is_empty());
     }
 }

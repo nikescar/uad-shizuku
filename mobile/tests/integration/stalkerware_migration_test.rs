@@ -1,6 +1,6 @@
-use uad_shizuku::viewmodel::ViewModel;
-use uad_shizuku::shared_store_stt::get_shared_store;
 use std::time::Duration;
+use uad_shizuku::shared_store_stt::get_shared_store;
+use uad_shizuku::viewmodel::ViewModel;
 
 #[test]
 fn test_stalkerware_indicators_in_viewmodel() {
@@ -14,12 +14,16 @@ fn test_stalkerware_indicators_in_viewmodel() {
     vm.poll_events(&ctx);
 
     // Verify: Indicators in ViewModel
-    assert!(vm.state.stalkerware_indicators.is_some(),
-        "Stalkerware indicators should be in ViewModel.state");
+    assert!(
+        vm.state.stalkerware_indicators.is_some(),
+        "Stalkerware indicators should be in ViewModel.state"
+    );
 
     // Verify: NOT in SharedStore
     let shared_store = get_shared_store();
     let store_indicators = shared_store.get_stalkerware_indicators();
-    assert!(store_indicators.is_none(),
-        "Stalkerware indicators should NOT be in SharedStore");
+    assert!(
+        store_indicators.is_none(),
+        "Stalkerware indicators should NOT be in SharedStore"
+    );
 }

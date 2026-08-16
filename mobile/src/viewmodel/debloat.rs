@@ -4,6 +4,7 @@ use crate::adb::PackageFingerprint;
 use crate::uad_shizuku_app::UadNgLists;
 use crate::viewmodel::ViewModelEvent;
 use anyhow::Result;
+use std::sync::Arc;
 
 /// Filter criteria for packages
 #[derive(Debug, Clone)]
@@ -32,17 +33,37 @@ pub enum SortColumn {
 /// Commands sent to DebloatActor
 #[derive(Debug, Clone)]
 pub enum DebloatCommand {
-    LoadPackages { device: String, user: u32 },
-    BatchUninstall { packages: Vec<String>, device: String },
-    BatchDisable { packages: Vec<String>, device: String },
-    BatchEnable { packages: Vec<String>, device: String },
-    LoadUadNgLists,
-    SetOptions { unsafe_app_remove: bool, expert_app_remove: bool },
-    FilterPackages {
+    LoadPackages {
+        device: String,
+        user: u32,
+    },
+    /// Test-only: Load packages from memory instead of ADB
+    LoadPackagesFromMemory {
         packages: Vec<PackageFingerprint>,
+    },
+    BatchUninstall {
+        packages: Vec<String>,
+        device: String,
+    },
+    BatchDisable {
+        packages: Vec<String>,
+        device: String,
+    },
+    BatchEnable {
+        packages: Vec<String>,
+        device: String,
+    },
+    LoadUadNgLists,
+    SetOptions {
+        unsafe_app_remove: bool,
+        expert_app_remove: bool,
+    },
+    FilterPackages {
         criteria: PackageFilterCriteria,
     },
-    SortPackages { criteria: PackageSortCriteria },
+    SortPackages {
+        criteria: PackageSortCriteria,
+    },
 }
 
 /// Events sent from DebloatActor to ViewModel
@@ -54,7 +75,7 @@ pub enum DebloatEvent {
     FilteredPackagesReady(Vec<PackageFingerprint>),
     BatchProgress {
         operation: String,
-        progress: f32,      // 0.0 to 1.0
+        progress: f32, // 0.0 to 1.0
         current: usize,
         total: usize,
     },
@@ -74,6 +95,8 @@ struct DebloatActorState {
     current_device: Option<String>,
     unsafe_app_remove: bool,
     expert_app_remove: bool,
+    uad_ng_lists: Option<Arc<UadNgLists>>,
+    packages: Vec<PackageFingerprint>,
 }
 
 /// Debloat actor - runs on background thread
@@ -95,6 +118,8 @@ impl DebloatActor {
                 current_device: None,
                 unsafe_app_remove: false,
                 expert_app_remove: false,
+                uad_ng_lists: None,
+                packages: Vec::new(),
             },
             command_rx,
             event_tx,
@@ -123,6 +148,9 @@ impl DebloatActor {
             DebloatCommand::LoadPackages { device, user } => {
                 self.load_packages(device, user).await?;
             }
+            DebloatCommand::LoadPackagesFromMemory { packages } => {
+                self.load_packages_from_memory(packages).await?;
+            }
             DebloatCommand::BatchUninstall { packages, device } => {
                 self.batch_uninstall(packages, device).await?;
             }
@@ -135,12 +163,15 @@ impl DebloatActor {
             DebloatCommand::LoadUadNgLists => {
                 self.load_uad_ng_lists().await?;
             }
-            DebloatCommand::SetOptions { unsafe_app_remove, expert_app_remove } => {
+            DebloatCommand::SetOptions {
+                unsafe_app_remove,
+                expert_app_remove,
+            } => {
                 self.state.unsafe_app_remove = unsafe_app_remove;
                 self.state.expert_app_remove = expert_app_remove;
             }
-            DebloatCommand::FilterPackages { packages, criteria } => {
-                self.filter_packages(packages, criteria).await?;
+            DebloatCommand::FilterPackages { criteria } => {
+                self.filter_packages(criteria).await?;
             }
             DebloatCommand::SortPackages { criteria } => {
                 self.sort_packages(criteria).await?;
@@ -152,16 +183,31 @@ impl DebloatActor {
     async fn load_packages(&mut self, device: String, _user: u32) -> Result<()> {
         // Use smol::unblock for blocking ADB operations
         let device_clone = device.clone();
-        let packages = smol::unblock(move || {
-            crate::adb::get_all_packages_fingerprints(&device_clone)
-        }).await?;
+        let packages =
+            smol::unblock(move || crate::adb::get_all_packages_fingerprints(&device_clone)).await?;
 
         self.state.current_device = Some(device);
+        self.state.packages = packages.clone();
 
         // Send event back to ViewModel
-        self.event_tx.send(ViewModelEvent::Debloat(
-            DebloatEvent::PackagesLoaded(packages)
-        )).await?;
+        self.event_tx
+            .send(ViewModelEvent::Debloat(DebloatEvent::PackagesLoaded(
+                packages,
+            )))
+            .await?;
+
+        Ok(())
+    }
+
+    async fn load_packages_from_memory(&mut self, packages: Vec<PackageFingerprint>) -> Result<()> {
+        self.state.packages = packages.clone();
+
+        // Send event back to ViewModel
+        self.event_tx
+            .send(ViewModelEvent::Debloat(DebloatEvent::PackagesLoaded(
+                packages,
+            )))
+            .await?;
 
         Ok(())
     }
@@ -176,9 +222,8 @@ impl DebloatActor {
             let pkg_clone = pkg.clone();
 
             // Uninstall in blocking thread pool
-            let result = smol::unblock(move || {
-                crate::adb::uninstall_app(&pkg_clone, &device_clone)
-            }).await;
+            let result =
+                smol::unblock(move || crate::adb::uninstall_app(&pkg_clone, &device_clone)).await;
 
             match result {
                 Ok(_) => succeeded += 1,
@@ -190,24 +235,29 @@ impl DebloatActor {
 
             // Send progress event
             let progress = (i + 1) as f32 / total as f32;
-            self.event_tx.send(ViewModelEvent::Debloat(
-                DebloatEvent::BatchProgress {
+            self.event_tx
+                .send(ViewModelEvent::Debloat(DebloatEvent::BatchProgress {
                     operation: "uninstall".to_string(),
                     progress,
                     current: i + 1,
                     total,
-                }
-            )).await?;
+                }))
+                .await?;
         }
 
         // Send completion event
-        self.event_tx.send(ViewModelEvent::Debloat(
-            DebloatEvent::BatchComplete {
+        self.event_tx
+            .send(ViewModelEvent::Debloat(DebloatEvent::BatchComplete {
                 operation: "uninstall".to_string(),
                 succeeded,
                 failed,
-            }
-        )).await?;
+            }))
+            .await?;
+
+        // Reload packages to reflect changes
+        if let Some(device) = &self.state.current_device {
+            self.load_packages(device.clone(), 0).await?;
+        }
 
         Ok(())
     }
@@ -223,7 +273,8 @@ impl DebloatActor {
 
             let result = smol::unblock(move || {
                 crate::adb::disable_app_current_user(&pkg_clone, &device_clone, None)
-            }).await;
+            })
+            .await;
 
             match result {
                 Ok(_) => succeeded += 1,
@@ -234,23 +285,28 @@ impl DebloatActor {
             }
 
             let progress = (i + 1) as f32 / total as f32;
-            self.event_tx.send(ViewModelEvent::Debloat(
-                DebloatEvent::BatchProgress {
+            self.event_tx
+                .send(ViewModelEvent::Debloat(DebloatEvent::BatchProgress {
                     operation: "disable".to_string(),
                     progress,
                     current: i + 1,
                     total,
-                }
-            )).await?;
+                }))
+                .await?;
         }
 
-        self.event_tx.send(ViewModelEvent::Debloat(
-            DebloatEvent::BatchComplete {
+        self.event_tx
+            .send(ViewModelEvent::Debloat(DebloatEvent::BatchComplete {
                 operation: "disable".to_string(),
                 succeeded,
                 failed,
-            }
-        )).await?;
+            }))
+            .await?;
+
+        // Reload packages to reflect updated enabled state
+        if let Some(device) = &self.state.current_device {
+            self.load_packages(device.clone(), 0).await?;
+        }
 
         Ok(())
     }
@@ -264,9 +320,8 @@ impl DebloatActor {
             let device_clone = device.clone();
             let pkg_clone = pkg.clone();
 
-            let result = smol::unblock(move || {
-                crate::adb::enable_app(&pkg_clone, &device_clone)
-            }).await;
+            let result =
+                smol::unblock(move || crate::adb::enable_app(&pkg_clone, &device_clone)).await;
 
             match result {
                 Ok(_) => succeeded += 1,
@@ -277,40 +332,55 @@ impl DebloatActor {
             }
 
             let progress = (i + 1) as f32 / total as f32;
-            self.event_tx.send(ViewModelEvent::Debloat(
-                DebloatEvent::BatchProgress {
+            self.event_tx
+                .send(ViewModelEvent::Debloat(DebloatEvent::BatchProgress {
                     operation: "enable".to_string(),
                     progress,
                     current: i + 1,
                     total,
-                }
-            )).await?;
+                }))
+                .await?;
         }
 
-        self.event_tx.send(ViewModelEvent::Debloat(
-            DebloatEvent::BatchComplete {
+        self.event_tx
+            .send(ViewModelEvent::Debloat(DebloatEvent::BatchComplete {
                 operation: "enable".to_string(),
                 succeeded,
                 failed,
-            }
-        )).await?;
+            }))
+            .await?;
+
+        // Reload packages to reflect updated enabled state
+        if let Some(device) = &self.state.current_device {
+            self.load_packages(device.clone(), 0).await?;
+        }
 
         Ok(())
     }
 
     async fn load_uad_ng_lists(&mut self) -> Result<()> {
-        // Load UAD lists from embedded resources
+        // Load UAD lists from cache/network (with embedded fallback), same
+        // logic as the legacy SharedStore path in uad_shizuku_app.rs.
         let lists = smol::unblock(move || {
-            // For now, create empty lists - will be implemented properly later
-            use std::collections::HashMap;
-            UadNgLists {
-                apps: HashMap::new(),
-            }
-        }).await;
+            let cache_dir = match crate::Config::new() {
+                Ok(config) => config.cache_dir,
+                Err(e) => {
+                    log::error!("Config not available, cannot retrieve UAD lists: {}", e);
+                    return None;
+                }
+            };
+            crate::calc_uad_lists::load_uad_ng_lists_blocking(&cache_dir)
+        })
+        .await;
 
-        self.event_tx.send(ViewModelEvent::Debloat(
-            DebloatEvent::UadNgListsLoaded(lists)
-        )).await?;
+        if let Some(lists) = lists {
+            self.state.uad_ng_lists = Some(Arc::new(lists.clone()));
+            self.event_tx
+                .send(ViewModelEvent::Debloat(DebloatEvent::UadNgListsLoaded(
+                    lists,
+                )))
+                .await?;
+        }
 
         // Also load stalkerware indicators
         let event_tx = self.event_tx.clone();
@@ -319,43 +389,67 @@ impl DebloatActor {
                 // Load stalkerware indicators from embedded resources
                 const STALKERWARE_YAML: &str = include_str!("../../resources/stalkerware_ioc.yaml");
                 crate::calc_stalkerware::parse_stalkerware_yaml(STALKERWARE_YAML)
-            }).await;
+            })
+            .await;
 
             match indicators {
                 Ok(indicators) => {
-                    let _ = event_tx.send(ViewModelEvent::Debloat(
-                        DebloatEvent::StalkerwareIndicatorsLoaded(indicators)
-                    )).await;
+                    let _ = event_tx
+                        .send(ViewModelEvent::Debloat(
+                            DebloatEvent::StalkerwareIndicatorsLoaded(indicators),
+                        ))
+                        .await;
                 }
                 Err(e) => {
                     log::error!("Failed to load stalkerware indicators: {}", e);
                 }
             }
-        }).detach();
+        })
+        .detach();
 
         Ok(())
     }
 
     async fn send_error(&self, operation: &str, error: anyhow::Error) {
-        let _ = self.event_tx.send(ViewModelEvent::Debloat(
-            DebloatEvent::Error {
+        let _ = self
+            .event_tx
+            .send(ViewModelEvent::Debloat(DebloatEvent::Error {
                 operation: operation.to_string(),
                 error: error.to_string(),
-            }
-        )).await;
+            }))
+            .await;
     }
 
-    async fn filter_packages(&mut self, packages: Vec<PackageFingerprint>, criteria: PackageFilterCriteria) -> Result<()> {
+    async fn filter_packages(&mut self, criteria: PackageFilterCriteria) -> Result<()> {
+        // Filter against the actor's own last-loaded packages, not a snapshot
+        // supplied by the caller - callers that fire FilterPackages right after
+        // LoadPackages would otherwise race the async fetch and filter stale data.
+        let packages = self.state.packages.clone();
+        log::debug!(
+            "DEBUG: DebloatActor received FilterPackages command with {} input packages",
+            packages.len()
+        );
+        log::debug!("DEBUG: Filter criteria - text: {:?}, category: {:?}, show_only_enabled: {}, hide_system: {}",
+                   criteria.text_filter, criteria.category_filter, criteria.show_only_enabled, criteria.hide_system_apps);
+
         // Run filtering in background thread to avoid blocking
-        let filtered = smol::unblock(move || {
-            Self::apply_filters(packages, criteria)
-        }).await;
+        let uad_ng_lists = self.state.uad_ng_lists.clone();
+        let filtered =
+            smol::unblock(move || Self::apply_filters(packages, criteria, uad_ng_lists)).await;
+
+        log::debug!(
+            "DEBUG: DebloatActor filter_packages completed - {} packages after filtering",
+            filtered.len()
+        );
 
         // Send filtered result back to ViewModel
-        self.event_tx.send(ViewModelEvent::Debloat(
-            DebloatEvent::FilteredPackagesReady(filtered)
-        )).await?;
+        self.event_tx
+            .send(ViewModelEvent::Debloat(
+                DebloatEvent::FilteredPackagesReady(filtered),
+            ))
+            .await?;
 
+        log::debug!("DEBUG: DebloatActor sent FilteredPackagesReady event");
         Ok(())
     }
 
@@ -365,44 +459,102 @@ impl DebloatActor {
         // For now, we'll just return success - actual sort will be implemented when needed
         // This maintains the interface defined in the spec
 
-        log::info!("Sort packages requested: {:?}, ascending: {}", criteria.column, criteria.ascending);
+        log::info!(
+            "Sort packages requested: {:?}, ascending: {}",
+            criteria.column,
+            criteria.ascending
+        );
         Ok(())
     }
 
     /// Apply filter criteria to packages (sync, runs in thread pool)
-    fn apply_filters(packages: Vec<PackageFingerprint>, criteria: PackageFilterCriteria) -> Vec<PackageFingerprint> {
-        packages.into_iter().filter(|pkg| {
-            // Text filter: search in package name
-            if let Some(ref text) = criteria.text_filter {
-                if !text.is_empty() && !pkg.pkg.to_lowercase().contains(&text.to_lowercase()) {
-                    return false;
+    fn apply_filters(
+        packages: Vec<PackageFingerprint>,
+        criteria: PackageFilterCriteria,
+        uad_ng_lists: Option<Arc<UadNgLists>>,
+    ) -> Vec<PackageFingerprint> {
+        let input_count = packages.len();
+        log::debug!("DEBUG: apply_filters started with {} packages", input_count);
+
+        let filtered: Vec<_> = packages
+            .into_iter()
+            .filter(|pkg| {
+                // Text filter: search in package name
+                if let Some(ref text) = criteria.text_filter {
+                    if !text.is_empty() && !pkg.pkg.to_lowercase().contains(&text.to_lowercase()) {
+                        return false;
+                    }
                 }
-            }
 
-            // Show only enabled filter
-            if criteria.show_only_enabled {
-                let is_enabled = pkg.users.iter().any(|u| u.enabled == 1);
-                if !is_enabled {
-                    return false;
+                // Show only enabled filter
+                // Uses same logic as is_package_enabled() in tab_debloat/mod.rs:236-248
+                // A package is disabled if:
+                // - enabled == 2 (disabled)
+                // - enabled == 3 (disabled-user)
+                // - enabled == 0 && !installed && is_system (removed system user)
+                if criteria.show_only_enabled {
+                    let is_enabled = pkg
+                        .users
+                        .first()
+                        .map(|user| {
+                            let enabled = user.enabled;
+                            let installed = user.installed;
+                            let is_system = pkg.flags.contains("SYSTEM");
+
+                            let is_removed_user = enabled == 0 && !installed && is_system;
+                            let is_disabled = enabled == 2;
+                            let is_disabled_user = enabled == 3;
+
+                            !(is_removed_user || is_disabled || is_disabled_user)
+                        })
+                        .unwrap_or(false);
+
+                    if !is_enabled {
+                        return false;
+                    }
                 }
-            }
 
-            // Hide system apps filter
-            if criteria.hide_system_apps {
-                let is_system = pkg.flags.contains("SYSTEM");
-                if is_system {
-                    return false;
+                // Hide system apps filter
+                if criteria.hide_system_apps {
+                    let is_system = pkg.flags.contains("SYSTEM");
+                    if is_system {
+                        return false;
+                    }
                 }
-            }
 
-            // Category filter (if provided)
-            // Note: this would need UAD lists integration, which is not in current state
-            // For now, we skip this - will be implemented when UAD integration is added
-            if let Some(ref _category) = criteria.category_filter {
-                // TODO: integrate with UAD lists when available in actor state
-            }
+                // Category filter (matches AppEntry.removal, e.g. "Recommended"/"Unsafe"/"Expert"/"Unknown")
+                if let Some(ref category) = criteria.category_filter {
+                    if category.eq_ignore_ascii_case("unknown") {
+                        // Unknown category: package must NOT be in UAD lists
+                        let is_in_uad_lists = uad_ng_lists
+                            .as_ref()
+                            .and_then(|lists| lists.apps.get(&pkg.pkg))
+                            .is_some();
+                        if is_in_uad_lists {
+                            return false;
+                        }
+                    } else {
+                        // Standard category: package must be in UAD lists with matching removal category
+                        let matches = uad_ng_lists
+                            .as_ref()
+                            .and_then(|lists| lists.apps.get(&pkg.pkg))
+                            .map(|app| app.removal.eq_ignore_ascii_case(category))
+                            .unwrap_or(false);
+                        if !matches {
+                            return false;
+                        }
+                    }
+                }
 
-            true
-        }).collect()
+                true
+            })
+            .collect();
+
+        log::debug!(
+            "DEBUG: apply_filters completed - {} in, {} out",
+            input_count,
+            filtered.len()
+        );
+        filtered
     }
 }

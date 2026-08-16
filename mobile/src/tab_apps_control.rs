@@ -51,6 +51,7 @@ impl Default for TabAppsControl {
             )),
             was_worker_running: false,
             pending_refresh_after_operations: false,
+            packages_version: 0,
             package_details_dialog: DlgPackageDetails::default(),
             uninstall_confirm_dialog: DlgUninstallConfirm::default(),
         }
@@ -68,34 +69,33 @@ impl TabAppsControl {
 
     pub fn update_packages(&mut self, packages: Vec<PackageFingerprint>) {
         self.installed_packages = packages;
+        self.packages_version = self.packages_version.wrapping_add(1);
     }
 
     pub fn set_selected_device(&mut self, device: Option<String>) {
         self.selected_device = device;
     }
 
-    /// Handle ViewModel events and update local state
-    fn handle_viewmodel_events(&mut self, vm: &mut crate::viewmodel::ViewModel, ctx: &egui::Context) {
-        use crate::viewmodel::{AppsEvent, ViewModelEvent};
+    /// Apply a single AppsEvent to local state. Called from `UadShizukuApp::update()`'s single
+    /// top-level `poll_events()` dispatch, NOT polled independently here: `poll_events()`
+    /// destructively drains the ViewModel's event channel, so a second, independent poll call
+    /// in this tab would race the top-level one for events and typically lose them.
+    pub(crate) fn apply_apps_event(&mut self, apps_event: &crate::viewmodel::AppsEvent) {
+        use crate::viewmodel::AppsEvent;
 
-        let events = vm.poll_events(ctx);
-        for event in events {
-            if let ViewModelEvent::Apps(apps_event) = event {
-                match apps_event {
-                    AppsEvent::FossAppListLoaded { count } => {
-                        log::info!("FOSS app list loaded: {} apps", count);
-                    }
-                    AppsEvent::AppInstalled { package } => {
-                        log::info!("App installed: {}", package);
-                        self.recently_installed_apps.insert(package);
-                    }
-                    AppsEvent::InstallProgress { package, progress } => {
-                        log::debug!("Install progress for {}: {:.0}%", package, progress * 100.0);
-                    }
-                    AppsEvent::Error { operation, error } => {
-                        log::error!("Apps error in {}: {}", operation, error);
-                    }
-                }
+        match apps_event {
+            AppsEvent::FossAppListLoaded { count } => {
+                log::info!("FOSS app list loaded: {} apps", count);
+            }
+            AppsEvent::AppInstalled { package } => {
+                log::info!("App installed: {}", package);
+                self.recently_installed_apps.insert(package.clone());
+            }
+            AppsEvent::InstallProgress { package, progress } => {
+                log::debug!("Install progress for {}: {:.0}%", package, progress * 100.0);
+            }
+            AppsEvent::Error { operation, error } => {
+                log::error!("Apps error in {}: {}", operation, error);
             }
         }
     }
@@ -896,15 +896,10 @@ impl TabAppsControl {
     }
 
     /// Returns true if an error occurred during any operation
-    pub fn ui(
-        &mut self,
-        mut viewmodel: Option<&mut crate::viewmodel::ViewModel>,
-        ui: &mut egui::Ui,
-    ) -> bool {
-        // Handle ViewModel events first
-        if let Some(ref mut vm) = viewmodel {
-            self.handle_viewmodel_events(vm, ui.ctx());
-        }
+    pub fn ui(&mut self, ui: &mut egui::Ui) -> bool {
+        // Note: ViewModel events are polled and dispatched to apply_apps_event() once per
+        // frame by UadShizukuApp::update(), not here (a second independent poll_events() call
+        // in this tab would race that one for events and typically lose).
 
         let mut has_error = false;
 
@@ -1130,17 +1125,21 @@ impl TabAppsControl {
 
         // Cache key for filtered app entries
         let cache_key = format!(
-            "apps_filtered_entries_{}_{}_{}_{}",
+            "apps_filtered_entries_{}_{}_{}_{}_{}",
             self.app_entries.len(),
             self.show_only_installable,
             self.text_filter,
-            self.selected_app_list.unwrap_or(usize::MAX)
+            self.selected_app_list.unwrap_or(usize::MAX),
+            self.packages_version
         );
 
         // Cache prepared row data to avoid expensive operations every frame
         let prepared_rows: Vec<PreparedAppsRowData> = ui.data_mut(|data| {
             data.get_temp_mut_or_insert_with(egui::Id::new(&cache_key), || {
-                log::debug!("Preparing app row data (cache miss) from {} total apps", self.app_entries.len());
+                log::debug!(
+                    "Preparing app row data (cache miss) from {} total apps",
+                    self.app_entries.len()
+                );
                 self.app_entries
                     .iter()
                     .enumerate()
@@ -1168,7 +1167,8 @@ impl TabAppsControl {
                         })
                     })
                     .collect::<Vec<PreparedAppsRowData>>()
-            }).clone()
+            })
+            .clone()
         });
 
         // Add rows to the table using cached prepared data
@@ -1185,9 +1185,15 @@ impl TabAppsControl {
             let app_for_install = app.clone();
             let app_name = app.name.clone();
 
-            // Only check operation status per frame (this is dynamic and can't be cached)
+            // Only check operation status per frame (this is dynamic and can't be cached).
+            // Install operations are queued/keyed by app_name, uninstall operations by
+            // package_name, so look up under whichever key applies to this row's state.
             let operation_status = if let Some(ref queue) = self.operations_queue {
-                queue.get_status(&app_name)
+                if let Some((ref pkg_name, _, _)) = installed_pkg_info {
+                    queue.get_status(pkg_name)
+                } else {
+                    queue.get_status(&app_name)
+                }
             } else {
                 None
             };
@@ -1592,8 +1598,9 @@ impl TabAppsControl {
                         );
                     }
 
-                    // Mark for UI refresh
-                    self.refresh_pending = true;
+                    // UI refresh is triggered once the queue finishes (see
+                    // prepare_apps_tab_controller), not here — the worker hasn't
+                    // run the uninstall yet.
                 }
 
                 #[cfg(target_os = "android")]

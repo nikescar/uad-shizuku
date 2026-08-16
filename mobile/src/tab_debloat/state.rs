@@ -8,6 +8,91 @@ use crate::dlg_uninstall_confirm::DlgUninstallConfirm;
 use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
 
+/// Simple confirmation dialog for batch toggle operations
+#[derive(Default)]
+pub struct DlgBatchToggleConfirm {
+    pub open: bool,
+    pub is_enabling: bool,
+    pub package_ids: Vec<String>,
+    pub device: String,
+}
+
+impl DlgBatchToggleConfirm {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn open(
+        &mut self,
+        is_enabled: bool,
+        package_ids: std::collections::HashSet<String>,
+        device: String,
+    ) {
+        self.is_enabling = !is_enabled;
+        self.package_ids = package_ids.into_iter().collect();
+        self.device = device;
+        self.open = true;
+    }
+
+    pub fn show(
+        &mut self,
+        ctx: &eframe::egui::Context,
+        viewmodel: &crate::viewmodel::ViewModel,
+    ) -> bool {
+        if !self.open {
+            return false;
+        }
+
+        let mut confirmed = false;
+        let mut cancelled = false;
+
+        let action = if self.is_enabling { "Enable" } else { "Disable" };
+
+        eframe::egui::Window::new(format!("Confirm Batch {}", action))
+            .collapsible(false)
+            .resizable(false)
+            .show(ctx, |ui| {
+                ui.label(format!(
+                    "Are you sure you want to {} {} packages?",
+                    action.to_lowercase(),
+                    self.package_ids.len()
+                ));
+
+                ui.horizontal(|ui| {
+                    if ui.button("Cancel").clicked() {
+                        cancelled = true;
+                    }
+                    if ui.button("Confirm").clicked() {
+                        confirmed = true;
+                    }
+                });
+            });
+
+        if confirmed {
+            if self.is_enabling {
+                if let Err(e) =
+                    viewmodel.batch_enable(self.package_ids.clone(), self.device.clone())
+                {
+                    log::error!("Failed to batch enable: {}", e);
+                }
+            } else {
+                if let Err(e) =
+                    viewmodel.batch_disable(self.package_ids.clone(), self.device.clone())
+                {
+                    log::error!("Failed to batch disable: {}", e);
+                }
+            }
+            self.open = false;
+        }
+
+        if cancelled {
+            self.open = false;
+        }
+
+        confirmed
+    }
+}
+
 /// Sort column options for the package table
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum SortColumn {
@@ -37,7 +122,7 @@ impl std::fmt::Debug for BatchUninstallState {
 }
 
 /// Filter options for package display
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub struct DebloatFilter {
     /// Text search filter (case-insensitive, searches package name)
     pub text_filter: String,
@@ -105,9 +190,6 @@ pub struct TabDebloatState {
     /// Selected device name
     pub selected_device: Option<String>,
 
-    /// Table version for cache invalidation
-    pub table_version: u64,
-
     /// Filter debounce: timestamp of last text input change (for 300ms debounce)
     pub last_filter_input: Option<std::time::Instant>,
 
@@ -122,6 +204,12 @@ pub struct TabDebloatState {
 
     /// Uninstall confirmation dialog state
     pub uninstall_confirm_dialog: DlgUninstallConfirm,
+
+    /// Mobile package info dialog
+    pub mobile_info_dialog: crate::dlg_package_info_mobile::DlgPackageInfoMobile,
+
+    /// Batch toggle confirmation dialog
+    pub batch_toggle_confirm: DlgBatchToggleConfirm,
 
     /// Cached category counts for quick display
     pub cached_counts: CachedCategoryCounts,
@@ -168,7 +256,6 @@ impl std::fmt::Debug for TabDebloatState {
             .field("sort_column", &self.sort_column)
             .field("sort_ascending", &self.sort_ascending)
             .field("selected_device", &self.selected_device)
-            .field("table_version", &self.table_version)
             .field("unsafe_app_remove", &self.unsafe_app_remove)
             .field("expert_app_remove", &self.expert_app_remove)
             .finish()
@@ -184,12 +271,13 @@ impl Default for TabDebloatState {
             sort_column: None,
             sort_ascending: true,
             selected_device: None,
-            table_version: 0,
             last_filter_input: None,
             pending_filter_text: String::new(),
             applied_filter_text: String::new(),
             package_details_dialog: DlgPackageDetails::new(),
             uninstall_confirm_dialog: DlgUninstallConfirm::default(),
+            mobile_info_dialog: crate::dlg_package_info_mobile::DlgPackageInfoMobile::new(),
+            batch_toggle_confirm: DlgBatchToggleConfirm::new(),
             cached_counts: CachedCategoryCounts::default(),
             unsafe_app_remove: false,
             expert_app_remove: false,
@@ -210,9 +298,17 @@ impl Default for TabDebloatState {
 #[derive(Debug, Clone, Default)]
 pub struct CachedCategoryCounts {
     pub all: usize,
+    pub all_enabled: usize,
     pub recommended: usize,
+    pub recommended_enabled: usize,
+    pub advanced: usize,
+    pub advanced_enabled: usize,
     pub unsafe_apps: usize,
+    pub unsafe_apps_enabled: usize,
     pub expert: usize,
+    pub expert_enabled: usize,
+    pub unknown_apps: usize,
+    pub unknown_apps_enabled: usize,
 }
 
 #[cfg(test)]
@@ -243,5 +339,47 @@ mod tests {
         assert_eq!(state.package_count, 0);
         assert_eq!(state.current_index, 0);
         assert!(state.current_package.is_none());
+    }
+
+    #[test]
+    fn test_filter_equality() {
+        let filter1 = DebloatFilter {
+            text_filter: "test".to_string(),
+            category_filter: Some("recommended".to_string()),
+            show_only_enabled: true,
+            hide_system_apps: false,
+        };
+
+        let filter2 = filter1.clone();
+        assert_eq!(filter1, filter2);
+
+        let filter3 = DebloatFilter {
+            category_filter: Some("unsafe".to_string()),
+            ..filter1.clone()
+        };
+        assert_ne!(filter1, filter3);
+    }
+
+    #[test]
+    fn test_filter_change_detection() {
+        let filter1 = DebloatFilter::default();
+        let mut filter2 = filter1.clone();
+
+        // Same filter should be equal
+        assert_eq!(filter1, filter2);
+
+        // Change category
+        filter2.category_filter = Some("recommended".to_string());
+        assert_ne!(filter1, filter2);
+
+        // Change checkbox
+        let mut filter3 = filter1.clone();
+        filter3.show_only_enabled = true;
+        assert_ne!(filter1, filter3);
+
+        // Change text
+        let mut filter4 = filter1.clone();
+        filter4.text_filter = "search".to_string();
+        assert_ne!(filter1, filter4);
     }
 }

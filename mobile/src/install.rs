@@ -550,6 +550,15 @@ fn install_linux(paths: &InstallPaths, current_exe: &PathBuf) -> Result<String, 
     fs::copy(current_exe, &binary_dest).map_err(|e| format!("Failed to copy binary: {}", e))?;
     log::info!("Binary copied successfully");
 
+    // Install the app icon alongside the binary, for the .desktop file's Icon= entry
+    let icon_dest = paths.bin_dir.join("uad-shizuku.png");
+    log::info!("Installing icon: {}", icon_dest.display());
+    fs::write(
+        &icon_dest,
+        include_bytes!("../app/src/main/play_store_512.png"),
+    )
+    .map_err(|e| format!("Failed to write icon: {}", e))?;
+
     // Make executable
     #[cfg(unix)]
     {
@@ -588,7 +597,7 @@ Keywords=android;debloat;shizuku;adb;
 "#,
         CURRENT_VERSION,
         binary_dest.display(),
-        binary_dest.display() // TODO: Add proper icon path
+        icon_dest.display()
     );
 
     if let Some(ref start_menu) = paths.start_menu_entry {

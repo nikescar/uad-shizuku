@@ -118,7 +118,7 @@ impl FDroidQueue {
                     match get_fdroid_app(&mut conn, &pkg_id) {
                         Ok(Some(cached_app)) if !is_cache_stale(&cached_app) => {
                             if cached_app.raw_response == "404" {
-                                log::info!("Using cached F-Droid 404 for: {}", pkg_id);
+                                log::debug!("Using cached F-Droid 404 for: {}", pkg_id);
                                 let mut results = results.lock().unwrap();
                                 results.insert(
                                     pkg_id,
@@ -126,7 +126,7 @@ impl FDroidQueue {
                                 );
                                 continue;
                             }
-                            log::info!("Using cached F-Droid data for: {}", pkg_id);
+                            log::debug!("Using cached F-Droid data for: {}", pkg_id);
                             let mut results = results.lock().unwrap();
                             results.insert(pkg_id, FDroidFetchStatus::Success(cached_app));
                             continue;
@@ -242,7 +242,7 @@ impl FDroidQueue {
 }
 
 /// Save F-Droid app info to database
-fn save_to_db(conn: &mut SqliteConnection, app_info: &FDroidAppInfo) -> Result<FDroidApp> {
+pub(crate) fn save_to_db(conn: &mut SqliteConnection, app_info: &FDroidAppInfo) -> Result<FDroidApp> {
     upsert_fdroid_app(
         conn,
         &app_info.package_id,

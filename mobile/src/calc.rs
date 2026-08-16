@@ -207,7 +207,7 @@ pub fn render_app_description_cell(ctx: &egui::Context, pkg_id: &str) -> DataTab
     // Clone pkg_id for use in closure (unique identifier for ScrollArea)
     let pkg_id_for_scroll = pkg_id.to_string();
 
-    // Create cell with icon and text (matches tab_debloat_control.rs:1468-1496)
+    // Create cell with icon and text
     DataTableCell::widget(move |ui: &mut egui::Ui| {
         let on_surface = get_global_color("onSurface");
 
@@ -364,11 +364,9 @@ pub fn retrieve_adb_devices(app: &mut UadShizukuApp) {
         {
             get_shared_store().set_installed_packages(Vec::new());
         }
-        app.tab_debloat_control.update_packages(Vec::new());
-        app.tab_debloat_control.update_uad_ng_lists(UadNgLists {
-            apps: HashMap::new(),
-        });
-        app.tab_scan_control.update_packages(Vec::new(), app.viewmodel.as_ref());
+        // REMOVED: tab_debloat_control (phased out in favor of tab_debloat MVVM)
+        app.tab_scan_control
+            .update_packages(Vec::new(), app.viewmodel.as_ref());
         app.tab_scan_control.update_uad_ng_lists(UadNgLists {
             apps: HashMap::new(),
         });
@@ -453,6 +451,12 @@ pub fn retrieve_adb_devices(app: &mut UadShizukuApp) {
             match get_devices() {
                 Ok(devices) => {
                     app.adb_devices = devices;
+
+                    // Auto-select first device if available (mirrors Android behavior)
+                    if !app.adb_devices.is_empty() {
+                        app.selected_device = Some(app.adb_devices[0].clone());
+                        app.current_device = Some(app.adb_devices[0].clone());
+                    }
 
                     retrieve_adb_users(app);
                 }
@@ -700,19 +704,18 @@ pub fn handle_package_loading_result(app: &mut UadShizukuApp) {
                         *installed_pkgs = packages.clone();
                     }
                     log::debug!("Updated shared_store with {} packages", packages.len());
-                    app.tab_debloat_control.update_packages(packages.clone());
-                    log::debug!(
-                        "Updated tab_debloat_control with {} packages",
-                        packages.len()
-                    );
+                    // REMOVED: tab_debloat_control.update_packages() (phased out)
+                    log::debug!("Package loading complete: {} packages", packages.len());
 
                     if let Some(lists) = uad_lists {
-                        app.tab_debloat_control.update_uad_ng_lists(lists.clone());
+                        // REMOVED: tab_debloat_control.update_uad_ng_lists() (phased out)
                         app.tab_scan_control.update_uad_ng_lists(lists);
                     }
 
-                    app.tab_debloat_control
-                        .set_selected_device(app.selected_device.clone());
+                    // REMOVED: tab_debloat_control.set_selected_device() (phased out)
+
+                    // Update new MVVM-based TabDebloat with device selection
+                    app.tab_debloat.state.selected_device = app.selected_device.clone();
 
                     // Update TabScanControl with API key, device serial, and settings
                     app.tab_scan_control.vt_api_key = Some(app.settings.virustotal_apikey.clone());
@@ -737,6 +740,41 @@ pub fn handle_package_loading_result(app: &mut UadShizukuApp) {
                     app.tab_apps_control
                         .set_selected_device(app.selected_device.clone());
                     log::debug!("Updated tab controls with packages");
+
+                    // Update ViewModel for new MVVM-based tab_debloat
+                    if let Some(ref viewmodel) = app.viewmodel {
+                        if let Some(ref device) = app.selected_device {
+                            let user_id = app.selected_user.unwrap_or(0) as u32;
+                            if let Err(e) = viewmodel.load_packages(device.clone(), user_id) {
+                                log::error!("Failed to update ViewModel with packages: {}", e);
+                            } else {
+                                log::debug!(
+                                    "Updated ViewModel with packages for device: {}, user: {}",
+                                    device,
+                                    user_id
+                                );
+
+                                // Apply initial filter (show all packages) to populate filtered_packages
+                                if let Err(e) = viewmodel.filter_packages(None, None, false, false)
+                                {
+                                    log::error!("Failed to apply initial filter: {}", e);
+                                } else {
+                                    log::debug!("Applied initial filter to populate datatable");
+                                }
+                            }
+                        }
+
+                        // UAD lists don't depend on a device; queued after package
+                        // loading/filtering so a slow UAD-list network fetch never
+                        // delays the datatable showing installed packages.
+                        if let Err(e) = viewmodel.load_uad_ng_lists() {
+                            log::error!("Failed to request ViewModel UAD lists load: {}", e);
+                        }
+                    }
+
+                    // Auto-start metadata crawlers if renderers are enabled in settings
+                    // Called here after packages are loaded, so crawlers have packages to process
+                    app.auto_start_metadata_crawlers();
 
                     // Close dialog
                     app.package_loading_dialog_open = false;

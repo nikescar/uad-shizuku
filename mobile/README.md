@@ -18,6 +18,33 @@ gradle build
 gradle installDebug
 ```
 
+### Testing with Mock ADB
+
+Test the app without a real device using `mock_adb` (simulates a Pixel 8a):
+
+```bash
+# Build and setup mock_adb
+cargo build --bin mock_adb
+mkdir -p /tmp/mock-adb-bin
+ln -sf "$(pwd)/target/debug/mock_adb" /tmp/mock-adb-bin/adb
+
+# Run app with mock device
+PATH="/tmp/mock-adb-bin:$PATH" cargo run
+
+# Device serial: MOCKDEVICE01
+```
+
+**Windows:**
+```powershell
+cargo build --bin mock_adb
+mkdir C:\temp\mock-adb-bin
+copy target\debug\mock_adb.exe C:\temp\mock-adb-bin\adb.exe
+$env:PATH = "C:\temp\mock-adb-bin;$env:PATH"
+cargo run
+```
+
+See `mobile/tests/fixtures/adb/README.md` for mock capabilities.
+
 ### Logcat
 
 ```bash

@@ -1,0 +1,67 @@
+Domain verification status:
+
+Key Set Manager:
+  [com.google.android.systemui.overlay.pixelbatteryhealthconfig]
+      Signing KeySets: 2
+
+Packages:
+  Package [com.google.android.systemui.overlay.pixelbatteryhealthconfig] (718b328):
+    appId=10029
+    pccId=-1
+    pkg=Package{50aa841 com.google.android.systemui.overlay.pixelbatteryhealthconfig}
+    codePath=/product/overlay/PixelBatteryHealthOverlay.apk
+    resourcePath=/product/overlay/PixelBatteryHealthOverlay.apk
+    legacyNativeLibraryDir=/product/lib64/PixelBatteryHealthOverlay
+    extractNativeLibs=true
+    primaryCpuAbi=null
+    secondaryCpuAbi=null
+    cpuAbiOverride=null
+    versionCode=1 minSdk=36 targetSdk=36
+    minExtensionVersions=[]
+    versionName=1.0
+    hiddenApiEnforcementPolicy=2
+    usesNonSdkApi=false
+    splits=[base]
+    apkSigningVersion=3
+    flags=[ SYSTEM ALLOW_CLEAR_USER_DATA ALLOW_BACKUP KILL_AFTER_RESTORE ]
+    privateFlags=[ PRIVATE_FLAG_REQUEST_LEGACY_EXTERNAL_STORAGE PRODUCT PRIVATE_FLAG_ALLOW_NATIVE_HEAP_POINTER_TAGGING ]
+    forceQueryable=false
+    pageSizeCompat=0
+    scannedAsStoppedSystemApp=false
+    supportsScreens=[small, medium, large, xlarge, resizeable, anyDensity]
+    timeStamp=2009-01-01 09:00:00
+    lastUpdateTime=2026-06-01 22:24:21
+    installerPackageName=null
+    installerPackageUid=-1
+    initiatingPackageName=null
+    originatingPackageName=null
+    packageSource=0
+    appMetadataFilePath=null
+    appMetadataSource=0
+    signatures=PackageSignatures{813a1e6 version:3, signatures:[b90d1fb0], past signatures:[]}
+    installPermissionsFixed=false
+    pkgFlags=[ SYSTEM ALLOW_CLEAR_USER_DATA ALLOW_BACKUP KILL_AFTER_RESTORE ]
+    privatePkgFlags=[ PRIVATE_FLAG_REQUEST_LEGACY_EXTERNAL_STORAGE PRODUCT PRIVATE_FLAG_ALLOW_NATIVE_HEAP_POINTER_TAGGING ]
+    apexModuleName=null
+    overlayTarget=com.android.systemui
+    overlayCategory=null
+    User 0: ceDataInode=4188 deDataInode=1587 installed=true hidden=false suspended=false appLockEnabled=false distractionFlags=0 stopped=false notLaunched=false enabled=0 instant=false virtual=false quarantined=false
+      installReason=0
+      dataDir=/data/user/0/com.google.android.systemui.overlay.pixelbatteryhealthconfig
+      firstInstallTime=2026-06-01 22:24:21
+      uninstallReason=0
+      runtime permissions:
+
+Queries:
+  system apps queryable: false
+  queries via forceQueryable:
+  forceQueryable:
+    com.google.android.systemui.overlay.pixelbatteryhealthconfig
+  queries via package name:
+  queries via component:
+  queryable via interaction:
+    User 0:
+  queryable via uses-library:
+
+Dexopt state:
+  [com.google.android.systemui.overlay.pixelbatteryhealthconfig]

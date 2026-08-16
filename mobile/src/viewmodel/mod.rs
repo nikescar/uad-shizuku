@@ -1,16 +1,16 @@
 //! ViewModel layer - coordinates between UI and background actors
 
+pub mod apps;
 pub mod common;
 pub mod debloat;
-pub mod scan;
-pub mod apps;
 pub mod metadata;
+pub mod scan;
 
+pub use apps::{AppsActor, AppsCommand, AppsEvent};
 pub use common::*;
-pub use debloat::{DebloatCommand, DebloatEvent, DebloatActor};
-pub use scan::{ScanCommand, ScanEvent, ScanActor, ScannerType};
-pub use apps::{AppsCommand, AppsEvent, AppsActor};
-pub use metadata::{MetadataCommand, MetadataEvent, MetadataActor};
+pub use debloat::{DebloatActor, DebloatCommand, DebloatEvent};
+pub use metadata::{MetadataActor, MetadataCommand, MetadataEvent};
+pub use scan::{ScanActor, ScanCommand, ScanEvent, ScannerType};
 
 use std::collections::HashMap;
 
@@ -54,7 +54,10 @@ impl MetadataCache {
         self.apkmirror.get(pkg_id)
     }
 
-    pub fn get_android_package(&self, pkg_id: &str) -> Option<&crate::calc_androidpackage::AndroidPackageInfo> {
+    pub fn get_android_package(
+        &self,
+        pkg_id: &str,
+    ) -> Option<&crate::calc_androidpackage::AndroidPackageInfo> {
         self.android_package.get(pkg_id)
     }
 }
@@ -102,11 +105,8 @@ impl ViewModel {
                 log::info!("ViewModel runtime started");
 
                 // Create actors
-                let debloat_actor = DebloatActor::new(
-                    debloat_rx,
-                    event_tx.clone(),
-                    metadata_tx_clone.clone(),
-                );
+                let debloat_actor =
+                    DebloatActor::new(debloat_rx, event_tx.clone(), metadata_tx_clone.clone());
                 let scan_actor = ScanActor::new(scan_rx, event_tx.clone());
                 let apps_actor = AppsActor::new(apps_rx, event_tx.clone());
                 let metadata_actor = MetadataActor::new(metadata_rx, event_tx.clone());
@@ -136,10 +136,17 @@ impl ViewModel {
     /// Poll for events and update state. Call this in UadShizukuApp::update()
     pub fn poll_events(&mut self, ctx: &eframe::egui::Context) -> Vec<ViewModelEvent> {
         let mut events = Vec::new();
+        let mut event_count = 0;
 
         while let Ok(event) = self.event_rx.try_recv() {
+            event_count += 1;
+            log::debug!("[VIEWMODEL] Received event #{}: {:?}", event_count, event);
             self.apply_event(&event, ctx);
             events.push(event);
+        }
+
+        if event_count > 0 {
+            log::debug!("[VIEWMODEL] poll_events processed {} events", event_count);
         }
 
         events
@@ -149,6 +156,13 @@ impl ViewModel {
         match event {
             ViewModelEvent::Debloat(DebloatEvent::PackagesLoaded(packages)) => {
                 self.state.packages = packages.clone();
+                // Default filtered_packages to the full set immediately, so the
+                // datatable isn't empty while waiting for a separate FilterPackages
+                // round-trip (which itself races: callers that build FilterPackages
+                // from `state.packages` right after calling load_packages() would
+                // otherwise send the stale pre-load packages).
+                self.state.filtered_packages = packages.clone();
+                _ctx.request_repaint();
             }
             ViewModelEvent::Debloat(DebloatEvent::UadNgListsLoaded(lists)) => {
                 self.state.uad_ng_lists = Some(lists.clone());
@@ -158,17 +172,29 @@ impl ViewModel {
                 _ctx.request_repaint();
             }
             ViewModelEvent::Debloat(DebloatEvent::FilteredPackagesReady(packages)) => {
+                log::debug!(
+                    "DEBUG: ViewModel received FilteredPackagesReady event with {} packages",
+                    packages.len()
+                );
                 self.state.filtered_packages = packages.clone();
+                log::debug!(
+                    "DEBUG: ViewModel state.filtered_packages updated to {} packages",
+                    self.state.filtered_packages.len()
+                );
                 _ctx.request_repaint();
             }
-            ViewModelEvent::Debloat(DebloatEvent::BatchProgress { operation, progress, .. }) => {
+            ViewModelEvent::Debloat(DebloatEvent::BatchProgress {
+                operation,
+                progress,
+                ..
+            }) => {
                 self.state.active_operations.insert(
                     operation.clone(),
                     OperationProgress {
                         operation: operation.clone(),
                         progress: *progress,
                         status: format!("In progress: {:.0}%", progress * 100.0),
-                    }
+                    },
                 );
             }
             ViewModelEvent::Debloat(DebloatEvent::BatchComplete { operation, .. }) => {
@@ -202,19 +228,34 @@ impl ViewModel {
 
             // === NEW: Metadata cache events ===
             ViewModelEvent::Metadata(MetadataEvent::GooglePlayMetadataFetched { pkg_id, app }) => {
-                self.state.cached_metadata.google_play.insert(pkg_id.clone(), app.clone());
+                self.state
+                    .cached_metadata
+                    .google_play
+                    .insert(pkg_id.clone(), app.clone());
                 _ctx.request_repaint();
             }
             ViewModelEvent::Metadata(MetadataEvent::FDroidMetadataFetched { pkg_id, app }) => {
-                self.state.cached_metadata.fdroid.insert(pkg_id.clone(), app.clone());
+                self.state
+                    .cached_metadata
+                    .fdroid
+                    .insert(pkg_id.clone(), app.clone());
                 _ctx.request_repaint();
             }
             ViewModelEvent::Metadata(MetadataEvent::ApkMirrorMetadataFetched { pkg_id, app }) => {
-                self.state.cached_metadata.apkmirror.insert(pkg_id.clone(), app.clone());
+                self.state
+                    .cached_metadata
+                    .apkmirror
+                    .insert(pkg_id.clone(), app.clone());
                 _ctx.request_repaint();
             }
-            ViewModelEvent::Metadata(MetadataEvent::AndroidPackageMetadataFetched { pkg_id, app }) => {
-                self.state.cached_metadata.android_package.insert(pkg_id.clone(), app.clone());
+            ViewModelEvent::Metadata(MetadataEvent::AndroidPackageMetadataFetched {
+                pkg_id,
+                app,
+            }) => {
+                self.state
+                    .cached_metadata
+                    .android_package
+                    .insert(pkg_id.clone(), app.clone());
                 _ctx.request_repaint();
             }
 
@@ -239,32 +280,55 @@ impl ViewModel {
     // === Debloat commands ===
 
     pub fn load_packages(&self, device: String, user: u32) -> anyhow::Result<()> {
-        self.debloat_tx.send_blocking(DebloatCommand::LoadPackages { device, user })
+        self.debloat_tx
+            .send_blocking(DebloatCommand::LoadPackages { device, user })
+            .map_err(|e| anyhow::anyhow!("Failed to send command: {}", e))
+    }
+
+    /// Test-only: Load packages from memory instead of ADB
+    pub fn load_packages_from_memory(
+        &self,
+        packages: Vec<crate::adb::PackageFingerprint>,
+    ) -> anyhow::Result<()> {
+        self.debloat_tx
+            .send_blocking(DebloatCommand::LoadPackagesFromMemory { packages })
             .map_err(|e| anyhow::anyhow!("Failed to send command: {}", e))
     }
 
     pub fn batch_uninstall(&self, packages: Vec<String>, device: String) -> anyhow::Result<()> {
-        self.debloat_tx.send_blocking(DebloatCommand::BatchUninstall { packages, device })
+        self.debloat_tx
+            .send_blocking(DebloatCommand::BatchUninstall { packages, device })
             .map_err(|e| anyhow::anyhow!("Failed to send command: {}", e))
     }
 
     pub fn batch_disable(&self, packages: Vec<String>, device: String) -> anyhow::Result<()> {
-        self.debloat_tx.send_blocking(DebloatCommand::BatchDisable { packages, device })
+        self.debloat_tx
+            .send_blocking(DebloatCommand::BatchDisable { packages, device })
             .map_err(|e| anyhow::anyhow!("Failed to send command: {}", e))
     }
 
     pub fn batch_enable(&self, packages: Vec<String>, device: String) -> anyhow::Result<()> {
-        self.debloat_tx.send_blocking(DebloatCommand::BatchEnable { packages, device })
+        self.debloat_tx
+            .send_blocking(DebloatCommand::BatchEnable { packages, device })
             .map_err(|e| anyhow::anyhow!("Failed to send command: {}", e))
     }
 
     pub fn load_uad_ng_lists(&self) -> anyhow::Result<()> {
-        self.debloat_tx.send_blocking(DebloatCommand::LoadUadNgLists)
+        self.debloat_tx
+            .send_blocking(DebloatCommand::LoadUadNgLists)
             .map_err(|e| anyhow::anyhow!("Failed to send command: {}", e))
     }
 
-    pub fn set_debloat_options(&self, unsafe_app_remove: bool, expert_app_remove: bool) -> anyhow::Result<()> {
-        self.debloat_tx.send_blocking(DebloatCommand::SetOptions { unsafe_app_remove, expert_app_remove })
+    pub fn set_debloat_options(
+        &self,
+        unsafe_app_remove: bool,
+        expert_app_remove: bool,
+    ) -> anyhow::Result<()> {
+        self.debloat_tx
+            .send_blocking(DebloatCommand::SetOptions {
+                unsafe_app_remove,
+                expert_app_remove,
+            })
             .map_err(|e| anyhow::anyhow!("Failed to send command: {}", e))
     }
 
@@ -281,70 +345,140 @@ impl ViewModel {
             show_only_enabled,
             hide_system_apps,
         };
-        let packages = self.state.packages.clone();
-        self.debloat_tx.send_blocking(DebloatCommand::FilterPackages { packages, criteria })
+        self.debloat_tx
+            .send_blocking(DebloatCommand::FilterPackages { criteria })
             .map_err(|e| anyhow::anyhow!("Failed to send filter command: {}", e))
     }
 
-    pub fn sort_packages(&self, column: debloat::SortColumn, ascending: bool) -> anyhow::Result<()> {
+    pub fn sort_packages(
+        &self,
+        column: debloat::SortColumn,
+        ascending: bool,
+    ) -> anyhow::Result<()> {
         let criteria = debloat::PackageSortCriteria { column, ascending };
-        self.debloat_tx.send_blocking(DebloatCommand::SortPackages { criteria })
+        self.debloat_tx
+            .send_blocking(DebloatCommand::SortPackages { criteria })
             .map_err(|e| anyhow::anyhow!("Failed to send sort command: {}", e))
     }
 
     // === Scan commands ===
 
-    pub fn run_virustotal(&self, device: String, api_key: String, submit_enabled: bool) -> anyhow::Result<()> {
-        self.scan_tx.send_blocking(ScanCommand::RunVirusTotal { device, api_key, submit_enabled })
+    pub fn run_virustotal(
+        &self,
+        device: String,
+        api_key: String,
+        submit_enabled: bool,
+    ) -> anyhow::Result<()> {
+        self.scan_tx
+            .send_blocking(ScanCommand::RunVirusTotal {
+                device,
+                api_key,
+                submit_enabled,
+            })
             .map_err(|e| anyhow::anyhow!("Failed to send command: {}", e))
     }
 
-    pub fn run_hybridanalysis(&self, device: String, api_key: String, submit_enabled: bool) -> anyhow::Result<()> {
-        self.scan_tx.send_blocking(ScanCommand::RunHybridAnalysis { device, api_key, submit_enabled })
+    pub fn run_hybridanalysis(
+        &self,
+        device: String,
+        api_key: String,
+        submit_enabled: bool,
+    ) -> anyhow::Result<()> {
+        self.scan_tx
+            .send_blocking(ScanCommand::RunHybridAnalysis {
+                device,
+                api_key,
+                submit_enabled,
+            })
+            .map_err(|e| anyhow::anyhow!("Failed to send command: {}", e))
+    }
+
+    /// Same as `run_virustotal` but scoped to a single package (e.g. to refresh
+    /// results right after that package was uninstalled/changed).
+    pub fn run_virustotal_for_package(
+        &self,
+        device: String,
+        api_key: String,
+        submit_enabled: bool,
+        package: crate::adb_stt::PackageFingerprint,
+    ) -> anyhow::Result<()> {
+        self.scan_tx
+            .send_blocking(ScanCommand::RunVirusTotalForPackage {
+                device,
+                api_key,
+                submit_enabled,
+                package,
+            })
+            .map_err(|e| anyhow::anyhow!("Failed to send command: {}", e))
+    }
+
+    /// Same as `run_hybridanalysis` but scoped to a single package.
+    pub fn run_hybridanalysis_for_package(
+        &self,
+        device: String,
+        api_key: String,
+        submit_enabled: bool,
+        package: crate::adb_stt::PackageFingerprint,
+    ) -> anyhow::Result<()> {
+        self.scan_tx
+            .send_blocking(ScanCommand::RunHybridAnalysisForPackage {
+                device,
+                api_key,
+                submit_enabled,
+                package,
+            })
             .map_err(|e| anyhow::anyhow!("Failed to send command: {}", e))
     }
 
     pub fn cancel_virustotal(&self) -> anyhow::Result<()> {
-        self.scan_tx.send_blocking(ScanCommand::CancelVirusTotal)
+        self.scan_tx
+            .send_blocking(ScanCommand::CancelVirusTotal)
             .map_err(|e| anyhow::anyhow!("Failed to send command: {}", e))
     }
 
     pub fn cancel_hybridanalysis(&self) -> anyhow::Result<()> {
-        self.scan_tx.send_blocking(ScanCommand::CancelHybridAnalysis)
+        self.scan_tx
+            .send_blocking(ScanCommand::CancelHybridAnalysis)
             .map_err(|e| anyhow::anyhow!("Failed to send command: {}", e))
     }
 
     // === Apps commands ===
 
     pub fn load_foss_app_list(&self) -> anyhow::Result<()> {
-        self.apps_tx.send_blocking(AppsCommand::LoadFossAppList)
+        self.apps_tx
+            .send_blocking(AppsCommand::LoadFossAppList)
             .map_err(|e| anyhow::anyhow!("Failed to send command: {}", e))
     }
 
     pub fn install_app(&self, package: String, apk_url: String) -> anyhow::Result<()> {
-        self.apps_tx.send_blocking(AppsCommand::InstallApp { package, apk_url })
+        self.apps_tx
+            .send_blocking(AppsCommand::InstallApp { package, apk_url })
             .map_err(|e| anyhow::anyhow!("Failed to send command: {}", e))
     }
 
     // === Metadata commands ===
 
     pub fn fetch_google_play_metadata(&self, package: String) -> anyhow::Result<()> {
-        self.metadata_tx.send_blocking(MetadataCommand::FetchGooglePlay { package })
+        self.metadata_tx
+            .send_blocking(MetadataCommand::FetchGooglePlay { package })
             .map_err(|e| anyhow::anyhow!("Failed to send command: {}", e))
     }
 
     pub fn fetch_fdroid_metadata(&self, package: String) -> anyhow::Result<()> {
-        self.metadata_tx.send_blocking(MetadataCommand::FetchFDroid { package })
+        self.metadata_tx
+            .send_blocking(MetadataCommand::FetchFDroid { package })
             .map_err(|e| anyhow::anyhow!("Failed to send command: {}", e))
     }
 
-    pub fn fetch_apkmirror_metadata(&self, package: String) -> anyhow::Result<()> {
-        self.metadata_tx.send_blocking(MetadataCommand::FetchApkMirror { package })
+    pub fn fetch_apkmirror_metadata(&self, package: String, email: String) -> anyhow::Result<()> {
+        self.metadata_tx
+            .send_blocking(MetadataCommand::FetchApkMirror { package, email })
             .map_err(|e| anyhow::anyhow!("Failed to send command: {}", e))
     }
 
     pub fn fetch_android_package_metadata(&self, package: String) -> anyhow::Result<()> {
-        self.metadata_tx.send_blocking(MetadataCommand::FetchAndroidPackage { package })
+        self.metadata_tx
+            .send_blocking(MetadataCommand::FetchAndroidPackage { package })
             .map_err(|e| anyhow::anyhow!("Failed to send command: {}", e))
     }
 }

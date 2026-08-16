@@ -52,6 +52,9 @@ pub struct TabAppsControl {
     // Track if operations just completed to trigger refresh
     pub was_worker_running: bool,
     pub pending_refresh_after_operations: bool,
+    // Bumped on every update_packages() call so the cached prepared-row table
+    // (keyed on this) is invalidated whenever installed_packages changes.
+    pub packages_version: u64,
     // Dialogs
     pub package_details_dialog: DlgPackageDetails,
     pub uninstall_confirm_dialog: DlgUninstallConfirm,

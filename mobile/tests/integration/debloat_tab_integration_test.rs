@@ -7,17 +7,13 @@
 //! 4. FilteredPackagesReady event emitted
 //! 5. UI state updated with filtered results
 
-use uad_shizuku::adb_stt::{PackageFingerprint, AdbPackageInfoUser};
-use uad_shizuku::viewmodel::{DebloatEvent, ViewModelEvent, ViewModel};
-use uad_shizuku::tab_debloat::{TabDebloat, DebloatFilter};
+use uad_shizuku::adb_stt::{AdbPackageInfoUser, PackageFingerprint};
+use uad_shizuku::tab_debloat::{DebloatFilter, TabDebloat};
+use uad_shizuku::viewmodel::{DebloatEvent, ViewModel, ViewModelEvent};
 
 /// Helper to create test package
 fn create_test_package(name: &str, enabled: i32, is_system: bool) -> PackageFingerprint {
-    let flags = if is_system {
-        "SYSTEM"
-    } else {
-        ""
-    }.to_string();
+    let flags = if is_system { "SYSTEM" } else { "" }.to_string();
 
     PackageFingerprint {
         pkg: name.to_string(),
@@ -70,16 +66,25 @@ fn test_full_filter_flow() {
         create_test_package("com.android.system2", 2, true),
     ];
 
-    // Load packages into ViewModel
-    vm.state.packages = packages.clone();
+    // Load packages into actor
+    vm.load_packages_from_memory(packages.clone())
+        .expect("Failed to load test packages");
+
+    // Wait for PackagesLoaded event
+    let timeout_load = std::time::Duration::from_secs(2);
+    let start_load = std::time::Instant::now();
+    while vm.state.packages.is_empty() && start_load.elapsed() < timeout_load {
+        let _events = vm.poll_events(&ctx);
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
 
     // Act: Send filter command (simulating what TabDebloat would do)
     // In real usage, TabDebloat.render() would call this after debounce
     let filter_result = vm.filter_packages(
-        Some("example".to_string()),  // text_filter
-        None,                          // category_filter
-        false,                         // show_only_enabled
-        false,                         // hide_system_apps
+        Some("example".to_string()), // text_filter
+        None,                        // category_filter
+        false,                       // show_only_enabled
+        false,                       // hide_system_apps
     );
 
     // Assert: Command sent successfully
@@ -104,12 +109,22 @@ fn test_full_filter_flow() {
     }
 
     // Assert: Event received
-    assert!(found_filter_event, "Should receive FilteredPackagesReady event within timeout");
+    assert!(
+        found_filter_event,
+        "Should receive FilteredPackagesReady event within timeout"
+    );
 
     // Assert: Filtered packages updated
-    assert_eq!(vm.state.filtered_packages.len(), 2, "Should have 2 packages matching 'example'");
+    assert_eq!(
+        vm.state.filtered_packages.len(),
+        2,
+        "Should have 2 packages matching 'example'"
+    );
     assert!(
-        vm.state.filtered_packages.iter().all(|p| p.pkg.contains("example")),
+        vm.state
+            .filtered_packages
+            .iter()
+            .all(|p| p.pkg.contains("example")),
         "All filtered packages should contain 'example'"
     );
 
@@ -131,7 +146,16 @@ fn test_filter_with_category() {
         create_test_package("com.example.app2", 0, false),
     ];
 
-    vm.state.packages = packages.clone();
+    vm.load_packages_from_memory(packages.clone())
+        .expect("Failed to load test packages");
+
+    // Wait for PackagesLoaded event
+    let timeout_load = std::time::Duration::from_secs(2);
+    let start_load = std::time::Instant::now();
+    while vm.state.packages.is_empty() && start_load.elapsed() < timeout_load {
+        let _events = vm.poll_events(&ctx);
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
 
     // Act: Set category filter in TabDebloat state
     tab.state.active_filter = DebloatFilter {
@@ -142,12 +166,7 @@ fn test_filter_with_category() {
     };
 
     // Send filter command with category (simulating what TabDebloat would do)
-    let filter_result = vm.filter_packages(
-        None,
-        Some("Recommended".to_string()),
-        false,
-        false,
-    );
+    let filter_result = vm.filter_packages(None, Some("Recommended".to_string()), false, false);
 
     assert!(filter_result.is_ok(), "Filter command should succeed");
 
@@ -193,14 +212,20 @@ fn test_filter_flow_verifies_actor_event_state_chain() {
         create_test_package("com.example.user", 1, false),
     ];
 
-    vm.state.packages = packages;
+    vm.load_packages_from_memory(packages.clone())
+        .expect("Failed to load test packages");
+
+    // Wait for PackagesLoaded event
+    let timeout_load = std::time::Duration::from_secs(2);
+    let start_load = std::time::Instant::now();
+    while vm.state.packages.is_empty() && start_load.elapsed() < timeout_load {
+        let _events = vm.poll_events(&ctx);
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
 
     // Act: Send filter command
     let filter_result = vm.filter_packages(
-        None,
-        None,
-        false,
-        true,  // hide_system_apps
+        None, None, false, true, // hide_system_apps
     );
 
     assert!(filter_result.is_ok());
@@ -225,8 +250,15 @@ fn test_filter_flow_verifies_actor_event_state_chain() {
 
     // Assert: Verify the complete chain
     assert!(event_received, "Command → Actor → Event chain verified");
-    assert_eq!(vm.state.filtered_packages.len(), 1, "Event → State Update verified");
-    assert_eq!(vm.state.filtered_packages[0].pkg, "com.example.user", "State contains correct filtered data");
+    assert_eq!(
+        vm.state.filtered_packages.len(),
+        1,
+        "Event → State Update verified"
+    );
+    assert_eq!(
+        vm.state.filtered_packages[0].pkg, "com.example.user",
+        "State contains correct filtered data"
+    );
 
     // This test explicitly verifies the MVVM actor architecture:
     // 1. Command sent via channel (filter_packages)
