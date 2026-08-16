@@ -172,17 +172,23 @@ fn test_filter_by_enabled_state() {
         "Should receive FilteredPackagesReady event within timeout"
     );
 
-    // Assert: Should only show enabled packages (enabled == 1)
+    // Assert: Should show packages that are not disabled (enabled == 1 explicitly,
+    // and enabled == 0 which is Android's DEFAULT state, i.e. enabled unless the
+    // manifest says otherwise). Only enabled == 2 (DISABLED) is excluded here.
     assert_eq!(
         vm.state.filtered_packages.len(),
-        1,
-        "Should have 1 enabled package"
+        2,
+        "Should have 2 non-disabled packages"
     );
-    assert!(
-        !vm.state.filtered_packages.is_empty(),
-        "filtered_packages should not be empty"
-    );
-    assert_eq!(vm.state.filtered_packages[0].pkg, "com.example.enabled");
+    let filtered_pkgs: Vec<&str> = vm
+        .state
+        .filtered_packages
+        .iter()
+        .map(|p| p.pkg.as_str())
+        .collect();
+    assert!(filtered_pkgs.contains(&"com.example.enabled"));
+    assert!(filtered_pkgs.contains(&"com.example.default"));
+    assert!(!filtered_pkgs.contains(&"com.example.disabled"));
 }
 
 #[test]

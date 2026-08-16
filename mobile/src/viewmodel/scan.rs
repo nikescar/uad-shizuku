@@ -48,6 +48,21 @@ pub enum ScanCommand {
         api_key: String,
         submit_enabled: bool,
     },
+    /// Same as `RunVirusTotal` but scoped to a single package, e.g. to refresh
+    /// results right after that package was uninstalled/changed.
+    RunVirusTotalForPackage {
+        device: String,
+        api_key: String,
+        submit_enabled: bool,
+        package: crate::adb_stt::PackageFingerprint,
+    },
+    /// Same as `RunHybridAnalysis` but scoped to a single package.
+    RunHybridAnalysisForPackage {
+        device: String,
+        api_key: String,
+        submit_enabled: bool,
+        package: crate::adb_stt::PackageFingerprint,
+    },
     CancelVirusTotal,
     CancelHybridAnalysis,
 }
@@ -270,6 +285,151 @@ impl ScanActor {
 
                     // Send a final scanner state update (same Arc, but this also flips
                     // ha_scan_state to "complete" on the UI side alongside it) and completion.
+                    let _ = event_tx
+                        .send(ViewModelEvent::Scan(ScanEvent::HybridAnalysisStateUpdated(
+                            scanner_state.clone(),
+                        )))
+                        .await;
+
+                    let _ = event_tx
+                        .send(ViewModelEvent::Scan(ScanEvent::HybridAnalysisComplete))
+                        .await;
+                })
+                .detach();
+
+                Ok(())
+            }
+            ScanCommand::RunVirusTotalForPackage {
+                device,
+                api_key,
+                submit_enabled,
+                package,
+            } => {
+                // Reset cancellation flag
+                if let Ok(mut cancel) = self.vt_cancel.lock() {
+                    *cancel = false;
+                }
+
+                self.event_tx
+                    .send(ViewModelEvent::Scan(ScanEvent::VirusTotalStarted))
+                    .await?;
+
+                let device_clone = device.clone();
+                let api_key_clone = api_key.clone();
+                let cancel_clone = self.vt_cancel.clone();
+                let event_tx = self.event_tx.clone();
+
+                // Spawn task to run a single-package VirusTotal scan in background
+                smol::spawn(async move {
+                    let package_risk_scores: HashMap<String, i32> = HashMap::new();
+                    let progress = Arc::new(Mutex::new(Some(0.0)));
+                    let progress_for_scan = progress.clone();
+                    let progress_done = Arc::new(AtomicBool::new(false));
+
+                    let (scanner_state, _rate_limiter, handle) = crate::calc_virustotal::run_virustotal(
+                        vec![package],
+                        device_clone,
+                        api_key_clone,
+                        submit_enabled,
+                        package_risk_scores,
+                        progress_for_scan,
+                        cancel_clone,
+                    );
+
+                    let _ = event_tx
+                        .send(ViewModelEvent::Scan(ScanEvent::VirusTotalStateUpdated(
+                            scanner_state.clone(),
+                        )))
+                        .await;
+
+                    let poll_task = smol::spawn(poll_scan_progress(
+                        ScannerType::VirusTotal,
+                        progress,
+                        progress_done.clone(),
+                        event_tx.clone(),
+                    ));
+
+                    smol::unblock(move || {
+                        let _ = handle.join();
+                    })
+                    .await;
+
+                    progress_done.store(true, Ordering::Relaxed);
+                    poll_task.await;
+
+                    let _ = event_tx
+                        .send(ViewModelEvent::Scan(ScanEvent::VirusTotalStateUpdated(
+                            scanner_state.clone(),
+                        )))
+                        .await;
+
+                    let _ = event_tx
+                        .send(ViewModelEvent::Scan(ScanEvent::VirusTotalComplete))
+                        .await;
+                })
+                .detach();
+
+                Ok(())
+            }
+            ScanCommand::RunHybridAnalysisForPackage {
+                device,
+                api_key,
+                submit_enabled,
+                package,
+            } => {
+                // Reset cancellation flag
+                if let Ok(mut cancel) = self.ha_cancel.lock() {
+                    *cancel = false;
+                }
+
+                self.event_tx
+                    .send(ViewModelEvent::Scan(ScanEvent::HybridAnalysisStarted))
+                    .await?;
+
+                let device_clone = device.clone();
+                let api_key_clone = api_key.clone();
+                let cancel_clone = self.ha_cancel.clone();
+                let event_tx = self.event_tx.clone();
+
+                // Spawn task to run a single-package HybridAnalysis scan in background
+                smol::spawn(async move {
+                    let package_risk_scores: HashMap<String, i32> = HashMap::new();
+                    let progress = Arc::new(Mutex::new(Some(0.0)));
+                    let progress_for_scan = progress.clone();
+                    let progress_done = Arc::new(AtomicBool::new(false));
+
+                    let (scanner_state, _rate_limiter, handle) =
+                        crate::calc_hybridanalysis::run_hybridanalysis(
+                            vec![package],
+                            device_clone,
+                            api_key_clone,
+                            submit_enabled,
+                            package_risk_scores,
+                            progress_for_scan,
+                            cancel_clone,
+                        );
+
+                    let _ = event_tx
+                        .send(ViewModelEvent::Scan(ScanEvent::HybridAnalysisStateUpdated(
+                            scanner_state.clone(),
+                        )))
+                        .await;
+
+                    let poll_task = smol::spawn(poll_scan_progress(
+                        ScannerType::HybridAnalysis,
+                        progress,
+                        progress_done.clone(),
+                        event_tx.clone(),
+                    ));
+
+                    smol::unblock(move || {
+                        let _ = handle.join();
+                    })
+                    .await;
+
+                    progress_done.store(true, Ordering::Relaxed);
+                    poll_task.await;
+
                     let _ = event_tx
                         .send(ViewModelEvent::Scan(ScanEvent::HybridAnalysisStateUpdated(
                             scanner_state.clone(),

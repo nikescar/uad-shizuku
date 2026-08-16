@@ -1325,6 +1325,7 @@ impl TabScanControl {
         &mut self,
         ui: &mut egui::Ui,
         hybridanalysis_tag_ignorelist: &str,
+        viewmodel: Option<&crate::viewmodel::ViewModel>,
     ) {
         // Note: ViewModel events are now polled and dispatched to apply_scan_event() once per
         // frame by UadShizukuApp::update(), not here (a second independent poll_events() call
@@ -2804,77 +2805,34 @@ impl TabScanControl {
                 .cloned();
 
             if let Some(package) = package_info {
-                // Get hashes for the package
-                let device_serial = self.device_serial.clone();
-                let cached_packages = if let Some(ref serial) = device_serial {
-                    crate::db_package_cache::get_cached_packages_with_apk(serial)
-                } else {
-                    vec![]
-                };
-                let cached_pkg = cached_packages.iter().find(|cp| cp.pkg_id == pkg_name);
+                // calc_virustotal::run_virustotal / calc_hybridanalysis::run_hybridanalysis
+                // resolve each package's APK paths/SHA256 hashes internally (including the
+                // device rescan fallback), so we only need to hand over the package itself.
+                if let Some(vm) = viewmodel {
+                    if let Some(ref device) = self.device_serial {
+                        if let Some(ref api_key) = self.vt_api_key {
+                            if let Err(e) = vm.run_virustotal_for_package(
+                                device.clone(),
+                                api_key.clone(),
+                                self.virustotal_submit_enabled,
+                                package.clone(),
+                            ) {
+                                log::error!("Failed to start VirusTotal refresh for {}: {}", pkg_name, e);
+                            }
+                        }
 
-                let mut paths_str = String::new();
-                let mut sha256sums_str = String::new();
-
-                if let Some(cp) = cached_pkg {
-                    if let (Some(path), Some(sha256)) = (&cp.apk_path, &cp.apk_sha256sum) {
-                        paths_str = path.clone();
-                        sha256sums_str = sha256.clone();
-                    }
-                }
-
-                if paths_str.is_empty() || sha256sums_str.is_empty() {
-                    paths_str = package.codePath.clone();
-                    sha256sums_str = package.pkgChecksum.clone();
-                }
-
-                // Get proper hashes if needed
-                if let Some(ref serial) = device_serial {
-                    let paths: Vec<&str> = paths_str.split(' ').collect();
-                    let sha256sums: Vec<&str> = sha256sums_str.split(' ').collect();
-                    let needs_directory_scan = paths.iter().any(|p| !p.ends_with(".apk"));
-                    let has_invalid_hashes = sha256sums.iter().any(|s| s.len() != 64);
-
-                    if needs_directory_scan || has_invalid_hashes {
-                        if let Ok((new_paths, new_sha256sums)) =
-                            crate::adb::get_single_package_sha256sum(serial, &pkg_name)
-                        {
-                            if !new_paths.is_empty() && !new_sha256sums.is_empty() {
-                                paths_str = new_paths;
-                                sha256sums_str = new_sha256sums;
+                        if let Some(ref api_key) = self.ha_api_key {
+                            if let Err(e) = vm.run_hybridanalysis_for_package(
+                                device.clone(),
+                                api_key.clone(),
+                                self.hybridanalysis_submit_enabled,
+                                package,
+                            ) {
+                                log::error!("Failed to start HybridAnalysis refresh for {}: {}", pkg_name, e);
                             }
                         }
                     }
                 }
-
-                let final_paths: Vec<&str> = paths_str.split(' ').collect();
-                let final_sha256sums: Vec<&str> = sha256sums_str.split(' ').collect();
-                let hashes: Vec<(String, String)> = final_paths
-                    .iter()
-                    .zip(final_sha256sums.iter())
-                    .filter(|(p, s)| !p.is_empty() && s.len() == 64)
-                    .map(|(p, s)| (p.to_string(), s.to_string()))
-                    .collect();
-
-                // TODO: Re-implement using ViewModel commands (RunVirusTotal)
-                // Old direct SharedStore access code removed during migration
-                /*
-                // Start VirusTotal scan in background
-                let shared_store = crate::shared_store_stt::get_shared_store();
-                let vt_scanner_state = shared_store.vt_scanner_state.lock().unwrap().clone();
-                ...
-                */
-                log::warn!("VirusTotal refresh not yet re-implemented with ViewModel");
-
-                // TODO: Re-implement using ViewModel commands (RunHybridAnalysis)
-                // Old direct SharedStore access code removed during migration
-                /*
-                // Start HybridAnalysis scan in background
-                let shared_store = crate::shared_store_stt::get_shared_store();
-                let ha_scanner_state = shared_store.ha_scanner_state.lock().unwrap().clone();
-                ...
-                */
-                log::warn!("HybridAnalysis refresh not yet re-implemented with ViewModel");
             }
         }
 

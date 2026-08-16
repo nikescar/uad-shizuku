@@ -395,7 +395,7 @@ impl ApkMirrorQueue {
 }
 
 /// Save APKMirror app info to database
-fn save_to_db(conn: &mut SqliteConnection, app_info: &ApkMirrorAppInfo) -> Result<ApkMirrorApp> {
+pub(crate) fn save_to_db(conn: &mut SqliteConnection, app_info: &ApkMirrorAppInfo) -> Result<ApkMirrorApp> {
     upsert_apkmirror_app(
         conn,
         &app_info.package_id,

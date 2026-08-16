@@ -2044,14 +2044,15 @@ mod tests {
 
     #[test]
     fn test_parse_package_fingerprints() {
-        // Locate the reference file relative to the crate root
+        // Locate the fixture file relative to the crate root
         let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-        path.pop(); // Go up to workspace root
-        path.push("reference");
-        path.push("adb_dumpsys_package_packages");
+        path.push("tests");
+        path.push("fixtures");
+        path.push("adb");
+        path.push("dumpsys_package_packages.txt");
 
-        println!("Reading reference file from: {:?}", path);
-        let content = fs::read_to_string(&path).expect("Failed to read reference file");
+        println!("Reading fixture file from: {:?}", path);
+        let content = fs::read_to_string(&path).expect("Failed to read fixture file");
 
         let lines: Vec<String> = content.lines().map(|s| s.to_string()).collect();
         let fingerprints = parse_package_fingerprints(lines);

@@ -270,7 +270,7 @@ mod tests {
     fn test_virustotal_db_operations() {
         let conn = &mut establish_connection();
 
-        let json = include_str!("../../reference/virustotal_filereport_response.json");
+        let json = include_str!("../tests/fixtures/virustotal/filereport_response.json");
         let vt_response: VirusTotalResponse = serde_json::from_str(json).unwrap();
 
         // Insert

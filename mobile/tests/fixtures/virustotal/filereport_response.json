@@ -1,0 +1,28 @@
+{
+  "data": {
+    "id": "6f2ca352440a0027b9f8ed014d40a1557df2b4b3d3e3fc06e574cc02ead982aa",
+    "type": "file",
+    "attributes": {
+      "last_analysis_date": 1700000000,
+      "last_analysis_stats": {
+        "malicious": 0,
+        "suspicious": 0,
+        "undetected": 62,
+        "harmless": 0,
+        "timeout": 0,
+        "confirmed-timeout": 0,
+        "failure": 0,
+        "type-unsupported": 0
+      },
+      "reputation": 0,
+      "androguard": {
+        "RiskIndicator": {
+          "APK": {
+            "DEX": 8
+          }
+        }
+      },
+      "status": "completed"
+    }
+  }
+}

@@ -393,6 +393,43 @@ impl ViewModel {
             .map_err(|e| anyhow::anyhow!("Failed to send command: {}", e))
     }
 
+    /// Same as `run_virustotal` but scoped to a single package (e.g. to refresh
+    /// results right after that package was uninstalled/changed).
+    pub fn run_virustotal_for_package(
+        &self,
+        device: String,
+        api_key: String,
+        submit_enabled: bool,
+        package: crate::adb_stt::PackageFingerprint,
+    ) -> anyhow::Result<()> {
+        self.scan_tx
+            .send_blocking(ScanCommand::RunVirusTotalForPackage {
+                device,
+                api_key,
+                submit_enabled,
+                package,
+            })
+            .map_err(|e| anyhow::anyhow!("Failed to send command: {}", e))
+    }
+
+    /// Same as `run_hybridanalysis` but scoped to a single package.
+    pub fn run_hybridanalysis_for_package(
+        &self,
+        device: String,
+        api_key: String,
+        submit_enabled: bool,
+        package: crate::adb_stt::PackageFingerprint,
+    ) -> anyhow::Result<()> {
+        self.scan_tx
+            .send_blocking(ScanCommand::RunHybridAnalysisForPackage {
+                device,
+                api_key,
+                submit_enabled,
+                package,
+            })
+            .map_err(|e| anyhow::anyhow!("Failed to send command: {}", e))
+    }
+
     pub fn cancel_virustotal(&self) -> anyhow::Result<()> {
         self.scan_tx
             .send_blocking(ScanCommand::CancelVirusTotal)
@@ -433,9 +470,9 @@ impl ViewModel {
             .map_err(|e| anyhow::anyhow!("Failed to send command: {}", e))
     }
 
-    pub fn fetch_apkmirror_metadata(&self, package: String) -> anyhow::Result<()> {
+    pub fn fetch_apkmirror_metadata(&self, package: String, email: String) -> anyhow::Result<()> {
         self.metadata_tx
-            .send_blocking(MetadataCommand::FetchApkMirror { package })
+            .send_blocking(MetadataCommand::FetchApkMirror { package, email })
             .map_err(|e| anyhow::anyhow!("Failed to send command: {}", e))
     }
 
