@@ -207,21 +207,27 @@ fn render_filter_section(
                     .collect();
 
                 // Open confirmation dialog
-                local_state.uninstall_confirm_dialog.open_batch(package_ids, is_system);
+                local_state
+                    .uninstall_confirm_dialog
+                    .open_batch(package_ids, is_system);
             }
             if ui.button("Disable").clicked() {
                 log::info!("Batch disable requested for {} packages", selection_count);
                 let device = local_state.selected_device.clone().unwrap_or_default();
-                local_state
-                    .batch_toggle_confirm
-                    .open(true, local_state.selected_packages.clone(), device);
+                local_state.batch_toggle_confirm.open(
+                    true,
+                    local_state.selected_packages.clone(),
+                    device,
+                );
             }
             if ui.button("Enable").clicked() {
                 log::info!("Batch enable requested for {} packages", selection_count);
                 let device = local_state.selected_device.clone().unwrap_or_default();
-                local_state
-                    .batch_toggle_confirm
-                    .open(false, local_state.selected_packages.clone(), device);
+                local_state.batch_toggle_confirm.open(
+                    false,
+                    local_state.selected_packages.clone(),
+                    device,
+                );
             }
             if ui.button("Clear Selection").clicked() {
                 local_state.selected_packages.clear();
@@ -388,24 +394,29 @@ fn render_package_list(
                         "[MOBILE] Batch toggle requested for {} packages",
                         selection_count
                     );
-                    local_state
-                        .batch_toggle_confirm
-                        .open(is_enabled, selected_packages_clone.clone(), device.clone());
+                    local_state.batch_toggle_confirm.open(
+                        is_enabled,
+                        selected_packages_clone.clone(),
+                        device.clone(),
+                    );
                 } else {
                     // Single package - immediate toggle
                     if is_enabled {
                         log::info!("[MOBILE] Disabling package: {}", pkg_id);
-                        if let Err(e) = viewmodel.batch_disable(vec![pkg_id.to_string()], device.clone()) {
+                        if let Err(e) =
+                            viewmodel.batch_disable(vec![pkg_id.to_string()], device.clone())
+                        {
                             log::error!("Failed to disable {}: {}", pkg_id, e);
                             local_state.batch_disable_state.status_message =
                                 format!("Error: {}", e);
                         }
                     } else {
                         log::info!("[MOBILE] Enabling package: {}", pkg_id);
-                        if let Err(e) = viewmodel.batch_enable(vec![pkg_id.to_string()], device.clone()) {
+                        if let Err(e) =
+                            viewmodel.batch_enable(vec![pkg_id.to_string()], device.clone())
+                        {
                             log::error!("Failed to enable {}: {}", pkg_id, e);
-                            local_state.batch_enable_state.status_message =
-                                format!("Error: {}", e);
+                            local_state.batch_enable_state.status_message = format!("Error: {}", e);
                         }
                     }
                 }
@@ -417,7 +428,9 @@ fn render_package_list(
                 // Find package to determine if it's a system app
                 if let Some(package) = vm_state.filtered_packages.iter().find(|p| p.pkg == pkg_id) {
                     let is_system = package.flags.contains("SYSTEM");
-                    local_state.uninstall_confirm_dialog.open_single(pkg_id.to_string(), is_system);
+                    local_state
+                        .uninstall_confirm_dialog
+                        .open_single(pkg_id.to_string(), is_system);
                 } else {
                     log::error!("[MOBILE] Package {} not found for uninstall", pkg_id);
                 }
@@ -426,11 +439,9 @@ fn render_package_list(
     });
 
     // Render mobile info dialog if open
-    local_state.mobile_info_dialog.show(
-        ui.ctx(),
-        vm_state,
-        &vm_state.uad_ng_lists,
-    );
+    local_state
+        .mobile_info_dialog
+        .show(ui.ctx(), vm_state, &vm_state.uad_ng_lists);
 
     // Render batch toggle confirmation dialog if open
     local_state.batch_toggle_confirm.show(ui.ctx(), viewmodel);

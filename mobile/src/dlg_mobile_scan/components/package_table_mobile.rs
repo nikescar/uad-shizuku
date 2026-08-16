@@ -19,7 +19,8 @@ use crate::uad_shizuku_app::UadNgLists;
 use egui_material3::icon_button_standard;
 
 const ROW_HEIGHT: f32 = 56.0;
-const SCAN_RESULT_COLUMN_WIDTH: f32 = 260.0;
+const NAME_COLUMN_WIDTH: f32 = 320.0;
+const SCAN_RESULT_COLUMN_WIDTH: f32 = 80.0;
 const TASKS_COLUMN_WIDTH: f32 = 200.0;
 const MOBILE_BUTTON_SPACING: f32 = 16.0;
 const MOBILE_TOUCH_TARGET: f32 = 40.0;
@@ -132,7 +133,11 @@ fn get_ha_display_text(file_result: &crate::calc_hybridanalysis_stt::FileScanRes
             "submitted" => tr!("ha-submitted"),
             "pending_analysis" => {
                 if let Some(ref job_id) = file_result.job_id {
-                    let short_id = if job_id.len() > 8 { &job_id[..8] } else { job_id };
+                    let short_id = if job_id.len() > 8 {
+                        &job_id[..8]
+                    } else {
+                        job_id
+                    };
                     tr!("ha-pending", { jobid: short_id.to_string() })
                 } else {
                     tr!("ha-pending-analysis")
@@ -146,7 +151,10 @@ fn get_ha_display_text(file_result: &crate::calc_hybridanalysis_stt::FileScanRes
 
     if let Some(wait_until) = file_result.wait_until {
         use std::time::{SystemTime, UNIX_EPOCH};
-        let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
         if wait_until > now {
             let remaining_secs = wait_until - now;
             let hours = remaining_secs / 3600;
@@ -276,7 +284,11 @@ fn render_ha_chips(
                     Some(crate::calc_hybridanalysis_stt::ScanStatus::Pending) => {
                         ui.label(tr!("scan-not-scanned"));
                     }
-                    Some(crate::calc_hybridanalysis_stt::ScanStatus::Scanning { scanned, total, .. }) => {
+                    Some(crate::calc_hybridanalysis_stt::ScanStatus::Scanning {
+                        scanned,
+                        total,
+                        ..
+                    }) => {
                         ui.label(tr!("scan-scanning", { scanned: scanned, total: total }));
                     }
                     Some(crate::calc_hybridanalysis_stt::ScanStatus::Completed(result)) => {
@@ -316,7 +328,9 @@ fn render_ha_chips(
                                 "rate_limited" => egui::Color32::from_rgb(156, 39, 176),
                                 "submitted" => egui::Color32::from_rgb(33, 150, 243),
                                 "pending_analysis" => egui::Color32::from_rgb(33, 150, 243),
-                                "upload_error" | "analysis_error" => egui::Color32::from_rgb(211, 47, 47),
+                                "upload_error" | "analysis_error" => {
+                                    egui::Color32::from_rgb(211, 47, 47)
+                                }
                                 "404 Not Found" => egui::Color32::from_rgb(158, 158, 158),
                                 "" => egui::Color32::from_rgb(158, 158, 158),
                                 _ => egui::Color32::from_rgb(158, 158, 158),
@@ -327,7 +341,11 @@ fn render_ha_chips(
                                 .corner_radius(8.0)
                                 .inner_margin(egui::Margin::symmetric(12, 6))
                                 .show(ui, |ui| {
-                                    ui.label(egui::RichText::new(&text).color(egui::Color32::WHITE).size(12.0))
+                                    ui.label(
+                                        egui::RichText::new(&text)
+                                            .color(egui::Color32::WHITE)
+                                            .size(12.0),
+                                    )
                                 });
 
                             let response = ui.interact(
@@ -337,14 +355,21 @@ fn render_ha_chips(
                             );
 
                             if let Some(ref error_msg) = file_result.error_message {
-                                response.on_hover_text(format!("{}\n{}", file_result.file_path, error_msg));
+                                response.on_hover_text(format!(
+                                    "{}\n{}",
+                                    file_result.file_path, error_msg
+                                ));
                             } else {
                                 if response.clicked() {
                                     #[cfg(not(target_os = "android"))]
                                     {
                                         if !file_result.ha_link.is_empty() {
-                                            if let Err(err) = webbrowser::open(&file_result.ha_link) {
-                                                log::error!("Failed to open HybridAnalysis link: {}", err);
+                                            if let Err(err) = webbrowser::open(&file_result.ha_link)
+                                            {
+                                                log::error!(
+                                                    "Failed to open HybridAnalysis link: {}",
+                                                    err
+                                                );
                                             }
                                         }
                                     }
@@ -384,125 +409,165 @@ pub fn render_scan_table_mobile(
         tr!("col-hybrid-analysis")
     };
 
-    TableBuilder::new(ui)
-        .striped(true)
-        .resizable(false)
-        .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
-        .column(Column::remainder())
-        .column(Column::exact(SCAN_RESULT_COLUMN_WIDTH))
-        .column(Column::exact(TASKS_COLUMN_WIDTH))
-        .header(20.0, |mut header| {
-            header.col(|ui| {
-                ui.label("Name");
-            });
-            header.col(|ui| {
-                ui.label(header_label);
-            });
-            header.col(|ui| {
-                ui.label("Tasks");
-            });
-        })
-        .body(|body| {
-            body.rows(ROW_HEIGHT, packages.len(), |mut row| {
-                let row_idx = row.index();
-                let package = packages[row_idx];
+    egui::ScrollArea::horizontal()
+        .id_salt("scan_table_mobile_scroll")
+        .auto_shrink([false, true])
+        .show(ui, |ui| {
+            TableBuilder::new(ui)
+                .striped(true)
+                .resizable(false)
+                .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
+                .column(Column::exact(NAME_COLUMN_WIDTH))
+                .column(Column::exact(SCAN_RESULT_COLUMN_WIDTH))
+                .column(Column::exact(TASKS_COLUMN_WIDTH))
+                .header(20.0, |mut header| {
+                    header.col(|ui| {
+                        ui.label("Name");
+                    });
+                    header.col(|ui| {
+                        ui.label(header_label);
+                    });
+                    header.col(|ui| {
+                        ui.label("Tasks");
+                    });
+                })
+                .body(|body| {
+                    body.rows(ROW_HEIGHT, packages.len(), |mut row| {
+                        let row_idx = row.index();
+                        let package = packages[row_idx];
 
-                // Column 1: Name/Status
-                row.col(|ui| {
-                    ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
-                        let (texture_handle, app_title) = app_display_data
-                            .get(&package.pkg)
-                            .map(|(tex, title)| (tex.as_ref(), Some(title.as_str())))
-                            .unwrap_or((None, None));
+                        // Column 1: Name/Status
+                        row.col(|ui| {
+                            ui.with_layout(
+                                egui::Layout::left_to_right(egui::Align::Center),
+                                |ui| {
+                                    let (texture_handle, app_title) = app_display_data
+                                        .get(&package.pkg)
+                                        .map(|(tex, title)| (tex.as_ref(), Some(title.as_str())))
+                                        .unwrap_or((None, None));
 
-                        if let Some(tex) = texture_handle {
-                            ui.image((tex.id(), egui::vec2(38.0, 38.0)));
-                        }
+                                    if let Some(tex) = texture_handle {
+                                        ui.image((tex.id(), egui::vec2(38.0, 38.0)));
+                                    }
 
-                        ui.vertical(|ui| {
-                            ui.style_mut().spacing.item_spacing.y = 2.0;
+                                    ui.vertical(|ui| {
+                                        ui.style_mut().spacing.item_spacing.y = 2.0;
 
-                            if let Some(title) = app_title {
-                                let text_color = ui.style().visuals.text_color();
-                                ui.label(egui::RichText::new(title).strong().color(text_color));
-                                ui.label(egui::RichText::new(&package.pkg).small().weak());
-                            } else {
-                                ui.label(&package.pkg);
-                            }
+                                        if let Some(title) = app_title {
+                                            let text_color = ui.style().visuals.text_color();
+                                            ui.label(
+                                                egui::RichText::new(title)
+                                                    .strong()
+                                                    .color(text_color),
+                                            );
+                                            ui.label(
+                                                egui::RichText::new(&package.pkg).small().weak(),
+                                            );
+                                        } else {
+                                            ui.label(&package.pkg);
+                                        }
 
-                            let (status_text, status_color) = if package.users.is_empty() {
-                                ("Uninstalled", egui::Color32::from_rgb(128, 128, 128))
-                            } else {
-                                let user = &package.users[0];
-                                let is_system = package.flags.contains("SYSTEM");
-                                if user.enabled == 0 && !user.installed && is_system {
-                                    ("Removed", egui::Color32::from_rgb(158, 158, 158))
-                                } else if user.enabled == 2 {
-                                    ("Disabled", egui::Color32::from_rgb(211, 47, 47))
-                                } else if user.enabled == 3 {
-                                    ("Disabled-User", egui::Color32::from_rgb(244, 67, 54))
+                                        let (status_text, status_color) = if package
+                                            .users
+                                            .is_empty()
+                                        {
+                                            ("Uninstalled", egui::Color32::from_rgb(128, 128, 128))
+                                        } else {
+                                            let user = &package.users[0];
+                                            let is_system = package.flags.contains("SYSTEM");
+                                            if user.enabled == 0 && !user.installed && is_system {
+                                                ("Removed", egui::Color32::from_rgb(158, 158, 158))
+                                            } else if user.enabled == 2 {
+                                                ("Disabled", egui::Color32::from_rgb(211, 47, 47))
+                                            } else if user.enabled == 3 {
+                                                (
+                                                    "Disabled-User",
+                                                    egui::Color32::from_rgb(244, 67, 54),
+                                                )
+                                            } else {
+                                                ("Enabled", egui::Color32::from_rgb(56, 142, 60))
+                                            }
+                                        };
+                                        ui.label(
+                                            egui::RichText::new(status_text).color(status_color),
+                                        );
+                                    });
+                                },
+                            );
+                        });
+
+                        // Column 2: Scan Result (VT or HA chips)
+                        row.col(|ui| {
+                            ui.horizontal(|ui|{
+                                if show_vt {
+                                    let vt_status = vt_scanner_state
+                                        .and_then(|state| state.lock().ok())
+                                        .and_then(|locked| locked.get(&package.pkg).cloned());
+                                    render_vt_chips(ui, vt_status.as_ref(), row_idx);
                                 } else {
-                                    ("Enabled", egui::Color32::from_rgb(56, 142, 60))
+                                    let ha_status = ha_scanner_state
+                                        .and_then(|state| state.lock().ok())
+                                        .and_then(|locked| locked.get(&package.pkg).cloned());
+                                    render_ha_chips(
+                                        ui,
+                                        ha_status.as_ref(),
+                                        row_idx,
+                                        hybridanalysis_tag_ignorelist,
+                                    );
                                 }
-                            };
-                            ui.label(egui::RichText::new(status_text).color(status_color));
+                            });
+                        });
+
+                        // Column 3: Tasks (info / toggle / uninstall)
+                        row.col(|ui| {
+                            ui.with_layout(
+                                egui::Layout::left_to_right(egui::Align::Center),
+                                |ui| {
+                                    ui.spacing_mut().item_spacing.x = MOBILE_BUTTON_SPACING;
+                                    ui.style_mut().spacing.interact_size =
+                                        egui::vec2(MOBILE_TOUCH_TARGET, MOBILE_TOUCH_TARGET);
+
+                                    if ui
+                                        .add(icon_button_standard(ICON_INFO.to_string()))
+                                        .on_hover_text("Package details")
+                                        .clicked()
+                                    {
+                                        on_info_clicked(&package.pkg);
+                                    }
+
+                                    let is_enabled = is_row_enabled(package);
+                                    let toggle_icon = if is_enabled {
+                                        ICON_TOGGLE_ON
+                                    } else {
+                                        ICON_TOGGLE_OFF
+                                    };
+                                    let toggle_text = if is_enabled { "Disable" } else { "Enable" };
+
+                                    if ui
+                                        .add(icon_button_standard(toggle_icon.to_string()))
+                                        .on_hover_text(toggle_text)
+                                        .clicked()
+                                    {
+                                        on_toggle_clicked(&package.pkg, is_enabled);
+                                    }
+
+                                    if show_delete_button(
+                                        &package.pkg,
+                                        uad_ng_lists,
+                                        unsafe_app_remove,
+                                        expert_app_remove,
+                                    ) && ui
+                                        .add(icon_button_standard(ICON_DELETE.to_string()))
+                                        .on_hover_text("Uninstall package")
+                                        .clicked()
+                                    {
+                                        on_delete_clicked(&package.pkg);
+                                    }
+                                },
+                            );
                         });
                     });
                 });
-
-                // Column 2: Scan Result (VT or HA chips)
-                row.col(|ui| {
-                    if show_vt {
-                        let vt_status = vt_scanner_state
-                            .and_then(|state| state.lock().ok())
-                            .and_then(|locked| locked.get(&package.pkg).cloned());
-                        render_vt_chips(ui, vt_status.as_ref(), row_idx);
-                    } else {
-                        let ha_status = ha_scanner_state
-                            .and_then(|state| state.lock().ok())
-                            .and_then(|locked| locked.get(&package.pkg).cloned());
-                        render_ha_chips(ui, ha_status.as_ref(), row_idx, hybridanalysis_tag_ignorelist);
-                    }
-                });
-
-                // Column 3: Tasks (info / toggle / uninstall)
-                row.col(|ui| {
-                    ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
-                        ui.spacing_mut().item_spacing.x = MOBILE_BUTTON_SPACING;
-                        ui.style_mut().spacing.interact_size =
-                            egui::vec2(MOBILE_TOUCH_TARGET, MOBILE_TOUCH_TARGET);
-
-                        if ui
-                            .add(icon_button_standard(ICON_INFO.to_string()))
-                            .on_hover_text("Package details")
-                            .clicked()
-                        {
-                            on_info_clicked(&package.pkg);
-                        }
-
-                        let is_enabled = is_row_enabled(package);
-                        let toggle_icon = if is_enabled { ICON_TOGGLE_ON } else { ICON_TOGGLE_OFF };
-                        let toggle_text = if is_enabled { "Disable" } else { "Enable" };
-
-                        if ui
-                            .add(icon_button_standard(toggle_icon.to_string()))
-                            .on_hover_text(toggle_text)
-                            .clicked()
-                        {
-                            on_toggle_clicked(&package.pkg, is_enabled);
-                        }
-
-                        if show_delete_button(&package.pkg, uad_ng_lists, unsafe_app_remove, expert_app_remove)
-                            && ui
-                                .add(icon_button_standard(ICON_DELETE.to_string()))
-                                .on_hover_text("Uninstall package")
-                                .clicked()
-                        {
-                            on_delete_clicked(&package.pkg);
-                        }
-                    });
-                });
-            });
         });
 }
 
@@ -513,7 +578,8 @@ mod tests {
     #[test]
     fn test_constants() {
         assert_eq!(ROW_HEIGHT, 56.0);
-        assert_eq!(SCAN_RESULT_COLUMN_WIDTH, 260.0);
+        assert_eq!(NAME_COLUMN_WIDTH, 320.0);
+        assert_eq!(SCAN_RESULT_COLUMN_WIDTH, 390.0);
         assert_eq!(TASKS_COLUMN_WIDTH, 200.0);
         assert_eq!(MOBILE_BUTTON_SPACING, 16.0);
         assert_eq!(MOBILE_TOUCH_TARGET, 40.0);

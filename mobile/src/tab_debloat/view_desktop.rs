@@ -224,7 +224,9 @@ fn prepare_app_display_data(
 
             // Fall back to database
             let mut conn = crate::db::establish_connection();
-            if let Ok(Some(gp_app)) = crate::db_googleplay::get_google_play_app(&mut conn, &package.pkg) {
+            if let Ok(Some(gp_app)) =
+                crate::db_googleplay::get_google_play_app(&mut conn, &package.pkg)
+            {
                 if gp_app.raw_response != "404" {
                     if let Some(icon_base64) = &gp_app.icon_base64 {
                         let texture =
@@ -264,7 +266,9 @@ fn prepare_app_display_data(
 
             // Fall back to database
             let mut conn = crate::db::establish_connection();
-            if let Ok(Some(am_app)) = crate::db_apkmirror::get_apkmirror_app(&mut conn, &package.pkg) {
+            if let Ok(Some(am_app)) =
+                crate::db_apkmirror::get_apkmirror_app(&mut conn, &package.pkg)
+            {
                 if am_app.raw_response != "404" {
                     if let Some(icon_base64) = &am_app.icon_base64 {
                         let texture =

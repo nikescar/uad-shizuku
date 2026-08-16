@@ -266,10 +266,7 @@ impl ViewModel {
             }
             ViewModelEvent::Metadata(MetadataEvent::Error { operation, .. }) => {
                 if let Some(pkg_id) = operation.strip_prefix("fetch_android_package:") {
-                    self.pending_android_requests
-                        .lock()
-                        .unwrap()
-                        .remove(pkg_id);
+                    self.pending_android_requests.lock().unwrap().remove(pkg_id);
                 }
             }
 

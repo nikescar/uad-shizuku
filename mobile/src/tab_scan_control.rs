@@ -503,15 +503,16 @@ impl TabScanControl {
                 self.ha_scan_state.start();
 
                 // Call the new function from calc_hybridanalysis
-                let (scanner_state, rate_limiter, _join_handle) = calc_hybridanalysis::run_hybridanalysis(
-                    installed_packages,
-                    device.clone(),
-                    api_key,
-                    self.hybridanalysis_submit_enabled,
-                    self.package_risk_scores.clone(),
-                    self.ha_scan_progress.clone(),
-                    self.ha_scan_cancelled.clone(),
-                );
+                let (scanner_state, rate_limiter, _join_handle) =
+                    calc_hybridanalysis::run_hybridanalysis(
+                        installed_packages,
+                        device.clone(),
+                        api_key,
+                        self.hybridanalysis_submit_enabled,
+                        self.package_risk_scores.clone(),
+                        self.ha_scan_progress.clone(),
+                        self.ha_scan_cancelled.clone(),
+                    );
 
                 self.ha_scanner_state = Some(scanner_state);
                 self.ha_rate_limiter = Some(rate_limiter);
@@ -2817,7 +2818,11 @@ impl TabScanControl {
                                 self.virustotal_submit_enabled,
                                 package.clone(),
                             ) {
-                                log::error!("Failed to start VirusTotal refresh for {}: {}", pkg_name, e);
+                                log::error!(
+                                    "Failed to start VirusTotal refresh for {}: {}",
+                                    pkg_name,
+                                    e
+                                );
                             }
                         }
 
@@ -2828,7 +2833,11 @@ impl TabScanControl {
                                 self.hybridanalysis_submit_enabled,
                                 package,
                             ) {
-                                log::error!("Failed to start HybridAnalysis refresh for {}: {}", pkg_name, e);
+                                log::error!(
+                                    "Failed to start HybridAnalysis refresh for {}: {}",
+                                    pkg_name,
+                                    e
+                                );
                             }
                         }
                     }

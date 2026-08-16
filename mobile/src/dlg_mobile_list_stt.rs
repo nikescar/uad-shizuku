@@ -85,6 +85,9 @@ mod tests {
             MobileListViewType::HybridAnalysis
         );
         assert_ne!(MobileListViewType::VirusTotal, MobileListViewType::Debloat);
-        assert_ne!(MobileListViewType::HybridAnalysis, MobileListViewType::Stalkerware);
+        assert_ne!(
+            MobileListViewType::HybridAnalysis,
+            MobileListViewType::Stalkerware
+        );
     }
 }

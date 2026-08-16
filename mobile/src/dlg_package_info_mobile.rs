@@ -1,5 +1,5 @@
-use crate::viewmodel::ViewModelState;
 use crate::uad_shizuku_app::UadNgLists;
+use crate::viewmodel::ViewModelState;
 use eframe::egui;
 
 pub struct DlgPackageInfoMobile {
@@ -147,7 +147,10 @@ fn render_uad_section(ui: &mut egui::Ui, uad_data: &crate::uad_shizuku_app_stt::
     ui.label(format!("Description: {}", uad_data.description));
 
     if !uad_data.dependencies.is_empty() {
-        ui.label(format!("Dependencies: {}", uad_data.dependencies.join(", ")));
+        ui.label(format!(
+            "Dependencies: {}",
+            uad_data.dependencies.join(", ")
+        ));
     }
 }
 
@@ -180,7 +183,10 @@ fn render_apkmirror_section(ui: &mut egui::Ui, apk_data: &crate::models::ApkMirr
     ui.label(format!("Developer: {}", apk_data.developer));
 }
 
-fn render_virustotal_section(ui: &mut egui::Ui, vt_result: &crate::calc_virustotal_stt::ScanStatus) {
+fn render_virustotal_section(
+    ui: &mut egui::Ui,
+    vt_result: &crate::calc_virustotal_stt::ScanStatus,
+) {
     ui.heading("VirusTotal Scan");
     ui.add_space(8.0);
 

@@ -184,7 +184,10 @@ mod tests {
     #[test]
     fn test_get_display_name_falls_back_to_pkg_id_when_no_metadata() {
         let vm_state = ViewModelState::default();
-        assert_eq!(get_display_name("com.example.App", &vm_state), "com.example.app");
+        assert_eq!(
+            get_display_name("com.example.App", &vm_state),
+            "com.example.app"
+        );
     }
 
     #[test]
@@ -193,11 +196,23 @@ mod tests {
         assert!(!matches_izzyrisk_category(&RiskCategory::IzzyRiskSafe, 1));
         assert!(matches_izzyrisk_category(&RiskCategory::IzzyRiskNormal, 1));
         assert!(matches_izzyrisk_category(&RiskCategory::IzzyRiskNormal, 10));
-        assert!(!matches_izzyrisk_category(&RiskCategory::IzzyRiskNormal, 11));
-        assert!(matches_izzyrisk_category(&RiskCategory::IzzyRiskModerate, 11));
-        assert!(matches_izzyrisk_category(&RiskCategory::IzzyRiskModerate, 20));
+        assert!(!matches_izzyrisk_category(
+            &RiskCategory::IzzyRiskNormal,
+            11
+        ));
+        assert!(matches_izzyrisk_category(
+            &RiskCategory::IzzyRiskModerate,
+            11
+        ));
+        assert!(matches_izzyrisk_category(
+            &RiskCategory::IzzyRiskModerate,
+            20
+        ));
         assert!(matches_izzyrisk_category(&RiskCategory::IzzyRiskHigh, 21));
         assert!(!matches_izzyrisk_category(&RiskCategory::IzzyRiskHigh, 20));
-        assert!(!matches_izzyrisk_category(&RiskCategory::StalkerwareDetected, 5));
+        assert!(!matches_izzyrisk_category(
+            &RiskCategory::StalkerwareDetected,
+            5
+        ));
     }
 }

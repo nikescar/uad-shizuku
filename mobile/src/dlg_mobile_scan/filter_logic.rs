@@ -134,7 +134,12 @@ mod tests {
         CalcVirustotal, FileScanResult as VtFileScanResult, ScanStatus as VtScanStatus,
     };
 
-    fn vt_file(malicious: i32, suspicious: i32, not_found: bool, skipped: bool) -> VtFileScanResult {
+    fn vt_file(
+        malicious: i32,
+        suspicious: i32,
+        not_found: bool,
+        skipped: bool,
+    ) -> VtFileScanResult {
         VtFileScanResult {
             file_path: "base.apk".to_string(),
             sha256: "abc".to_string(),
@@ -169,14 +174,23 @@ mod tests {
 
     #[test]
     fn test_vt_not_scanned_when_no_status() {
-        assert!(matches_virustotal_category(&ScanCategory::VirusTotalNotScanned, None));
-        assert!(!matches_virustotal_category(&ScanCategory::VirusTotalMalicious, None));
+        assert!(matches_virustotal_category(
+            &ScanCategory::VirusTotalNotScanned,
+            None
+        ));
+        assert!(!matches_virustotal_category(
+            &ScanCategory::VirusTotalMalicious,
+            None
+        ));
     }
 
     #[test]
     fn test_vt_not_scanned_when_pending() {
         let status = VtScanStatus::Pending;
-        assert!(matches_virustotal_category(&ScanCategory::VirusTotalNotScanned, Some(&status)));
+        assert!(matches_virustotal_category(
+            &ScanCategory::VirusTotalNotScanned,
+            Some(&status)
+        ));
     }
 
     #[test]
@@ -186,8 +200,14 @@ mod tests {
             files_attempted: 1,
             files_skipped_invalid_hash: 0,
         });
-        assert!(matches_virustotal_category(&ScanCategory::VirusTotalMalicious, Some(&status)));
-        assert!(!matches_virustotal_category(&ScanCategory::VirusTotalSafe, Some(&status)));
+        assert!(matches_virustotal_category(
+            &ScanCategory::VirusTotalMalicious,
+            Some(&status)
+        ));
+        assert!(!matches_virustotal_category(
+            &ScanCategory::VirusTotalSafe,
+            Some(&status)
+        ));
     }
 
     #[test]
@@ -197,7 +217,10 @@ mod tests {
             files_attempted: 1,
             files_skipped_invalid_hash: 0,
         });
-        assert!(matches_virustotal_category(&ScanCategory::VirusTotalSuspicious, Some(&status)));
+        assert!(matches_virustotal_category(
+            &ScanCategory::VirusTotalSuspicious,
+            Some(&status)
+        ));
     }
 
     #[test]
@@ -207,7 +230,10 @@ mod tests {
             files_attempted: 1,
             files_skipped_invalid_hash: 0,
         });
-        assert!(matches_virustotal_category(&ScanCategory::VirusTotalSafe, Some(&status)));
+        assert!(matches_virustotal_category(
+            &ScanCategory::VirusTotalSafe,
+            Some(&status)
+        ));
     }
 
     #[test]
@@ -217,20 +243,33 @@ mod tests {
             files_attempted: 1,
             files_skipped_invalid_hash: 0,
         });
-        assert!(matches_virustotal_category(&ScanCategory::VirusTotalNotScanned, Some(&not_found)));
-        assert!(!matches_virustotal_category(&ScanCategory::VirusTotalMalicious, Some(&not_found)));
+        assert!(matches_virustotal_category(
+            &ScanCategory::VirusTotalNotScanned,
+            Some(&not_found)
+        ));
+        assert!(!matches_virustotal_category(
+            &ScanCategory::VirusTotalMalicious,
+            Some(&not_found)
+        ));
 
         let skipped = VtScanStatus::Completed(CalcVirustotal {
             file_results: vec![vt_file(0, 0, false, true)],
             files_attempted: 1,
             files_skipped_invalid_hash: 0,
         });
-        assert!(matches_virustotal_category(&ScanCategory::VirusTotalNotScanned, Some(&skipped)));
+        assert!(matches_virustotal_category(
+            &ScanCategory::VirusTotalNotScanned,
+            Some(&skipped)
+        ));
     }
 
     #[test]
     fn test_ha_not_scanned_when_no_status() {
-        assert!(matches_hybridanalysis_category(&ScanCategory::HybridAnalysisNotScanned, None, ""));
+        assert!(matches_hybridanalysis_category(
+            &ScanCategory::HybridAnalysisNotScanned,
+            None,
+            ""
+        ));
     }
 
     #[test]
@@ -272,7 +311,11 @@ mod tests {
         let status = HaScanStatus::Completed(CalcHybridAnalysis {
             file_results: vec![ha_file("suspicious", vec![])],
         });
-        assert!(matches_hybridanalysis_category(&ScanCategory::HybridAnalysisSuspicious, Some(&status), ""));
+        assert!(matches_hybridanalysis_category(
+            &ScanCategory::HybridAnalysisSuspicious,
+            Some(&status),
+            ""
+        ));
     }
 
     #[test]
@@ -280,7 +323,11 @@ mod tests {
         let status = HaScanStatus::Completed(CalcHybridAnalysis {
             file_results: vec![ha_file("whitelisted", vec![])],
         });
-        assert!(matches_hybridanalysis_category(&ScanCategory::HybridAnalysisSafe, Some(&status), ""));
+        assert!(matches_hybridanalysis_category(
+            &ScanCategory::HybridAnalysisSafe,
+            Some(&status),
+            ""
+        ));
     }
 
     #[test]
@@ -288,7 +335,15 @@ mod tests {
         let status = HaScanStatus::Completed(CalcHybridAnalysis {
             file_results: vec![ha_file("404 Not Found", vec![])],
         });
-        assert!(matches_hybridanalysis_category(&ScanCategory::HybridAnalysisNotScanned, Some(&status), ""));
-        assert!(!matches_hybridanalysis_category(&ScanCategory::HybridAnalysisSafe, Some(&status), ""));
+        assert!(matches_hybridanalysis_category(
+            &ScanCategory::HybridAnalysisNotScanned,
+            Some(&status),
+            ""
+        ));
+        assert!(!matches_hybridanalysis_category(
+            &ScanCategory::HybridAnalysisSafe,
+            Some(&status),
+            ""
+        ));
     }
 }

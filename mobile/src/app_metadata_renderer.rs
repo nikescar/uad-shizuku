@@ -65,13 +65,15 @@ pub fn prepare_app_info_for_display(
 
     if let Ok(fd_count) = crate::schema::fdroid_apps::table
         .select(count_star())
-        .first::<i64>(&mut test_conn) {
+        .first::<i64>(&mut test_conn)
+    {
         log::debug!("[RENDER] fdroid_apps table has {} entries", fd_count);
     }
 
     if let Ok(gp_count) = crate::schema::google_play_apps::table
         .select(count_star())
-        .first::<i64>(&mut test_conn) {
+        .first::<i64>(&mut test_conn)
+    {
         log::debug!("[RENDER] google_play_apps table has {} entries", gp_count);
     }
     // === END DIAGNOSTIC ===
@@ -157,7 +159,10 @@ pub fn prepare_app_info_for_display(
                     Ok(Some(fd_app)) => {
                         if fd_app.raw_response != "404" {
                             db_hits += 1;
-                            log::debug!("[RENDER] Found F-Droid metadata in database for {}", pkg_id);
+                            log::debug!(
+                                "[RENDER] Found F-Droid metadata in database for {}",
+                                pkg_id
+                            );
                             apps_to_load.push((
                                 pkg_id.clone(),
                                 fd_app.icon_base64.clone(),
@@ -174,7 +179,11 @@ pub fn prepare_app_info_for_display(
                         log::debug!("[RENDER] No F-Droid database entry for {}", pkg_id);
                     }
                     Err(e) => {
-                        log::warn!("[RENDER] F-Droid database query failed for {}: {}", pkg_id, e);
+                        log::warn!(
+                            "[RENDER] F-Droid database query failed for {}: {}",
+                            pkg_id,
+                            e
+                        );
                     }
                 }
             }
@@ -238,14 +247,21 @@ pub fn prepare_app_info_for_display(
                             ));
                             continue;
                         } else {
-                            log::debug!("[RENDER] Google Play database entry for {} is 404", pkg_id);
+                            log::debug!(
+                                "[RENDER] Google Play database entry for {} is 404",
+                                pkg_id
+                            );
                         }
                     }
                     Ok(None) => {
                         log::debug!("[RENDER] No Google Play database entry for {}", pkg_id);
                     }
                     Err(e) => {
-                        log::warn!("[RENDER] Google Play database query failed for {}: {}", pkg_id, e);
+                        log::warn!(
+                            "[RENDER] Google Play database query failed for {}: {}",
+                            pkg_id,
+                            e
+                        );
                     }
                 }
             }

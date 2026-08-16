@@ -310,10 +310,9 @@ impl MetadataActor {
                     }
 
                     let pkg_for_fetch = package_clone.clone();
-                    let result = smol::unblock(move || {
-                        fetch_apkmirror_blocking(&pkg_for_fetch, &email)
-                    })
-                    .await;
+                    let result =
+                        smol::unblock(move || fetch_apkmirror_blocking(&pkg_for_fetch, &email))
+                            .await;
 
                     match result {
                         Ok(app) => {
@@ -368,7 +367,9 @@ impl MetadataActor {
                         .await
                     };
                     #[cfg(not(target_os = "android"))]
-                    let fetched: Option<crate::calc_androidpackage::AndroidPackageInfo> = None;
+                    let fetched: Option<
+                        crate::calc_androidpackage::AndroidPackageInfo,
+                    > = None;
 
                     match fetched {
                         Some(app) => {

@@ -144,7 +144,11 @@ pub fn render(
 
     if local_state.uninstall_confirm_dialog.show(ctx) {
         if let (Some(pkg_id), Some(&is_system)) = (
-            local_state.uninstall_confirm_dialog.packages.first().cloned(),
+            local_state
+                .uninstall_confirm_dialog
+                .packages
+                .first()
+                .cloned(),
             local_state.uninstall_confirm_dialog.is_system.first(),
         ) {
             ctx.data_mut(|data| {

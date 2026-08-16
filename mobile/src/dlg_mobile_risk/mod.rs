@@ -46,8 +46,14 @@ mod tests {
     #[test]
     fn test_risk_category_variants_are_distinct() {
         assert_ne!(RiskCategory::IzzyRiskSafe, RiskCategory::IzzyRiskNormal);
-        assert_ne!(RiskCategory::StalkerwareDetected, RiskCategory::StalkerwareUndetected);
-        assert_ne!(RiskCategory::IzzyRiskHigh, RiskCategory::StalkerwareDetected);
+        assert_ne!(
+            RiskCategory::StalkerwareDetected,
+            RiskCategory::StalkerwareUndetected
+        );
+        assert_ne!(
+            RiskCategory::IzzyRiskHigh,
+            RiskCategory::StalkerwareDetected
+        );
     }
 
     #[test]

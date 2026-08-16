@@ -242,7 +242,10 @@ impl FDroidQueue {
 }
 
 /// Save F-Droid app info to database
-pub(crate) fn save_to_db(conn: &mut SqliteConnection, app_info: &FDroidAppInfo) -> Result<FDroidApp> {
+pub(crate) fn save_to_db(
+    conn: &mut SqliteConnection,
+    app_info: &FDroidAppInfo,
+) -> Result<FDroidApp> {
     upsert_fdroid_app(
         conn,
         &app_info.package_id,

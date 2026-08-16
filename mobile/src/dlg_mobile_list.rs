@@ -116,7 +116,7 @@ impl DlgMobileList {
 
         egui::Window::new(window_title)
             .id(egui::Id::new("mobile_list_window"))
-            .title_bar(false)  // Disable default title bar
+            .title_bar(false) // Disable default title bar
             .resizable(true)
             .collapsible(false)
             .scroll([false, false])

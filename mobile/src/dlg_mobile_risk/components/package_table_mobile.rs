@@ -176,7 +176,11 @@ pub fn render_risk_table_mobile(
                         }
 
                         let is_enabled = is_row_enabled(package);
-                        let toggle_icon = if is_enabled { ICON_TOGGLE_ON } else { ICON_TOGGLE_OFF };
+                        let toggle_icon = if is_enabled {
+                            ICON_TOGGLE_ON
+                        } else {
+                            ICON_TOGGLE_OFF
+                        };
                         let toggle_text = if is_enabled { "Disable" } else { "Enable" };
 
                         if ui

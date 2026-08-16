@@ -1269,8 +1269,7 @@ impl UadShizukuApp {
                                 && is_pkg_enabled(pkg)
                         })
                         .count();
-                    self.dlg_mobile_list.risk_state.category =
-                        Some(RiskCategory::IzzyRiskModerate);
+                    self.dlg_mobile_list.risk_state.category = Some(RiskCategory::IzzyRiskModerate);
                     self.dlg_mobile_list.risk_state.count_enabled = enabled;
                     self.dlg_mobile_list.risk_state.count_total = total;
                     self.dlg_mobile_list
@@ -1324,8 +1323,7 @@ impl UadShizukuApp {
                                 && is_pkg_enabled(pkg)
                         })
                         .count();
-                    self.dlg_mobile_list.risk_state.category =
-                        Some(RiskCategory::IzzyRiskNormal);
+                    self.dlg_mobile_list.risk_state.category = Some(RiskCategory::IzzyRiskNormal);
                     self.dlg_mobile_list.risk_state.count_enabled = enabled;
                     self.dlg_mobile_list.risk_state.count_total = total;
                     self.dlg_mobile_list
@@ -1387,16 +1385,20 @@ impl UadShizukuApp {
                     (None, 0, 0)
                 }
                 ("virustotal", 0) => {
-                    self.dlg_mobile_list.scan_state.category = Some(ScanCategory::VirusTotalMalicious);
-                    self.dlg_mobile_list.scan_state.count_enabled = cached_scan_counts.vt_counts.1 .0;
+                    self.dlg_mobile_list.scan_state.category =
+                        Some(ScanCategory::VirusTotalMalicious);
+                    self.dlg_mobile_list.scan_state.count_enabled =
+                        cached_scan_counts.vt_counts.1 .0;
                     self.dlg_mobile_list.scan_state.count_total = cached_scan_counts.vt_counts.1 .1;
                     self.dlg_mobile_list
                         .open(crate::dlg_mobile_list::MobileListViewType::VirusTotal, None);
                     (None, 0, 0)
                 }
                 ("virustotal", 1) => {
-                    self.dlg_mobile_list.scan_state.category = Some(ScanCategory::VirusTotalSuspicious);
-                    self.dlg_mobile_list.scan_state.count_enabled = cached_scan_counts.vt_counts.2 .0;
+                    self.dlg_mobile_list.scan_state.category =
+                        Some(ScanCategory::VirusTotalSuspicious);
+                    self.dlg_mobile_list.scan_state.count_enabled =
+                        cached_scan_counts.vt_counts.2 .0;
                     self.dlg_mobile_list.scan_state.count_total = cached_scan_counts.vt_counts.2 .1;
                     self.dlg_mobile_list
                         .open(crate::dlg_mobile_list::MobileListViewType::VirusTotal, None);
@@ -1404,59 +1406,81 @@ impl UadShizukuApp {
                 }
                 ("virustotal", 2) => {
                     self.dlg_mobile_list.scan_state.category = Some(ScanCategory::VirusTotalSafe);
-                    self.dlg_mobile_list.scan_state.count_enabled = cached_scan_counts.vt_counts.3 .0;
+                    self.dlg_mobile_list.scan_state.count_enabled =
+                        cached_scan_counts.vt_counts.3 .0;
                     self.dlg_mobile_list.scan_state.count_total = cached_scan_counts.vt_counts.3 .1;
                     self.dlg_mobile_list
                         .open(crate::dlg_mobile_list::MobileListViewType::VirusTotal, None);
                     (None, 0, 0)
                 }
                 ("virustotal", 3) => {
-                    self.dlg_mobile_list.scan_state.category = Some(ScanCategory::VirusTotalNotScanned);
-                    self.dlg_mobile_list.scan_state.count_enabled = cached_scan_counts.vt_counts.4 .0;
+                    self.dlg_mobile_list.scan_state.category =
+                        Some(ScanCategory::VirusTotalNotScanned);
+                    self.dlg_mobile_list.scan_state.count_enabled =
+                        cached_scan_counts.vt_counts.4 .0;
                     self.dlg_mobile_list.scan_state.count_total = cached_scan_counts.vt_counts.4 .1;
                     self.dlg_mobile_list
                         .open(crate::dlg_mobile_list::MobileListViewType::VirusTotal, None);
                     (None, 0, 0)
                 }
                 ("hybridanalysis", 0) => {
-                    self.dlg_mobile_list.scan_state.category = Some(ScanCategory::HybridAnalysisMalicious);
-                    self.dlg_mobile_list.scan_state.count_enabled = cached_scan_counts.ha_counts.1 .0;
+                    self.dlg_mobile_list.scan_state.category =
+                        Some(ScanCategory::HybridAnalysisMalicious);
+                    self.dlg_mobile_list.scan_state.count_enabled =
+                        cached_scan_counts.ha_counts.1 .0;
                     self.dlg_mobile_list.scan_state.count_total = cached_scan_counts.ha_counts.1 .1;
-                    self.dlg_mobile_list
-                        .open(crate::dlg_mobile_list::MobileListViewType::HybridAnalysis, None);
+                    self.dlg_mobile_list.open(
+                        crate::dlg_mobile_list::MobileListViewType::HybridAnalysis,
+                        None,
+                    );
                     (None, 0, 0)
                 }
                 ("hybridanalysis", 1) => {
                     self.dlg_mobile_list.scan_state.category =
                         Some(ScanCategory::HybridAnalysisMaliciousIgnored);
-                    self.dlg_mobile_list.scan_state.count_enabled = cached_scan_counts.ha_counts.2 .0;
+                    self.dlg_mobile_list.scan_state.count_enabled =
+                        cached_scan_counts.ha_counts.2 .0;
                     self.dlg_mobile_list.scan_state.count_total = cached_scan_counts.ha_counts.2 .1;
-                    self.dlg_mobile_list
-                        .open(crate::dlg_mobile_list::MobileListViewType::HybridAnalysis, None);
+                    self.dlg_mobile_list.open(
+                        crate::dlg_mobile_list::MobileListViewType::HybridAnalysis,
+                        None,
+                    );
                     (None, 0, 0)
                 }
                 ("hybridanalysis", 2) => {
-                    self.dlg_mobile_list.scan_state.category = Some(ScanCategory::HybridAnalysisSuspicious);
-                    self.dlg_mobile_list.scan_state.count_enabled = cached_scan_counts.ha_counts.3 .0;
+                    self.dlg_mobile_list.scan_state.category =
+                        Some(ScanCategory::HybridAnalysisSuspicious);
+                    self.dlg_mobile_list.scan_state.count_enabled =
+                        cached_scan_counts.ha_counts.3 .0;
                     self.dlg_mobile_list.scan_state.count_total = cached_scan_counts.ha_counts.3 .1;
-                    self.dlg_mobile_list
-                        .open(crate::dlg_mobile_list::MobileListViewType::HybridAnalysis, None);
+                    self.dlg_mobile_list.open(
+                        crate::dlg_mobile_list::MobileListViewType::HybridAnalysis,
+                        None,
+                    );
                     (None, 0, 0)
                 }
                 ("hybridanalysis", 3) => {
-                    self.dlg_mobile_list.scan_state.category = Some(ScanCategory::HybridAnalysisSafe);
-                    self.dlg_mobile_list.scan_state.count_enabled = cached_scan_counts.ha_counts.4 .0;
+                    self.dlg_mobile_list.scan_state.category =
+                        Some(ScanCategory::HybridAnalysisSafe);
+                    self.dlg_mobile_list.scan_state.count_enabled =
+                        cached_scan_counts.ha_counts.4 .0;
                     self.dlg_mobile_list.scan_state.count_total = cached_scan_counts.ha_counts.4 .1;
-                    self.dlg_mobile_list
-                        .open(crate::dlg_mobile_list::MobileListViewType::HybridAnalysis, None);
+                    self.dlg_mobile_list.open(
+                        crate::dlg_mobile_list::MobileListViewType::HybridAnalysis,
+                        None,
+                    );
                     (None, 0, 0)
                 }
                 ("hybridanalysis", 4) => {
-                    self.dlg_mobile_list.scan_state.category = Some(ScanCategory::HybridAnalysisNotScanned);
-                    self.dlg_mobile_list.scan_state.count_enabled = cached_scan_counts.ha_counts.5 .0;
+                    self.dlg_mobile_list.scan_state.category =
+                        Some(ScanCategory::HybridAnalysisNotScanned);
+                    self.dlg_mobile_list.scan_state.count_enabled =
+                        cached_scan_counts.ha_counts.5 .0;
                     self.dlg_mobile_list.scan_state.count_total = cached_scan_counts.ha_counts.5 .1;
-                    self.dlg_mobile_list
-                        .open(crate::dlg_mobile_list::MobileListViewType::HybridAnalysis, None);
+                    self.dlg_mobile_list.open(
+                        crate::dlg_mobile_list::MobileListViewType::HybridAnalysis,
+                        None,
+                    );
                     (None, 0, 0)
                 }
                 ("offa", idx) => {
@@ -1885,7 +1909,11 @@ impl UadShizukuApp {
                                 self.tab_scan_control.virustotal_submit_enabled,
                                 package.clone(),
                             ) {
-                                log::error!("Failed to start VirusTotal refresh for {}: {}", pkg_name, e);
+                                log::error!(
+                                    "Failed to start VirusTotal refresh for {}: {}",
+                                    pkg_name,
+                                    e
+                                );
                             }
                         }
 
@@ -1896,7 +1924,11 @@ impl UadShizukuApp {
                                 self.tab_scan_control.hybridanalysis_submit_enabled,
                                 package,
                             ) {
-                                log::error!("Failed to start HybridAnalysis refresh for {}: {}", pkg_name, e);
+                                log::error!(
+                                    "Failed to start HybridAnalysis refresh for {}: {}",
+                                    pkg_name,
+                                    e
+                                );
                             }
                         }
                     }
@@ -4277,6 +4309,14 @@ impl eframe::App for UadShizukuApp {
             log::info!("First update - initializing Shizuku");
             crate::calc::retrieve_adb_devices(self);
 
+            // Start a foreground service so the process survives device sleep
+            // (screen off / backgrounding) instead of being reclaimed by the OS,
+            // which previously reset all in-memory app state on resume.
+            if let Err(e) = crate::android_foreground_service::start_foreground_keep_alive_service()
+            {
+                log::warn!("Failed to start foreground keep-alive service: {}", e);
+            }
+
             // Check for updates if autoupdate is enabled
             if self.settings.autoupdate {
                 log::info!("Autoupdate enabled - checking for updates");
@@ -4348,6 +4388,13 @@ impl eframe::App for UadShizukuApp {
         #[cfg(target_os = "android")]
         if needs_shizuku_polling {
             ctx.request_repaint_after(std::time::Duration::from_millis(500));
+        }
+    }
+
+    fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
+        #[cfg(target_os = "android")]
+        if let Err(e) = crate::android_foreground_service::stop_foreground_keep_alive_service() {
+            log::warn!("Failed to stop foreground keep-alive service: {}", e);
         }
     }
 }

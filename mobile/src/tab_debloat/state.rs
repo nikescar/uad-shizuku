@@ -46,7 +46,11 @@ impl DlgBatchToggleConfirm {
         let mut confirmed = false;
         let mut cancelled = false;
 
-        let action = if self.is_enabling { "Enable" } else { "Disable" };
+        let action = if self.is_enabling {
+            "Enable"
+        } else {
+            "Disable"
+        };
 
         eframe::egui::Window::new(format!("Confirm Batch {}", action))
             .collapsible(false)

@@ -239,7 +239,10 @@ impl GooglePlayQueue {
 }
 
 /// Save Google Play app info to database
-pub(crate) fn save_to_db(conn: &mut SqliteConnection, app_info: &GooglePlayAppInfo) -> Result<GooglePlayApp> {
+pub(crate) fn save_to_db(
+    conn: &mut SqliteConnection,
+    app_info: &GooglePlayAppInfo,
+) -> Result<GooglePlayApp> {
     upsert_google_play_app(
         conn,
         &app_info.package_id,

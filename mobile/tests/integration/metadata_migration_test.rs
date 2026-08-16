@@ -14,7 +14,16 @@ fn test_google_play_metadata_cached_in_viewmodel() {
     let pkg_id = "com.example.metadata_migration_googleplay";
     let mut conn = db::establish_connection();
     db_googleplay::upsert_google_play_app(
-        &mut conn, pkg_id, "Test App", "Test Developer", None, None, None, None, None, "{}",
+        &mut conn,
+        pkg_id,
+        "Test App",
+        "Test Developer",
+        None,
+        None,
+        None,
+        None,
+        None,
+        "{}",
     )
     .expect("Failed to seed Google Play cache");
 
@@ -158,10 +167,9 @@ fn test_android_package_metadata_cached_in_viewmodel() {
         "Android Package metadata has no desktop source, so it should not be cached"
     );
     assert!(
-        events.iter().any(|e| matches!(
-            e,
-            ViewModelEvent::Metadata(MetadataEvent::Error { .. })
-        )),
+        events
+            .iter()
+            .any(|e| matches!(e, ViewModelEvent::Metadata(MetadataEvent::Error { .. }))),
         "Should receive a MetadataEvent::Error since this platform has no PackageManager"
     );
 
@@ -178,7 +186,16 @@ fn test_metadata_cache_persists_across_calls() {
     let pkg_id = "com.example.metadata_migration_persist";
     let mut conn = db::establish_connection();
     db_googleplay::upsert_google_play_app(
-        &mut conn, pkg_id, "Persist App", "Test Developer", None, None, None, None, None, "{}",
+        &mut conn,
+        pkg_id,
+        "Persist App",
+        "Test Developer",
+        None,
+        None,
+        None,
+        None,
+        None,
+        "{}",
     )
     .expect("Failed to seed Google Play cache");
 

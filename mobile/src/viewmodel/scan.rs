@@ -162,15 +162,16 @@ impl ScanActor {
                     // waiting for the whole (possibly many-minutes-long, VirusTotal free tier
                     // is 4 req/min) scan to finish first, so results appear per-package as the
                     // scan runs instead of only once at the very end.
-                    let (scanner_state, _rate_limiter, handle) = crate::calc_virustotal::run_virustotal(
-                        installed_packages,
-                        device_clone,
-                        api_key_clone,
-                        submit_enabled,
-                        package_risk_scores,
-                        progress_for_scan,
-                        cancel_clone,
-                    );
+                    let (scanner_state, _rate_limiter, handle) =
+                        crate::calc_virustotal::run_virustotal(
+                            installed_packages,
+                            device_clone,
+                            api_key_clone,
+                            submit_enabled,
+                            package_risk_scores,
+                            progress_for_scan,
+                            cancel_clone,
+                        );
 
                     let _ = event_tx
                         .send(ViewModelEvent::Scan(ScanEvent::VirusTotalStateUpdated(
@@ -326,15 +327,16 @@ impl ScanActor {
                     let progress_for_scan = progress.clone();
                     let progress_done = Arc::new(AtomicBool::new(false));
 
-                    let (scanner_state, _rate_limiter, handle) = crate::calc_virustotal::run_virustotal(
-                        vec![package],
-                        device_clone,
-                        api_key_clone,
-                        submit_enabled,
-                        package_risk_scores,
-                        progress_for_scan,
-                        cancel_clone,
-                    );
+                    let (scanner_state, _rate_limiter, handle) =
+                        crate::calc_virustotal::run_virustotal(
+                            vec![package],
+                            device_clone,
+                            api_key_clone,
+                            submit_enabled,
+                            package_risk_scores,
+                            progress_for_scan,
+                            cancel_clone,
+                        );
 
                     let _ = event_tx
                         .send(ViewModelEvent::Scan(ScanEvent::VirusTotalStateUpdated(

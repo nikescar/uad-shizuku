@@ -68,12 +68,18 @@ mod tests {
 
     #[test]
     fn test_scan_category_variants_are_distinct() {
-        assert_ne!(ScanCategory::VirusTotalMalicious, ScanCategory::VirusTotalSuspicious);
+        assert_ne!(
+            ScanCategory::VirusTotalMalicious,
+            ScanCategory::VirusTotalSuspicious
+        );
         assert_ne!(
             ScanCategory::HybridAnalysisMalicious,
             ScanCategory::HybridAnalysisMaliciousIgnored
         );
-        assert_ne!(ScanCategory::VirusTotalSafe, ScanCategory::HybridAnalysisSafe);
+        assert_ne!(
+            ScanCategory::VirusTotalSafe,
+            ScanCategory::HybridAnalysisSafe
+        );
     }
 
     #[test]
@@ -86,7 +92,9 @@ mod tests {
     #[test]
     fn test_is_hybridanalysis() {
         assert!(is_hybridanalysis(&ScanCategory::HybridAnalysisSafe));
-        assert!(is_hybridanalysis(&ScanCategory::HybridAnalysisMaliciousIgnored));
+        assert!(is_hybridanalysis(
+            &ScanCategory::HybridAnalysisMaliciousIgnored
+        ));
         assert!(!is_hybridanalysis(&ScanCategory::VirusTotalSafe));
     }
 

@@ -55,11 +55,19 @@ pub fn render(
                     .as_ref()
                     .and_then(|state| state.lock().ok())
                     .and_then(|locked| locked.get(&pkg.pkg).cloned());
-                matches_hybridanalysis_category(&category, ha_status.as_ref(), hybridanalysis_tag_ignorelist)
+                matches_hybridanalysis_category(
+                    &category,
+                    ha_status.as_ref(),
+                    hybridanalysis_tag_ignorelist,
+                )
             };
 
             matches_category
-                && should_show_package(pkg, local_state.show_only_enabled, local_state.hide_system_app)
+                && should_show_package(
+                    pkg,
+                    local_state.show_only_enabled,
+                    local_state.hide_system_app,
+                )
                 && matches_text_filter(&local_state.text_filter, pkg, vm_state)
         })
         .collect();
@@ -136,7 +144,11 @@ pub fn render(
 
     if local_state.uninstall_confirm_dialog.show(ctx) {
         if let (Some(pkg_id), Some(&is_system)) = (
-            local_state.uninstall_confirm_dialog.packages.first().cloned(),
+            local_state
+                .uninstall_confirm_dialog
+                .packages
+                .first()
+                .cloned(),
             local_state.uninstall_confirm_dialog.is_system.first(),
         ) {
             ctx.data_mut(|data| {
