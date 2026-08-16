@@ -28,6 +28,7 @@ use crate::adb::{get_users, UserInfo};
 // use crate::android_packagemanager::get_installed_packages;
 use crate::dlg_dashcounter_details::DlgDashCounterDetails;
 use crate::dlg_mobile_risk::RiskCategory;
+use crate::dlg_mobile_scan::ScanCategory;
 use crate::tab_apps_control::TabAppsControl;
 use crate::tab_debloat::TabDebloat;
 use crate::tab_scan_control::TabScanControl;
@@ -1385,51 +1386,79 @@ impl UadShizukuApp {
                         .open(crate::dlg_mobile_list::MobileListViewType::IzzyRisk, None);
                     (None, 0, 0)
                 }
-                ("virustotal", 0) => (
-                    Some(DashCounterCategory::VirusTotalMalicious),
-                    cached_scan_counts.vt_counts.1 .0,
-                    cached_scan_counts.vt_counts.1 .1,
-                ),
-                ("virustotal", 1) => (
-                    Some(DashCounterCategory::VirusTotalSuspicious),
-                    cached_scan_counts.vt_counts.2 .0,
-                    cached_scan_counts.vt_counts.2 .1,
-                ),
-                ("virustotal", 2) => (
-                    Some(DashCounterCategory::VirusTotalSafe),
-                    cached_scan_counts.vt_counts.3 .0,
-                    cached_scan_counts.vt_counts.3 .1,
-                ),
-                ("virustotal", 3) => (
-                    Some(DashCounterCategory::VirusTotalNotScanned),
-                    cached_scan_counts.vt_counts.4 .0,
-                    cached_scan_counts.vt_counts.4 .1,
-                ),
-                ("hybridanalysis", 0) => (
-                    Some(DashCounterCategory::HybridAnalysisMalicious),
-                    cached_scan_counts.ha_counts.1 .0,
-                    cached_scan_counts.ha_counts.1 .1,
-                ),
-                ("hybridanalysis", 1) => (
-                    Some(DashCounterCategory::HybridAnalysisMaliciousIgnored),
-                    cached_scan_counts.ha_counts.2 .0,
-                    cached_scan_counts.ha_counts.2 .1,
-                ),
-                ("hybridanalysis", 2) => (
-                    Some(DashCounterCategory::HybridAnalysisSuspicious),
-                    cached_scan_counts.ha_counts.3 .0,
-                    cached_scan_counts.ha_counts.3 .1,
-                ),
-                ("hybridanalysis", 3) => (
-                    Some(DashCounterCategory::HybridAnalysisSafe),
-                    cached_scan_counts.ha_counts.4 .0,
-                    cached_scan_counts.ha_counts.4 .1,
-                ),
-                ("hybridanalysis", 4) => (
-                    Some(DashCounterCategory::HybridAnalysisNotScanned),
-                    cached_scan_counts.ha_counts.5 .0,
-                    cached_scan_counts.ha_counts.5 .1,
-                ),
+                ("virustotal", 0) => {
+                    self.dlg_mobile_list.scan_state.category = Some(ScanCategory::VirusTotalMalicious);
+                    self.dlg_mobile_list.scan_state.count_enabled = cached_scan_counts.vt_counts.1 .0;
+                    self.dlg_mobile_list.scan_state.count_total = cached_scan_counts.vt_counts.1 .1;
+                    self.dlg_mobile_list
+                        .open(crate::dlg_mobile_list::MobileListViewType::VirusTotal, None);
+                    (None, 0, 0)
+                }
+                ("virustotal", 1) => {
+                    self.dlg_mobile_list.scan_state.category = Some(ScanCategory::VirusTotalSuspicious);
+                    self.dlg_mobile_list.scan_state.count_enabled = cached_scan_counts.vt_counts.2 .0;
+                    self.dlg_mobile_list.scan_state.count_total = cached_scan_counts.vt_counts.2 .1;
+                    self.dlg_mobile_list
+                        .open(crate::dlg_mobile_list::MobileListViewType::VirusTotal, None);
+                    (None, 0, 0)
+                }
+                ("virustotal", 2) => {
+                    self.dlg_mobile_list.scan_state.category = Some(ScanCategory::VirusTotalSafe);
+                    self.dlg_mobile_list.scan_state.count_enabled = cached_scan_counts.vt_counts.3 .0;
+                    self.dlg_mobile_list.scan_state.count_total = cached_scan_counts.vt_counts.3 .1;
+                    self.dlg_mobile_list
+                        .open(crate::dlg_mobile_list::MobileListViewType::VirusTotal, None);
+                    (None, 0, 0)
+                }
+                ("virustotal", 3) => {
+                    self.dlg_mobile_list.scan_state.category = Some(ScanCategory::VirusTotalNotScanned);
+                    self.dlg_mobile_list.scan_state.count_enabled = cached_scan_counts.vt_counts.4 .0;
+                    self.dlg_mobile_list.scan_state.count_total = cached_scan_counts.vt_counts.4 .1;
+                    self.dlg_mobile_list
+                        .open(crate::dlg_mobile_list::MobileListViewType::VirusTotal, None);
+                    (None, 0, 0)
+                }
+                ("hybridanalysis", 0) => {
+                    self.dlg_mobile_list.scan_state.category = Some(ScanCategory::HybridAnalysisMalicious);
+                    self.dlg_mobile_list.scan_state.count_enabled = cached_scan_counts.ha_counts.1 .0;
+                    self.dlg_mobile_list.scan_state.count_total = cached_scan_counts.ha_counts.1 .1;
+                    self.dlg_mobile_list
+                        .open(crate::dlg_mobile_list::MobileListViewType::HybridAnalysis, None);
+                    (None, 0, 0)
+                }
+                ("hybridanalysis", 1) => {
+                    self.dlg_mobile_list.scan_state.category =
+                        Some(ScanCategory::HybridAnalysisMaliciousIgnored);
+                    self.dlg_mobile_list.scan_state.count_enabled = cached_scan_counts.ha_counts.2 .0;
+                    self.dlg_mobile_list.scan_state.count_total = cached_scan_counts.ha_counts.2 .1;
+                    self.dlg_mobile_list
+                        .open(crate::dlg_mobile_list::MobileListViewType::HybridAnalysis, None);
+                    (None, 0, 0)
+                }
+                ("hybridanalysis", 2) => {
+                    self.dlg_mobile_list.scan_state.category = Some(ScanCategory::HybridAnalysisSuspicious);
+                    self.dlg_mobile_list.scan_state.count_enabled = cached_scan_counts.ha_counts.3 .0;
+                    self.dlg_mobile_list.scan_state.count_total = cached_scan_counts.ha_counts.3 .1;
+                    self.dlg_mobile_list
+                        .open(crate::dlg_mobile_list::MobileListViewType::HybridAnalysis, None);
+                    (None, 0, 0)
+                }
+                ("hybridanalysis", 3) => {
+                    self.dlg_mobile_list.scan_state.category = Some(ScanCategory::HybridAnalysisSafe);
+                    self.dlg_mobile_list.scan_state.count_enabled = cached_scan_counts.ha_counts.4 .0;
+                    self.dlg_mobile_list.scan_state.count_total = cached_scan_counts.ha_counts.4 .1;
+                    self.dlg_mobile_list
+                        .open(crate::dlg_mobile_list::MobileListViewType::HybridAnalysis, None);
+                    (None, 0, 0)
+                }
+                ("hybridanalysis", 4) => {
+                    self.dlg_mobile_list.scan_state.category = Some(ScanCategory::HybridAnalysisNotScanned);
+                    self.dlg_mobile_list.scan_state.count_enabled = cached_scan_counts.ha_counts.5 .0;
+                    self.dlg_mobile_list.scan_state.count_total = cached_scan_counts.ha_counts.5 .1;
+                    self.dlg_mobile_list
+                        .open(crate::dlg_mobile_list::MobileListViewType::HybridAnalysis, None);
+                    (None, 0, 0)
+                }
                 ("offa", idx) => {
                     // Retrieve category name and apps from temp storage
                     let category_name = ui.ctx().data(|data| {
@@ -1635,6 +1664,7 @@ impl UadShizukuApp {
                 package_risk_scores,
                 self.settings.unsafe_app_remove,
                 self.settings.expert_app_remove,
+                &self.settings.hybridanalysis_tag_ignorelist,
             );
         }
 

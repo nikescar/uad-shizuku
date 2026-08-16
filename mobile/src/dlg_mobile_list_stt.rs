@@ -18,6 +18,9 @@ pub struct DlgMobileList {
 
     /// State for the IzzyRisk/Stalkerware drill-down (category, filters, owned dialogs)
     pub risk_state: crate::dlg_mobile_risk::RiskTableState,
+
+    /// State for the VirusTotal/HybridAnalysis drill-down (category, filters, owned dialogs)
+    pub scan_state: crate::dlg_mobile_scan::ScanTableState,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -28,7 +31,11 @@ pub enum MobileListViewType {
     Stalkerware,
     /// Show IzzyRisk dashcounter drill-down (safe/normal/moderate/high)
     IzzyRisk,
-    // Future: Scan, Apps, Usage
+    /// Show VirusTotal dashcounter drill-down (malicious/suspicious/safe/not-scanned)
+    VirusTotal,
+    /// Show HybridAnalysis dashcounter drill-down (malicious/malicious-ignored/suspicious/safe/not-scanned)
+    HybridAnalysis,
+    // Future: Apps, Usage
 }
 
 impl Default for DlgMobileList {
@@ -39,6 +46,7 @@ impl Default for DlgMobileList {
             view_type: MobileListViewType::Debloat,
             last_width: None,
             risk_state: crate::dlg_mobile_risk::RiskTableState::default(),
+            scan_state: crate::dlg_mobile_scan::ScanTableState::default(),
         }
     }
 }
@@ -68,5 +76,15 @@ mod tests {
         );
         assert_ne!(MobileListViewType::Stalkerware, MobileListViewType::Debloat);
         assert_ne!(MobileListViewType::IzzyRisk, MobileListViewType::Debloat);
+    }
+
+    #[test]
+    fn test_virustotal_and_hybridanalysis_view_types_are_distinct() {
+        assert_ne!(
+            MobileListViewType::VirusTotal,
+            MobileListViewType::HybridAnalysis
+        );
+        assert_ne!(MobileListViewType::VirusTotal, MobileListViewType::Debloat);
+        assert_ne!(MobileListViewType::HybridAnalysis, MobileListViewType::Stalkerware);
     }
 }

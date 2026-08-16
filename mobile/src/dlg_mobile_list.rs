@@ -60,6 +60,7 @@ impl DlgMobileList {
         package_risk_scores: &HashMap<String, i32>,
         unsafe_app_remove: bool,
         expert_app_remove: bool,
+        hybridanalysis_tag_ignorelist: &str,
     ) {
         // Check viewport width and auto-close if >1010px
         let current_width = ctx.screen_rect().width();
@@ -94,6 +95,16 @@ impl DlgMobileList {
                         category,
                         self.risk_state.count_enabled,
                         self.risk_state.count_total,
+                    ),
+                    None => "Details".to_string(),
+                }
+            }
+            MobileListViewType::VirusTotal | MobileListViewType::HybridAnalysis => {
+                match &self.scan_state.category {
+                    Some(category) => crate::dlg_mobile_scan::window_title(
+                        category,
+                        self.scan_state.count_enabled,
+                        self.scan_state.count_total,
                     ),
                     None => "Details".to_string(),
                 }
@@ -210,6 +221,22 @@ impl DlgMobileList {
                             &mut self.risk_state,
                             installed_packages,
                             package_risk_scores,
+                            unsafe_app_remove,
+                            expert_app_remove,
+                            google_play_enabled,
+                            fdroid_enabled,
+                            apkmirror_enabled,
+                            android_package_enabled,
+                        );
+                    }
+                    MobileListViewType::VirusTotal | MobileListViewType::HybridAnalysis => {
+                        crate::dlg_mobile_scan::view_mobile::render(
+                            ui,
+                            ctx,
+                            vm_state,
+                            &mut self.scan_state,
+                            installed_packages,
+                            hybridanalysis_tag_ignorelist,
                             unsafe_app_remove,
                             expert_app_remove,
                             google_play_enabled,

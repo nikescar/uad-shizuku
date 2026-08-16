@@ -25,7 +25,7 @@ const MOBILE_BUTTON_SPACING: f32 = 16.0;
 const MOBILE_TOUCH_TARGET: f32 = 40.0;
 
 fn is_row_enabled(package: &PackageFingerprint) -> bool {
-    package.users.first().map_or(false, |user| {
+    package.users.first().is_some_and(|user| {
         let enabled = user.enabled;
         let installed = user.installed;
         let is_system = package.flags.contains("SYSTEM");
@@ -492,14 +492,13 @@ pub fn render_scan_table_mobile(
                             on_toggle_clicked(&package.pkg, is_enabled);
                         }
 
-                        if show_delete_button(&package.pkg, uad_ng_lists, unsafe_app_remove, expert_app_remove) {
-                            if ui
+                        if show_delete_button(&package.pkg, uad_ng_lists, unsafe_app_remove, expert_app_remove)
+                            && ui
                                 .add(icon_button_standard(ICON_DELETE.to_string()))
                                 .on_hover_text("Uninstall package")
                                 .clicked()
-                            {
-                                on_delete_clicked(&package.pkg);
-                            }
+                        {
+                            on_delete_clicked(&package.pkg);
                         }
                     });
                 });
