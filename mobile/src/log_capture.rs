@@ -1,5 +1,26 @@
 use std::sync::{Arc, OnceLock, RwLock};
 
+/// Target prefixes for noisy transitive dependencies (pulled in by eframe/egui's Linux
+/// accessibility bridge and dark-mode detection) that spam INFO/DEBUG logs of their own
+/// (DBus handshakes, connection polling, etc.) unrelated to app behavior. Capped at WARN
+/// regardless of the app's configured level, unless the user explicitly asks for TRACE.
+///
+/// "tracing::span" / "tracing::event" are `tracing`'s own log-facade fallback targets: since
+/// this app never installs a `tracing_subscriber`, any dependency using `tracing` (zbus, its
+/// DBus stack, etc.) falls back to emitting through the `log` crate under these fixed target
+/// names instead of the crate's own name, which is why they aren't caught by a crate-name match.
+const NOISY_TARGET_PREFIXES: &[&str] = &[
+    "zbus",
+    "atspi",
+    "accesskit_unix",
+    "ashpd",
+    "async_io",
+    "async_executor",
+    "polling",
+    "tracing::span",
+    "tracing::event",
+];
+
 /// Combined logger that sends logs to both logcat (on Android) and in-app UI capture
 struct CombinedLogger {
     level_filter: Arc<RwLock<log::LevelFilter>>,
@@ -7,11 +28,19 @@ struct CombinedLogger {
 
 impl log::Log for CombinedLogger {
     fn enabled(&self, metadata: &log::Metadata) -> bool {
-        if let Ok(filter) = self.level_filter.read() {
-            metadata.level() <= *filter
-        } else {
-            false
+        let Ok(filter) = self.level_filter.read() else {
+            return false;
+        };
+
+        if *filter != log::LevelFilter::Trace
+            && NOISY_TARGET_PREFIXES
+                .iter()
+                .any(|prefix| metadata.target().starts_with(prefix))
+        {
+            return metadata.level() <= log::LevelFilter::Warn;
         }
+
+        metadata.level() <= *filter
     }
 
     fn log(&self, record: &log::Record) {

@@ -105,26 +105,12 @@ impl TabScanControl {
         store.clear_all_textures();
     }
 
-    /// Handle ViewModel events and update local state machines
-    fn handle_viewmodel_events(
-        &mut self,
-        vm: &mut crate::viewmodel::ViewModel,
-        ctx: &egui::Context,
-    ) {
-        use crate::viewmodel::ViewModelEvent;
-
-        let events = vm.poll_events(ctx);
-        for event in events {
-            if let ViewModelEvent::Scan(scan_event) = event {
-                self.apply_scan_event(&scan_event);
-            }
-        }
-    }
-
-    /// Apply a single ScanEvent to local state machines and, for scanner-state/cancellation
-    /// events, bridge the result into shared_store so TabScanControl::ui()'s datatable (which
-    /// still reads scan results from shared_store, not ViewModel.state) sees live results.
-    fn apply_scan_event(&mut self, scan_event: &crate::viewmodel::ScanEvent) {
+    /// Apply a single ScanEvent to local state machines and scanner-state fields, which is
+    /// what the datatable/filter bar actually read. Called from `UadShizukuApp::update()`'s
+    /// single top-level `poll_events()` dispatch, NOT polled independently here: `poll_events()`
+    /// destructively drains the ViewModel's event channel, so a second, independent poll call
+    /// in this tab would race the top-level one for events and typically lose them.
+    pub(crate) fn apply_scan_event(&mut self, scan_event: &crate::viewmodel::ScanEvent) {
         use crate::viewmodel::ScanEvent;
 
         match scan_event {
@@ -1337,14 +1323,12 @@ impl TabScanControl {
 
     pub fn ui(
         &mut self,
-        mut viewmodel: Option<&mut crate::viewmodel::ViewModel>,
         ui: &mut egui::Ui,
         hybridanalysis_tag_ignorelist: &str,
     ) {
-        // Handle ViewModel events first
-        if let Some(ref mut vm) = viewmodel {
-            self.handle_viewmodel_events(vm, ui.ctx());
-        }
+        // Note: ViewModel events are now polled and dispatched to apply_scan_event() once per
+        // frame by UadShizukuApp::update(), not here (a second independent poll_events() call
+        // in this tab would race that one for events and typically lose).
         // Note: Progress sync is now done in uad_shizuku_app.sync_scan_progress() before rendering
         // to ensure progress bars hide immediately when background tasks complete
 

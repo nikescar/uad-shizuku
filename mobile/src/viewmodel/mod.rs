@@ -140,13 +140,13 @@ impl ViewModel {
 
         while let Ok(event) = self.event_rx.try_recv() {
             event_count += 1;
-            log::info!("[VIEWMODEL] Received event #{}: {:?}", event_count, event);
+            log::debug!("[VIEWMODEL] Received event #{}: {:?}", event_count, event);
             self.apply_event(&event, ctx);
             events.push(event);
         }
 
         if event_count > 0 {
-            log::info!("[VIEWMODEL] poll_events processed {} events", event_count);
+            log::debug!("[VIEWMODEL] poll_events processed {} events", event_count);
         }
 
         events

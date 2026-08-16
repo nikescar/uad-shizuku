@@ -3564,7 +3564,6 @@ impl UadShizukuApp {
     fn render_scan_tab(&mut self, ui: &mut egui::Ui) {
         // Renderer settings already synced in controller
         self.tab_scan_control.ui(
-            self.viewmodel.as_mut(),
             ui,
             &self.settings.hybridanalysis_tag_ignorelist,
         );
@@ -3572,7 +3571,7 @@ impl UadShizukuApp {
 
     fn render_apps_tab(&mut self, ui: &mut egui::Ui) {
         // Operations queue and refresh already handled in controller
-        let has_error = self.tab_apps_control.ui(self.viewmodel.as_mut(), ui);
+        let has_error = self.tab_apps_control.ui(ui);
 
         // Check if we need to refresh after operations completed
         if self.tab_apps_control.pending_refresh_after_operations {
@@ -4180,10 +4179,25 @@ impl eframe::App for UadShizukuApp {
             self.viewmodel = Some(ViewModel::new(ctx.clone()));
         }
 
-        // Poll ViewModel events
+        // Poll ViewModel events once per frame and fan them out to the tabs that need
+        // per-event side effects. This must be the ONLY place that calls poll_events():
+        // it drains the ViewModel's event channel, so any other call site in the same
+        // frame would race this one for events and typically lose (see tab_scan_control
+        // and tab_apps_control, which used to poll independently and silently missed
+        // most scan/install results).
         if let Some(ref mut vm) = self.viewmodel {
-            let _vm_events = vm.poll_events(ctx);
-            // TODO: Handle events when actors are implemented
+            let vm_events = vm.poll_events(ctx);
+            for event in &vm_events {
+                match event {
+                    crate::viewmodel::ViewModelEvent::Scan(scan_event) => {
+                        self.tab_scan_control.apply_scan_event(scan_event);
+                    }
+                    crate::viewmodel::ViewModelEvent::Apps(apps_event) => {
+                        self.tab_apps_control.apply_apps_event(apps_event);
+                    }
+                    _ => {}
+                }
+            }
         }
 
         // On first update, initialize device list (Android only)

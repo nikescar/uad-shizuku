@@ -74,32 +74,26 @@ impl TabAppsControl {
         self.selected_device = device;
     }
 
-    /// Handle ViewModel events and update local state
-    fn handle_viewmodel_events(
-        &mut self,
-        vm: &mut crate::viewmodel::ViewModel,
-        ctx: &egui::Context,
-    ) {
-        use crate::viewmodel::{AppsEvent, ViewModelEvent};
+    /// Apply a single AppsEvent to local state. Called from `UadShizukuApp::update()`'s single
+    /// top-level `poll_events()` dispatch, NOT polled independently here: `poll_events()`
+    /// destructively drains the ViewModel's event channel, so a second, independent poll call
+    /// in this tab would race the top-level one for events and typically lose them.
+    pub(crate) fn apply_apps_event(&mut self, apps_event: &crate::viewmodel::AppsEvent) {
+        use crate::viewmodel::AppsEvent;
 
-        let events = vm.poll_events(ctx);
-        for event in events {
-            if let ViewModelEvent::Apps(apps_event) = event {
-                match apps_event {
-                    AppsEvent::FossAppListLoaded { count } => {
-                        log::info!("FOSS app list loaded: {} apps", count);
-                    }
-                    AppsEvent::AppInstalled { package } => {
-                        log::info!("App installed: {}", package);
-                        self.recently_installed_apps.insert(package);
-                    }
-                    AppsEvent::InstallProgress { package, progress } => {
-                        log::debug!("Install progress for {}: {:.0}%", package, progress * 100.0);
-                    }
-                    AppsEvent::Error { operation, error } => {
-                        log::error!("Apps error in {}: {}", operation, error);
-                    }
-                }
+        match apps_event {
+            AppsEvent::FossAppListLoaded { count } => {
+                log::info!("FOSS app list loaded: {} apps", count);
+            }
+            AppsEvent::AppInstalled { package } => {
+                log::info!("App installed: {}", package);
+                self.recently_installed_apps.insert(package.clone());
+            }
+            AppsEvent::InstallProgress { package, progress } => {
+                log::debug!("Install progress for {}: {:.0}%", package, progress * 100.0);
+            }
+            AppsEvent::Error { operation, error } => {
+                log::error!("Apps error in {}: {}", operation, error);
             }
         }
     }
@@ -900,15 +894,10 @@ impl TabAppsControl {
     }
 
     /// Returns true if an error occurred during any operation
-    pub fn ui(
-        &mut self,
-        mut viewmodel: Option<&mut crate::viewmodel::ViewModel>,
-        ui: &mut egui::Ui,
-    ) -> bool {
-        // Handle ViewModel events first
-        if let Some(ref mut vm) = viewmodel {
-            self.handle_viewmodel_events(vm, ui.ctx());
-        }
+    pub fn ui(&mut self, ui: &mut egui::Ui) -> bool {
+        // Note: ViewModel events are polled and dispatched to apply_apps_event() once per
+        // frame by UadShizukuApp::update(), not here (a second independent poll_events() call
+        // in this tab would race that one for events and typically lose).
 
         let mut has_error = false;
 

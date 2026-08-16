@@ -126,26 +126,6 @@ impl ScanActor {
                     .send(ViewModelEvent::Scan(ScanEvent::VirusTotalStarted))
                     .await?;
 
-                // Send initial empty state to indicate scan in progress
-                let initial_state = Arc::new(Mutex::new(HashMap::new()));
-                // Mark with a placeholder to indicate scan is running (not cancelled/empty)
-                {
-                    let mut state = initial_state.lock().unwrap();
-                    state.insert(
-                        "__scanning__".to_string(),
-                        crate::calc_virustotal_stt::ScanStatus::Scanning {
-                            scanned: 0,
-                            total: 0,
-                            operation: "Initializing...".to_string(),
-                        },
-                    );
-                }
-                self.event_tx
-                    .send(ViewModelEvent::Scan(ScanEvent::VirusTotalStateUpdated(
-                        initial_state,
-                    )))
-                    .await?;
-
                 let device_clone = device.clone();
                 let api_key_clone = api_key.clone();
                 let cancel_clone = self.vt_cancel.clone();
@@ -160,6 +140,29 @@ impl ScanActor {
                     let progress_for_scan = progress.clone();
                     let progress_done = Arc::new(AtomicBool::new(false));
 
+                    // run_virustotal() spawns its own background std::thread and returns
+                    // scanner_state (an Arc<Mutex<HashMap<..>>>) immediately, well before the
+                    // scan itself finishes: the thread mutates that same HashMap in place as
+                    // each package completes. Hand this Arc to the UI right away, rather than
+                    // waiting for the whole (possibly many-minutes-long, VirusTotal free tier
+                    // is 4 req/min) scan to finish first, so results appear per-package as the
+                    // scan runs instead of only once at the very end.
+                    let (scanner_state, _rate_limiter, handle) = crate::calc_virustotal::run_virustotal(
+                        installed_packages,
+                        device_clone,
+                        api_key_clone,
+                        submit_enabled,
+                        package_risk_scores,
+                        progress_for_scan,
+                        cancel_clone,
+                    );
+
+                    let _ = event_tx
+                        .send(ViewModelEvent::Scan(ScanEvent::VirusTotalStateUpdated(
+                            scanner_state.clone(),
+                        )))
+                        .await;
+
                     // Forward live progress to the UI while the scan runs.
                     let poll_task = smol::spawn(poll_scan_progress(
                         ScannerType::VirusTotal,
@@ -168,35 +171,25 @@ impl ScanActor {
                         event_tx.clone(),
                     ));
 
-                    // Run scan using existing calc_virustotal function, and actually wait for
-                    // the background thread it spawns to finish (join happens on the blocking
-                    // thread pool used by smol::unblock, not on the async executor).
-                    let (scanner_state, _rate_limiter) = smol::unblock(move || {
-                        let (state, rate_limiter, handle) = crate::calc_virustotal::run_virustotal(
-                            installed_packages,
-                            device_clone,
-                            api_key_clone,
-                            submit_enabled,
-                            package_risk_scores,
-                            progress_for_scan,
-                            cancel_clone,
-                        );
+                    // Wait for the background thread to actually finish before declaring
+                    // completion (join happens on the blocking thread pool used by
+                    // smol::unblock, not on the async executor).
+                    smol::unblock(move || {
                         let _ = handle.join();
-                        (state, rate_limiter)
                     })
                     .await;
 
                     progress_done.store(true, Ordering::Relaxed);
                     poll_task.await;
 
-                    // Send scanner state update event to ViewModel
+                    // Send a final scanner state update (same Arc, but this also flips
+                    // vt_scan_state to "complete" on the UI side alongside it) and completion.
                     let _ = event_tx
                         .send(ViewModelEvent::Scan(ScanEvent::VirusTotalStateUpdated(
                             scanner_state.clone(),
                         )))
                         .await;
 
-                    // Send completion event
                     let _ = event_tx
                         .send(ViewModelEvent::Scan(ScanEvent::VirusTotalComplete))
                         .await;
@@ -219,26 +212,6 @@ impl ScanActor {
                     .send(ViewModelEvent::Scan(ScanEvent::HybridAnalysisStarted))
                     .await?;
 
-                // Send initial empty state to indicate scan in progress
-                let initial_state = Arc::new(Mutex::new(HashMap::new()));
-                // Mark with a placeholder to indicate scan is running (not cancelled/empty)
-                {
-                    let mut state = initial_state.lock().unwrap();
-                    state.insert(
-                        "__scanning__".to_string(),
-                        crate::calc_hybridanalysis_stt::ScanStatus::Scanning {
-                            scanned: 0,
-                            total: 0,
-                            operation: "Initializing...".to_string(),
-                        },
-                    );
-                }
-                self.event_tx
-                    .send(ViewModelEvent::Scan(ScanEvent::HybridAnalysisStateUpdated(
-                        initial_state,
-                    )))
-                    .await?;
-
                 let device_clone = device.clone();
                 let api_key_clone = api_key.clone();
                 let cancel_clone = self.ha_cancel.clone();
@@ -253,6 +226,29 @@ impl ScanActor {
                     let progress_for_scan = progress.clone();
                     let progress_done = Arc::new(AtomicBool::new(false));
 
+                    // run_hybridanalysis() spawns its own background std::thread and returns
+                    // scanner_state (an Arc<Mutex<HashMap<..>>>) immediately, well before the
+                    // scan itself finishes: the thread mutates that same HashMap in place as
+                    // each package completes. Hand this Arc to the UI right away, rather than
+                    // waiting for the whole scan to finish first, so results appear
+                    // per-package as the scan runs instead of only once at the very end.
+                    let (scanner_state, _rate_limiter, handle) =
+                        crate::calc_hybridanalysis::run_hybridanalysis(
+                            installed_packages,
+                            device_clone,
+                            api_key_clone,
+                            submit_enabled,
+                            package_risk_scores,
+                            progress_for_scan,
+                            cancel_clone,
+                        );
+
+                    let _ = event_tx
+                        .send(ViewModelEvent::Scan(ScanEvent::HybridAnalysisStateUpdated(
+                            scanner_state.clone(),
+                        )))
+                        .await;
+
                     // Forward live progress to the UI while the scan runs.
                     let poll_task = smol::spawn(poll_scan_progress(
                         ScannerType::HybridAnalysis,
@@ -261,36 +257,25 @@ impl ScanActor {
                         event_tx.clone(),
                     ));
 
-                    // Run scan using existing calc_hybridanalysis function, and actually wait
-                    // for the background thread it spawns to finish (join happens on the
-                    // blocking thread pool used by smol::unblock, not on the async executor).
-                    let (scanner_state, _rate_limiter) = smol::unblock(move || {
-                        let (state, rate_limiter, handle) =
-                            crate::calc_hybridanalysis::run_hybridanalysis(
-                                installed_packages,
-                                device_clone,
-                                api_key_clone,
-                                submit_enabled,
-                                package_risk_scores,
-                                progress_for_scan,
-                                cancel_clone,
-                            );
+                    // Wait for the background thread to actually finish before declaring
+                    // completion (join happens on the blocking thread pool used by
+                    // smol::unblock, not on the async executor).
+                    smol::unblock(move || {
                         let _ = handle.join();
-                        (state, rate_limiter)
                     })
                     .await;
 
                     progress_done.store(true, Ordering::Relaxed);
                     poll_task.await;
 
-                    // Send scanner state update event to ViewModel
+                    // Send a final scanner state update (same Arc, but this also flips
+                    // ha_scan_state to "complete" on the UI side alongside it) and completion.
                     let _ = event_tx
                         .send(ViewModelEvent::Scan(ScanEvent::HybridAnalysisStateUpdated(
                             scanner_state.clone(),
                         )))
                         .await;
 
-                    // Send completion event
                     let _ = event_tx
                         .send(ViewModelEvent::Scan(ScanEvent::HybridAnalysisComplete))
                         .await;

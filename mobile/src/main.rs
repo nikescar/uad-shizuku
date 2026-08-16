@@ -160,9 +160,20 @@ fn main() -> eframe::Result<()> {
                 }),
         );
 
-        env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"))
-            .target(env_logger::Target::Pipe(target))
-            .init();
+        // zbus/atspi/accesskit_unix/ashpd/async_io/async_executor/polling are noisy
+        // transitive deps pulled in by eframe/egui's Linux accessibility bridge and
+        // dark-mode detection; clamp them to warn by default. "tracing::span"/"tracing::event"
+        // are tracing's own log-facade fallback targets (no tracing_subscriber is installed,
+        // so tracing-based deps like zbus log through these fixed target names instead of
+        // their own crate name). An explicit RUST_LOG still overrides this entirely.
+        env_logger::Builder::from_env(env_logger::Env::default().default_filter_or(
+            "info,zbus=warn,zbus_names=warn,zbus_macros=warn,zvariant=warn,atspi=warn,\
+             atspi_common=warn,atspi_proxies=warn,atspi_connection=warn,accesskit_unix=warn,\
+             ashpd=warn,async_io=warn,async_executor=warn,polling=warn,tracing::span=warn,\
+             tracing::event=warn",
+        ))
+        .target(env_logger::Target::Pipe(target))
+        .init();
 
         log::info!(
             "UAD-Shizuku v{} starting with file logging",
