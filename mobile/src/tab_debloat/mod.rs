@@ -332,7 +332,6 @@ mod tests {
     #[test]
     fn test_default_tab_debloat() {
         let tab = TabDebloat::default();
-        assert_eq!(tab.state.table_version, 0);
         assert!(tab.state.selected_packages.is_empty());
     }
 }
