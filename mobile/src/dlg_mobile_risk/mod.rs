@@ -9,7 +9,7 @@ pub mod filter_logic;
 pub mod state;
 pub mod view_mobile;
 
-// `pub use state::RiskTableState;` re-added in Task 3 once state.rs defines it.
+pub use state::RiskTableState;
 
 /// Category identity for the mobile risk drill-down. Independent of
 /// `dlg_dashcounter_details_stt::DashCounterCategory` — the desktop dialog keeps using that
