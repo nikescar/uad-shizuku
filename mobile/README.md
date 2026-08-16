@@ -103,6 +103,25 @@ $ java -jar pepk.jar --keystore=release.keystore --alias=upload --output=release
 ```
 upload created ```release-signing-play-generated.zip``` file.
 
+### Windows codesign certificate for github workflow
+
+Set github secrets on -Repository *Settings > -Security > -Secrets and variables > *Actions > -Repository secrets.
+
+After buying a code signing certificate (e.g. from codegic.com), you get two files: `certificate.cer` (public certificate only, no private key - not needed here) and `certificate.pfx` (certificate + private key, protected by the password you set when exporting/downloading it - this is the one used for signing).
+
+Place `certificate.pfx` in `./scripts/` (already gitignored via `/scripts/certificate*`, so it's never committed), then encode it to base64 with the existing helper script:
+```bash
+$ cd scripts
+$ ./wincert_base64.sh > certificate.pfx.base64
+# WINDOWS_CERT_P12_BASE64=<contents of certificate.pfx.base64>
+# WINDOWS_CERT_PASSWORD=<password used when the .pfx was exported/downloaded>
+```
+
+Optional but recommended: verify the pfx actually contains a private key before uploading it as a secret, since a cert without a private key will fail signing in CI with a "No certificates were found that met all the given criteria" error:
+```bash
+$ openssl pkcs12 -info -in certificate.pfx -noout -passin pass:<WINDOWS_CERT_PASSWORD>
+```
+
 ### Submit app to Google Playstore
 1. register google play console
 2. internal testing and pass 14 days with published testing

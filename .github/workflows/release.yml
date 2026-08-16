@@ -60,12 +60,12 @@ jobs:
             build-args: "--release"
             platform_type: linux
 
-          # FreeBSD - Temporarily disabled
-          # - name: FreeBSD x86_64
-          #   target: x86_64-unknown-freebsd
-          #   build-args: "--release"
-          #   freebsd_version: "14.2"
-          #   platform_type: freebsd
+          # FreeBSD
+          - name: FreeBSD x86_64
+            target: x86_64-unknown-freebsd
+            build-args: "--release"
+            freebsd_version: "14.2"
+            platform_type: freebsd
 
           - name: Android aarch64
             target: aarch64-linux-android
@@ -223,6 +223,29 @@ jobs:
           prepare: |
             pkg install -y curl pkgconf gtk3 cairo pango gdk-pixbuf2 at-spi2-core pixman wayland bzip2
             ln -sf /usr/local/bin/pkgconf /usr/local/bin/pkg-config || true
+            export PKG_CONFIG_PATH=/usr/local/libdata/pkgconfig:/usr/local/lib/pkgconfig:/usr/local/share/pkgconfig
+            mkdir -p /usr/local/libdata/pkgconfig
+            # FreeBSD base ships bzip2 and zlib without pkgconfig metadata, which
+            # breaks pango/cairo's transitive freetype2 -> bzip2/zlib pkg-config lookup.
+            # Synthesize minimal .pc files pointing at the real headers/libs.
+            for lib in bzip2:bz2:bzlib.h zlib:z:zlib.h; do
+              pcname=${lib%%:*}
+              rest=${lib#*:}
+              libname=${rest%%:*}
+              header=${rest#*:}
+              if pkg-config --exists "$pcname" 2>/dev/null; then
+                continue
+              fi
+              incdir=$(dirname "$(find /usr/include /usr/local/include -name "$header" 2>/dev/null | head -1)")
+              libdir=$(dirname "$(find /usr/lib /usr/local/lib -name "lib${libname}.so*" 2>/dev/null | head -1)")
+              if [ -n "$incdir" ] && [ -n "$libdir" ]; then
+                printf 'Name: %s\nDescription: %s compression library (FreeBSD base, synthesized .pc)\nVersion: 1.0.0\nLibs: -L%s -l%s\nCflags: -I%s\n' \
+                  "$pcname" "$pcname" "$libdir" "$libname" "$incdir" > "/usr/local/libdata/pkgconfig/${pcname}.pc"
+                echo "Synthesized ${pcname}.pc (include=${incdir}, lib=${libdir})"
+              else
+                echo "::warning::Could not locate headers/libs for ${pcname} (header=${header}, lib=lib${libname}.so)"
+              fi
+            done
             curl https://sh.rustup.rs -sSf | sh -s -- -y --profile=minimal --default-toolchain ${{ env.RUST_VERSION }}
           run: |
             . $HOME/.cargo/env
@@ -230,7 +253,6 @@ jobs:
             cargo build --release --package uad-shizuku --target ${{ matrix.platform.target }}
 
       - name: Windows - Code Signing
-        continue-on-error: true
         if: |
           (contains(matrix.platform.target, 'windows') && env.WINDOWS_CERT_P12_BASE64 != '' && env.WINDOWS_CERT_PASSWORD != '') &&
           (github.event.inputs.platforms == 'all' || github.event.inputs.platforms == 'windows' || github.event.inputs.platforms == '')
@@ -256,6 +278,33 @@ jobs:
             exit 1
           }
           echo "Signing $EXE_PATH..."
+
+          # Validate the certificate before signing so a bad pfx fails with a clear reason
+          # instead of the opaque "No certificates were found that met all the given criteria."
+          try {
+            $cert = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2(
+              "windows.pfx", $env:WINDOWS_CERT_PASSWORD,
+              [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::EphemeralKeySet)
+          } catch {
+            echo "::error:: Failed to load windows.pfx - likely wrong WINDOWS_CERT_PASSWORD or a corrupted/invalid certificate file: $_"
+            exit 1
+          }
+          echo "Certificate Subject: $($cert.Subject)"
+          echo "Certificate Thumbprint: $($cert.Thumbprint)"
+          echo "Certificate NotAfter: $($cert.NotAfter)"
+          echo "Certificate HasPrivateKey: $($cert.HasPrivateKey)"
+          $eku = $cert.Extensions | Where-Object { $_.Oid.FriendlyName -eq 'Enhanced Key Usage' }
+          if ($eku) {
+            echo "Certificate EKU: $($eku.Format($false))"
+          }
+          if (-Not $cert.HasPrivateKey) {
+            echo "::error:: windows.pfx has no private key - re-export the certificate with 'Include all certificates in the certification path if possible' and the private key included"
+            exit 1
+          }
+          if ($cert.NotAfter -lt (Get-Date)) {
+            echo "::error:: Certificate expired on $($cert.NotAfter)"
+            exit 1
+          }
 
           # Find signtool.exe (it's part of the Windows SDK)
           $SIGNTOOL_PATH = (Get-ChildItem -Path "C:\Program Files (x86)\Windows Kits\10\bin" -Filter "signtool.exe" -Recurse | Sort-Object VersionInfo -Descending | Select-Object -First 1).FullName
@@ -330,6 +379,7 @@ jobs:
             ./artifacts/uad-shizuku-armv7-unknown-linux-musleabihf/uad-shizuku
             ./artifacts/uad-shizuku-x86_64-apple-darwin/uad-shizuku
             ./artifacts/uad-shizuku-x86_64-unknown-linux-musl/uad-shizuku
+            ./artifacts/uad-shizuku-x86_64-unknown-freebsd/uad-shizuku
             ./artifacts/uad-shizuku-x86_64-pc-windows-msvc/uad-shizuku.exe
             ./artifacts/uad-shizuku-i686-pc-windows-msvc/uad-shizuku.exe
             ./artifacts/uad-shizuku-aarch64-pc-windows-msvc/uad-shizuku.exe
