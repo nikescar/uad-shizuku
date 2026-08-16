@@ -37,12 +37,7 @@ pub fn render(
     android_package_enabled: bool,
 ) {
     ui.vertical(|ui| {
-        // Search bar (always visible)
-        render_search_bar(ui, local_state);
-
-        ui.add_space(8.0);
-
-        // Collapsible filter section
+        // Flattened filter section (includes search, filters, batch actions)
         render_filter_section(ui, vm_state, local_state, viewmodel);
 
         ui.add_space(8.0);
@@ -62,16 +57,17 @@ pub fn render(
             apkmirror_enabled,
             android_package_enabled,
         );
-
-        ui.separator();
-
-        // Batch actions at bottom (fixed)
-        render_batch_actions(ui, local_state);
     });
 }
 
-/// Render search bar for text filtering with debouncing
-fn render_search_bar(ui: &mut egui::Ui, local_state: &mut TabDebloatState) {
+/// Render flattened 6-line filter section (no collapsing)
+fn render_filter_section(
+    ui: &mut egui::Ui,
+    vm_state: &ViewModelState,
+    local_state: &mut TabDebloatState,
+    viewmodel: &crate::viewmodel::ViewModel,
+) {
+    // Line 1: Search bar
     ui.horizontal(|ui| {
         ui.label("Search:");
         let response = ui.add_sized(
@@ -79,7 +75,6 @@ fn render_search_bar(ui: &mut egui::Ui, local_state: &mut TabDebloatState) {
             egui::TextEdit::singleline(&mut local_state.pending_filter_text),
         );
         if response.changed() {
-            // User typed something - start/reset debounce timer
             local_state.last_filter_input = Some(std::time::Instant::now());
         }
         if ui.button("Clear").clicked() {
@@ -89,37 +84,128 @@ fn render_search_bar(ui: &mut egui::Ui, local_state: &mut TabDebloatState) {
             local_state.last_filter_input = None;
         }
     });
-}
 
-/// Render collapsible filter section
-fn render_filter_section(
-    ui: &mut egui::Ui,
-    vm_state: &ViewModelState,
-    local_state: &mut TabDebloatState,
-    viewmodel: &crate::viewmodel::ViewModel,
-) {
-    egui::CollapsingHeader::new("📋 Filters")
-        .default_open(true)
-        .show(ui, |ui| {
-            // Category filters
-            filter_logic::render_category_filters(ui, local_state, viewmodel);
+    // Line 2: Category (read-only display)
+    ui.horizontal(|ui| {
+        let (category_name, enabled_count, total_count) =
+            match &local_state.active_filter.category_filter {
+                Some(cat) if cat == "recommended" => (
+                    "Recommended",
+                    local_state.cached_counts.recommended_enabled,
+                    local_state.cached_counts.recommended,
+                ),
+                Some(cat) if cat == "advanced" => (
+                    "Advanced",
+                    local_state.cached_counts.advanced_enabled,
+                    local_state.cached_counts.advanced,
+                ),
+                Some(cat) if cat == "expert" => (
+                    "Expert",
+                    local_state.cached_counts.expert_enabled,
+                    local_state.cached_counts.expert,
+                ),
+                Some(cat) if cat == "unsafe" => (
+                    "Unsafe",
+                    local_state.cached_counts.unsafe_apps_enabled,
+                    local_state.cached_counts.unsafe_apps,
+                ),
+                _ => (
+                    "All",
+                    local_state.cached_counts.all_enabled,
+                    local_state.cached_counts.all,
+                ),
+            };
+        ui.label(format!(
+            "Category: {} ({}/{})",
+            category_name, enabled_count, total_count
+        ));
+    });
 
-            ui.add_space(8.0);
+    // Line 3: Options checkboxes
+    ui.horizontal(|ui| {
+        ui.label("Options");
+        if ui
+            .checkbox(
+                &mut local_state.active_filter.show_only_enabled,
+                "Show only enabled",
+            )
+            .changed()
+        {
+            let text_filter = if local_state.applied_filter_text.is_empty() {
+                None
+            } else {
+                Some(local_state.applied_filter_text.clone())
+            };
+            if let Err(e) = viewmodel.filter_packages(
+                text_filter,
+                local_state.active_filter.category_filter.clone(),
+                local_state.active_filter.show_only_enabled,
+                local_state.active_filter.hide_system_apps,
+            ) {
+                log::error!("Failed to apply show_only_enabled filter: {}", e);
+            }
+        }
+        if ui
+            .checkbox(
+                &mut local_state.active_filter.hide_system_apps,
+                "Hide system apps",
+            )
+            .changed()
+        {
+            let text_filter = if local_state.applied_filter_text.is_empty() {
+                None
+            } else {
+                Some(local_state.applied_filter_text.clone())
+            };
+            if let Err(e) = viewmodel.filter_packages(
+                text_filter,
+                local_state.active_filter.category_filter.clone(),
+                local_state.active_filter.show_only_enabled,
+                local_state.active_filter.hide_system_apps,
+            ) {
+                log::error!("Failed to apply hide_system_apps filter: {}", e);
+            }
+        }
+    });
 
-            // Options
-            ui.separator();
-            filter_logic::render_options_checkboxes(ui, local_state, viewmodel);
+    // Line 4: Advanced checkboxes
+    ui.horizontal(|ui| {
+        ui.label("Advanced");
+        ui.checkbox(&mut local_state.unsafe_app_remove, "Unsafe removal");
+        ui.checkbox(&mut local_state.expert_app_remove, "Expert removal");
+    });
 
-            ui.add_space(8.0);
+    // Line 5: Package counts
+    ui.label(format!(
+        "Total Packages {} Filtered {}",
+        vm_state.packages.len(),
+        vm_state.filtered_packages.len()
+    ));
 
-            // Advanced settings
-            ui.separator();
-            filter_logic::render_advanced_settings(ui, local_state);
-
-            // Device info and package counts
-            ui.add_space(8.0);
-            filter_logic::render_package_counts(ui, vm_state, local_state);
+    // Line 6: Batch actions (moved from bottom)
+    let selection_count = local_state.selected_packages.len();
+    ui.horizontal(|ui| {
+        ui.label(format!("Selected: {}", selection_count));
+        ui.add_enabled_ui(selection_count > 0, |ui| {
+            if ui.button("Uninstall").clicked() {
+                log::info!("Batch uninstall - will wire in Task 7");
+            }
+            if ui.button("Disable").clicked() {
+                log::info!("Batch disable - will wire in Task 6");
+            }
+            if ui.button("Enable").clicked() {
+                log::info!("Batch enable - will wire in Task 6");
+            }
+            if ui.button("Clear Selection").clicked() {
+                local_state.selected_packages.clear();
+            }
         });
+        if ui.button("Select All").clicked() {
+            for pkg in &vm_state.filtered_packages {
+                local_state.selected_packages.insert(pkg.pkg.clone());
+            }
+        }
+    });
 }
 
 /// Render package list with card layout
@@ -133,7 +219,7 @@ fn render_package_list(
     android_package_enabled: bool,
 ) {
     // Prepare app metadata (icons, titles) if renderers are enabled
-    log::info!(
+    log::debug!(
         "[DEBLOAT] Renderer flags - GP: {}, FD: {}, APK: {}, AP: {}",
         google_play_enabled,
         fdroid_enabled,
@@ -141,7 +227,7 @@ fn render_package_list(
         android_package_enabled
     );
 
-    log::info!(
+    log::debug!(
         "[DEBLOAT] render_package_list called with {} filtered packages",
         vm_state.filtered_packages.len()
     );
@@ -158,7 +244,7 @@ fn render_package_list(
         .map(|p| p.pkg.clone())
         .collect();
 
-    log::info!(
+    log::debug!(
         "[DEBLOAT] Preparing metadata for {} packages ({} system)",
         package_ids.len(),
         system_packages.len()
@@ -184,12 +270,12 @@ fn render_package_list(
             })
             .collect();
 
-    log::info!("[DEBLOAT] Got metadata for {} packages", app_metadata.len());
+    log::debug!("[DEBLOAT] Got metadata for {} packages", app_metadata.len());
 
     // === DIAGNOSTIC LOGGING START ===
     // Sample HashMap keys (first 5)
     let sample_keys: Vec<_> = app_metadata.keys().take(5).cloned().collect();
-    log::info!("[DEBLOAT] Sample app_metadata keys: {:?}", sample_keys);
+    log::debug!("[DEBLOAT] Sample app_metadata keys: {:?}", sample_keys);
 
     // Sample package IDs from filtered list (first 5)
     let sample_packages: Vec<_> = vm_state
@@ -198,7 +284,7 @@ fn render_package_list(
         .take(5)
         .map(|p| p.pkg.clone())
         .collect();
-    log::info!(
+    log::debug!(
         "[DEBLOAT] Sample filtered package IDs: {:?}",
         sample_packages
     );
@@ -211,7 +297,7 @@ fn render_package_list(
         .take(5)
         .map(|p| p.pkg.clone())
         .collect();
-    log::warn!(
+    log::debug!(
         "[DEBLOAT] First 5 packages missing from metadata: {:?}",
         missing
     );
@@ -222,7 +308,7 @@ fn render_package_list(
         .iter()
         .filter(|p| app_metadata.contains_key(&p.pkg))
         .count();
-    log::info!(
+    log::debug!(
         "[DEBLOAT] Rendering metrics - Total: {}, With metadata: {}, Hit rate: {:.1}%",
         vm_state.filtered_packages.len(),
         found_count,
@@ -352,47 +438,6 @@ fn render_batch_progress(ui: &mut egui::Ui, local_state: &TabDebloatState) {
             });
         }
     }
-}
-
-/// Render batch action buttons at bottom
-fn render_batch_actions(ui: &mut egui::Ui, local_state: &mut TabDebloatState) {
-    ui.vertical(|ui| {
-        let selection_count = local_state.selected_packages.len();
-
-        // Selection count
-        ui.label(format!("Selected: {}", selection_count));
-
-        ui.add_space(4.0);
-
-        // Action buttons in grid layout for mobile
-        ui.horizontal_wrapped(|ui| {
-            ui.add_enabled_ui(selection_count > 0, |ui| {
-                if ui.button("Uninstall").clicked() {
-                    // TODO: Trigger batch uninstall via ViewModel command
-                    log::info!("Batch uninstall requested for {} packages", selection_count);
-                }
-
-                if ui.button("Disable").clicked() {
-                    // TODO: Trigger batch disable via ViewModel command
-                    log::info!("Batch disable requested for {} packages", selection_count);
-                }
-
-                if ui.button("Enable").clicked() {
-                    // TODO: Trigger batch enable via ViewModel command
-                    log::info!("Batch enable requested for {} packages", selection_count);
-                }
-
-                if ui.button("Clear Selection").clicked() {
-                    local_state.selected_packages.clear();
-                }
-            });
-
-            if ui.button("Select All").clicked() {
-                // TODO: Select all filtered packages
-                log::info!("Select all requested");
-            }
-        });
-    });
 }
 
 #[cfg(test)]
