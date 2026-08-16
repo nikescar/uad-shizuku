@@ -3,6 +3,38 @@
 use crate::viewmodel::ViewModelEvent;
 use anyhow::Result;
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
+use std::time::Duration;
+
+/// How often to sample the shared progress value and forward it as a ScanEvent::ScanProgress.
+const SCAN_PROGRESS_POLL_INTERVAL: Duration = Duration::from_millis(300);
+
+/// Periodically samples `progress` and forwards it as `ScanEvent::ScanProgress` until `done`
+/// is set. Runs concurrently with the actual scan so the UI gets live progress updates instead
+/// of only a start/complete pair.
+async fn poll_scan_progress(
+    scanner: ScannerType,
+    progress: Arc<Mutex<Option<f32>>>,
+    done: Arc<AtomicBool>,
+    event_tx: smol::channel::Sender<ViewModelEvent>,
+) {
+    loop {
+        if done.load(Ordering::Relaxed) {
+            break;
+        }
+        let current = progress.lock().ok().and_then(|guard| *guard);
+        if let Some(p) = current {
+            let _ = event_tx
+                .send(ViewModelEvent::Scan(ScanEvent::ScanProgress {
+                    scanner: scanner.clone(),
+                    progress: p,
+                }))
+                .await;
+        }
+        smol::Timer::after(SCAN_PROGRESS_POLL_INTERVAL).await;
+    }
+}
 
 #[derive(Debug, Clone)]
 pub enum ScanCommand {
@@ -95,7 +127,6 @@ impl ScanActor {
                     .await?;
 
                 // Send initial empty state to indicate scan in progress
-                use std::sync::{Arc, Mutex};
                 let initial_state = Arc::new(Mutex::new(HashMap::new()));
                 // Mark with a placeholder to indicate scan is running (not cancelled/empty)
                 {
@@ -125,22 +156,38 @@ impl ScanActor {
                     let store = crate::shared_store_stt::get_shared_store();
                     let installed_packages = store.get_installed_packages();
                     let package_risk_scores: HashMap<String, i32> = HashMap::new();
-                    let progress = std::sync::Arc::new(std::sync::Mutex::new(Some(0.0)));
-                    let progress_clone = progress.clone();
+                    let progress = Arc::new(Mutex::new(Some(0.0)));
+                    let progress_for_scan = progress.clone();
+                    let progress_done = Arc::new(AtomicBool::new(false));
 
-                    // Run scan using existing calc_virustotal function
+                    // Forward live progress to the UI while the scan runs.
+                    let poll_task = smol::spawn(poll_scan_progress(
+                        ScannerType::VirusTotal,
+                        progress,
+                        progress_done.clone(),
+                        event_tx.clone(),
+                    ));
+
+                    // Run scan using existing calc_virustotal function, and actually wait for
+                    // the background thread it spawns to finish (join happens on the blocking
+                    // thread pool used by smol::unblock, not on the async executor).
                     let (scanner_state, _rate_limiter) = smol::unblock(move || {
-                        crate::calc_virustotal::run_virustotal(
+                        let (state, rate_limiter, handle) = crate::calc_virustotal::run_virustotal(
                             installed_packages,
                             device_clone,
                             api_key_clone,
                             submit_enabled,
                             package_risk_scores,
-                            progress,
+                            progress_for_scan,
                             cancel_clone,
-                        )
+                        );
+                        let _ = handle.join();
+                        (state, rate_limiter)
                     })
                     .await;
+
+                    progress_done.store(true, Ordering::Relaxed);
+                    poll_task.await;
 
                     // Send scanner state update event to ViewModel
                     let _ = event_tx
@@ -173,7 +220,6 @@ impl ScanActor {
                     .await?;
 
                 // Send initial empty state to indicate scan in progress
-                use std::sync::{Arc, Mutex};
                 let initial_state = Arc::new(Mutex::new(HashMap::new()));
                 // Mark with a placeholder to indicate scan is running (not cancelled/empty)
                 {
@@ -203,22 +249,39 @@ impl ScanActor {
                     let store = crate::shared_store_stt::get_shared_store();
                     let installed_packages = store.get_installed_packages();
                     let package_risk_scores: HashMap<String, i32> = HashMap::new();
-                    let progress = std::sync::Arc::new(std::sync::Mutex::new(Some(0.0)));
-                    let progress_clone = progress.clone();
+                    let progress = Arc::new(Mutex::new(Some(0.0)));
+                    let progress_for_scan = progress.clone();
+                    let progress_done = Arc::new(AtomicBool::new(false));
 
-                    // Run scan using existing calc_hybridanalysis function
+                    // Forward live progress to the UI while the scan runs.
+                    let poll_task = smol::spawn(poll_scan_progress(
+                        ScannerType::HybridAnalysis,
+                        progress,
+                        progress_done.clone(),
+                        event_tx.clone(),
+                    ));
+
+                    // Run scan using existing calc_hybridanalysis function, and actually wait
+                    // for the background thread it spawns to finish (join happens on the
+                    // blocking thread pool used by smol::unblock, not on the async executor).
                     let (scanner_state, _rate_limiter) = smol::unblock(move || {
-                        crate::calc_hybridanalysis::run_hybridanalysis(
-                            installed_packages,
-                            device_clone,
-                            api_key_clone,
-                            submit_enabled,
-                            package_risk_scores,
-                            progress,
-                            cancel_clone,
-                        )
+                        let (state, rate_limiter, handle) =
+                            crate::calc_hybridanalysis::run_hybridanalysis(
+                                installed_packages,
+                                device_clone,
+                                api_key_clone,
+                                submit_enabled,
+                                package_risk_scores,
+                                progress_for_scan,
+                                cancel_clone,
+                            );
+                        let _ = handle.join();
+                        (state, rate_limiter)
                     })
                     .await;
+
+                    progress_done.store(true, Ordering::Relaxed);
+                    poll_task.await;
 
                     // Send scanner state update event to ViewModel
                     let _ = event_tx
@@ -269,5 +332,47 @@ impl ScanActor {
                 error: error.to_string(),
             }))
             .await;
+    }
+}
+
+#[cfg(test)]
+mod poll_scan_progress_tests {
+    use super::*;
+
+    #[test]
+    fn emits_progress_events_until_done_then_stops() {
+        smol::block_on(async {
+            let (tx, rx) = smol::channel::unbounded();
+            let progress = Arc::new(Mutex::new(Some(0.42_f32)));
+            let done = Arc::new(AtomicBool::new(false));
+
+            let poll_task = smol::spawn(poll_scan_progress(
+                ScannerType::VirusTotal,
+                progress.clone(),
+                done.clone(),
+                tx,
+            ));
+
+            // Let the poller sample a few times, then signal completion.
+            smol::Timer::after(Duration::from_millis(50)).await;
+            done.store(true, Ordering::Relaxed);
+            poll_task.await;
+
+            let mut saw_progress = false;
+            while let Ok(event) = rx.try_recv() {
+                match event {
+                    ViewModelEvent::Scan(ScanEvent::ScanProgress { scanner, progress }) => {
+                        assert!(matches!(scanner, ScannerType::VirusTotal));
+                        assert_eq!(progress, 0.42);
+                        saw_progress = true;
+                    }
+                    other => panic!("unexpected event: {:?}", other),
+                }
+            }
+            assert!(
+                saw_progress,
+                "expected at least one ScanProgress event before done"
+            );
+        });
     }
 }

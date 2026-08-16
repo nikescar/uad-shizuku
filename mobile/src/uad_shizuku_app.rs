@@ -2542,8 +2542,8 @@ impl UadShizukuApp {
         let uad_ng_lists = shared_store.get_uad_ng_lists();
 
         // Update cached scan counts for VT and HA
-        let vt_scanner_state = shared_store.get_vt_scanner_state();
-        let ha_scanner_state = shared_store.get_ha_scanner_state();
+        let vt_scanner_state = self.tab_scan_control.vt_scanner_state.clone();
+        let ha_scanner_state = self.tab_scan_control.ha_scanner_state.clone();
         let ha_tag_ignorelist = &self.settings.hybridanalysis_tag_ignorelist;
         self.tab_scan_control.update_cached_scan_counts(
             &installed_packages,

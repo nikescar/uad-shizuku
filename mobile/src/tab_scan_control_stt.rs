@@ -101,6 +101,10 @@ pub struct TabScanControl {
         Option<std::sync::Arc<std::sync::Mutex<HashMap<String, Vec<(String, String)>>>>>,
     // VirusTotal scan state machine
     pub vt_scan_state: ScanStateMachine,
+    // VirusTotal scan results, owned here (shared_store's copies are deprecated no-op stubs;
+    // scanner state lives in ViewModel.state, but the ui()/filter code below still reads its
+    // own copy so it stays live across frames without needing &ViewModel everywhere)
+    pub vt_scanner_state: Option<crate::calc_virustotal::ScannerState>,
     // Shared rate limiter for Hybrid Analysis API
     pub ha_rate_limiter: Option<HaSharedRateLimiter>,
     // Package paths cache for faster scanning (path, sha256 hash)
@@ -108,6 +112,8 @@ pub struct TabScanControl {
         Option<std::sync::Arc<std::sync::Mutex<HashMap<String, Vec<(String, String)>>>>>,
     // HybridAnalysis scan state machine
     pub ha_scan_state: ScanStateMachine,
+    // HybridAnalysis scan results, owned here (see vt_scanner_state above)
+    pub ha_scanner_state: Option<crate::calc_hybridanalysis::ScannerState>,
     // IzzyRisk scan state machine
     pub izzyrisk_scan_state: ScanStateMachine,
     // Progress for IzzyRisk scan background task (for thread communication)

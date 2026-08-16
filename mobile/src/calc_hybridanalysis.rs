@@ -1830,7 +1830,7 @@ pub fn run_hybridanalysis(
     package_risk_scores: HashMap<String, i32>,
     ha_scan_progress: Arc<Mutex<Option<f32>>>,
     ha_scan_cancelled: Arc<Mutex<bool>>,
-) -> (ScannerState, SharedRateLimiter) {
+) -> (ScannerState, SharedRateLimiter, thread::JoinHandle<()>) {
     let package_names: Vec<String> = installed_packages.iter().map(|p| p.pkg.clone()).collect();
     let scanner_state = init_scanner_state(&package_names);
 
@@ -1854,7 +1854,7 @@ pub fn run_hybridanalysis(
     let ha_scan_progress_clone = ha_scan_progress;
     let ha_scan_cancelled_clone = ha_scan_cancelled;
 
-    std::thread::spawn(move || {
+    let handle = std::thread::spawn(move || {
         let mut effective_submit_enabled = hybridanalysis_submit_enabled;
         log::info!("Checking Hybrid Analysis API quota...");
         match crate::api_hybridanalysis::check_quota(&api_key) {
@@ -2056,5 +2056,34 @@ pub fn run_hybridanalysis(
         shared_store.request_repaint();
     });
 
-    (scanner_state, rate_limiter)
+    (scanner_state, rate_limiter, handle)
+}
+
+#[cfg(test)]
+mod run_hybridanalysis_tests {
+    use super::*;
+
+    #[test]
+    fn join_handle_waits_for_background_thread_to_finish() {
+        let progress = Arc::new(Mutex::new(Some(0.0)));
+        let cancelled = Arc::new(Mutex::new(false));
+
+        let (_scanner_state, _rate_limiter, handle) = run_hybridanalysis(
+            Vec::new(),
+            "test_device".to_string(),
+            "test_key".to_string(),
+            false,
+            HashMap::new(),
+            progress.clone(),
+            cancelled,
+        );
+
+        handle.join().expect("background scan thread panicked");
+
+        assert_eq!(
+            *progress.lock().unwrap(),
+            None,
+            "progress should be cleared once the background thread has actually finished"
+        );
+    }
 }

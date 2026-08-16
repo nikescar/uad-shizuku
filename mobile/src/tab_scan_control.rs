@@ -37,9 +37,11 @@ impl Default for TabScanControl {
             vt_rate_limiter: None,
             vt_package_paths_cache: None,
             vt_scan_state: ScanStateMachine::default(),
+            vt_scanner_state: None,
             ha_rate_limiter: None,
             ha_package_paths_cache: None,
             ha_scan_state: ScanStateMachine::default(),
+            ha_scanner_state: None,
             izzyrisk_scan_state: ScanStateMachine::default(),
             izzyrisk_scan_progress: Arc::new(Mutex::new(None)),
             izzyrisk_scan_cancelled: Arc::new(Mutex::new(false)),
@@ -109,67 +111,78 @@ impl TabScanControl {
         vm: &mut crate::viewmodel::ViewModel,
         ctx: &egui::Context,
     ) {
-        use crate::viewmodel::{ScanEvent, ViewModelEvent};
+        use crate::viewmodel::ViewModelEvent;
 
         let events = vm.poll_events(ctx);
         for event in events {
             if let ViewModelEvent::Scan(scan_event) = event {
-                match scan_event {
-                    ScanEvent::VirusTotalStarted => {
-                        log::info!("VirusTotal scan started");
-                        self.vt_scan_state.start();
-                    }
-                    ScanEvent::HybridAnalysisStarted => {
-                        log::info!("HybridAnalysis scan started");
-                        self.ha_scan_state.start();
-                    }
-                    ScanEvent::ScanProgress { scanner, progress } => match scanner {
-                        crate::viewmodel::ScannerType::VirusTotal => {
-                            if let Ok(mut p) = self.vt_scan_progress.lock() {
-                                *p = Some(progress);
-                            }
-                        }
-                        crate::viewmodel::ScannerType::HybridAnalysis => {
-                            if let Ok(mut p) = self.ha_scan_progress.lock() {
-                                *p = Some(progress);
-                            }
-                        }
-                    },
-                    ScanEvent::VirusTotalComplete => {
-                        log::info!("VirusTotal scan complete");
-                        self.vt_scan_state.complete();
-                    }
-                    ScanEvent::HybridAnalysisComplete => {
-                        log::info!("HybridAnalysis scan complete");
-                        self.ha_scan_state.complete();
-                    }
-                    ScanEvent::VirusTotalCancelled => {
-                        log::info!("VirusTotal scan cancelled");
-                        self.vt_scan_state.cancel();
-                    }
-                    ScanEvent::HybridAnalysisCancelled => {
-                        log::info!("HybridAnalysis scan cancelled");
-                        self.ha_scan_state.cancel();
-                    }
-                    ScanEvent::Error { operation, error } => {
-                        log::error!("Scan error in {}: {}", operation, error);
-                        if operation.contains("virustotal") || operation.contains("VirusTotal") {
-                            self.vt_scan_state.error();
-                        } else if operation.contains("hybridanalysis")
-                            || operation.contains("HybridAnalysis")
-                        {
-                            self.ha_scan_state.error();
-                        }
-                    }
-                    ScanEvent::VirusTotalStateUpdated(_state) => {
-                        // Scanner state now in ViewModel, handled by ViewModel
-                        log::debug!("VirusTotal scanner state updated in ViewModel");
-                    }
-                    ScanEvent::HybridAnalysisStateUpdated(_state) => {
-                        // Scanner state now in ViewModel, handled by ViewModel
-                        log::debug!("HybridAnalysis scanner state updated in ViewModel");
+                self.apply_scan_event(&scan_event);
+            }
+        }
+    }
+
+    /// Apply a single ScanEvent to local state machines and, for scanner-state/cancellation
+    /// events, bridge the result into shared_store so TabScanControl::ui()'s datatable (which
+    /// still reads scan results from shared_store, not ViewModel.state) sees live results.
+    fn apply_scan_event(&mut self, scan_event: &crate::viewmodel::ScanEvent) {
+        use crate::viewmodel::ScanEvent;
+
+        match scan_event {
+            ScanEvent::VirusTotalStarted => {
+                log::info!("VirusTotal scan started");
+                self.vt_scan_state.start();
+            }
+            ScanEvent::HybridAnalysisStarted => {
+                log::info!("HybridAnalysis scan started");
+                self.ha_scan_state.start();
+            }
+            ScanEvent::ScanProgress { scanner, progress } => match scanner {
+                crate::viewmodel::ScannerType::VirusTotal => {
+                    if let Ok(mut p) = self.vt_scan_progress.lock() {
+                        *p = Some(*progress);
                     }
                 }
+                crate::viewmodel::ScannerType::HybridAnalysis => {
+                    if let Ok(mut p) = self.ha_scan_progress.lock() {
+                        *p = Some(*progress);
+                    }
+                }
+            },
+            ScanEvent::VirusTotalComplete => {
+                log::info!("VirusTotal scan complete");
+                self.vt_scan_state.complete();
+            }
+            ScanEvent::HybridAnalysisComplete => {
+                log::info!("HybridAnalysis scan complete");
+                self.ha_scan_state.complete();
+            }
+            ScanEvent::VirusTotalCancelled => {
+                log::info!("VirusTotal scan cancelled");
+                self.vt_scan_state.cancel();
+                self.vt_scanner_state = None;
+            }
+            ScanEvent::HybridAnalysisCancelled => {
+                log::info!("HybridAnalysis scan cancelled");
+                self.ha_scan_state.cancel();
+                self.ha_scanner_state = None;
+            }
+            ScanEvent::Error { operation, error } => {
+                log::error!("Scan error in {}: {}", operation, error);
+                if operation.contains("virustotal") || operation.contains("VirusTotal") {
+                    self.vt_scan_state.error();
+                } else if operation.contains("hybridanalysis")
+                    || operation.contains("HybridAnalysis")
+                {
+                    self.ha_scan_state.error();
+                }
+            }
+            ScanEvent::VirusTotalStateUpdated(state) => {
+                log::debug!("VirusTotal scanner state updated");
+                self.vt_scanner_state = Some(state.clone());
+            }
+            ScanEvent::HybridAnalysisStateUpdated(state) => {
+                log::debug!("HybridAnalysis scanner state updated");
+                self.ha_scanner_state = Some(state.clone());
             }
         }
     }
@@ -462,7 +475,7 @@ impl TabScanControl {
                 self.vt_scan_state.start();
 
                 // Call the new function from calc_virustotal
-                let (scanner_state, rate_limiter) = calc_virustotal::run_virustotal(
+                let (scanner_state, rate_limiter, _join_handle) = calc_virustotal::run_virustotal(
                     installed_packages,
                     device.clone(),
                     api_key,
@@ -472,8 +485,7 @@ impl TabScanControl {
                     self.vt_scan_cancelled.clone(),
                 );
 
-                // Store scanner state in shared store
-                store.set_vt_scanner_state(Some(scanner_state));
+                self.vt_scanner_state = Some(scanner_state);
                 self.vt_rate_limiter = Some(rate_limiter);
             }
         }
@@ -505,7 +517,7 @@ impl TabScanControl {
                 self.ha_scan_state.start();
 
                 // Call the new function from calc_hybridanalysis
-                let (scanner_state, rate_limiter) = calc_hybridanalysis::run_hybridanalysis(
+                let (scanner_state, rate_limiter, _join_handle) = calc_hybridanalysis::run_hybridanalysis(
                     installed_packages,
                     device.clone(),
                     api_key,
@@ -515,8 +527,7 @@ impl TabScanControl {
                     self.ha_scan_cancelled.clone(),
                 );
 
-                // Store scanner state in shared store
-                store.set_ha_scanner_state(Some(scanner_state));
+                self.ha_scanner_state = Some(scanner_state);
                 self.ha_rate_limiter = Some(rate_limiter);
             }
         }
@@ -606,8 +617,8 @@ impl TabScanControl {
     fn sort_packages(&mut self) {
         if let Some(col_idx) = self.sort_column {
             let store = get_shared_store();
-            let vt_scanner_state = store.get_vt_scanner_state();
-            let ha_scanner_state = store.get_ha_scanner_state();
+            let vt_scanner_state = self.vt_scanner_state.clone();
+            let ha_scanner_state = self.ha_scanner_state.clone();
             let package_risk_scores = self.package_risk_scores.clone();
             let sort_ascending = self.sort_ascending;
 
@@ -1227,24 +1238,22 @@ impl TabScanControl {
 
     // Legacy methods that fetch from store (used by get_vt_counts/get_ha_counts)
     fn should_show_package_vt(&self, package: &PackageFingerprint) -> bool {
-        let store = get_shared_store();
-        let vt_scanner_state = store.get_vt_scanner_state();
-        self.should_show_package_vt_with_state(package, &vt_scanner_state)
+        self.should_show_package_vt_with_state(package, &self.vt_scanner_state)
     }
 
     fn should_show_package_ha(&self, package: &PackageFingerprint) -> bool {
-        let store = get_shared_store();
-        let ha_scanner_state = store.get_ha_scanner_state();
         // Legacy method - uses empty ignorelist for backward compatibility
-        self.should_show_package_ha_with_state(package, &ha_scanner_state, "")
+        self.should_show_package_ha_with_state(package, &self.ha_scanner_state, "")
     }
 
     fn should_show_package(&self, package: &PackageFingerprint) -> bool {
-        let store = get_shared_store();
-        let vt_scanner_state = store.get_vt_scanner_state();
-        let ha_scanner_state = store.get_ha_scanner_state();
         // Legacy method - uses empty ignorelist for backward compatibility
-        self.should_show_package_with_state(package, &vt_scanner_state, &ha_scanner_state, "")
+        self.should_show_package_with_state(
+            package,
+            &self.vt_scanner_state,
+            &self.ha_scanner_state,
+            "",
+        )
     }
 
     fn matches_text_filter_with_cache(
@@ -1346,8 +1355,8 @@ impl TabScanControl {
         let hybridanalysis_tag_ignorelist = hybridanalysis_tag_ignorelist.to_string();
         let shared_store = crate::shared_store_stt::get_shared_store();
         let installed_packages = shared_store.get_installed_packages();
-        let vt_scanner_state = shared_store.get_vt_scanner_state();
-        let ha_scanner_state = shared_store.get_ha_scanner_state();
+        let vt_scanner_state = self.vt_scanner_state.clone();
+        let ha_scanner_state = self.ha_scanner_state.clone();
         let uad_ng_lists = shared_store.get_uad_ng_lists();
 
         // Pre-fetch cached app data maps for efficient lookups
@@ -2982,4 +2991,48 @@ fn toggle_ui(ui: &mut egui::Ui, on: &mut bool) -> egui::Response {
     }
 
     response
+}
+
+#[cfg(test)]
+mod scan_event_tests {
+    use super::*;
+    use crate::viewmodel::ScanEvent;
+
+    #[test]
+    fn state_updated_events_populate_scanner_state_fields() {
+        let mut tab = TabScanControl::default();
+
+        let vt_state: calc_virustotal::ScannerState = Arc::new(Mutex::new(HashMap::new()));
+        tab.apply_scan_event(&ScanEvent::VirusTotalStateUpdated(vt_state));
+        assert!(
+            tab.vt_scanner_state.is_some(),
+            "VirusTotalStateUpdated should populate vt_scanner_state so the results table can read it"
+        );
+
+        let ha_state: calc_hybridanalysis::ScannerState = Arc::new(Mutex::new(HashMap::new()));
+        tab.apply_scan_event(&ScanEvent::HybridAnalysisStateUpdated(ha_state));
+        assert!(
+            tab.ha_scanner_state.is_some(),
+            "HybridAnalysisStateUpdated should populate ha_scanner_state so the results table can read it"
+        );
+    }
+
+    #[test]
+    fn cancelled_events_clear_scanner_state_fields() {
+        let mut tab = TabScanControl::default();
+        tab.vt_scanner_state = Some(Arc::new(Mutex::new(HashMap::new())));
+        tab.ha_scanner_state = Some(Arc::new(Mutex::new(HashMap::new())));
+
+        tab.apply_scan_event(&ScanEvent::VirusTotalCancelled);
+        assert!(
+            tab.vt_scanner_state.is_none(),
+            "cancelling VirusTotal should clear vt_scanner_state"
+        );
+
+        tab.apply_scan_event(&ScanEvent::HybridAnalysisCancelled);
+        assert!(
+            tab.ha_scanner_state.is_none(),
+            "cancelling HybridAnalysis should clear ha_scanner_state"
+        );
+    }
 }

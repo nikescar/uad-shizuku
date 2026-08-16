@@ -875,7 +875,7 @@ pub fn run_virustotal(
     package_risk_scores: HashMap<String, i32>,
     vt_scan_progress: Arc<Mutex<Option<f32>>>,
     vt_scan_cancelled: Arc<Mutex<bool>>,
-) -> (ScannerState, SharedRateLimiter) {
+) -> (ScannerState, SharedRateLimiter, thread::JoinHandle<()>) {
     let package_names: Vec<String> = installed_packages.iter().map(|p| p.pkg.clone()).collect();
     let scanner_state = init_scanner_state(&package_names);
 
@@ -903,7 +903,7 @@ pub fn run_virustotal(
     let vt_scan_progress_clone = vt_scan_progress;
     let vt_scan_cancelled_clone = vt_scan_cancelled;
 
-    std::thread::spawn(move || {
+    let handle = std::thread::spawn(move || {
         let mut packages = installed_packages;
         packages.sort_by(|a, b| {
             let perms_a: usize = a.users.iter().map(|u| u.runtimePermissions.len()).sum();
@@ -1050,5 +1050,36 @@ pub fn run_virustotal(
         shared_store.request_repaint();
     });
 
-    (scanner_state, rate_limiter)
+    (scanner_state, rate_limiter, handle)
+}
+
+#[cfg(test)]
+mod run_virustotal_tests {
+    use super::*;
+
+    #[test]
+    fn join_handle_waits_for_background_thread_to_finish() {
+        let progress = Arc::new(Mutex::new(Some(0.0)));
+        let cancelled = Arc::new(Mutex::new(false));
+
+        let (_scanner_state, _rate_limiter, handle) = run_virustotal(
+            Vec::new(),
+            "test_device".to_string(),
+            "test_key".to_string(),
+            false,
+            HashMap::new(),
+            progress.clone(),
+            cancelled,
+        );
+
+        handle.join().expect("background scan thread panicked");
+
+        // The background thread clears progress to None as its very last step,
+        // so once join() returns, that write must already be visible.
+        assert_eq!(
+            *progress.lock().unwrap(),
+            None,
+            "progress should be cleared once the background thread has actually finished"
+        );
+    }
 }
