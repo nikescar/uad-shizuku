@@ -108,6 +108,7 @@ fn prepare_app_display_data(
     ctx: &egui::Context,
     packages: &[PackageFingerprint],
     vm_state: &ViewModelState,
+    viewmodel: &crate::viewmodel::ViewModel,
     google_play_enabled: bool,
     fdroid_enabled: bool,
     apkmirror_enabled: bool,
@@ -141,6 +142,17 @@ fn prepare_app_display_data(
                     load_texture_from_bytes(ctx, &package.pkg, &ap_app.icon_bytes, &store);
                 app_data.insert(package.pkg.clone(), (texture, ap_app.label.clone()));
                 continue;
+            }
+
+            // Cache miss: kick off an async fetch via the MetadataActor (JNI
+            // PackageManager lookup on Android). The result lands in
+            // vm_state.cached_metadata on a later frame.
+            if let Err(e) = viewmodel.fetch_android_package_metadata(package.pkg.clone()) {
+                log::warn!(
+                    "[DESKTOP] Failed to request Android package metadata for {}: {}",
+                    package.pkg,
+                    e
+                );
             }
         }
 
@@ -385,6 +397,7 @@ fn render_main_content(
             ui.ctx(),
             &vm_state.filtered_packages,
             vm_state,
+            viewmodel,
             google_play_enabled,
             fdroid_enabled,
             apkmirror_enabled,

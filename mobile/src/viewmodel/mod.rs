@@ -30,6 +30,10 @@ pub struct ViewModel {
 
     // Background thread handle
     _runtime_handle: Option<std::thread::JoinHandle<()>>,
+
+    // Package IDs with an Android system app-info fetch currently in flight,
+    // to avoid re-dispatching every frame while waiting for the async result.
+    pending_android_requests: std::sync::Mutex<std::collections::HashSet<String>>,
 }
 
 /// Metadata cache - stores fetched app metadata
@@ -130,6 +134,7 @@ impl ViewModel {
             event_rx,
             state: ViewModelState::default(),
             _runtime_handle: Some(runtime_handle),
+            pending_android_requests: std::sync::Mutex::new(std::collections::HashSet::new()),
         }
     }
 
@@ -256,7 +261,16 @@ impl ViewModel {
                     .cached_metadata
                     .android_package
                     .insert(pkg_id.clone(), app.clone());
+                self.pending_android_requests.lock().unwrap().remove(pkg_id);
                 _ctx.request_repaint();
+            }
+            ViewModelEvent::Metadata(MetadataEvent::Error { operation, .. }) => {
+                if let Some(pkg_id) = operation.strip_prefix("fetch_android_package:") {
+                    self.pending_android_requests
+                        .lock()
+                        .unwrap()
+                        .remove(pkg_id);
+                }
             }
 
             _ => {}
@@ -477,6 +491,13 @@ impl ViewModel {
     }
 
     pub fn fetch_android_package_metadata(&self, package: String) -> anyhow::Result<()> {
+        {
+            let mut pending = self.pending_android_requests.lock().unwrap();
+            if !pending.insert(package.clone()) {
+                // Already in flight; the eventual event will populate the cache.
+                return Ok(());
+            }
+        }
         self.metadata_tx
             .send_blocking(MetadataCommand::FetchAndroidPackage { package })
             .map_err(|e| anyhow::anyhow!("Failed to send command: {}", e))

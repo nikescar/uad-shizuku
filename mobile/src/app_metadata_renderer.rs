@@ -26,6 +26,7 @@ pub fn prepare_app_info_for_display(
     package_ids: &[String],
     system_packages: &std::collections::HashSet<String>,
     vm_state: &ViewModelState,
+    viewmodel: &crate::viewmodel::ViewModel,
     google_play_enabled: bool,
     fdroid_enabled: bool,
     apkmirror_enabled: bool,
@@ -85,7 +86,7 @@ pub fn prepare_app_info_for_display(
     for pkg_id in package_ids {
         // Android Package renderer (highest priority on Android)
         if android_package_enabled {
-            // Try ViewModel cache first (future MVVM implementation)
+            // Try ViewModel cache first
             if let Some(ap_app) = vm_state.cached_metadata.get_android_package(pkg_id) {
                 let texture = load_texture_from_bytes(ctx, pkg_id, &ap_app.icon_bytes, &store);
                 app_data_map.insert(
@@ -93,6 +94,17 @@ pub fn prepare_app_info_for_display(
                     (texture, ap_app.label.clone(), pkg_id.clone(), None),
                 );
                 continue;
+            }
+
+            // Cache miss: kick off an async fetch via the MetadataActor (JNI
+            // PackageManager lookup on Android). The result lands in
+            // vm_state.cached_metadata on a later frame.
+            if let Err(e) = viewmodel.fetch_android_package_metadata(pkg_id.clone()) {
+                log::warn!(
+                    "[RENDER] Failed to request Android package metadata for {}: {}",
+                    pkg_id,
+                    e
+                );
             }
         }
 

@@ -283,6 +283,7 @@ fn render_package_list(
         &package_ids,
         &system_packages,
         vm_state,
+        viewmodel,
         google_play_enabled,
         fdroid_enabled,
         apkmirror_enabled,
