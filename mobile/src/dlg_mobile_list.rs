@@ -4,9 +4,11 @@
 //! card-based package lists from different tabs. Currently supports debloat tab,
 //! designed to be extended for scan/apps tabs in the future.
 
+use crate::adb::PackageFingerprint;
 pub use crate::dlg_mobile_list_stt::*;
 use crate::viewmodel::ViewModelState;
 use eframe::egui;
+use std::collections::HashMap;
 
 impl DlgMobileList {
     /// Create a new mobile list dialog
@@ -43,6 +45,7 @@ impl DlgMobileList {
     /// * `fdroid_enabled` - Whether F-Droid metadata renderer is enabled
     /// * `apkmirror_enabled` - Whether APKMirror metadata renderer is enabled
     /// * `android_package_enabled` - Whether Android package metadata renderer is enabled
+    #[allow(clippy::too_many_arguments)]
     pub fn show(
         &mut self,
         ctx: &egui::Context,
@@ -53,6 +56,10 @@ impl DlgMobileList {
         fdroid_enabled: bool,
         apkmirror_enabled: bool,
         android_package_enabled: bool,
+        installed_packages: &[PackageFingerprint],
+        package_risk_scores: &HashMap<String, i32>,
+        unsafe_app_remove: bool,
+        expert_app_remove: bool,
     ) {
         // Check viewport width and auto-close if >1010px
         let current_width = ctx.screen_rect().width();
@@ -79,6 +86,16 @@ impl DlgMobileList {
                     format!("Debloat - {}", capitalize_first(category))
                 } else {
                     "Debloat Packages".to_string()
+                }
+            }
+            MobileListViewType::Stalkerware | MobileListViewType::IzzyRisk => {
+                match &self.risk_state.category {
+                    Some(category) => crate::dlg_mobile_risk::window_title(
+                        category,
+                        self.risk_state.count_enabled,
+                        self.risk_state.count_total,
+                    ),
+                    None => "Details".to_string(),
                 }
             }
         };
@@ -179,6 +196,22 @@ impl DlgMobileList {
                             vm_state,
                             tab_debloat_state,
                             viewmodel,
+                            google_play_enabled,
+                            fdroid_enabled,
+                            apkmirror_enabled,
+                            android_package_enabled,
+                        );
+                    }
+                    MobileListViewType::Stalkerware | MobileListViewType::IzzyRisk => {
+                        crate::dlg_mobile_risk::view_mobile::render(
+                            ui,
+                            ctx,
+                            vm_state,
+                            &mut self.risk_state,
+                            installed_packages,
+                            package_risk_scores,
+                            unsafe_app_remove,
+                            expert_app_remove,
                             google_play_enabled,
                             fdroid_enabled,
                             apkmirror_enabled,

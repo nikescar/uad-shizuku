@@ -3,7 +3,6 @@
 //! This module defines the state for a reusable mobile list dialog that can display
 //! card-based package lists from different tabs (debloat, scan, apps).
 
-#[derive(Debug, Clone)]
 pub struct DlgMobileList {
     /// Whether the dialog is currently open
     pub open: bool,
@@ -16,12 +15,19 @@ pub struct DlgMobileList {
 
     /// Track last viewport width for resize detection
     pub last_width: Option<f32>,
+
+    /// State for the IzzyRisk/Stalkerware drill-down (category, filters, owned dialogs)
+    pub risk_state: crate::dlg_mobile_risk::RiskTableState,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MobileListViewType {
     /// Show debloat tab mobile view
     Debloat,
+    /// Show stalkerware dashcounter drill-down (detected/undetected)
+    Stalkerware,
+    /// Show IzzyRisk dashcounter drill-down (safe/normal/moderate/high)
+    IzzyRisk,
     // Future: Scan, Apps, Usage
 }
 
@@ -32,6 +38,7 @@ impl Default for DlgMobileList {
             category_filter: None,
             view_type: MobileListViewType::Debloat,
             last_width: None,
+            risk_state: crate::dlg_mobile_risk::RiskTableState::default(),
         }
     }
 }
@@ -51,5 +58,15 @@ mod tests {
     #[test]
     fn test_view_type_equality() {
         assert_eq!(MobileListViewType::Debloat, MobileListViewType::Debloat);
+    }
+
+    #[test]
+    fn test_stalkerware_and_izzyrisk_view_types_are_distinct() {
+        assert_ne!(
+            MobileListViewType::Stalkerware,
+            MobileListViewType::IzzyRisk
+        );
+        assert_ne!(MobileListViewType::Stalkerware, MobileListViewType::Debloat);
+        assert_ne!(MobileListViewType::IzzyRisk, MobileListViewType::Debloat);
     }
 }
