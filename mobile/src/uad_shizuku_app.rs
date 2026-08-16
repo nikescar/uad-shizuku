@@ -27,6 +27,7 @@ use crate::adb::get_devices;
 use crate::adb::{get_users, UserInfo};
 // use crate::android_packagemanager::get_installed_packages;
 use crate::dlg_dashcounter_details::DlgDashCounterDetails;
+use crate::dlg_mobile_risk::RiskCategory;
 use crate::tab_apps_control::TabAppsControl;
 use crate::tab_debloat::TabDebloat;
 use crate::tab_scan_control::TabScanControl;
@@ -1105,11 +1106,15 @@ impl UadShizukuApp {
                     } else {
                         (0, 0)
                     };
-                    (
-                        Some(DashCounterCategory::StalkerwareDetected),
-                        enabled,
-                        total,
-                    )
+                    self.dlg_mobile_list.risk_state.category =
+                        Some(RiskCategory::StalkerwareDetected);
+                    self.dlg_mobile_list.risk_state.count_enabled = enabled;
+                    self.dlg_mobile_list.risk_state.count_total = total;
+                    self.dlg_mobile_list.open(
+                        crate::dlg_mobile_list::MobileListViewType::Stalkerware,
+                        None,
+                    );
+                    (None, 0, 0)
                 }
                 ("stalkerware", 1) => {
                     let shared_store = crate::shared_store_stt::get_shared_store();
@@ -1156,11 +1161,15 @@ impl UadShizukuApp {
                     } else {
                         (installed_packages.len(), installed_packages.len())
                     };
-                    (
-                        Some(DashCounterCategory::StalkerwareUndetected),
-                        enabled,
-                        total,
-                    )
+                    self.dlg_mobile_list.risk_state.category =
+                        Some(RiskCategory::StalkerwareUndetected);
+                    self.dlg_mobile_list.risk_state.count_enabled = enabled;
+                    self.dlg_mobile_list.risk_state.count_total = total;
+                    self.dlg_mobile_list.open(
+                        crate::dlg_mobile_list::MobileListViewType::Stalkerware,
+                        None,
+                    );
+                    (None, 0, 0)
                 }
                 ("izzyrisk", 0) => {
                     let shared_store = crate::shared_store_stt::get_shared_store();
@@ -1209,7 +1218,12 @@ impl UadShizukuApp {
                                 && is_pkg_enabled(pkg)
                         })
                         .count();
-                    (Some(DashCounterCategory::IzzyRiskHigh), enabled, total)
+                    self.dlg_mobile_list.risk_state.category = Some(RiskCategory::IzzyRiskHigh);
+                    self.dlg_mobile_list.risk_state.count_enabled = enabled;
+                    self.dlg_mobile_list.risk_state.count_total = total;
+                    self.dlg_mobile_list
+                        .open(crate::dlg_mobile_list::MobileListViewType::IzzyRisk, None);
+                    (None, 0, 0)
                 }
                 ("izzyrisk", 1) => {
                     let shared_store = crate::shared_store_stt::get_shared_store();
@@ -1258,7 +1272,13 @@ impl UadShizukuApp {
                                 && is_pkg_enabled(pkg)
                         })
                         .count();
-                    (Some(DashCounterCategory::IzzyRiskModerate), enabled, total)
+                    self.dlg_mobile_list.risk_state.category =
+                        Some(RiskCategory::IzzyRiskModerate);
+                    self.dlg_mobile_list.risk_state.count_enabled = enabled;
+                    self.dlg_mobile_list.risk_state.count_total = total;
+                    self.dlg_mobile_list
+                        .open(crate::dlg_mobile_list::MobileListViewType::IzzyRisk, None);
+                    (None, 0, 0)
                 }
                 ("izzyrisk", 2) => {
                     let shared_store = crate::shared_store_stt::get_shared_store();
@@ -1307,7 +1327,13 @@ impl UadShizukuApp {
                                 && is_pkg_enabled(pkg)
                         })
                         .count();
-                    (Some(DashCounterCategory::IzzyRiskNormal), enabled, total)
+                    self.dlg_mobile_list.risk_state.category =
+                        Some(RiskCategory::IzzyRiskNormal);
+                    self.dlg_mobile_list.risk_state.count_enabled = enabled;
+                    self.dlg_mobile_list.risk_state.count_total = total;
+                    self.dlg_mobile_list
+                        .open(crate::dlg_mobile_list::MobileListViewType::IzzyRisk, None);
+                    (None, 0, 0)
                 }
                 ("izzyrisk", 3) => {
                     let shared_store = crate::shared_store_stt::get_shared_store();
@@ -1356,7 +1382,12 @@ impl UadShizukuApp {
                                 && is_pkg_enabled(pkg)
                         })
                         .count();
-                    (Some(DashCounterCategory::IzzyRiskSafe), enabled, total)
+                    self.dlg_mobile_list.risk_state.category = Some(RiskCategory::IzzyRiskSafe);
+                    self.dlg_mobile_list.risk_state.count_enabled = enabled;
+                    self.dlg_mobile_list.risk_state.count_total = total;
+                    self.dlg_mobile_list
+                        .open(crate::dlg_mobile_list::MobileListViewType::IzzyRisk, None);
+                    (None, 0, 0)
                 }
                 ("virustotal", 0) => (
                     Some(DashCounterCategory::VirusTotalMalicious),
@@ -1604,6 +1635,10 @@ impl UadShizukuApp {
                 fdroid_enabled,
                 apkmirror_enabled,
                 android_package_enabled,
+                &installed_packages,
+                package_risk_scores,
+                self.settings.unsafe_app_remove,
+                self.settings.expert_app_remove,
             );
         }
 
@@ -1729,7 +1764,33 @@ impl UadShizukuApp {
             }
         }
 
-        // REMOVED: Uninstall confirmation dialog (tab_debloat_control phased out)
+        // Perform uninstall action (revived for the mobile IzzyRisk/Stalkerware risk table —
+        // this path was dead since tab_debloat_control was phased out; see
+        // docs/superpowers/specs/2026-08-16-mobile-risk-table-design.md)
+        if let Some(pkg_name) = uninstall_package {
+            if let Some(ref device) = self.selected_device {
+                match crate::adb::uninstall_app(&pkg_name, device) {
+                    Ok(output) => {
+                        log::info!("App uninstalled successfully: {}", output);
+                        let mut packages = shared_store.get_installed_packages();
+                        if uninstall_is_system {
+                            if let Some(pkg) = packages.iter_mut().find(|p| p.pkg == pkg_name) {
+                                for user in pkg.users.iter_mut() {
+                                    user.enabled = 0;
+                                    user.installed = false;
+                                }
+                            }
+                        } else {
+                            packages.retain(|p| p.pkg != pkg_name);
+                        }
+                        shared_store.set_installed_packages(packages);
+                    }
+                    Err(e) => {
+                        log::error!("Failed to uninstall app: {}", e);
+                    }
+                }
+            }
+        }
 
         // Handle install button from offa dashcounter details
         if let Some(app) = ui.ctx().data(|data| {
