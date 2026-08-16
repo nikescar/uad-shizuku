@@ -192,11 +192,22 @@ fn render_filter_section(
                 log::info!("Batch uninstall requested for {} packages", selection_count);
                 let package_ids: Vec<String> =
                     local_state.selected_packages.iter().cloned().collect();
-                let device = local_state.selected_device.clone().unwrap_or_default();
-                if let Err(e) = viewmodel.batch_uninstall(package_ids, device) {
-                    log::error!("Failed to batch uninstall: {}", e);
-                    local_state.batch_uninstall_state.status_message = format!("Error: {}", e);
-                }
+
+                // Determine which packages are system apps
+                let is_system: Vec<bool> = package_ids
+                    .iter()
+                    .map(|pkg_id| {
+                        vm_state
+                            .filtered_packages
+                            .iter()
+                            .find(|p| &p.pkg == pkg_id)
+                            .map(|p| p.flags.contains("SYSTEM"))
+                            .unwrap_or(false)
+                    })
+                    .collect();
+
+                // Open confirmation dialog
+                local_state.uninstall_confirm_dialog.open_batch(package_ids, is_system);
             }
             if ui.button("Disable").clicked() {
                 log::info!("Batch disable requested for {} packages", selection_count);
