@@ -1953,6 +1953,15 @@ git commit -m "feat(mobile): route VT/HA dashcounter clicks through dlg_mobile_s
 
 **Interfaces:** None — this task exercises the running app, not new code.
 
+**Automated portion completed 2026-08-16:** `cargo build` (full workspace) passed clean. A
+12-second smoke run of `cargo run -p uad-shizuku` (via `timeout 12`) loaded 415 real packages
+with persisted VirusTotal (414 cached, 1 processed) and HybridAnalysis (414 cached, 1
+processed) scan results from the local dev database, with no panics and no errors in the log.
+This confirms the `dlg_mobile_scan` wiring is live against real scan data at startup, not just
+compiling. The remaining interactive steps below (tap each dashboard counter, visually confirm
+chip rendering at a narrow window width) require a human driving the GUI — no browser-automation
+tooling applies to a native egui window, so this session could not complete them.
+
 - [ ] **Step 1: Full workspace build**
 
 Run: `cargo build` (from repo root)
