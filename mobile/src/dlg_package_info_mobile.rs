@@ -59,10 +59,7 @@ impl DlgPackageInfoMobile {
             .resizable(false)
             .collapsible(false)
             .scroll([false, true])
-            .fixed_size([
-                ctx.screen_rect().width() - 40.0,
-                ctx.screen_rect().height() - 40.0,
-            ])
+            .fixed_size(ctx.screen_rect().size())
             .show(ctx, |ui| {
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Min), |ui| {
                     if ui.button("Close").clicked() {

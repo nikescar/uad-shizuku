@@ -121,14 +121,8 @@ impl DlgMobileList {
             .collapsible(false)
             .scroll([false, false])
             .resize(|r| {
-                r.default_size([
-                    ctx.content_rect().width() - 40.0,
-                    ctx.content_rect().height() - 40.0,
-                ])
-                .max_size([
-                    ctx.content_rect().width() - 40.0,
-                    ctx.content_rect().height() - 40.0,
-                ])
+                r.default_size(ctx.screen_rect().size())
+                    .max_size(ctx.screen_rect().size())
             })
             .show(ctx, |ui| {
                 // Custom title bar with heading and close button
