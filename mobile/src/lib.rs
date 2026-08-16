@@ -85,6 +85,7 @@ pub use uad_shizuku_app::{UadShizukuApp as GuiApp, View};
 pub mod dlg_mobile_list;
 pub mod dlg_mobile_list_stt;
 pub mod dlg_mobile_risk;
+pub mod dlg_mobile_scan;
 pub mod material_symbol_icons;
 mod shared_store;
 pub mod shared_store_stt;
