@@ -52,6 +52,7 @@ pub fn render(
             ui,
             vm_state,
             local_state,
+            viewmodel,
             google_play_enabled,
             fdroid_enabled,
             apkmirror_enabled,
@@ -191,10 +192,18 @@ fn render_filter_section(
                 log::info!("Batch uninstall - will wire in Task 7");
             }
             if ui.button("Disable").clicked() {
-                log::info!("Batch disable - will wire in Task 6");
+                log::info!("Batch disable requested for {} packages", selection_count);
+                let device = local_state.selected_device.clone().unwrap_or_default();
+                local_state
+                    .batch_toggle_confirm
+                    .open(true, local_state.selected_packages.clone(), device);
             }
             if ui.button("Enable").clicked() {
-                log::info!("Batch enable - will wire in Task 6");
+                log::info!("Batch enable requested for {} packages", selection_count);
+                let device = local_state.selected_device.clone().unwrap_or_default();
+                local_state
+                    .batch_toggle_confirm
+                    .open(false, local_state.selected_packages.clone(), device);
             }
             if ui.button("Clear Selection").clicked() {
                 local_state.selected_packages.clear();
@@ -213,6 +222,7 @@ fn render_package_list(
     ui: &mut egui::Ui,
     vm_state: &ViewModelState,
     local_state: &mut TabDebloatState,
+    viewmodel: &crate::viewmodel::ViewModel,
     google_play_enabled: bool,
     fdroid_enabled: bool,
     apkmirror_enabled: bool,
@@ -322,6 +332,10 @@ fn render_package_list(
     ui.vertical(|ui| {
         ui.set_min_height(available_height);
 
+        // Clone data needed in closures to avoid borrow conflicts
+        let selected_packages_clone = local_state.selected_packages.clone();
+        let device = local_state.selected_device.clone().unwrap_or_default();
+
         // Render package table and handle callbacks
         render_package_table_mobile(
             ui,
@@ -344,8 +358,38 @@ fn render_package_list(
                     log::error!("[MOBILE] Package {} not found in filtered list", pkg_id);
                 }
             },
-            &mut |_pkg_id, _is_enabled| {
-                log::debug!("Toggle {}: {}", _pkg_id, _is_enabled);
+            &mut |pkg_id, is_enabled| {
+                // Toggle button - check if batch or single
+                let selection_count = selected_packages_clone.len();
+                let is_batch = selection_count > 1 && selected_packages_clone.contains(pkg_id);
+
+                if is_batch {
+                    // Batch operation - show confirmation dialog
+                    log::debug!(
+                        "[MOBILE] Batch toggle requested for {} packages",
+                        selection_count
+                    );
+                    local_state
+                        .batch_toggle_confirm
+                        .open(is_enabled, selected_packages_clone.clone(), device.clone());
+                } else {
+                    // Single package - immediate toggle
+                    if is_enabled {
+                        log::info!("[MOBILE] Disabling package: {}", pkg_id);
+                        if let Err(e) = viewmodel.batch_disable(vec![pkg_id.to_string()], device.clone()) {
+                            log::error!("Failed to disable {}: {}", pkg_id, e);
+                            local_state.batch_disable_state.status_message =
+                                format!("Error: {}", e);
+                        }
+                    } else {
+                        log::info!("[MOBILE] Enabling package: {}", pkg_id);
+                        if let Err(e) = viewmodel.batch_enable(vec![pkg_id.to_string()], device.clone()) {
+                            log::error!("Failed to enable {}: {}", pkg_id, e);
+                            local_state.batch_enable_state.status_message =
+                                format!("Error: {}", e);
+                        }
+                    }
+                }
             },
             &mut |_pkg_id| {
                 log::debug!("Delete: {}", _pkg_id);
@@ -359,6 +403,9 @@ fn render_package_list(
         vm_state,
         &vm_state.uad_ng_lists,
     );
+
+    // Render batch toggle confirmation dialog if open
+    local_state.batch_toggle_confirm.show(ui.ctx(), viewmodel);
 }
 
 /// Render error banner if there are active errors
