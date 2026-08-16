@@ -42,7 +42,16 @@ pub fn shell_exec(device: &str, command: &str) -> std::io::Result<String> {
         if output.status.success() {
             Ok(String::from_utf8_lossy(&output.stdout).to_string())
         } else {
-            let err = String::from_utf8_lossy(&output.stderr).to_string();
+            // adb/pm write failure details (e.g. "Failure [DELETE_FAILED_...]") to
+            // stdout, not stderr, even on non-zero exit, so stderr alone is often empty.
+            let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+            let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+            let err = match (stdout.trim().is_empty(), stderr.trim().is_empty()) {
+                (false, false) => format!("{} ({})", stdout.trim(), stderr.trim()),
+                (false, true) => stdout.trim().to_string(),
+                (true, false) => stderr.trim().to_string(),
+                (true, true) => format!("command failed with exit code {:?}", output.status.code()),
+            };
             Err(std::io::Error::new(std::io::ErrorKind::Other, err))
         }
     }
@@ -1244,7 +1253,16 @@ pub fn uninstall_app(package_name: &str, device: &str) -> std::io::Result<String
             let result = String::from_utf8_lossy(&output.stdout).to_string();
             Ok(result)
         } else {
-            let err = String::from_utf8_lossy(&output.stderr).to_string();
+            // adb writes the failure reason (e.g. "Failure [DELETE_FAILED_...]") to
+            // stdout, not stderr, even on non-zero exit, so stderr alone is often empty.
+            let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+            let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+            let err = match (stdout.trim().is_empty(), stderr.trim().is_empty()) {
+                (false, false) => format!("{} ({})", stdout.trim(), stderr.trim()),
+                (false, true) => stdout.trim().to_string(),
+                (true, false) => stderr.trim().to_string(),
+                (true, true) => format!("command failed with exit code {:?}", output.status.code()),
+            };
             Err(std::io::Error::new(std::io::ErrorKind::Other, err))
         }
     }

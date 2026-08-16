@@ -51,6 +51,7 @@ impl Default for TabAppsControl {
             )),
             was_worker_running: false,
             pending_refresh_after_operations: false,
+            packages_version: 0,
             package_details_dialog: DlgPackageDetails::default(),
             uninstall_confirm_dialog: DlgUninstallConfirm::default(),
         }
@@ -68,6 +69,7 @@ impl TabAppsControl {
 
     pub fn update_packages(&mut self, packages: Vec<PackageFingerprint>) {
         self.installed_packages = packages;
+        self.packages_version = self.packages_version.wrapping_add(1);
     }
 
     pub fn set_selected_device(&mut self, device: Option<String>) {
@@ -1123,11 +1125,12 @@ impl TabAppsControl {
 
         // Cache key for filtered app entries
         let cache_key = format!(
-            "apps_filtered_entries_{}_{}_{}_{}",
+            "apps_filtered_entries_{}_{}_{}_{}_{}",
             self.app_entries.len(),
             self.show_only_installable,
             self.text_filter,
-            self.selected_app_list.unwrap_or(usize::MAX)
+            self.selected_app_list.unwrap_or(usize::MAX),
+            self.packages_version
         );
 
         // Cache prepared row data to avoid expensive operations every frame
@@ -1182,9 +1185,15 @@ impl TabAppsControl {
             let app_for_install = app.clone();
             let app_name = app.name.clone();
 
-            // Only check operation status per frame (this is dynamic and can't be cached)
+            // Only check operation status per frame (this is dynamic and can't be cached).
+            // Install operations are queued/keyed by app_name, uninstall operations by
+            // package_name, so look up under whichever key applies to this row's state.
             let operation_status = if let Some(ref queue) = self.operations_queue {
-                queue.get_status(&app_name)
+                if let Some((ref pkg_name, _, _)) = installed_pkg_info {
+                    queue.get_status(pkg_name)
+                } else {
+                    queue.get_status(&app_name)
+                }
             } else {
                 None
             };
@@ -1589,8 +1598,9 @@ impl TabAppsControl {
                         );
                     }
 
-                    // Mark for UI refresh
-                    self.refresh_pending = true;
+                    // UI refresh is triggered once the queue finishes (see
+                    // prepare_apps_tab_controller), not here — the worker hasn't
+                    // run the uninstall yet.
                 }
 
                 #[cfg(target_os = "android")]

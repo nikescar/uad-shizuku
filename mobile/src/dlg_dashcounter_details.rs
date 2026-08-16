@@ -951,37 +951,7 @@ impl DlgDashCounterDetails {
                 ui.add_space(10.0);
 
                 // Filters (copied from tab_debloat_control.rs)
-                ui.horizontal_wrapped(|ui| {
-                    ui.label(tr!("show-only-enabled"));
-                    toggle_ui(ui, &mut self.show_only_enabled);
-                    ui.add_space(10.0);
-                    ui.label(tr!("hide-system-app"));
-                    toggle_ui(ui, &mut self.hide_system_app);
-                    ui.add_space(10.0);
-                    ui.label(tr!("filter"));
-                    let response = ui.add(
-                        egui::TextEdit::singleline(&mut self.text_filter)
-                            .hint_text(tr!("filter-hint"))
-                            .desired_width(200.0),
-                    );
-                    #[cfg(target_os = "android")]
-                    {
-                        if response.gained_focus() {
-                            let _ = crate::android_inputmethod::show_soft_input();
-                        }
-                        if response.lost_focus() {
-                            let _ = crate::android_inputmethod::hide_soft_input();
-                        }
-                    }
-                    crate::clipboard_popup::show_clipboard_popup(
-                        ui,
-                        &response,
-                        &mut self.text_filter,
-                    );
-                    if !self.text_filter.is_empty() && ui.button("X").clicked() {
-                        self.text_filter.clear();
-                    }
-                });
+                self.render_filter_controls(ui);
 
                 ui.add_space(10.0);
 
@@ -1098,6 +1068,52 @@ impl DlgDashCounterDetails {
         }
 
         // Handle package details dialog open
+        self.handle_package_click(ctx, installed_packages, &clicked_package_idx);
+    }
+
+    /// Render the shared filter row (show-only-enabled / hide-system-app toggles + text filter).
+    ///
+    /// Used by both the desktop dashcounter details window and the mobile list dialog path
+    /// for Stalkerware/IzzyRisk, so both stay driven by the same filter state.
+    pub(crate) fn render_filter_controls(&mut self, ui: &mut egui::Ui) {
+        ui.horizontal_wrapped(|ui| {
+            ui.label(tr!("show-only-enabled"));
+            toggle_ui(ui, &mut self.show_only_enabled);
+            ui.add_space(10.0);
+            ui.label(tr!("hide-system-app"));
+            toggle_ui(ui, &mut self.hide_system_app);
+            ui.add_space(10.0);
+            ui.label(tr!("filter"));
+            let response = ui.add(
+                egui::TextEdit::singleline(&mut self.text_filter)
+                    .hint_text(tr!("filter-hint"))
+                    .desired_width(200.0),
+            );
+            #[cfg(target_os = "android")]
+            {
+                if response.gained_focus() {
+                    let _ = crate::android_inputmethod::show_soft_input();
+                }
+                if response.lost_focus() {
+                    let _ = crate::android_inputmethod::hide_soft_input();
+                }
+            }
+            crate::clipboard_popup::show_clipboard_popup(ui, &response, &mut self.text_filter);
+            if !self.text_filter.is_empty() && ui.button("X").clicked() {
+                self.text_filter.clear();
+            }
+        });
+    }
+
+    /// Open the package info dialog for whichever row was clicked in a rendered table, if any.
+    ///
+    /// Used by both the desktop dashcounter details window and the mobile list dialog path.
+    pub(crate) fn handle_package_click(
+        &self,
+        ctx: &egui::Context,
+        installed_packages: &[PackageFingerprint],
+        clicked_package_idx: &Arc<Mutex<Option<usize>>>,
+    ) {
         let clicked_idx = { clicked_package_idx.lock().ok().and_then(|guard| *guard) };
 
         if let Some(idx) = clicked_idx {
@@ -1110,7 +1126,7 @@ impl DlgDashCounterDetails {
         }
     }
 
-    fn get_window_title(&self, category: &DashCounterCategory) -> String {
+    pub(crate) fn get_window_title(&self, category: &DashCounterCategory) -> String {
         let base_title = match category {
             DashCounterCategory::DebloatRecommend => "Debloat: Recommended",
             DashCounterCategory::DebloatAdvanced => "Debloat: Advanced",
@@ -1341,7 +1357,7 @@ impl DlgDashCounterDetails {
         // Pagination removed - showing all items
     }
 
-    fn render_stalkerware_table(
+    pub(crate) fn render_stalkerware_table(
         &mut self,
         ui: &mut egui::Ui,
         ctx: &egui::Context,
@@ -1520,7 +1536,7 @@ impl DlgDashCounterDetails {
         // Pagination removed - showing all items
     }
 
-    fn render_izzyrisk_table(
+    pub(crate) fn render_izzyrisk_table(
         &mut self,
         ui: &mut egui::Ui,
         ctx: &egui::Context,
