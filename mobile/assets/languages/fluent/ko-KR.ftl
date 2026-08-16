@@ -53,6 +53,7 @@ update-available-message = 새 버전이 있습니다:
 release-notes = 릴리스 노트:
 update-android-instruction = "지금 업데이트"를 클릭하여 브라우저에서 다운로드 페이지를 엽니다. 다운로드 후 APK를 설치하여 앱을 업데이트하세요.
 update-desktop-instruction = "지금 업데이트"를 클릭하여 업데이트를 자동으로 다운로드하고 설치합니다.
+update-windows-instruction = "지금 업데이트"를 클릭하여 브라우저에서 다운로드 페이지를 엽니다. 다운로드 후 설치 프로그램을 실행하여 앱을 업데이트하세요.
 
 # Debloat Tab
 all = 전체 ({ $enabled }/{ $total })

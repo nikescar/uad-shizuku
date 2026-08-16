@@ -1934,7 +1934,9 @@ impl UadShizukuApp {
             let should_exit = Cell::new(false);
             let open_settings = Cell::new(false);
             let open_about = Cell::new(false);
-            #[cfg(not(target_os = "android"))]
+            // Self-install/uninstall (registry + shortcuts) is not offered on
+            // Windows: that pattern is a classic AV heuristic trigger.
+            #[cfg(not(any(target_os = "android", target_os = "windows")))]
             let do_install_action = Cell::new(false);
             let settings_text = tr!("settings");
             let about_text = tr!("about");
@@ -1950,14 +1952,14 @@ impl UadShizukuApp {
                 close_menu.set(true);
             });
 
-            // Install/Uninstall menu item (desktop only)
-            #[cfg(not(target_os = "android"))]
+            // Install/Uninstall menu item (desktop only, excluding Windows)
+            #[cfg(not(any(target_os = "android", target_os = "windows")))]
             let install_text = if self.install_status == InstallStatus::Installed {
                 tr!("uninstall")
             } else {
                 tr!("install")
             };
-            #[cfg(not(target_os = "android"))]
+            #[cfg(not(any(target_os = "android", target_os = "windows")))]
             let install_item = self.create_menu_item(&install_text, "install", || {
                 do_install_action.set(true);
                 close_menu.set(true);
@@ -1969,14 +1971,14 @@ impl UadShizukuApp {
                 println!("Exit clicked!");
             });
 
-            #[cfg(not(target_os = "android"))]
+            #[cfg(not(any(target_os = "android", target_os = "windows")))]
             let menu_builder = menu("standard_menu", &mut self.standard_menu_open)
                 .item(settings_item)
                 .item(install_item)
                 .item(about_item)
                 .item(exit_item);
 
-            #[cfg(target_os = "android")]
+            #[cfg(any(target_os = "android", target_os = "windows"))]
             let menu_builder = menu("standard_menu", &mut self.standard_menu_open)
                 .item(settings_item)
                 .item(about_item)
@@ -2032,7 +2034,7 @@ impl UadShizukuApp {
                 self.dlg_about.open();
             }
 
-            #[cfg(not(target_os = "android"))]
+            #[cfg(not(any(target_os = "android", target_os = "windows")))]
             if do_install_action.get() {
                 self.perform_install_action();
             }
@@ -2153,7 +2155,7 @@ impl UadShizukuApp {
 
     /// Perform update
     fn perform_update(&mut self) {
-        #[cfg(not(target_os = "android"))]
+        #[cfg(not(any(target_os = "android", target_os = "windows")))]
         {
             use crate::install_stt::InstallResult;
 
@@ -2181,9 +2183,12 @@ impl UadShizukuApp {
             self.install_dialog_open = true;
         }
 
-        #[cfg(target_os = "android")]
+        // On Android and Windows, self-replacing the running binary is not
+        // performed (on Windows, downloading-and-overwriting-itself is exactly
+        // what AV heuristics flag). Instead open the browser to the direct
+        // download link so the user can download and install it manually.
+        #[cfg(any(target_os = "android", target_os = "windows"))]
         {
-            // On Android, open browser to download page
             if !self.dlg_update.download_url.is_empty() {
                 if let Err(e) = webbrowser::open(&self.dlg_update.download_url) {
                     log::error!("Failed to open browser for update download: {}", e);

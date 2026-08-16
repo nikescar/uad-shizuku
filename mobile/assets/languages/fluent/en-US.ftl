@@ -53,6 +53,7 @@ update-available-message = A new version is available:
 release-notes = Release Notes:
 update-android-instruction = Click "Update Now" to open the download page in your browser. After downloading, install the APK to update the app.
 update-desktop-instruction = Click "Update Now" to download and install the update automatically.
+update-windows-instruction = Click "Update Now" to open the download page in your browser. After downloading, run the installer to update the app.
 
 # Debloat Tab
 all = All ({ $enabled }/{ $total })

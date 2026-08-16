@@ -22,6 +22,9 @@ fn get_versioned_app_name() -> String {
 }
 
 /// Move a file or directory to trash (cross-platform)
+/// Only used by the Linux/macOS self-installer and updater; not compiled for
+/// Windows, where self-installation/self-update is intentionally unimplemented.
+#[cfg(not(target_os = "windows"))]
 fn move_to_trash<P: AsRef<Path>>(path: P) -> Result<(), String> {
     let path = path.as_ref();
 
@@ -63,6 +66,7 @@ fn move_to_trash<P: AsRef<Path>>(path: P) -> Result<(), String> {
 
 /// Remove old versions of binaries and shortcuts
 /// If `keep_version` is provided, keep that version instead of the current running version
+#[cfg(not(target_os = "windows"))]
 fn cleanup_old_installations(
     paths: &InstallPaths,
     keep_version: Option<&str>,
@@ -89,12 +93,6 @@ fn cleanup_old_installations(
                 let name_str = file_name.to_string_lossy();
 
                 // Check if it's an old version of our app
-                #[cfg(target_os = "windows")]
-                let is_old_binary = name_str.starts_with(&format!("{}-", APP_NAME))
-                    && name_str.ends_with(".exe")
-                    && !name_str.starts_with(&version_to_keep);
-
-                #[cfg(not(target_os = "windows"))]
                 let is_old_binary = name_str.starts_with(&format!("{}-", APP_NAME))
                     && !name_str.starts_with(&version_to_keep)
                     && !name_str.contains("-bin"); // Don't remove the -bin helper on macOS
@@ -142,10 +140,7 @@ fn cleanup_old_installations(
                             #[cfg(target_os = "linux")]
                             let is_old_shortcut = name_str == format!("{}.desktop", APP_NAME);
 
-                            #[cfg(target_os = "windows")]
-                            let is_old_shortcut = name_str == format!("{}.lnk", APP_NAME);
-
-                            #[cfg(not(any(target_os = "linux", target_os = "windows")))]
+                            #[cfg(not(target_os = "linux"))]
                             let is_old_shortcut = false;
 
                             if is_old_shortcut && path != *start_menu {
@@ -183,10 +178,7 @@ fn cleanup_old_installations(
                             #[cfg(target_os = "linux")]
                             let is_old_shortcut = name_str == format!("{}.desktop", APP_NAME);
 
-                            #[cfg(target_os = "windows")]
-                            let is_old_shortcut = name_str == format!("{}.lnk", APP_NAME);
-
-                            #[cfg(not(any(target_os = "linux", target_os = "windows")))]
+                            #[cfg(not(target_os = "linux"))]
                             let is_old_shortcut = false;
 
                             if is_old_shortcut && path != *desktop {
@@ -288,35 +280,10 @@ pub fn get_install_paths() -> InstallPaths {
         }
     }
 
-    #[cfg(target_os = "windows")]
-    {
-        let user_profile = dirs::home_dir().unwrap_or_else(|| {
-            PathBuf::from(
-                std::env::var("USERPROFILE").unwrap_or_else(|_| "C:\\Users\\Default".to_string()),
-            )
-        });
-        let local_app_data =
-            dirs::data_local_dir().unwrap_or_else(|| user_profile.join("AppData").join("Local"));
-        let start_menu = dirs::data_dir()
-            .unwrap_or_else(|| local_app_data.clone())
-            .join("Microsoft")
-            .join("Windows")
-            .join("Start Menu")
-            .join("Programs");
-        let desktop = dirs::desktop_dir().unwrap_or_else(|| user_profile.join("Desktop"));
-
-        InstallPaths {
-            bin_dir: local_app_data.join("Programs").join(APP_NAME),
-            desktop_shortcut: Some(desktop.join(format!("{}.lnk", APP_NAME))),
-            start_menu_entry: Some(start_menu.join(format!("{}.lnk", APP_NAME))),
-            uninstall_key: Some(format!(
-                "HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\{}",
-                APP_NAME
-            )),
-        }
-    }
-
-    #[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
+    // Windows self-installation (registry writes, COM shortcut creation) is
+    // intentionally not implemented: that pattern is a classic AV heuristic
+    // trigger. Windows falls through to the generic unsupported-platform paths.
+    #[cfg(not(any(target_os = "linux", target_os = "macos")))]
     {
         InstallPaths {
             bin_dir: PathBuf::from("/tmp"),
@@ -404,89 +371,10 @@ pub fn check_install() -> InstallStatus {
         }
     }
 
-    #[cfg(target_os = "windows")]
-    {
-        // Check shortcuts and registry first (these are the definitive indicators)
-        let has_shortcut = paths.start_menu_entry.as_ref().is_some_and(|p| {
-            let exists = p.exists();
-            log::debug!("  Start menu shortcut exists: {} ({})", exists, p.display());
-            exists
-        });
-
-        let has_registry = check_windows_registry(&paths);
-        log::debug!("  Registry entry exists: {}", has_registry);
-
-        // If shortcuts or registry exist, definitely installed
-        if has_shortcut || has_registry {
-            log::info!("Installation detected (Windows) - shortcuts/registry exist");
-            return InstallStatus::Installed;
-        }
-
-        // If shortcuts AND registry are gone, check if binary exists
-        // Note: Binary might still exist after uninstall because we can't delete a running exe
-        // It will be cleaned up by the batch script after the app exits
-        let has_binary = if paths.bin_dir.exists() {
-            fs::read_dir(&paths.bin_dir)
-                .ok()
-                .and_then(|entries| {
-                    entries
-                        .filter_map(Result::ok)
-                        .any(|entry| {
-                            let name = entry.file_name();
-                            let name_str = name.to_string_lossy();
-                            let is_uad_shizuku = name_str.starts_with(&format!("{}-", APP_NAME))
-                                && name_str.ends_with(".exe");
-                            if is_uad_shizuku {
-                                log::debug!("  Found binary: {}", name_str);
-                            }
-                            is_uad_shizuku
-                        })
-                        .then_some(true)
-                })
-                .unwrap_or(false)
-        } else {
-            false
-        };
-
-        // Only consider installed if we have shortcuts/registry
-        // Binary alone (without shortcuts/registry) means uninstall is in progress
-        if has_binary && !has_shortcut && !has_registry {
-            log::info!("Binary exists but shortcuts/registry removed - considered uninstalled (cleanup pending)");
-            return InstallStatus::NotInstalled;
-        }
-
-        if has_binary {
-            log::info!("Installation detected (Windows) - binary exists");
-            return InstallStatus::Installed;
-        }
-    }
-
+    // Windows never installs itself (no registry keys, no shortcuts), so it
+    // always reports NotInstalled here.
     log::info!("No installation detected");
     InstallStatus::NotInstalled
-}
-
-#[cfg(target_os = "windows")]
-fn check_windows_registry(paths: &InstallPaths) -> bool {
-    use std::os::windows::process::CommandExt;
-    use std::process::Command;
-
-    const CREATE_NO_WINDOW: u32 = 0x08000000;
-
-    if let Some(key) = &paths.uninstall_key {
-        let output = Command::new("reg")
-            .args(["query", key])
-            .creation_flags(CREATE_NO_WINDOW)
-            .output();
-
-        matches!(output, Ok(o) if o.status.success())
-    } else {
-        false
-    }
-}
-
-#[cfg(not(target_os = "windows"))]
-fn check_windows_registry(_paths: &InstallPaths) -> bool {
-    false
 }
 
 /// Install the application
@@ -518,15 +406,7 @@ pub fn do_install() -> InstallResult {
         }
     }
 
-    #[cfg(target_os = "windows")]
-    {
-        match install_windows(&paths, &current_exe) {
-            Ok(msg) => InstallResult::Success(msg),
-            Err(e) => InstallResult::Error(e),
-        }
-    }
-
-    #[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
+    #[cfg(not(any(target_os = "linux", target_os = "macos")))]
     {
         InstallResult::Error("Unsupported platform".to_string())
     }
@@ -717,251 +597,6 @@ exec "$DIR/{}-bin" "$@"
     ))
 }
 
-#[cfg(target_os = "windows")]
-fn install_windows(paths: &InstallPaths, current_exe: &PathBuf) -> Result<String, String> {
-    log::info!("Starting Windows installation...");
-    log::info!("Current exe: {}", current_exe.display());
-    log::info!("Target directory: {}", paths.bin_dir.display());
-
-    // Clean up old installations
-    log::info!("Cleaning up old installations...");
-    cleanup_old_installations(paths, None)?;
-
-    let binary_dest = paths
-        .bin_dir
-        .join(format!("{}.exe", get_versioned_app_name()));
-    log::info!("Installing to: {}", binary_dest.display());
-
-    // Copy binary
-    log::info!("Copying binary...");
-    fs::copy(current_exe, &binary_dest).map_err(|e| format!("Failed to copy binary: {}", e))?;
-    log::info!("Binary copied successfully");
-
-    // Add uninstall registry entry
-    if let Some(ref key) = paths.uninstall_key {
-        use std::os::windows::process::CommandExt;
-        use std::process::Command;
-
-        log::info!("Adding registry entries for uninstaller...");
-
-        // Calculate estimated size in KB
-        let estimated_size = fs::metadata(&binary_dest)
-            .map(|m| (m.len() / 1024).to_string())
-            .unwrap_or_else(|_| "0".to_string());
-
-        // Define registry entries to add (name, type, value)
-        let reg_entries: Vec<(&str, &str, String)> = vec![
-            ("DisplayName", "REG_SZ", "UAD-Shizuku".to_string()),
-            ("DisplayVersion", "REG_SZ", CURRENT_VERSION.to_string()),
-            ("Publisher", "REG_SZ", "nikescar".to_string()),
-            (
-                "UninstallString",
-                "REG_SZ",
-                format!("\"{}\" --uninstall", binary_dest.display()),
-            ),
-            (
-                "InstallLocation",
-                "REG_SZ",
-                paths.bin_dir.display().to_string(),
-            ),
-            ("DisplayIcon", "REG_SZ", binary_dest.display().to_string()),
-            ("EstimatedSize", "REG_DWORD", estimated_size),
-            (
-                "URLInfoAbout",
-                "REG_SZ",
-                "https://uad-shizuku.pages.dev".to_string(),
-            ),
-            ("NoModify", "REG_DWORD", "1".to_string()),
-            ("NoRepair", "REG_DWORD", "1".to_string()),
-        ];
-
-        const CREATE_NO_WINDOW: u32 = 0x08000000;
-
-        for (i, (value_name, value_type, value_data)) in reg_entries.iter().enumerate() {
-            log::debug!(
-                "Adding registry entry {}/{}: {} = {} ({})",
-                i + 1,
-                reg_entries.len(),
-                value_name,
-                value_data,
-                value_type
-            );
-
-            // Call reg.exe directly with separate arguments (not through cmd)
-            let output = Command::new("reg")
-                .args([
-                    "add", key, "/v", value_name, "/t", value_type, "/d", value_data, "/f",
-                ])
-                .creation_flags(CREATE_NO_WINDOW)
-                .output();
-
-            match output {
-                Ok(out) => {
-                    if !out.status.success() {
-                        log::warn!(
-                            "Registry command failed (non-critical) for {}: {}",
-                            value_name,
-                            String::from_utf8_lossy(&out.stderr)
-                        );
-                    } else {
-                        log::debug!("Registry entry '{}' added successfully", value_name);
-                    }
-                }
-                Err(e) => log::warn!(
-                    "Failed to run registry command for {} (non-critical): {}",
-                    value_name,
-                    e
-                ),
-            }
-        }
-        log::info!("Registry entries added");
-    }
-
-    // Create Start Menu shortcut
-    if let Some(ref start_menu) = paths.start_menu_entry {
-        log::info!("Creating Start Menu shortcut: {}", start_menu.display());
-        if let Some(parent) = start_menu.parent() {
-            log::debug!("Creating Start Menu directory: {}", parent.display());
-            let _ = fs::create_dir_all(parent);
-        }
-        create_windows_shortcut(&binary_dest, start_menu)?;
-        log::info!("Start Menu shortcut created successfully");
-    }
-
-    // Create Desktop shortcut
-    if let Some(ref desktop) = paths.desktop_shortcut {
-        log::info!("Creating Desktop shortcut: {}", desktop.display());
-        match create_windows_shortcut(&binary_dest, desktop) {
-            Ok(_) => log::info!("Desktop shortcut created successfully"),
-            Err(e) => log::warn!("Failed to create desktop shortcut (non-critical): {}", e),
-        }
-    }
-
-    log::info!("Installation completed successfully");
-    Ok(format!(
-        "Successfully installed to {}",
-        binary_dest.display()
-    ))
-}
-
-#[cfg(target_os = "windows")]
-fn create_windows_shortcut(target: &PathBuf, shortcut_path: &PathBuf) -> Result<(), String> {
-    use windows::core::{Interface, PCWSTR};
-    use windows::Win32::System::Com::{
-        CoCreateInstance, CoInitializeEx, CoUninitialize, IPersistFile, CLSCTX_INPROC_SERVER,
-        COINIT_APARTMENTTHREADED,
-    };
-    use windows::Win32::UI::Shell::{IShellLinkW, ShellLink};
-
-    log::debug!("Creating Windows shortcut:");
-    log::debug!("  Target: {}", target.display());
-    log::debug!("  Shortcut path: {}", shortcut_path.display());
-
-    // Check if target exists
-    if !target.exists() {
-        let err_msg = format!("Target binary does not exist: {}", target.display());
-        log::error!("{}", err_msg);
-        return Err(err_msg);
-    }
-
-    let working_dir = target
-        .parent()
-        .ok_or_else(|| "Failed to get parent directory".to_string())?;
-
-    log::debug!("  Working directory: {}", working_dir.display());
-
-    // Convert paths to wide strings
-    let target_wide: Vec<u16> = target
-        .display()
-        .to_string()
-        .encode_utf16()
-        .chain(Some(0))
-        .collect();
-    let shortcut_wide: Vec<u16> = shortcut_path
-        .display()
-        .to_string()
-        .encode_utf16()
-        .chain(Some(0))
-        .collect();
-    let workdir_wide: Vec<u16> = working_dir
-        .display()
-        .to_string()
-        .encode_utf16()
-        .chain(Some(0))
-        .collect();
-    let args_wide: Vec<u16> = "".encode_utf16().chain(Some(0)).collect();
-    let desc_wide: Vec<u16> = "UAD-Shizuku - Universal Android Debloater"
-        .encode_utf16()
-        .chain(Some(0))
-        .collect();
-
-    unsafe {
-        // Initialize COM
-        log::debug!("Initializing COM...");
-        let hr = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
-        // Check if initialization failed (but allow RPC_E_CHANGED_MODE which means COM already initialized)
-        if hr.is_err() {
-            let hr_code = hr.0;
-            // 0x80010106 = RPC_E_CHANGED_MODE, means COM already initialized with different mode (okay)
-            if hr_code != 0x80010106u32 as i32 {
-                let err_msg = format!("Failed to initialize COM: HRESULT 0x{:08X}", hr_code as u32);
-                log::error!("{}", err_msg);
-                return Err(err_msg);
-            }
-            log::debug!("COM already initialized (RPC_E_CHANGED_MODE)");
-        }
-
-        let result = (|| -> Result<(), String> {
-            // Create ShellLink object
-            log::debug!("Creating IShellLink instance...");
-            let shell_link: IShellLinkW = CoCreateInstance(&ShellLink, None, CLSCTX_INPROC_SERVER)
-                .map_err(|e| format!("Failed to create IShellLink: {:?}", e))?;
-
-            // Set target path
-            log::debug!("Setting target path...");
-            shell_link
-                .SetPath(PCWSTR(target_wide.as_ptr()))
-                .map_err(|e| format!("Failed to set target path: {:?}", e))?;
-
-            // Set arguments
-            log::debug!("Setting arguments...");
-            shell_link
-                .SetArguments(PCWSTR(args_wide.as_ptr()))
-                .map_err(|e| format!("Failed to set arguments: {:?}", e))?;
-
-            // Set working directory
-            log::debug!("Setting working directory...");
-            shell_link
-                .SetWorkingDirectory(PCWSTR(workdir_wide.as_ptr()))
-                .map_err(|e| format!("Failed to set working directory: {:?}", e))?;
-
-            // Set description
-            log::debug!("Setting description...");
-            shell_link
-                .SetDescription(PCWSTR(desc_wide.as_ptr()))
-                .map_err(|e| format!("Failed to set description: {:?}", e))?;
-
-            // Save the shortcut
-            log::debug!("Saving shortcut...");
-            let persist_file: IPersistFile = shell_link
-                .cast()
-                .map_err(|e| format!("Failed to get IPersistFile interface: {:?}", e))?;
-
-            persist_file
-                .Save(PCWSTR(shortcut_wide.as_ptr()), true)
-                .map_err(|e| format!("Failed to save shortcut: {:?}", e))?;
-
-            log::info!("Shortcut created successfully");
-            Ok(())
-        })();
-
-        // Uninitialize COM
-        CoUninitialize();
-
-        result
-    }
-}
-
 /// Uninstall the application
 pub fn do_uninstall() -> InstallResult {
     let paths = get_install_paths();
@@ -982,15 +617,7 @@ pub fn do_uninstall() -> InstallResult {
         }
     }
 
-    #[cfg(target_os = "windows")]
-    {
-        match uninstall_windows(&paths) {
-            Ok(msg) => InstallResult::Success(msg),
-            Err(e) => InstallResult::Error(e),
-        }
-    }
-
-    #[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
+    #[cfg(not(any(target_os = "linux", target_os = "macos")))]
     {
         InstallResult::Error("Unsupported platform".to_string())
     }
@@ -1028,73 +655,6 @@ fn uninstall_macos(paths: &InstallPaths) -> Result<String, String> {
     }
 
     Ok("Successfully uninstalled UAD-Shizuku".to_string())
-}
-
-#[cfg(target_os = "windows")]
-fn uninstall_windows(paths: &InstallPaths) -> Result<String, String> {
-    use std::os::windows::process::CommandExt;
-    use std::process::Command;
-
-    const CREATE_NO_WINDOW: u32 = 0x08000000;
-
-    let binary_path = paths
-        .bin_dir
-        .join(format!("{}.exe", get_versioned_app_name()));
-
-    // Remove shortcuts
-    if let Some(ref start_menu) = paths.start_menu_entry {
-        let _ = fs::remove_file(start_menu);
-    }
-    if let Some(ref desktop) = paths.desktop_shortcut {
-        let _ = fs::remove_file(desktop);
-    }
-
-    // Remove registry entry
-    if let Some(ref key) = paths.uninstall_key {
-        let _ = Command::new("reg")
-            .args(["delete", key, "/f"])
-            .creation_flags(CREATE_NO_WINDOW)
-            .output();
-    }
-
-    // Remove binary and installation directory
-    if binary_path.exists() {
-        // On Windows, we can't delete a running executable, so schedule deletion on reboot
-        // or use a helper batch script
-        let batch_script = paths.bin_dir.join("uninstall.bat");
-        let script_content = format!(
-            r#"@echo off
-:retry
-del "{}" > nul 2>&1
-if exist "{}" (
-    timeout /t 1 /nobreak > nul
-    goto retry
-)
-rmdir /s /q "{}"
-del "%~f0"
-"#,
-            binary_path.display(),
-            binary_path.display(),
-            paths.bin_dir.display()
-        );
-
-        fs::write(&batch_script, script_content)
-            .map_err(|e| format!("Failed to create uninstall script: {}", e))?;
-
-        Command::new("cmd")
-            .args([
-                "/C",
-                "start",
-                "/min",
-                "",
-                &batch_script.display().to_string(),
-            ])
-            .creation_flags(CREATE_NO_WINDOW)
-            .spawn()
-            .map_err(|e| format!("Failed to run uninstall script: {}", e))?;
-    }
-
-    Ok("Uninstallation initiated. The application will be fully removed after exit.".to_string())
 }
 
 /// Check for updates from GitHub releases
@@ -1228,7 +788,11 @@ fn get_platform_download_url() -> Option<String> {
     Some(download_url)
 }
 
-/// Download and apply update
+/// Download and apply update by replacing the running binary in place.
+/// Not compiled for Windows: self-replacing a running .exe downloaded over
+/// the network is exactly the pattern AV heuristics flag. On Windows the
+/// caller instead opens `download_url` in the browser for a manual download.
+#[cfg(not(target_os = "windows"))]
 pub fn do_update(download_url: &str, latest_version: &str, tmp_dir: &PathBuf) -> InstallResult {
     log::info!("=== Starting update process ===");
     log::info!("Download URL: {}", download_url);
@@ -1311,6 +875,7 @@ pub fn do_update(download_url: &str, latest_version: &str, tmp_dir: &PathBuf) ->
     }
 }
 
+#[cfg(not(target_os = "windows"))]
 fn download_update(url: &str, tmp_dir: &PathBuf) -> Result<PathBuf, String> {
     let filename = url.split('/').last().unwrap_or("update");
     let dest_path = tmp_dir.join(filename);
@@ -1369,7 +934,7 @@ fn download_update(url: &str, tmp_dir: &PathBuf) -> Result<PathBuf, String> {
     Ok(dest_path)
 }
 
-#[cfg(not(any(target_os = "android", target_arch = "wasm32")))]
+#[cfg(not(any(target_os = "android", target_os = "windows", target_arch = "wasm32")))]
 fn extract_tar_gz(archive_path: &PathBuf, dest_dir: &PathBuf) -> Result<PathBuf, String> {
     use flate2::read::GzDecoder;
     use tar::Archive;
@@ -1388,7 +953,7 @@ fn extract_tar_gz(archive_path: &PathBuf, dest_dir: &PathBuf) -> Result<PathBuf,
     find_binary_in_dir(dest_dir)
 }
 
-#[cfg(not(any(target_os = "android", target_arch = "wasm32")))]
+#[cfg(not(any(target_os = "android", target_os = "windows", target_arch = "wasm32")))]
 fn extract_zip(archive_path: &PathBuf, dest_dir: &PathBuf) -> Result<PathBuf, String> {
     let file =
         fs::File::open(archive_path).map_err(|e| format!("Failed to open archive: {}", e))?;
@@ -1403,11 +968,9 @@ fn extract_zip(archive_path: &PathBuf, dest_dir: &PathBuf) -> Result<PathBuf, St
     find_binary_in_dir(dest_dir)
 }
 
+#[cfg(not(target_os = "windows"))]
 fn find_binary_in_dir(dir: &PathBuf) -> Result<PathBuf, String> {
     // GitHub release binaries don't include version in filename
-    #[cfg(target_os = "windows")]
-    let binary_name = format!("{}.exe", APP_NAME);
-    #[cfg(not(target_os = "windows"))]
     let binary_name = APP_NAME;
 
     log::info!(
@@ -1433,6 +996,7 @@ fn find_binary_in_dir(dir: &PathBuf) -> Result<PathBuf, String> {
     Err(format!("Binary '{}' not found in archive", binary_name))
 }
 
+#[cfg(not(target_os = "windows"))]
 fn walkdir(dir: &PathBuf) -> impl Iterator<Item = Result<fs::DirEntry, io::Error>> {
     let mut stack = vec![dir.clone()];
     let mut current_entries: Vec<Result<fs::DirEntry, io::Error>> = Vec::new();
@@ -1466,6 +1030,7 @@ fn walkdir(dir: &PathBuf) -> impl Iterator<Item = Result<fs::DirEntry, io::Error
     })
 }
 
+#[cfg(not(target_os = "windows"))]
 fn replace_binary(
     new_binary: &PathBuf,
     paths: &InstallPaths,
@@ -1492,9 +1057,6 @@ fn replace_binary(
         get_versioned_app_name()
     };
 
-    #[cfg(target_os = "windows")]
-    let dest = paths.bin_dir.join(format!("{}.exe", versioned_name));
-    #[cfg(not(target_os = "windows"))]
     let dest = paths.bin_dir.join(versioned_name);
 
     log::info!("Target installation path: {}", dest.display());
@@ -1515,9 +1077,6 @@ fn replace_binary(
     // Rename current binary before replacing (works on both Windows and Unix)
     // This allows updating a running executable
     if dest.exists() {
-        #[cfg(target_os = "windows")]
-        let backup = dest.with_extension("exe.old");
-        #[cfg(not(target_os = "windows"))]
         let backup = dest.with_extension("old");
 
         log::info!("Existing binary found, backing up to: {}", backup.display());
@@ -1566,32 +1125,6 @@ fn replace_binary(
         }
 
         // Update shortcuts to point to new binary
-        #[cfg(target_os = "windows")]
-        {
-            log::info!("Updating Windows shortcuts...");
-
-            if let Some(ref start_menu) = paths.start_menu_entry {
-                log::info!("Updating Start Menu shortcut: {}", start_menu.display());
-                match create_windows_shortcut(&dest, start_menu) {
-                    Ok(_) => log::info!("Start Menu shortcut updated successfully"),
-                    Err(e) => {
-                        log::error!("Failed to update Start Menu shortcut: {}", e);
-                        return Err(format!("Failed to update Start Menu shortcut: {}", e));
-                    }
-                }
-            }
-
-            if let Some(ref desktop) = paths.desktop_shortcut {
-                log::info!("Updating Desktop shortcut: {}", desktop.display());
-                match create_windows_shortcut(&dest, desktop) {
-                    Ok(_) => log::info!("Desktop shortcut updated successfully"),
-                    Err(e) => log::warn!("Failed to update Desktop shortcut (non-critical): {}", e),
-                }
-            }
-
-            log::info!("Shortcuts updated successfully");
-        }
-
         #[cfg(target_os = "linux")]
         {
             log::info!("Updating Linux .desktop files...");

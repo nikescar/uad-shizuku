@@ -100,14 +100,13 @@ gdk = "0.18"
 eframe = { workspace = true, default-features = false, features = ["default_fonts","glow","x11", "wayland"] }
 
 # Windows-specific dependencies
+# NOTE: the `windows` crate (COM IShellLink shortcut creation) was removed
+# along with the Windows self-installer in mobile/src/install.rs -- that
+# self-copy + registry-write + shortcut-creation pattern is a classic AV
+# heuristic trigger and is intentionally not implemented for this platform.
 [target.'cfg(target_os = "windows")'.dependencies]
 winapi = { version = "0.3", features = ["wincon", "winuser"] }
 winsafe = { version = "0.0.26", features = ["gui"] }
-windows = { version = "0.58", features = [
-    "Win32_UI_Shell",
-    "Win32_System_Com",
-    "Win32_Foundation",
-] }
 
 # Non-Android specific dependencies
 [target.'cfg(not(target_os = "android"))'.dependencies]

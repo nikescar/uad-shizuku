@@ -89,7 +89,12 @@ impl DlgUpdate {
                             ui.add(egui::Label::new(tr!("update-android-instruction")).wrap());
                         }
 
-                        #[cfg(not(target_os = "android"))]
+                        #[cfg(target_os = "windows")]
+                        {
+                            ui.add(egui::Label::new(tr!("update-windows-instruction")).wrap());
+                        }
+
+                        #[cfg(not(any(target_os = "android", target_os = "windows")))]
                         {
                             ui.add(egui::Label::new(tr!("update-desktop-instruction")).wrap());
                         }
