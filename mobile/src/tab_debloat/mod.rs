@@ -241,7 +241,7 @@ pub(crate) fn is_package_enabled(package: &crate::adb::PackageFingerprint) -> bo
 
 /// Compute per-category package counts from the UAD-NG lists (matches
 /// `AppEntry.removal`: "Recommended" / "Advanced" / "Unsafe" / "Expert").
-fn compute_category_counts(
+pub(crate) fn compute_category_counts(
     packages: &[crate::adb::PackageFingerprint],
     uad_ng_lists: Option<&crate::uad_shizuku_app::UadNgLists>,
 ) -> CachedCategoryCounts {

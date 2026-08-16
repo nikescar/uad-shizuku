@@ -2600,8 +2600,9 @@ impl UadShizukuApp {
         let shared_store = get_shared_store();
         let installed_packages = shared_store.get_installed_packages();
 
-        // REMOVED: tab_debloat_control.update_cached_counts (phased out)
         let uad_ng_lists = shared_store.get_uad_ng_lists();
+        self.tab_debloat.state.cached_counts =
+            crate::tab_debloat::compute_category_counts(&installed_packages, uad_ng_lists.as_ref());
 
         // Update cached scan counts for VT and HA
         let vt_scanner_state = self.tab_scan_control.vt_scanner_state.clone();
