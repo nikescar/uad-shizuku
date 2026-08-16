@@ -221,7 +221,7 @@ impl TabDebloat {
 /// - enabled == 2 (disabled)
 /// - enabled == 3 (disabled-user)
 /// - enabled == 0 && !installed && is_system (removed system user)
-fn is_package_enabled(package: &crate::adb::PackageFingerprint) -> bool {
+pub(crate) fn is_package_enabled(package: &crate::adb::PackageFingerprint) -> bool {
     package
         .users
         .first()
