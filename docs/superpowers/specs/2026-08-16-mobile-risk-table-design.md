@@ -152,22 +152,42 @@ local_state.mobile_info_dialog.show(ctx, vm_state, &vm_state.uad_ng_lists);
 
 ### Enable / disable / uninstall
 
-Replaces the desktop path's `ui.data_mut` temp-key writes (`enable_clicked_package`,
-`disable_clicked_package`, `uninstall_clicked_package`), which are polled later in
-`uad_shizuku_app.rs`. The table takes `on_toggle_clicked: &mut dyn FnMut(&str, bool)` and
-`on_delete_clicked: &mut dyn FnMut(&str)` callbacks (debloat's pattern):
+**Correction found during plan-writing:** the original draft of this section proposed
+`viewmodel.batch_enable`/`batch_disable`/`batch_uninstall`. That's wrong for this table
+specifically — `viewmodel.*` mutates ViewModel state (`vm_state.packages`), but this table's
+`installed_packages` comes from `shared_store` (Non-Goals: that source isn't migrating).
+`DebloatActor`'s batch methods never touch `shared_store`, so a toggle would succeed on
+device but the row would stay stale until some unrelated `shared_store` refresh happened.
 
-- Toggle → `viewmodel.batch_enable(vec![pkg_id], device)` /
-  `viewmodel.batch_disable(vec![pkg_id], device)` directly (single-item vec — no batch
-  concept here).
+**Actual approach:** keep the *existing* app-wide `ctx.data_mut` temp-key convention
+(`enable_clicked_package`, `disable_clicked_package`, `uninstall_clicked_package` +
+`uninstall_clicked_is_system`). This isn't owned by `dlg_dashcounter_details.rs` — `calc.rs`
+writes to the sibling `info_clicked_package` key too — and its handler in
+`uad_shizuku_app.rs` (~lines 1700-1765) already performs direct `adb::enable_app` /
+`adb::disable_app_current_user` + `shared_store.set_installed_packages(...)`, which is
+exactly what keeps this table's next-frame render correct.
+
+The table still exposes `on_toggle_clicked: &mut dyn FnMut(&str, bool)` and
+`on_delete_clicked: &mut dyn FnMut(&str)` callbacks (debloat's pattern), but their
+implementation in `view_mobile.rs` writes to the temp keys instead of calling `viewmodel`:
+
+- Toggle → `ctx.data_mut(|data| data.insert_temp(Id::new("enable_clicked_package"), pkg_id))`
+  (or `disable_clicked_package`).
 - Delete → `local_state.uninstall_confirm_dialog.open_single(pkg_id, is_system)`, then on
-  confirm (`.show(ctx)` returns `true`), `viewmodel.batch_uninstall(vec![pkg_id], device)`.
+  confirm (`.show(ctx)` returns `true`), write `uninstall_clicked_package` +
+  `uninstall_clicked_is_system`.
 
-This requires `viewmodel: &ViewModel` and a device string to be available where
-`view_mobile::render` is called. `DlgMobileList::show()` gains two new parameters:
-`viewmodel: &crate::viewmodel::ViewModel` and `selected_device: Option<&str>` (or
-equivalent) — neither is in its signature today, since the desktop-polling path didn't need
-them at this layer.
+**`uninstall_clicked_package` is currently dead code** — its handler was removed when
+`tab_debloat_control` was phased out (see the `// REMOVED: Uninstall confirmation dialog`
+comment at `uad_shizuku_app.rs:1766`), so desktop IzzyRisk/Stalkerware uninstall is silently
+broken today. This plan adds a real handler there, mirroring the enable/disable pattern:
+`adb::uninstall_app(pkg, device)`, then on success patch `shared_store`'s package list — for
+a system app, set `enabled = 0, installed = false` on all users (matches the existing
+"Removed"/`REMOVED_USER` status display already used elsewhere); for a non-system app,
+remove the package entry from the list entirely.
+
+No new parameters on `DlgMobileList::show()` are needed for this — `viewmodel` and a device
+string are not required at this layer.
 
 ## State
 
@@ -241,9 +261,11 @@ sorting (see Non-Goals).
 1. **`dlg_mobile_list_stt.rs`**: add `risk_state: dlg_mobile_risk::RiskTableState` field to
    `DlgMobileList`.
 2. **`dlg_mobile_list.rs`**:
-   - `show()` signature: drop `dlg_dashcounter_details: &mut DlgDashCounterDetails`,
-     `stalkerware_indicators`, `package_risk_scores` stays; add `viewmodel: &ViewModel` and
-     `selected_device: Option<&str>`.
+   - `show()` signature: drop the `dlg_dashcounter_details: &mut DlgDashCounterDetails`
+     parameter and the separately-threaded `stalkerware_indicators` parameter (now read from
+     `vm_state.stalkerware_indicators`); `package_risk_scores` stays. No new parameters are
+     added — enable/disable/uninstall go through the existing temp-key convention (see
+     Enable / disable / uninstall above), not `viewmodel`.
    - `Stalkerware`/`IzzyRisk` arms call `dlg_mobile_risk::view_mobile::render(...)` instead
      of `dlg_dashcounter_details.render_stalkerware_table`/`render_izzyrisk_table`.
    - Window title match gains local arms for `RiskCategory` (see Window title above).
