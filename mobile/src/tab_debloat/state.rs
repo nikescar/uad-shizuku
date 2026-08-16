@@ -8,6 +8,91 @@ use crate::dlg_uninstall_confirm::DlgUninstallConfirm;
 use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
 
+/// Simple confirmation dialog for batch toggle operations
+#[derive(Default)]
+pub struct DlgBatchToggleConfirm {
+    pub open: bool,
+    pub is_enabling: bool,
+    pub package_ids: Vec<String>,
+    pub device: String,
+}
+
+impl DlgBatchToggleConfirm {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn open(
+        &mut self,
+        is_enabled: bool,
+        package_ids: std::collections::HashSet<String>,
+        device: String,
+    ) {
+        self.is_enabling = !is_enabled;
+        self.package_ids = package_ids.into_iter().collect();
+        self.device = device;
+        self.open = true;
+    }
+
+    pub fn show(
+        &mut self,
+        ctx: &eframe::egui::Context,
+        viewmodel: &crate::viewmodel::ViewModel,
+    ) -> bool {
+        if !self.open {
+            return false;
+        }
+
+        let mut confirmed = false;
+        let mut cancelled = false;
+
+        let action = if self.is_enabling { "Enable" } else { "Disable" };
+
+        eframe::egui::Window::new(format!("Confirm Batch {}", action))
+            .collapsible(false)
+            .resizable(false)
+            .show(ctx, |ui| {
+                ui.label(format!(
+                    "Are you sure you want to {} {} packages?",
+                    action.to_lowercase(),
+                    self.package_ids.len()
+                ));
+
+                ui.horizontal(|ui| {
+                    if ui.button("Cancel").clicked() {
+                        cancelled = true;
+                    }
+                    if ui.button("Confirm").clicked() {
+                        confirmed = true;
+                    }
+                });
+            });
+
+        if confirmed {
+            if self.is_enabling {
+                if let Err(e) =
+                    viewmodel.batch_enable(self.package_ids.clone(), self.device.clone())
+                {
+                    log::error!("Failed to batch enable: {}", e);
+                }
+            } else {
+                if let Err(e) =
+                    viewmodel.batch_disable(self.package_ids.clone(), self.device.clone())
+                {
+                    log::error!("Failed to batch disable: {}", e);
+                }
+            }
+            self.open = false;
+        }
+
+        if cancelled {
+            self.open = false;
+        }
+
+        confirmed
+    }
+}
+
 /// Sort column options for the package table
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum SortColumn {
@@ -120,6 +205,12 @@ pub struct TabDebloatState {
     /// Uninstall confirmation dialog state
     pub uninstall_confirm_dialog: DlgUninstallConfirm,
 
+    /// Mobile package info dialog
+    pub mobile_info_dialog: crate::dlg_package_info_mobile::DlgPackageInfoMobile,
+
+    /// Batch toggle confirmation dialog
+    pub batch_toggle_confirm: DlgBatchToggleConfirm,
+
     /// Cached category counts for quick display
     pub cached_counts: CachedCategoryCounts,
 
@@ -185,6 +276,8 @@ impl Default for TabDebloatState {
             applied_filter_text: String::new(),
             package_details_dialog: DlgPackageDetails::new(),
             uninstall_confirm_dialog: DlgUninstallConfirm::default(),
+            mobile_info_dialog: crate::dlg_package_info_mobile::DlgPackageInfoMobile::new(),
+            batch_toggle_confirm: DlgBatchToggleConfirm::new(),
             cached_counts: CachedCategoryCounts::default(),
             unsafe_app_remove: false,
             expert_app_remove: false,
