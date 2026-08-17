@@ -586,7 +586,7 @@ mod tests {
     fn test_constants() {
         assert_eq!(ROW_HEIGHT, 56.0);
         assert_eq!(NAME_COLUMN_WIDTH, 320.0);
-        assert_eq!(SCAN_RESULT_COLUMN_WIDTH, 390.0);
+        assert_eq!(SCAN_RESULT_COLUMN_WIDTH, 100.0);
         assert_eq!(TASKS_COLUMN_WIDTH, 200.0);
         assert_eq!(MOBILE_BUTTON_SPACING, 16.0);
         assert_eq!(MOBILE_TOUCH_TARGET, 40.0);
