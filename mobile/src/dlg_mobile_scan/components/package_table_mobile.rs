@@ -416,13 +416,6 @@ pub fn render_scan_table_mobile(
             TableBuilder::new(ui)
                 .striped(true)
                 .resizable(false)
-                // The caller (`dlg_mobile_scan::view_mobile::render`) already wraps this whole
-                // table in its own `ScrollArea::vertical`, so TableBuilder's default internal
-                // vertical scroll area is redundant. Left enabled, it nests inside our own
-                // horizontal ScrollArea above and competes with it (and with the per-cell
-                // horizontal scroll areas below) for the same drag gestures, which is what made
-                // horizontal scrolling here work inconsistently.
-                .vscroll(false)
                 .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
                 .column(Column::exact(NAME_COLUMN_WIDTH))
                 .column(Column::exact(SCAN_RESULT_COLUMN_WIDTH))
