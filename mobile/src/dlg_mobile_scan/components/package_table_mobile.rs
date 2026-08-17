@@ -20,7 +20,7 @@ use egui_material3::icon_button_standard;
 
 const ROW_HEIGHT: f32 = 56.0;
 const NAME_COLUMN_WIDTH: f32 = 320.0;
-const SCAN_RESULT_COLUMN_WIDTH: f32 = 390.0;
+const SCAN_RESULT_COLUMN_WIDTH: f32 = 100.0;
 const TASKS_COLUMN_WIDTH: f32 = 200.0;
 const MOBILE_BUTTON_SPACING: f32 = 16.0;
 const MOBILE_TOUCH_TARGET: f32 = 40.0;
