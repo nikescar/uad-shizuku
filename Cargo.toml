@@ -8,8 +8,8 @@ members = [
 edition = "2021"
 license = "MIT OR Apache-2.0"
 rust-version = "1.81"
-version = "0.0.21"
-versioncode = "0.0.21"
+version = "0.0.22"
+versioncode = "0.0.22"
 
 [workspace.dependencies]
 directories = "5.0"
