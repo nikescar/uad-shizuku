@@ -10,6 +10,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.os.Build;
 import android.os.IBinder;
+import android.os.PowerManager;
 
 /**
  * Foreground service that keeps the UAD-Shizuku process alive while the
@@ -18,18 +19,58 @@ import android.os.IBinder;
  */
 public class ForegroundKeepAliveService extends Service {
 
-    private static final String CHANNEL_ID = "uad_shizuku_keep_alive";
+    // v2: bumped from "uad_shizuku_keep_alive" because notification channel importance is
+    // immutable once created — devices that ran the old IMPORTANCE_MIN channel need a new
+    // channel id to pick up IMPORTANCE_LOW.
+    private static final String CHANNEL_ID = "uad_shizuku_keep_alive_v2";
     private static final int NOTIFICATION_ID = 1;
+
+    private PowerManager.WakeLock wakeLock;
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         startForegroundInternal();
+        acquireWakeLock();
         return START_STICKY;
+    }
+
+    @Override
+    public void onDestroy() {
+        releaseWakeLock();
+        super.onDestroy();
     }
 
     @Override
     public IBinder onBind(Intent intent) {
         return null;
+    }
+
+    /**
+     * Holds the CPU awake (screen stays off/locked) for as long as this service is
+     * running, so in-flight scan network calls keep making progress instead of
+     * stalling once the device enters deep sleep. Lifetime is bounded by the
+     * service itself, which the Rust side starts/stops exactly for the duration
+     * of an active VirusTotal/HybridAnalysis scan (see tab_scan_control.rs).
+     */
+    private void acquireWakeLock() {
+        if (wakeLock != null && wakeLock.isHeld()) {
+            return;
+        }
+        PowerManager powerManager = (PowerManager) getSystemService(Context.POWER_SERVICE);
+        if (powerManager == null) {
+            return;
+        }
+        wakeLock = powerManager.newWakeLock(
+                PowerManager.PARTIAL_WAKE_LOCK, "uad_shizuku:scan_keep_alive");
+        wakeLock.setReferenceCounted(false);
+        wakeLock.acquire();
+    }
+
+    private void releaseWakeLock() {
+        if (wakeLock != null && wakeLock.isHeld()) {
+            wakeLock.release();
+        }
+        wakeLock = null;
     }
 
     private void startForegroundInternal() {
@@ -76,7 +117,7 @@ public class ForegroundKeepAliveService extends Service {
                 NotificationChannel channel = new NotificationChannel(
                         CHANNEL_ID,
                         "Keep Alive",
-                        NotificationManager.IMPORTANCE_MIN);
+                        NotificationManager.IMPORTANCE_LOW);
                 channel.setDescription("Keeps UAD-Shizuku running while the device is asleep");
                 channel.setShowBadge(false);
                 manager.createNotificationChannel(channel);
