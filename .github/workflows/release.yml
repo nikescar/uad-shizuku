@@ -375,6 +375,8 @@ jobs:
     # We run the release job only if a tag starts with 'v' letter
     if: startsWith( github.ref, 'refs/tags/v' )
     runs-on: ubuntu-22.04
+    permissions:
+      contents: write
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v3
@@ -549,4 +551,4 @@ jobs:
           make_latest: true
           files: distbin/*
           body: ${{ steps.parse_results.outputs.formatted_results }}
-          token: ${{ secrets.RELEASE_TOKEN }}
+          token: ${{ secrets.GITHUB_TOKEN }}
