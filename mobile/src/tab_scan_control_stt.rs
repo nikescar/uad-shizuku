@@ -165,6 +165,12 @@ pub struct TabScanControl {
 
     // Uninstall confirmation dialog
     pub uninstall_confirm_dialog: DlgUninstallConfirm,
+
+    // Whether the Android foreground keep-alive service is currently started.
+    // Tracked so start/stop JNI calls only fire on actual transitions, not on
+    // every scan event (e.g. VT finishing while HA is still running should not
+    // stop the service).
+    pub foreground_service_active: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

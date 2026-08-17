@@ -4309,14 +4309,6 @@ impl eframe::App for UadShizukuApp {
             log::info!("First update - initializing Shizuku");
             crate::calc::retrieve_adb_devices(self);
 
-            // Start a foreground service so the process survives device sleep
-            // (screen off / backgrounding) instead of being reclaimed by the OS,
-            // which previously reset all in-memory app state on resume.
-            if let Err(e) = crate::android_foreground_service::start_foreground_keep_alive_service()
-            {
-                log::warn!("Failed to start foreground keep-alive service: {}", e);
-            }
-
             // Check for updates if autoupdate is enabled
             if self.settings.autoupdate {
                 log::info!("Autoupdate enabled - checking for updates");

@@ -1,5 +1,6 @@
 package pe.nikescar.uad_shizuku;
 
+import android.app.Activity;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
@@ -80,6 +81,18 @@ public class ForegroundKeepAliveService extends Service {
                 channel.setShowBadge(false);
                 manager.createNotificationChannel(channel);
             }
+        }
+    }
+
+    /**
+     * JNI-callable entry point: request the POST_NOTIFICATIONS runtime permission
+     * (API 33+) so the foreground service's notification is actually visible.
+     * No-op on older API levels, where the permission does not exist.
+     */
+    public static void requestNotificationPermission(Activity activity) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            activity.requestPermissions(
+                    new String[]{"android.permission.POST_NOTIFICATIONS"}, 1001);
         }
     }
 

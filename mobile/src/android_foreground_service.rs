@@ -125,13 +125,26 @@ pub fn start_foreground_keep_alive_service() -> std::io::Result<()> {
     let jclass: &jni::objects::JClass = class.as_obj().into();
 
     let ctx = ndk_context::android_context();
-    let context = unsafe { jni::objects::JObject::from_raw(ctx.context() as _) };
+    let activity = unsafe { jni::objects::JObject::from_raw(ctx.context() as _) };
+
+    // Best-effort: request POST_NOTIFICATIONS (API 33+) so the foreground
+    // service's notification is actually visible to the user. A denial (or
+    // failure on older API levels where the method is a no-op) does not
+    // block the service itself from keeping the process alive.
+    if let Err(e) = env.call_static_method(
+        jclass,
+        "requestNotificationPermission",
+        "(Landroid/app/Activity;)V",
+        &[JValue::Object(&activity)],
+    ) {
+        log::warn!("Failed to request notification permission: {}", e);
+    }
 
     env.call_static_method(
         jclass,
         "startService",
         "(Landroid/content/Context;)V",
-        &[JValue::Object(&context)],
+        &[JValue::Object(&activity)],
     )
     .map(|_| ())
     .map_err(|e| {

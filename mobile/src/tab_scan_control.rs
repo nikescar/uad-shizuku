@@ -69,6 +69,7 @@ impl Default for TabScanControl {
             unsafe_app_remove: false,
             expert_app_remove: false,
             uninstall_confirm_dialog: DlgUninstallConfirm::default(),
+            foreground_service_active: false,
         }
     }
 }
@@ -170,6 +171,31 @@ impl TabScanControl {
                 log::debug!("HybridAnalysis scanner state updated");
                 self.ha_scanner_state = Some(state.clone());
             }
+        }
+
+        self.sync_foreground_service();
+    }
+
+    /// Start/stop the Android foreground keep-alive service based on whether
+    /// VirusTotal or HybridAnalysis scanning is currently running. These are
+    /// the app's only long-running background tasks, so the service should
+    /// only be active while at least one of them is in flight. No-op on
+    /// non-Android platforms (the underlying calls are stubbed there).
+    fn sync_foreground_service(&mut self) {
+        let should_run = self.vt_scan_state.is_running || self.ha_scan_state.is_running;
+        if should_run == self.foreground_service_active {
+            return;
+        }
+        self.foreground_service_active = should_run;
+        if should_run {
+            if let Err(e) = crate::android_foreground_service::start_foreground_keep_alive_service()
+            {
+                log::warn!("Failed to start foreground keep-alive service: {}", e);
+            }
+        } else if let Err(e) =
+            crate::android_foreground_service::stop_foreground_keep_alive_service()
+        {
+            log::warn!("Failed to stop foreground keep-alive service: {}", e);
         }
     }
 
