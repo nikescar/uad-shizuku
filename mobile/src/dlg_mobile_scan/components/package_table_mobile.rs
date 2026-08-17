@@ -20,7 +20,7 @@ use egui_material3::icon_button_standard;
 
 const ROW_HEIGHT: f32 = 56.0;
 const NAME_COLUMN_WIDTH: f32 = 320.0;
-const SCAN_RESULT_COLUMN_WIDTH: f32 = 80.0;
+const SCAN_RESULT_COLUMN_WIDTH: f32 = 390.0;
 const TASKS_COLUMN_WIDTH: f32 = 200.0;
 const MOBILE_BUTTON_SPACING: f32 = 16.0;
 const MOBILE_TOUCH_TARGET: f32 = 40.0;
@@ -410,12 +410,19 @@ pub fn render_scan_table_mobile(
     };
 
     egui::ScrollArea::horizontal()
-        .id_salt("scan_table_mobile_scroll")
+        .id_salt("scan_table_mobile_horizontal_scroll")
         .auto_shrink([false, true])
         .show(ui, |ui| {
             TableBuilder::new(ui)
                 .striped(true)
                 .resizable(false)
+                // The caller (`dlg_mobile_scan::view_mobile::render`) already wraps this whole
+                // table in its own `ScrollArea::vertical`, so TableBuilder's default internal
+                // vertical scroll area is redundant. Left enabled, it nests inside our own
+                // horizontal ScrollArea above and competes with it (and with the per-cell
+                // horizontal scroll areas below) for the same drag gestures, which is what made
+                // horizontal scrolling here work inconsistently.
+                .vscroll(false)
                 .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
                 .column(Column::exact(NAME_COLUMN_WIDTH))
                 .column(Column::exact(SCAN_RESULT_COLUMN_WIDTH))
