@@ -16,9 +16,8 @@ fn get_uad_lists_url() -> String {
 }
 
 const UAD_LISTS_FILENAME: &str = "uad_lists.json";
-// Embedded fallback file (pre-downloaded and compressed at build time with zstd)
-// Compression reduces binary size and makes embedded data less obvious to AV static analysis
-const UAD_LISTS_FALLBACK_COMPRESSED: &[u8] = include_bytes!("../resources/uad_lists.json.zst");
+// Embedded fallback file (pre-downloaded at build time, uncompressed to avoid AV false positives)
+const UAD_LISTS_FALLBACK_JSON: &[u8] = include_bytes!("../resources/uad_lists.json");
 
 /// Load the UAD-NG debloat lists, refreshing the on-disk cache if it is
 /// missing or older than 7 days. Blocking - call from a background thread.
@@ -117,32 +116,18 @@ fn download_or_fallback(cache_file_path: &Path, url: &str) {
 }
 
 fn write_fallback(cache_file_path: &Path) {
-    // Decompress the embedded zstd-compressed fallback data
-    match zstd::decode_all(UAD_LISTS_FALLBACK_COMPRESSED) {
-        Ok(decompressed_json) => {
-            match std::fs::write(cache_file_path, decompressed_json) {
-                Ok(_) => log::info!("Successfully wrote decompressed UAD lists fallback to cache"),
-                Err(e) => log::error!("Failed to write UAD lists fallback to cache: {}", e),
-            }
-        }
-        Err(e) => log::error!("Failed to decompress UAD lists fallback: {}", e),
+    // Write the embedded fallback data to cache
+    match std::fs::write(cache_file_path, UAD_LISTS_FALLBACK_JSON) {
+        Ok(_) => log::info!("Successfully wrote UAD lists fallback to cache"),
+        Err(e) => log::error!("Failed to write UAD lists fallback to cache: {}", e),
     }
 }
 
 fn parse_embedded_fallback() -> Option<UadNgLists> {
     log::info!("Attempting to parse from embedded fallback data");
 
-    // First decompress the zstd-compressed embedded data
-    let decompressed_json = match zstd::decode_all(UAD_LISTS_FALLBACK_COMPRESSED) {
-        Ok(data) => data,
-        Err(e) => {
-            log::error!("Failed to decompress embedded fallback: {}", e);
-            return None;
-        }
-    };
-
-    // Then parse the decompressed JSON
-    match serde_json::from_slice::<UadNgLists>(&decompressed_json) {
+    // Parse the embedded JSON directly (no decompression needed)
+    match serde_json::from_slice::<UadNgLists>(UAD_LISTS_FALLBACK_JSON) {
         Ok(uad_lists) => {
             log::info!(
                 "Successfully parsed UAD lists from embedded fallback with {} apps",

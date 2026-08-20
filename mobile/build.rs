@@ -67,24 +67,14 @@ fn download_fallback_resources() {
         return;
     }
 
-    // Download UAD lists and compress with zstd to reduce binary size
-    // and make embedded data less obvious to AV static analysis
+    // Download UAD lists (no compression - plain JSON to avoid AV false positives)
     let uad_json_path = resources_dir.join("uad_lists.json");
-    let uad_zst_path = resources_dir.join("uad_lists.json.zst");
 
     download_if_needed(
         &uad_lists_url,
         &uad_json_path,
         "UAD lists",
     );
-
-    // Compress UAD lists with zstd (level 3 = good balance of speed/size)
-    if uad_json_path.exists() {
-        match compress_uad_lists(&uad_json_path, &uad_zst_path) {
-            Ok(_) => println!("cargo:warning=Compressed UAD lists to {:?}", uad_zst_path),
-            Err(e) => eprintln!("Warning: Failed to compress UAD lists: {}", e),
-        }
-    }
 
     // Download Stalkerware IoC
     download_if_needed(
@@ -94,7 +84,7 @@ fn download_fallback_resources() {
     );
 
     // Tell Cargo to rerun this build script if the files are deleted
-    println!("cargo:rerun-if-changed=resources/uad_lists.json.zst");
+    println!("cargo:rerun-if-changed=resources/uad_lists.json");
     println!("cargo:rerun-if-changed=resources/stalkerware_ioc.yaml");
 }
 
@@ -175,25 +165,3 @@ fn download_if_needed(url: &str, file_path: &Path, description: &str) {
     }
 }
 
-fn compress_uad_lists(json_path: &Path, zst_path: &Path) -> std::io::Result<()> {
-    // Read the JSON file
-    let json_data = fs::read(json_path)?;
-
-    // Compress with zstd (level 3 = good balance of speed and compression)
-    let compressed = zstd::encode_all(&json_data[..], 3)
-        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
-
-    // Write compressed data
-    fs::write(zst_path, compressed)?;
-
-    let original_size = json_data.len();
-    let compressed_size = fs::metadata(zst_path)?.len();
-    let ratio = (compressed_size as f64 / original_size as f64) * 100.0;
-
-    println!(
-        "cargo:warning=Compressed UAD lists: {} bytes -> {} bytes ({:.1}% of original)",
-        original_size, compressed_size, ratio
-    );
-
-    Ok(())
-}
