@@ -171,6 +171,16 @@ fn render_filter_row(ui: &mut egui::Ui, local_state: &mut RiskTableState) {
                 .hint_text("Search...")
                 .desired_width(200.0),
         );
+        #[cfg(target_os = "android")]
+        {
+            if response.gained_focus() {
+                let _ = crate::android_inputmethod::show_soft_input();
+            }
+            if response.lost_focus() {
+                let _ = crate::android_inputmethod::hide_soft_input();
+            }
+        }
+        crate::clipboard_popup::show_clipboard_popup(ui, &response, &mut local_state.text_filter);
         if !local_state.text_filter.is_empty() && ui.button("X").clicked() {
             local_state.text_filter.clear();
         }
