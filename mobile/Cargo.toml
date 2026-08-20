@@ -51,6 +51,7 @@ ureq = "2.12"
 ureq_multipart = "1.1"
 regex = "1.12"
 chrono = "0.4"
+rand = "0.8"
 # jsonpath for parsing google play data
 jsonpath_lib = "0.3"
 base64 = "0.22"

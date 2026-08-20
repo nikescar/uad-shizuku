@@ -166,7 +166,7 @@ fn render_filter_row(ui: &mut egui::Ui, local_state: &mut RiskTableState) {
         ui.checkbox(&mut local_state.hide_system_app, "Hide system apps");
         ui.add_space(10.0);
         ui.label("Filter:");
-        ui.add(
+        let response = ui.add(
             egui::TextEdit::singleline(&mut local_state.text_filter)
                 .hint_text("Search...")
                 .desired_width(200.0),

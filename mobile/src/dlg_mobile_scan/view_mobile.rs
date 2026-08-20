@@ -100,6 +100,7 @@ pub fn render(
 
     egui::ScrollArea::vertical()
         .id_salt("scan_table_mobile_scroll")
+        .auto_shrink([false, false])
         .show(ui, |ui| {
             render_scan_table_mobile(
                 ui,
@@ -166,7 +167,7 @@ fn render_filter_row(ui: &mut egui::Ui, local_state: &mut ScanTableState) {
         ui.checkbox(&mut local_state.hide_system_app, "Hide system apps");
         ui.add_space(10.0);
         ui.label("Filter:");
-        ui.add(
+        let response = ui.add(
             egui::TextEdit::singleline(&mut local_state.text_filter)
                 .hint_text("Search...")
                 .desired_width(200.0),
