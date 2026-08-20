@@ -20,7 +20,8 @@ jobs:
   publish-to-pages:
     name: Publish Windows Exe to GitHub Pages
     runs-on: ubuntu-22.04
-    if: ${{ (github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch') && github.event.workflow_run.head_branch != 'test' }}
+    # Only publish when triggered by workflow_run from a tag starting with 'v'
+    if: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && startsWith(github.event.workflow_run.head_branch, 'v') }}
 
     steps:
       - name: Checkout Repository
