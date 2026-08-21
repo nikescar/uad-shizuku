@@ -502,6 +502,16 @@ fn render_search_bar(ui: &mut egui::Ui, local_state: &mut TabDebloatState) {
             // User typed something - start/reset debounce timer
             local_state.last_filter_input = Some(std::time::Instant::now());
         }
+        #[cfg(target_os = "android")]
+        {
+            if response.gained_focus() {
+                let _ = crate::android_inputmethod::show_soft_input();
+            }
+            if response.lost_focus() {
+                let _ = crate::android_inputmethod::hide_soft_input();
+            }
+        }
+        crate::clipboard_popup::show_clipboard_popup(ui, &response, &mut local_state.pending_filter_text);
         if ui.button("Clear").clicked() {
             local_state.pending_filter_text.clear();
             local_state.applied_filter_text.clear();

@@ -78,6 +78,16 @@ fn render_filter_section(
         if response.changed() {
             local_state.last_filter_input = Some(std::time::Instant::now());
         }
+        #[cfg(target_os = "android")]
+        {
+            if response.gained_focus() {
+                let _ = crate::android_inputmethod::show_soft_input();
+            }
+            if response.lost_focus() {
+                let _ = crate::android_inputmethod::hide_soft_input();
+            }
+        }
+        crate::clipboard_popup::show_clipboard_popup(ui, &response, &mut local_state.pending_filter_text);
         if ui.button("Clear").clicked() {
             local_state.pending_filter_text.clear();
             local_state.applied_filter_text.clear();
@@ -353,6 +363,23 @@ fn render_package_list(
 
     // Allocate remaining vertical space for scrollable list
     let available_height = ui.available_height() - 60.0; // Reserve space for batch actions
+
+    // Show empty state message if no packages to display
+    if vm_state.filtered_packages.is_empty() {
+        ui.vertical_centered(|ui| {
+            ui.add_space(50.0);
+            if vm_state.packages.is_empty() {
+                ui.label("No packages loaded. Please select a device and load packages.");
+            } else {
+                ui.label(format!(
+                    "No packages match the current filter. ({} total packages available)",
+                    vm_state.packages.len()
+                ));
+                ui.label("Try adjusting your filter settings or clearing the search.");
+            }
+        });
+        return;
+    }
 
     ui.vertical(|ui| {
         ui.set_min_height(available_height);
