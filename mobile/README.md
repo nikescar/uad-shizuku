@@ -1,3 +1,7 @@
+## Icons
+
+Android and iOS icons are generated with https://icon.kitchen/. Download and extract them to `mobile/app/src/main/res/`.
+
 ## Android
 
 ### Requirements
