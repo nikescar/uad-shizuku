@@ -80,7 +80,25 @@ pub fn init_common() {
 /// Initialize egui context with fonts, themes, and image loaders.
 /// Call this in the eframe app creation callback.
 pub fn init_egui(ctx: &Context) {
-    setup_local_theme(Some("resources/material-theme.json"));
+    // CRITICAL: Set non-black background IMMEDIATELY to prevent black screen on Android
+    // This happens before theme loading to avoid any black flash during initialization
+    ctx.style_mut(|style| {
+        style.visuals.window_fill = egui::Color32::from_rgb(250, 250, 250);
+        style.visuals.panel_fill = egui::Color32::from_rgb(250, 250, 250);
+    });
+
+    // Select random theme from available themes
+    let themes = [THEME_GREEN, THEME_LIGHTBLUE, THEME_LIGHTPINK, THEME_YELLOW];
+    let selected_theme = themes[rand::random::<usize>() % themes.len()];
+
+    // Load the randomly selected theme
+    if let Err(e) = load_theme_from_json_str(selected_theme) {
+        tracing::warn!("Failed to load random theme: {}, falling back to default", e);
+        setup_local_theme(Some("resources/material-theme.json"));
+    } else {
+        tracing::info!("Loaded random theme successfully");
+    }
+
     // material icon fonts https://github.com/google/material-design-icons
     setup_local_fonts_from_bytes(
         "MaterialSymbolsOutlined",
@@ -94,6 +112,7 @@ pub fn init_egui(ctx: &Context) {
     load_fonts(ctx);
     load_themes();
     update_window_background(ctx);
+    ctx.request_repaint(); // Force immediate repaint to show new background
 
     // Restore saved custom font if configured
     if let Ok(config) = Config::new() {
