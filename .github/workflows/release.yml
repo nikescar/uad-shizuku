@@ -388,26 +388,34 @@ jobs:
         with:
           path: artifacts
 
+      - name: Setup Python for VirusTotal Scan
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Python Dependencies
+        run: |
+          pip install requests
+
       - name: VirusTotal Scan
         id: vt_scan
         continue-on-error: true
-        uses: crazy-max/ghaction-virustotal@v4
-        with:
-          vt_api_key: ${{ secrets.VT_API_KEY }}
-          update_release_body: false
-          request_rate: 4
-          files: |
-            ./artifacts/uad-shizuku-aarch64-apple-darwin/uad-shizuku
-            ./artifacts/uad-shizuku-aarch64-linux-android/uad-shizuku
-            ./artifacts/uad-shizuku-aarch64-unknown-linux-musl/uad-shizuku
-            ./artifacts/uad-shizuku-all-signed.apk/uad-shizuku-all-signed.apk
-            ./artifacts/uad-shizuku-armv7-linux-androideabi/uad-shizuku
-            ./artifacts/uad-shizuku-armv7-unknown-linux-musleabihf/uad-shizuku
-            ./artifacts/uad-shizuku-x86_64-apple-darwin/uad-shizuku
-            ./artifacts/uad-shizuku-x86_64-unknown-linux-musl/uad-shizuku
-            ./artifacts/uad-shizuku-x86_64-unknown-freebsd/uad-shizuku
-            ./artifacts/uad-shizuku-x86_64-pc-windows-msvc/uad-shizuku-x86_64.exe
-            ./artifacts/uad-shizuku-i686-pc-windows-msvc/uad-shizuku-i686.exe
+        env:
+          VT_REQUEST_RATE: 4
+        run: |
+          python .github/scripts/virustotal_scan.py \
+            "${{ secrets.VT_API_KEY }}" \
+            ./artifacts/uad-shizuku-aarch64-apple-darwin/uad-shizuku \
+            ./artifacts/uad-shizuku-aarch64-linux-android/uad-shizuku \
+            ./artifacts/uad-shizuku-aarch64-unknown-linux-musl/uad-shizuku \
+            ./artifacts/uad-shizuku-all-signed.apk/uad-shizuku-all-signed.apk \
+            ./artifacts/uad-shizuku-armv7-linux-androideabi/uad-shizuku \
+            ./artifacts/uad-shizuku-armv7-unknown-linux-musleabihf/uad-shizuku \
+            ./artifacts/uad-shizuku-x86_64-apple-darwin/uad-shizuku \
+            ./artifacts/uad-shizuku-x86_64-unknown-linux-musl/uad-shizuku \
+            ./artifacts/uad-shizuku-x86_64-unknown-freebsd/uad-shizuku \
+            ./artifacts/uad-shizuku-x86_64-pc-windows-msvc/uad-shizuku-x86_64.exe \
+            ./artifacts/uad-shizuku-i686-pc-windows-msvc/uad-shizuku-i686.exe \
             ./artifacts/uad-shizuku-aarch64-pc-windows-msvc/uad-shizuku-aarch64.exe
 
       - name: Parse Analysis Results
