@@ -388,6 +388,41 @@ jobs:
         with:
           path: artifacts
 
+      - name: Debug - List Downloaded Artifacts
+        run: |
+          echo "=== Artifact directory structure ==="
+          find artifacts -type f -ls 2>/dev/null || true
+          echo ""
+          echo "=== Checking files for VirusTotal scan ==="
+          MISSING=0
+          FOUND=0
+          for file in \
+            ./artifacts/uad-shizuku-aarch64-apple-darwin/uad-shizuku \
+            ./artifacts/uad-shizuku-aarch64-linux-android/uad-shizuku \
+            ./artifacts/uad-shizuku-aarch64-unknown-linux-musl/uad-shizuku \
+            ./artifacts/uad-shizuku-all-signed.apk/uad-shizuku-all-signed.apk \
+            ./artifacts/uad-shizuku-armv7-linux-androideabi/uad-shizuku \
+            ./artifacts/uad-shizuku-armv7-unknown-linux-musleabihf/uad-shizuku \
+            ./artifacts/uad-shizuku-x86_64-apple-darwin/uad-shizuku \
+            ./artifacts/uad-shizuku-x86_64-unknown-linux-musl/uad-shizuku \
+            ./artifacts/uad-shizuku-x86_64-unknown-freebsd/uad-shizuku \
+            ./artifacts/uad-shizuku-x86_64-pc-windows-msvc/uad-shizuku-x86_64.exe \
+            ./artifacts/uad-shizuku-i686-pc-windows-msvc/uad-shizuku-i686.exe \
+            ./artifacts/uad-shizuku-aarch64-pc-windows-msvc/uad-shizuku-aarch64.exe; do
+            if [ -f "$file" ]; then
+              echo "✓ Found: $file ($(stat -c%s "$file" 2>/dev/null || stat -f%z "$file" 2>/dev/null || echo "unknown") bytes)"
+              FOUND=$((FOUND + 1))
+            else
+              echo "✗ Missing: $file"
+              MISSING=$((MISSING + 1))
+            fi
+          done
+          echo ""
+          echo "Summary: $FOUND found, $MISSING missing"
+          if [ $MISSING -gt 0 ]; then
+            echo "⚠️ Warning: Some build artifacts are missing. Check build job logs."
+          fi
+
       - name: Setup Python for VirusTotal Scan
         uses: actions/setup-python@v5
         with:
@@ -421,29 +456,51 @@ jobs:
       - name: Parse Analysis Results
         id: parse_results
         run: |
-          # Extract changelog from CHANGELOG.md (first "What's Changed" section only)
+          # Auto-generate changelog from git commits between tags
           CHANGELOG_CONTENT=""
-          if [ -f "CHANGELOG.md" ]; then
-            echo "Extracting changelog from CHANGELOG.md..."
 
-            # Read the first "What's Changed" section
-            # Stop at the next "##" heading or end of file
-            CHANGELOG_RAW=$(awk '
-              /^## What'\''s Changed$/ { in_section=1; next }
-              in_section && /^##/ { exit }
-              in_section && NF { print }
-            ' CHANGELOG.md)
+          echo "Generating changelog from git history..."
 
-            # Process changelog: remove "by @username" and deduplicate
-            if [ -n "$CHANGELOG_RAW" ]; then
-              # Remove "by @username" pattern and deduplicate lines
-              CHANGELOG_CONTENT=$(echo "$CHANGELOG_RAW" | \
-                sed -E 's/ by @[a-zA-Z0-9_-]+//g' | \
-                awk '!seen[$0]++')
+          # Get previous tag (fallback to first commit if no previous tag)
+          PREVIOUS_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || git rev-list --max-parents=0 HEAD)
+          CURRENT_TAG=$(git describe --tags --exact-match HEAD 2>/dev/null || echo "HEAD")
 
-              echo "Processed changelog:"
-              echo "$CHANGELOG_CONTENT"
+          echo "Commits between $PREVIOUS_TAG and $CURRENT_TAG:"
+
+          # Get all commits between tags, excluding merges
+          ALL_COMMITS=$(git log $PREVIOUS_TAG..HEAD --pretty=format:"- %s" --no-merges | \
+            sed -E 's/ \(#[0-9]+\)$//g' | \
+            awk '!seen[$0]++')
+
+          if [ -n "$ALL_COMMITS" ]; then
+            # Group commits by type
+            FEATURES=$(echo "$ALL_COMMITS" | grep -E "^- (feat|feature)" || echo "")
+            FIXES=$(echo "$ALL_COMMITS" | grep -E "^- fix" || echo "")
+            CHORES=$(echo "$ALL_COMMITS" | grep -E "^- (chore|ci|docs|refactor|perf|test|style)" || echo "")
+            OTHER=$(echo "$ALL_COMMITS" | grep -vE "^- (feat|feature|fix|chore|ci|docs|refactor|perf|test|style)" || echo "")
+
+            # Build formatted changelog
+            if [ -n "$FEATURES" ]; then
+              CHANGELOG_CONTENT="${CHANGELOG_CONTENT}### ✨ Features\n${FEATURES}\n\n"
             fi
+
+            if [ -n "$FIXES" ]; then
+              CHANGELOG_CONTENT="${CHANGELOG_CONTENT}### 🐛 Bug Fixes\n${FIXES}\n\n"
+            fi
+
+            if [ -n "$CHORES" ]; then
+              CHANGELOG_CONTENT="${CHANGELOG_CONTENT}### 🔧 Maintenance\n${CHORES}\n\n"
+            fi
+
+            if [ -n "$OTHER" ]; then
+              CHANGELOG_CONTENT="${CHANGELOG_CONTENT}### 📦 Other Changes\n${OTHER}\n\n"
+            fi
+
+            echo "Generated changelog:"
+            echo -e "$CHANGELOG_CONTENT"
+          else
+            echo "No commits found between tags"
+            CHANGELOG_CONTENT="No changes recorded."
           fi
 
           # Get the analysis output from previous step
@@ -458,6 +515,7 @@ jobs:
           VT_RESULTS=""
 
           # Check if we have any results
+          VT_SCAN_COUNT=0
           if [ -z "$ANALYSIS" ]; then
             echo "Warning: No analysis output from VirusTotal scan"
             VT_RESULTS="⚠️ VirusTotal scan encountered errors. Some files may have been scanned previously (409 error)."
@@ -489,6 +547,7 @@ jobs:
 
               # Build markdown link
               VT_RESULTS="${VT_RESULTS}- **${identifier}**: [View VirusTotal Report](${url})\n"
+              VT_SCAN_COUNT=$((VT_SCAN_COUNT + 1))
             done
 
             # Check if we have formatted results
@@ -502,10 +561,17 @@ jobs:
           FORMATTED_RESULTS=""
 
           if [ -n "$CHANGELOG_CONTENT" ]; then
-            FORMATTED_RESULTS="${FORMATTED_RESULTS}## What's Changed\n${CHANGELOG_CONTENT}\n\n"
+            FORMATTED_RESULTS="${FORMATTED_RESULTS}## What's Changed\n${CHANGELOG_CONTENT}\n"
           fi
 
-          FORMATTED_RESULTS="${FORMATTED_RESULTS}## VirusTotal Scan Results\n${VT_RESULTS}"
+          # Add VirusTotal section with scan count
+          if [ $VT_SCAN_COUNT -gt 0 ]; then
+            FORMATTED_RESULTS="${FORMATTED_RESULTS}## VirusTotal Scan Results\n\n"
+            FORMATTED_RESULTS="${FORMATTED_RESULTS}✅ **${VT_SCAN_COUNT} files scanned**\n\n"
+            FORMATTED_RESULTS="${FORMATTED_RESULTS}${VT_RESULTS}"
+          else
+            FORMATTED_RESULTS="${FORMATTED_RESULTS}## VirusTotal Scan Results\n\n${VT_RESULTS}"
+          fi
 
           # Save to output (escape for GitHub Actions)
           echo "formatted_results<<EOF" >> $GITHUB_OUTPUT

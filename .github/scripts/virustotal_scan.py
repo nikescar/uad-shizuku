@@ -149,11 +149,13 @@ def main():
     print(f"Delay between requests: {delay_between_requests:.2f} seconds\n")
 
     results = []
+    skipped = []
 
     for i, file_path in enumerate(files):
         # Check if file exists
         if not os.path.isfile(file_path):
             print(f"✗ File not found: {file_path}")
+            skipped.append(file_path)
             continue
 
         # Upload or fetch existing report
@@ -174,7 +176,13 @@ def main():
     print("\n" + "="*80)
     print("SCAN COMPLETE")
     print("="*80)
-    print(f"Successfully scanned: {len(results)}/{len(files)} files\n")
+    print(f"Successfully scanned: {len(results)}/{len(files)} files")
+
+    if skipped:
+        print(f"\nSkipped {len(skipped)} file(s) (not found):")
+        for s in skipped:
+            print(f"  - {s}")
+    print()
 
     # Set GitHub Actions output
     github_output = os.environ.get("GITHUB_OUTPUT")
