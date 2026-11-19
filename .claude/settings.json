@@ -1,6 +1,0 @@
-{
-  "enabledPlugins": {
-    "rust-skills@rust-skills": true,
-    "superpowers@claude-plugins-official": true
-  }
-}
